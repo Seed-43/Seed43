@@ -36,7 +36,7 @@ GITHUB_ORG   = "Seed-43"
 MAIN_REPO    = "Seed43"
 BRANCH       = "main"
 
-CHANGELOG_URL = "https://raw.githubusercontent.com/{o}/{r}/{b}/changelog.json".format(
+CHANGELOG_URL = "https://raw.githubusercontent.com/{o}/{r}/{b}/bundle.yaml".format(
     o=GITHUB_ORG, r=MAIN_REPO, b=BRANCH)
 
 APPDATA = os.environ.get("APPDATA", "")
@@ -50,7 +50,7 @@ TOOLS = [
                              "Seed43.tab", "Document Studio.panel", "pyTransmit.pushbutton"),
         "version_file":  os.path.join(APPDATA, "pyRevit", "Extensions", "Seed43.extension",
                              "Seed43.tab", "Document Studio.panel", "pyTransmit.pushbutton", "version.txt"),
-        "changelog_url": "https://raw.githubusercontent.com/{o}/{r}/{b}/changelog.json".format(
+        "changelog_url": "https://raw.githubusercontent.com/{o}/{r}/{b}/bundle.yaml".format(
                              o=GITHUB_ORG, r="Seed43-PyTransmit", b=BRANCH),
         "zip_url":       "https://github.com/{o}/{r}/archive/refs/heads/{b}.zip".format(
                              o=GITHUB_ORG, r="Seed43-PyTransmit", b=BRANCH),
@@ -71,14 +71,44 @@ def load_xaml(path):
     reader.Close()
     return window
 
-def fetch_json(url):
+def fetch_bundle(url):
+    """Fetch and parse a simple bundle.yaml from a URL. Returns dict or None."""
     try:
         wc = WebClient()
         wc.Headers.Add("Cache-Control", "no-cache, no-store")
         wc.Headers.Add("Pragma", "no-cache")
-        return json.loads(wc.DownloadString(url))
+        raw = wc.DownloadString(url)
+        result = {}
+        changelog = []
+        in_changelog = False
+        for line in raw.splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if stripped.startswith("- ") and in_changelog:
+                changelog.append(stripped[2:].strip())
+                continue
+            if ":" in stripped:
+                in_changelog = False
+                key, _, val = stripped.partition(":")
+                key = key.strip()
+                val = val.strip()
+                if key == "changelog":
+                    in_changelog = True
+                elif val:
+                    result[key] = val
+        if changelog:
+            result["changelog"] = changelog
+        # Map to expected keys
+        result["version"] = result.get("version", "")
+        result["changes"] = result.get("changelog", [])
+        return result
     except Exception:
         return None
+
+def fetch_json(url):
+    """Legacy alias — routes to fetch_bundle for yaml URLs."""
+    return fetch_bundle(url)
 
 def get_local_version(version_file):
     if File.Exists(version_file):

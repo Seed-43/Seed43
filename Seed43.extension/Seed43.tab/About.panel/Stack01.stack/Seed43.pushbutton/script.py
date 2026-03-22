@@ -53,7 +53,7 @@ TOOLS = [
     }
 ]
 
-S43_VERSION_FILE = os.path.join(APPDATA, "pyRevit", "Extensions", "Seed43.extension", "version.txt")
+S43_VERSION_FILE = os.path.join(APPDATA, "pyRevit", "Extensions", "seed43_version.txt")
 
 # ── Load XAML from file ───────────────────────────────────────────────────────
 SCRIPT_DIR = os.path.dirname(__file__)
@@ -351,6 +351,12 @@ class Seed43Dialog(object):
                 # Write version.txt into the newly installed extension
                 new_version_file = System.IO.Path.Combine(S43_INSTALL, "version.txt")
                 File.WriteAllText(new_version_file, version)
+                # Also write a backup version file one level up so it survives overwrites
+                backup_version_file = System.IO.Path.Combine(
+                    os.path.join(os.environ.get("APPDATA", ""), "pyRevit", "Extensions"),
+                    "seed43_version.txt"
+                )
+                File.WriteAllText(backup_version_file, version)
                 if File.Exists(TEMP_ZIP):   File.Delete(TEMP_ZIP)
                 if Directory.Exists(TEMP_DIR): Directory.Delete(TEMP_DIR, True)
                 dispatch(self.window, lambda: self._on_s43_update_done(version))

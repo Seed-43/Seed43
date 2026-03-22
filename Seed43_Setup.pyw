@@ -124,10 +124,14 @@ def download_and_install(log_fn, done_fn, error_fn):
             log_fn("Warning: script.py or seed43.xaml missing from repo ZIP.")
             log_fn("Check the repo includes the Seed43.extension folder.")
 
-        # Write version
+        # Write version — stored outside the extension folder so it survives updates
         changelog = fetch_changelog()
         version = changelog.get("version", "unknown") if changelog else "unknown"
         write_version(version)
+        # Also write backup version file at Extensions level
+        backup_version = os.path.join(EXTENSIONS_DIR, "seed43_version.txt")
+        with open(backup_version, "w") as f:
+            f.write(version)
 
         # Cleanup
         if os.path.exists(TEMP_ZIP):

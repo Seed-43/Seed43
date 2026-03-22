@@ -169,6 +169,21 @@
         </DockPanel>
     </Border>
 
+    <!-- Update ribbon (hidden until update detected) -->
+    <Border x:Name="update_ribbon" Visibility="Collapsed"
+            Background="#D4720A" Cursor="Hand" Padding="20,8">
+        <DockPanel>
+            <TextBlock Text="&#x25B2;  Update Available — click to update"
+                       FontSize="12" FontWeight="SemiBold"
+                       Foreground="#F4FAFF" VerticalAlignment="Center"/>
+            <TextBlock x:Name="update_ribbon_version"
+                       Text="" FontSize="11"
+                       Foreground="#F4FAFF" Opacity="0.85"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Center"/>
+        </DockPanel>
+    </Border>
+
     <!-- Body -->
     <StackPanel Margin="20,16,20,20">
 

@@ -104,6 +104,7 @@ class Seed43Dialog(object):
     def _bind(self):
         self.window.FindName("header_close").Click              += lambda s, e: self.window.Close()
         self.window.FindName("footer_close").Click              += lambda s, e: self.window.Close()
+        self.window.FindName("update_ribbon").MouseLeftButtonUp += self._on_s43_update
         self.window.FindName("pt_header").MouseLeftButtonUp     += self._on_toggle
         self.window.FindName("pt_action_btn").Click             += self._on_action
 
@@ -286,8 +287,87 @@ class Seed43Dialog(object):
             changes = remote.get("changes", [])
             self.window.FindName("s43_changelog").Text = \
                 u"Latest: v{0}   {1}".format(ver, u"  \u2022  ".join(changes[:2]))
+            # Show orange ribbon if update available
+            if local and ver and ver != local:
+                self._remote_s43_version = ver
+                self.window.FindName("update_ribbon_version").Text = \
+                    u"v{0}  \u2192  v{1}".format(local, ver)
+                self.window.FindName("update_ribbon").Visibility = Visibility.Visible
         else:
             self.window.FindName("s43_changelog").Text = "Could not reach GitHub"
+
+    def _on_s43_update(self, sender, args):
+        result = MessageBox.Show(
+            "Update Seed43 extension to v{0}?\n\nThe extension will be re-downloaded from GitHub.\nReload PyRevit in Revit after updating.".format(
+                getattr(self, "_remote_s43_version", "latest")),
+            "Update Seed43",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question
+        )
+        if str(result) != "Yes":
+            return
+
+        ribbon = self.window.FindName("update_ribbon")
+        ribbon.Visibility = Visibility.Collapsed
+
+        import urllib.request as _ur
+        import zipfile as _zf
+
+        EXTENSIONS_DIR = os.path.join(os.environ.get("APPDATA", ""), "pyRevit", "Extensions")
+        S43_INSTALL    = os.path.join(EXTENSIONS_DIR, "Seed43.extension")
+        ZIP_URL        = "https://github.com/{o}/{r}/archive/refs/heads/{b}.zip".format(
+                            o=GITHUB_ORG, r=MAIN_REPO, b=BRANCH)
+        TEMP_ZIP       = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "seed43_update.zip")
+        TEMP_DIR       = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "seed43_update_extracted")
+
+        def log(msg):
+            dispatch(self.window, lambda: setattr(
+                self.window.FindName("s43_changelog"), "Text", msg))
+
+        def worker():
+            try:
+                log("Downloading update...")
+                WebClient().DownloadFile(ZIP_URL, TEMP_ZIP)
+                log("Extracting...")
+                if Directory.Exists(TEMP_DIR):
+                    Directory.Delete(TEMP_DIR, True)
+                ZipFile.ExtractToDirectory(TEMP_ZIP, TEMP_DIR)
+                extracted_root = None
+                for d in Directory.GetDirectories(TEMP_DIR):
+                    extracted_root = d
+                    break
+                if not extracted_root:
+                    raise System.Exception("Could not find extracted folder.")
+                src = System.IO.Path.Combine(extracted_root, "Seed43.extension")
+                if not Directory.Exists(src):
+                    raise System.Exception("Seed43.extension not found in ZIP.")
+                log("Installing update...")
+                if Directory.Exists(S43_INSTALL):
+                    Directory.Delete(S43_INSTALL, True)
+                import shutil as _sh
+                _sh.copytree(src, S43_INSTALL)
+                remote = fetch_json(CHANGELOG_URL)
+                version = remote.get("version", "unknown") if remote else "unknown"
+                write_local_version(S43_VERSION_FILE, version)
+                if File.Exists(TEMP_ZIP):   File.Delete(TEMP_ZIP)
+                if Directory.Exists(TEMP_DIR): Directory.Delete(TEMP_DIR, True)
+                dispatch(self.window, lambda: self._on_s43_update_done(version))
+            except System.Exception as ex:
+                dispatch(self.window, lambda: self._on_error(str(ex)))
+
+        t = Thread(ThreadStart(worker))
+        t.IsBackground = True
+        t.Start()
+
+    def _on_s43_update_done(self, version):
+        self.window.FindName("s43_version").Text = u"\u25CF  Installed  v{0}".format(version)
+        self.window.FindName("s43_changelog").Text = u"Updated to v{0} — reload PyRevit to apply.".format(version)
+        MessageBox.Show(
+            "Seed43 updated to v{0}.\n\nReload PyRevit in Revit to apply the update.".format(version),
+            "Seed43 Updated",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information
+        )
 
     def _update_pt_ui(self, local, remote):
         if local:

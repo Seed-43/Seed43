@@ -348,7 +348,9 @@ class Seed43Dialog(object):
                 _sh.copytree(src, S43_INSTALL)
                 remote = fetch_json(CHANGELOG_URL)
                 version = remote.get("version", "unknown") if remote else "unknown"
-                write_local_version(S43_VERSION_FILE, version)
+                # Write version.txt into the newly installed extension
+                new_version_file = System.IO.Path.Combine(S43_INSTALL, "version.txt")
+                File.WriteAllText(new_version_file, version)
                 if File.Exists(TEMP_ZIP):   File.Delete(TEMP_ZIP)
                 if Directory.Exists(TEMP_DIR): Directory.Delete(TEMP_DIR, True)
                 dispatch(self.window, lambda: self._on_s43_update_done(version))
@@ -360,8 +362,11 @@ class Seed43Dialog(object):
         t.Start()
 
     def _on_s43_update_done(self, version):
+        # Update the in-memory version so re-checking won't loop
+        self._local_s43_version = version
+        self.window.FindName("update_ribbon").Visibility = Visibility.Collapsed
         self.window.FindName("s43_version").Text = u"\u25CF  Installed  v{0}".format(version)
-        self.window.FindName("s43_changelog").Text = u"Updated to v{0} — reload PyRevit to apply.".format(version)
+        self.window.FindName("s43_changelog").Text = u"Updated to v{0} \u2014 reload PyRevit to apply.".format(version)
         MessageBox.Show(
             "Seed43 updated to v{0}.\n\nReload PyRevit in Revit to apply the update.".format(version),
             "Seed43 Updated",

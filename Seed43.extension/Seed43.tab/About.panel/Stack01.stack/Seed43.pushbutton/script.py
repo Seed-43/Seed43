@@ -46,8 +46,10 @@ TOOLS = [
         "id":            "pytransmit",
         "name":          "PyTransmit",
         "repo":          "Seed43-PyTransmit",
-        "install_dir":   os.path.join(APPDATA, "pyRevit", "Extensions", "PyTransmit.extension"),
-        "version_file":  os.path.join(APPDATA, "pyRevit", "Extensions", "PyTransmit.extension", "version.txt"),
+        "install_dir":   os.path.join(APPDATA, "pyRevit", "Extensions", "Seed43.extension",
+                             "Seed43.tab", "Document Studio.panel", "pyTransmit.pushbutton"),
+        "version_file":  os.path.join(APPDATA, "pyRevit", "Extensions", "Seed43.extension",
+                             "Seed43.tab", "Document Studio.panel", "pyTransmit.pushbutton", "version.txt"),
         "changelog_url": "https://raw.githubusercontent.com/{o}/{r}/{b}/changelog.json".format(
                              o=GITHUB_ORG, r="Seed43-PyTransmit", b=BRANCH),
         "zip_url":       "https://github.com/{o}/{r}/archive/refs/heads/{b}.zip".format(
@@ -168,9 +170,17 @@ class Seed43Dialog(object):
                     raise System.Exception("Could not find extracted folder.")
 
                 log("Installing...")
-                if Directory.Exists(tool["install_dir"]):
-                    Directory.Delete(tool["install_dir"], True)
-                Directory.Move(extracted_root, tool["install_dir"])
+                if os.path.exists(tool["install_dir"]):
+                    shutil.rmtree(tool["install_dir"])
+                os.makedirs(tool["install_dir"])
+                # Copy all files from repo root directly into pushbutton folder
+                for item in os.listdir(extracted_root):
+                    s = os.path.join(extracted_root, item)
+                    d = os.path.join(tool["install_dir"], item)
+                    if os.path.isdir(s):
+                        shutil.copytree(s, d)
+                    else:
+                        shutil.copy2(s, d)
 
                 if File.Exists(tmp_zip):
                     File.Delete(tmp_zip)

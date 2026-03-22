@@ -9,6 +9,8 @@ Loads UI from: seed43.xaml (same folder)
 import os
 import clr
 import json
+import shutil
+import zipfile
 
 clr.AddReference("PresentationFramework")
 clr.AddReference("PresentationCore")
@@ -310,18 +312,14 @@ class Seed43Dialog(object):
         if str(result) != "Yes":
             return
 
-        ribbon = self.window.FindName("update_ribbon")
-        ribbon.Visibility = Visibility.Collapsed
-
-        import urllib.request as _ur
-        import zipfile as _zf
+        self.window.FindName("update_ribbon").Visibility = Visibility.Collapsed
 
         EXTENSIONS_DIR = os.path.join(os.environ.get("APPDATA", ""), "pyRevit", "Extensions")
         S43_INSTALL    = os.path.join(EXTENSIONS_DIR, "Seed43.extension")
         ZIP_URL        = "https://github.com/{o}/{r}/archive/refs/heads/{b}.zip".format(
                             o=GITHUB_ORG, r=MAIN_REPO, b=BRANCH)
-        TEMP_ZIP       = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "seed43_update.zip")
-        TEMP_DIR       = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "seed43_update_extracted")
+        TEMP_ZIP       = os.path.join(os.environ.get("TEMP", ""), "seed43_update.zip")
+        TEMP_DIR       = os.path.join(os.environ.get("TEMP", ""), "seed43_update_extracted")
 
         def log(msg):
             dispatch(self.window, lambda: setattr(
@@ -330,43 +328,60 @@ class Seed43Dialog(object):
         def worker():
             try:
                 log("Downloading update...")
-                WebClient().DownloadFile(ZIP_URL, TEMP_ZIP)
+                wc = WebClient()
+                wc.Headers.Add("Cache-Control", "no-cache, no-store")
+                wc.DownloadFile(ZIP_URL, TEMP_ZIP)
+
                 log("Extracting...")
-                if Directory.Exists(TEMP_DIR):
-                    Directory.Delete(TEMP_DIR, True)
-                ZipFile.ExtractToDirectory(TEMP_ZIP, TEMP_DIR)
+                if os.path.exists(TEMP_DIR):
+                    shutil.rmtree(TEMP_DIR)
+                os.makedirs(TEMP_DIR)
+                with zipfile.ZipFile(TEMP_ZIP, "r") as z:
+                    z.extractall(TEMP_DIR)
+
+                # Find extracted root folder
                 extracted_root = None
-                for d in Directory.GetDirectories(TEMP_DIR):
-                    extracted_root = d
-                    break
+                for item in os.listdir(TEMP_DIR):
+                    full = os.path.join(TEMP_DIR, item)
+                    if os.path.isdir(full):
+                        extracted_root = full
+                        break
                 if not extracted_root:
-                    raise System.Exception("Could not find extracted folder.")
-                src = System.IO.Path.Combine(extracted_root, "Seed43.extension")
-                if not Directory.Exists(src):
-                    raise System.Exception("Seed43.extension not found in ZIP.")
+                    raise Exception("Could not find extracted folder.")
+
+                # Find Seed43.extension inside extracted root
+                src = os.path.join(extracted_root, "Seed43.extension")
+                if not os.path.exists(src):
+                    raise Exception("Seed43.extension not found in ZIP. Found: " + str(os.listdir(extracted_root)))
+
                 log("Installing update...")
-                if Directory.Exists(S43_INSTALL):
-                    Directory.Delete(S43_INSTALL, True)
-                import shutil as _sh
-                _sh.copytree(src, S43_INSTALL)
-                remote = fetch_json(CHANGELOG_URL)
+                if os.path.exists(S43_INSTALL):
+                    shutil.rmtree(S43_INSTALL)
+                shutil.copytree(src, S43_INSTALL)
+
+                # Fetch and write version
+                remote  = fetch_json(CHANGELOG_URL)
                 version = remote.get("version", "unknown") if remote else "unknown"
-                # Write version to both locations explicitly
-                new_version_file = System.IO.Path.Combine(S43_INSTALL, "version.txt")
-                File.WriteAllText(new_version_file, version)
-                backup_version_file = System.IO.Path.Combine(
-                    os.path.join(os.environ.get("APPDATA", ""), "pyRevit", "Extensions"),
-                    "seed43_version.txt"
-                )
-                # Force overwrite backup version file
-                if File.Exists(backup_version_file):
-                    File.Delete(backup_version_file)
-                File.WriteAllText(backup_version_file, version)
-                log("Version updated to v{0}".format(version))
-                if File.Exists(TEMP_ZIP):   File.Delete(TEMP_ZIP)
-                if Directory.Exists(TEMP_DIR): Directory.Delete(TEMP_DIR, True)
+
+                # Write inside extension
+                with open(os.path.join(S43_INSTALL, "version.txt"), "w") as f:
+                    f.write(version)
+
+                # Write backup outside extension
+                with open(os.path.join(EXTENSIONS_DIR, "seed43_version.txt"), "w") as f:
+                    f.write(version)
+
+                log("Done — v{0}".format(version))
+
+                # Cleanup
+                if os.path.exists(TEMP_ZIP):
+                    os.remove(TEMP_ZIP)
+                if os.path.exists(TEMP_DIR):
+                    shutil.rmtree(TEMP_DIR)
+
                 dispatch(self.window, lambda: self._on_s43_update_done(version))
-            except System.Exception as ex:
+
+            except Exception as ex:
                 dispatch(self.window, lambda: self._on_error(str(ex)))
 
         t = Thread(ThreadStart(worker))

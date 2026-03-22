@@ -13,10 +13,17 @@ import json
 clr.AddReference("PresentationFramework")
 clr.AddReference("PresentationCore")
 clr.AddReference("WindowsBase")
+clr.AddReference("System")
+clr.AddReference("System.Net")
+clr.AddReference("System.IO.Compression")
+clr.AddReference("System.IO.Compression.FileSystem")
 
 import System
 from System.Windows.Markup import XamlReader
 from System.Windows import MessageBox, MessageBoxButton, MessageBoxImage, Visibility
+import System.Net
+import System.IO
+import System.IO.Compression
 from System.Net import WebClient
 from System.IO import File, Directory, Path, StreamReader
 from System.IO.Compression import ZipFile

@@ -15,6 +15,7 @@ clr.AddReference("PresentationCore")
 clr.AddReference("WindowsBase")
 clr.AddReference("System")
 clr.AddReference("System.Net")
+clr.AddReference("System.Net.Cache")
 clr.AddReference("System.IO.Compression")
 clr.AddReference("System.IO.Compression.FileSystem")
 
@@ -69,7 +70,10 @@ def load_xaml(path):
 
 def fetch_json(url):
     try:
-        return json.loads(WebClient().DownloadString(url))
+        wc = WebClient()
+        wc.CachePolicy = System.Net.Cache.RequestCachePolicy(
+            System.Net.Cache.RequestCacheLevel.NoCacheNoStore)
+        return json.loads(wc.DownloadString(url))
     except Exception:
         return None
 

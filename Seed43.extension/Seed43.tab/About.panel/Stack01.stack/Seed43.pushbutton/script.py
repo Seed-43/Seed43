@@ -389,17 +389,28 @@ class Seed43Dialog(object):
         t.Start()
 
     def _on_s43_update_done(self, version):
-        # Update the in-memory version so re-checking won't loop
         self._local_s43_version = version
         self.window.FindName("update_ribbon").Visibility = Visibility.Collapsed
         self.window.FindName("s43_version").Text = u"\u25CF  Installed  v{0}".format(version)
-        self.window.FindName("s43_changelog").Text = u"Updated to v{0} \u2014 reload PyRevit to apply.".format(version)
-        MessageBox.Show(
-            "Seed43 updated to v{0}.\n\nReload PyRevit in Revit to apply the update.".format(version),
+        self.window.FindName("s43_changelog").Text = u"Updated to v{0} \u2014 reloading PyRevit...".format(version)
+        result = MessageBox.Show(
+            "Seed43 updated to v{0}.\n\nPyRevit will now reload to apply the update.".format(version),
             "Seed43 Updated",
             MessageBoxButton.OK,
             MessageBoxImage.Information
         )
+        # Close dialog then reload PyRevit
+        self.window.Close()
+        try:
+            from pyrevit.loader import sessionmgr
+            sessionmgr.reload_pyrevit()
+        except Exception as ex:
+            MessageBox.Show(
+                "Please reload PyRevit manually.\n\n" + str(ex),
+                "Reload Required",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning
+            )
 
     def _update_pt_ui(self, local, remote):
         if local:

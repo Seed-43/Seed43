@@ -352,15 +352,18 @@ class Seed43Dialog(object):
                 _sh.copytree(src, S43_INSTALL)
                 remote = fetch_json(CHANGELOG_URL)
                 version = remote.get("version", "unknown") if remote else "unknown"
-                # Write version.txt into the newly installed extension
+                # Write version to both locations explicitly
                 new_version_file = System.IO.Path.Combine(S43_INSTALL, "version.txt")
                 File.WriteAllText(new_version_file, version)
-                # Also write a backup version file one level up so it survives overwrites
                 backup_version_file = System.IO.Path.Combine(
                     os.path.join(os.environ.get("APPDATA", ""), "pyRevit", "Extensions"),
                     "seed43_version.txt"
                 )
+                # Force overwrite backup version file
+                if File.Exists(backup_version_file):
+                    File.Delete(backup_version_file)
                 File.WriteAllText(backup_version_file, version)
+                log("Version updated to v{0}".format(version))
                 if File.Exists(TEMP_ZIP):   File.Delete(TEMP_ZIP)
                 if Directory.Exists(TEMP_DIR): Directory.Delete(TEMP_DIR, True)
                 dispatch(self.window, lambda: self._on_s43_update_done(version))

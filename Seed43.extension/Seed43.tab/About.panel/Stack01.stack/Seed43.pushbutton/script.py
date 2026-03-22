@@ -37,8 +37,8 @@ TOOLS = [
         "id":            "pytransmit",
         "name":          "PyTransmit",
         "repo":          "Seed43-PyTransmit",
-        "install_dir":   os.path.join(APPDATA, "pyRevit", "Extensions", "seed43", "tools", "PyTransmit"),
-        "version_file":  os.path.join(APPDATA, "pyRevit", "Extensions", "seed43", "tools", "PyTransmit", "version.txt"),
+        "install_dir":   os.path.join(APPDATA, "pyRevit", "Extensions", "PyTransmit.extension"),
+        "version_file":  os.path.join(APPDATA, "pyRevit", "Extensions", "PyTransmit.extension", "version.txt"),
         "changelog_url": "https://raw.githubusercontent.com/{o}/{r}/{b}/changelog.json".format(
                              o=GITHUB_ORG, r="Seed43-PyTransmit", b=BRANCH),
         "zip_url":       "https://github.com/{o}/{r}/archive/refs/heads/{b}.zip".format(
@@ -46,7 +46,7 @@ TOOLS = [
     }
 ]
 
-S43_VERSION_FILE = os.path.join(APPDATA, "pyRevit", "Extensions", "seed43", "version.txt")
+S43_VERSION_FILE = os.path.join(APPDATA, "pyRevit", "Extensions", "Seed43.extension", "version.txt")
 
 # ── Load XAML from file ───────────────────────────────────────────────────────
 SCRIPT_DIR = os.path.dirname(__file__)

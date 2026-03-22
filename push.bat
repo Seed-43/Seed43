@@ -8,21 +8,24 @@ echo   Seed43 - Auto Push to GitHub
 echo  ========================================
 echo.
 
-:: Move to the repo folder (edit this path if needed)
+:: Move to the repo folder
 cd /d "C:\Users\Fred\Proton Drive\juvenciodas\My files\pySeeds\Seed43"
 
 :: Check if there's anything to commit
-git status --porcelain > temp_status.txt
-set /p STATUS=<temp_status.txt
-del temp_status.txt
-
-if "%STATUS%"=="" (
-    echo  No changes to push - everything is up to date.
-    echo.
-    pause
-    exit /b
+git diff --quiet
+if %ERRORLEVEL%==0 (
+    git diff --cached --quiet
+    if %ERRORLEVEL%==0 (
+        git ls-files --others --exclude-standard > nul 2>&1
+        for /f %%i in ('git ls-files --others --exclude-standard') do goto HAS_CHANGES
+        echo  No changes to push - everything is up to date.
+        echo.
+        pause
+        exit /b
+    )
 )
 
+:HAS_CHANGES
 :: Show what's changed
 echo  Changes detected:
 git status --short
@@ -36,7 +39,7 @@ if "%MSG%"=="" set MSG=Update %DATE% %TIME%
 :: Stage all, commit, push
 echo.
 echo  Staging files...
-git add .
+git add -A
 
 echo  Committing: %MSG%
 git commit -m "%MSG%"

@@ -26,11 +26,12 @@ ZIP_URL       = "https://github.com/{o}/{r}/archive/refs/heads/{b}.zip".format(
 CHANGELOG_URL = "https://raw.githubusercontent.com/{o}/{r}/{b}/changelog.json".format(
                     o=GITHUB_ORG, r=MAIN_REPO, b=BRANCH)
 
-INSTALL_DIR   = os.path.join(os.environ.get("APPDATA", ""), "pyRevit", "Extensions", "seed43")
-VERSION_FILE  = os.path.join(INSTALL_DIR, "version.txt")
+EXTENSIONS_DIR = os.path.join(os.environ.get("APPDATA", ""), "pyRevit", "Extensions")
+INSTALL_DIR    = os.path.join(EXTENSIONS_DIR, "Seed43.extension")
+VERSION_FILE   = os.path.join(INSTALL_DIR, "version.txt")
 PUSHBUTTON_DIR = os.path.join(
     INSTALL_DIR,
-    "Seed43.extension", "Seed43.tab", "About.panel",
+    "Seed43.tab", "About.panel",
     "Stack01.stack", "Seed43.pushbutton"
 )
 TEMP_DIR      = os.environ.get("TEMP", os.environ.get("TMP", ""))
@@ -101,9 +102,13 @@ def download_and_install(log_fn, done_fn, error_fn):
             raise Exception("Could not find extracted folder.")
 
         log_fn("Installing extension files...")
+        # We only want the Seed43.extension subfolder from the repo ZIP
+        src = os.path.join(extracted_root, "Seed43.extension")
+        if not os.path.exists(src):
+            raise Exception("Seed43.extension folder not found in repo ZIP.")
         if os.path.exists(INSTALL_DIR):
             shutil.rmtree(INSTALL_DIR)
-        shutil.copytree(extracted_root, INSTALL_DIR)
+        shutil.copytree(src, INSTALL_DIR)
 
         # Ensure pushbutton folder exists and script files are in place
         log_fn("Installing About button scripts...")

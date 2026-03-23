@@ -50,7 +50,7 @@ TOOLS = [
                              "Seed43.tab", "Document Studio.panel", "pyTransmit.pushbutton"),
         "version_file":  os.path.join(APPDATA, "pyRevit", "Extensions", "Seed43.extension",
                              "Seed43.tab", "Document Studio.panel", "pyTransmit.pushbutton", "version.txt"),
-        "changelog_url": "https://raw.githubusercontent.com/{o}/{r}/{b}/bundle.yaml".format(
+        "changelog_url": "https://raw.githubusercontent.com/{o}/{r}/{b}/pytransmit.yaml".format(
                              o=GITHUB_ORG, r="Seed43-PyTransmit", b=BRANCH),
         "zip_url":       "https://github.com/{o}/{r}/archive/refs/heads/{b}.zip".format(
                              o=GITHUB_ORG, r="Seed43-PyTransmit", b=BRANCH),

@@ -468,27 +468,18 @@ class Seed43Dialog(object):
 
                 log("Installing update...")
 
-                # Smart sync — copy new/changed, delete removed, protect tool folders
-                PROTECTED_TOOL_DIR = os.path.join(S43_INSTALL, "Seed43.tab",
-                                                   "Document Studio.panel")
+                # Only update files inside About.panel — nothing else is touched
+                src_about = os.path.join(src, "Seed43.tab", "About.panel")
+                dst_about = os.path.join(S43_INSTALL, "Seed43.tab", "About.panel")
 
-                def is_protected(path):
-                    if not path.startswith(PROTECTED_TOOL_DIR):
-                        return False
-                    rel   = path[len(PROTECTED_TOOL_DIR):].lstrip(os.sep)
-                    parts = rel.split(os.sep)
-                    if not parts or not parts[0]:
-                        return False
-                    top = os.path.join(PROTECTED_TOOL_DIR, parts[0])
-                    return (top.endswith(".pushbutton") and
-                            os.path.exists(os.path.join(top, "bundle.yaml")))
+                if not os.path.exists(src_about):
+                    raise Exception("About.panel not found in repo ZIP.")
 
                 def sync_tree(src_dir, dst_dir):
                     if not os.path.exists(dst_dir):
                         os.makedirs(dst_dir)
                     src_items = set(os.listdir(src_dir))
                     dst_items = set(os.listdir(dst_dir)) if os.path.exists(dst_dir) else set()
-                    # Copy / overwrite from source
                     for item in src_items:
                         s = os.path.join(src_dir, item)
                         d = os.path.join(dst_dir, item)
@@ -496,11 +487,8 @@ class Seed43Dialog(object):
                             sync_tree(s, d)
                         else:
                             shutil.copy2(s, d)
-                    # Delete items no longer in source
                     for item in dst_items - src_items:
                         d = os.path.join(dst_dir, item)
-                        if is_protected(d):
-                            continue
                         if os.path.isdir(d):
                             shutil.rmtree(d)
                             log("Removed: {0}".format(item))
@@ -508,7 +496,7 @@ class Seed43Dialog(object):
                             os.remove(d)
                             log("Removed: {0}".format(item))
 
-                sync_tree(src, S43_INSTALL)
+                sync_tree(src_about, dst_about)
 
                 # Fetch and write version into bundle.yaml in script folder
                 remote  = fetch_bundle(CHANGELOG_URL)

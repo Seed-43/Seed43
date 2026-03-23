@@ -500,7 +500,8 @@ class Seed43Dialog(object):
                 if tools_backed_up:
                     restore_dir = os.path.join(S43_INSTALL, "Seed43.tab",
                                                "Document Studio.panel")
-                    os.makedirs(restore_dir, exist_ok=True)
+                    if not os.path.exists(restore_dir):
+                        os.makedirs(restore_dir)
                     for item in tools_backed_up:
                         src_tool  = os.path.join(BACKUP_DIR, item)
                         dest_tool = os.path.join(restore_dir, item)

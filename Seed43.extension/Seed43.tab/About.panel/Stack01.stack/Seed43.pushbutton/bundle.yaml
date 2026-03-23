@@ -9,3 +9,4 @@ changelog:
   - About panel with PyTransmit install/uninstall
   - Collapsible tool cards with changelog display
   - Orange update ribbon with auto-reload
+  - Switched to bundle.yaml versioning

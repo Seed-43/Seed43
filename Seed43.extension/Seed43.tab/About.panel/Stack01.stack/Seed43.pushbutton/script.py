@@ -36,7 +36,7 @@ GITHUB_ORG   = "Seed-43"
 MAIN_REPO    = "Seed43"
 BRANCH       = "main"
 
-CHANGELOG_URL = "https://raw.githubusercontent.com/{o}/{r}/{b}/bundle.yaml".format(
+CHANGELOG_URL = "https://raw.githubusercontent.com/{o}/{r}/{b}/Seed43.extension/Seed43.tab/About.panel/Stack01.stack/Seed43.pushbutton/bundle.yaml".format(
     o=GITHUB_ORG, r=MAIN_REPO, b=BRANCH)
 
 APPDATA = os.environ.get("APPDATA", "")
@@ -48,16 +48,53 @@ TOOLS = [
         "repo":          "Seed43-PyTransmit",
         "install_dir":   os.path.join(APPDATA, "pyRevit", "Extensions", "Seed43.extension",
                              "Seed43.tab", "Document Studio.panel", "pyTransmit.pushbutton"),
-        "version_file":  os.path.join(APPDATA, "pyRevit", "Extensions", "Seed43.extension",
-                             "Seed43.tab", "Document Studio.panel", "pyTransmit.pushbutton", "version.txt"),
-        "changelog_url": "https://raw.githubusercontent.com/{o}/{r}/{b}/pytransmit.yaml".format(
+        "yaml_file":     os.path.join(APPDATA, "pyRevit", "Extensions", "Seed43.extension",
+                             "Seed43.tab", "Document Studio.panel", "pyTransmit.pushbutton", "bundle.yaml"),
+        "changelog_url": "https://raw.githubusercontent.com/{o}/{r}/{b}/bundle.yaml".format(
                              o=GITHUB_ORG, r="Seed43-PyTransmit", b=BRANCH),
         "zip_url":       "https://github.com/{o}/{r}/archive/refs/heads/{b}.zip".format(
                              o=GITHUB_ORG, r="Seed43-PyTransmit", b=BRANCH),
     }
 ]
 
-S43_VERSION_FILE = os.path.join(APPDATA, "pyRevit", "Extensions", "seed43_version.txt")
+S43_YAML_FILE    = os.path.join(APPDATA, "pyRevit", "Extensions", "Seed43.extension",
+                     "Seed43.tab", "About.panel", "Stack01.stack", "Seed43.pushbutton", "bundle.yaml")
+
+
+def _parse_yaml_version(path):
+    """Parse version from a simple yaml file."""
+    try:
+        if File.Exists(path):
+            for line in File.ReadAllText(path).splitlines():
+                stripped = line.strip()
+                if stripped.startswith("version:"):
+                    return stripped.split(":", 1)[1].strip()
+    except Exception:
+        pass
+    return None
+
+
+def _write_yaml_version(path, version):
+    """Write version field into a yaml file."""
+    try:
+        if File.Exists(path):
+            lines = list(File.ReadAllLines(path))
+            new_lines = []
+            replaced = False
+            for line in lines:
+                if line.strip().startswith("version:") and not replaced:
+                    new_lines.append("version: " + version)
+                    replaced = True
+                else:
+                    new_lines.append(line)
+            if not replaced:
+                new_lines.append("version: " + version)
+            File.WriteAllLines(path, new_lines)
+        else:
+            Directory.CreateDirectory(Path.GetDirectoryName(path))
+            File.WriteAllText(path, "version: " + version + "\n")
+    except Exception:
+        pass
 
 # ── Load XAML from file ───────────────────────────────────────────────────────
 SCRIPT_DIR = os.path.dirname(__file__)
@@ -110,14 +147,36 @@ def fetch_json(url):
     """Legacy alias — routes to fetch_bundle for yaml URLs."""
     return fetch_bundle(url)
 
-def get_local_version(version_file):
-    if File.Exists(version_file):
-        return File.ReadAllText(version_file).strip()
-    return None
+def get_local_version(yaml_file):
+    return _parse_yaml_version(yaml_file)
 
-def write_local_version(version_file, version):
-    Directory.CreateDirectory(Path.GetDirectoryName(version_file))
-    File.WriteAllText(version_file, version)
+def write_local_version(yaml_file, version):
+    _write_yaml_version(yaml_file, version)
+
+def _write_yaml_version_py(path, version):
+    """Plain Python version of yaml version writer — used in update worker."""
+    try:
+        if os.path.exists(path):
+            with open(path, "r") as f:
+                lines = f.readlines()
+            new_lines = []
+            replaced = False
+            for line in lines:
+                if line.strip().startswith("version:") and not replaced:
+                    new_lines.append("version: {}\n".format(version))
+                    replaced = True
+                else:
+                    new_lines.append(line)
+            if not replaced:
+                new_lines.append("version: {}\n".format(version))
+            with open(path, "w") as f:
+                f.writelines(new_lines)
+        else:
+            with open(path, "w") as f:
+                f.write("version: {}\n".format(version))
+    except Exception:
+        pass
+
 
 def dispatch(window, fn):
     window.Dispatcher.Invoke(System.Action(fn))
@@ -219,7 +278,7 @@ class Seed43Dialog(object):
 
                 remote  = fetch_json(tool["changelog_url"])
                 version = remote.get("version", "unknown") if remote else "unknown"
-                write_local_version(tool["version_file"], version)
+                write_local_version(tool["yaml_file"], version)
 
                 dispatch(self.window, lambda: self._on_install_done(version, remote))
 
@@ -313,11 +372,11 @@ class Seed43Dialog(object):
 
     def _check_versions(self):
         def worker():
-            local_s43  = get_local_version(S43_VERSION_FILE)
-            remote_s43 = fetch_json(CHANGELOG_URL)
+            local_s43  = get_local_version(S43_YAML_FILE)
+            remote_s43 = fetch_bundle(CHANGELOG_URL)
             dispatch(self.window, lambda: self._update_s43_ui(local_s43, remote_s43))
-            local_pt  = get_local_version(self.tool["version_file"])
-            remote_pt = fetch_json(self.tool["changelog_url"])
+            local_pt  = get_local_version(self.tool["yaml_file"])
+            remote_pt = fetch_bundle(self.tool["changelog_url"])
             dispatch(self.window, lambda: self._update_pt_ui(local_pt, remote_pt))
 
         t = Thread(ThreadStart(worker))
@@ -399,17 +458,14 @@ class Seed43Dialog(object):
                     shutil.rmtree(S43_INSTALL)
                 shutil.copytree(src, S43_INSTALL)
 
-                # Fetch and write version
-                remote  = fetch_json(CHANGELOG_URL)
+                # Fetch and write version into bundle.yaml in script folder
+                remote  = fetch_bundle(CHANGELOG_URL)
                 version = remote.get("version", "unknown") if remote else "unknown"
 
-                # Write inside extension
-                with open(os.path.join(S43_INSTALL, "version.txt"), "w") as f:
-                    f.write(version)
-
-                # Write backup outside extension
-                with open(os.path.join(EXTENSIONS_DIR, "seed43_version.txt"), "w") as f:
-                    f.write(version)
+                bundle_path = os.path.join(
+                    S43_INSTALL, "Seed43.tab", "About.panel",
+                    "Stack01.stack", "Seed43.pushbutton", "bundle.yaml")
+                _write_yaml_version_py(bundle_path, version)
 
                 log("Done — v{0}".format(version))
 

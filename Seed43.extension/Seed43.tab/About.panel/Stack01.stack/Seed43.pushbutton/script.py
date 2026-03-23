@@ -199,10 +199,23 @@ class Seed43Dialog(object):
 
     def _bind(self):
         self.window.FindName("header_close").Click              += lambda s, e: self.window.Close()
-        self.window.FindName("footer_close").Click              += lambda s, e: self.window.Close()
+        self.window.FindName("footer_reload").Click             += self._on_reload
         self.window.FindName("update_ribbon").MouseLeftButtonUp += self._on_s43_update
         self.window.FindName("pt_header").MouseLeftButtonUp     += self._on_toggle
         self.window.FindName("pt_action_btn").Click             += self._on_action
+
+    def _on_reload(self, sender, args):
+        self.window.Close()
+        try:
+            from pyrevit.loader import sessionmgr
+            sessionmgr.reload_pyrevit()
+        except Exception as ex:
+            MessageBox.Show(
+                "Could not reload PyRevit:\n\n" + str(ex),
+                "Reload Failed",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning
+            )
 
     # ── Toggle expand / collapse ──────────────────────────────────────────────
 

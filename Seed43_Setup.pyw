@@ -13,7 +13,6 @@ import threading
 import zipfile
 import shutil
 import urllib.request
-import json
 import tkinter as tk
 from tkinter import messagebox
 
@@ -23,12 +22,13 @@ MAIN_REPO     = "Seed43"
 BRANCH        = "main"
 ZIP_URL       = "https://github.com/{o}/{r}/archive/refs/heads/{b}.zip".format(
                     o=GITHUB_ORG, r=MAIN_REPO, b=BRANCH)
-CHANGELOG_URL = "https://raw.githubusercontent.com/{o}/{r}/{b}/changelog.json".format(
+CHANGELOG_URL = "https://raw.githubusercontent.com/{o}/{r}/{b}/Seed43.extension/Seed43.tab/About.panel/Stack01.stack/Seed43.pushbutton/bundle.yaml".format(
                     o=GITHUB_ORG, r=MAIN_REPO, b=BRANCH)
 
 EXTENSIONS_DIR = os.path.join(os.environ.get("APPDATA", ""), "pyRevit", "Extensions")
 INSTALL_DIR    = os.path.join(EXTENSIONS_DIR, "Seed43.extension")
-VERSION_FILE   = os.path.join(INSTALL_DIR, "version.txt")
+BUNDLE_YAML    = os.path.join(INSTALL_DIR, "Seed43.tab", "About.panel",
+                     "Stack01.stack", "Seed43.pushbutton", "bundle.yaml")
 PUSHBUTTON_DIR = os.path.join(
     INSTALL_DIR,
     "Seed43.tab", "About.panel",
@@ -58,22 +58,72 @@ FONT              = "Segoe UI"
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def get_installed_version():
-    if os.path.exists(VERSION_FILE):
-        with open(VERSION_FILE, "r") as f:
-            return f.read().strip()
+    """Read version from bundle.yaml in the pushbutton folder."""
+    try:
+        if os.path.exists(BUNDLE_YAML):
+            with open(BUNDLE_YAML, "r") as f:
+                for line in f.read().splitlines():
+                    stripped = line.strip()
+                    if stripped.startswith("version:"):
+                        return stripped.split(":", 1)[1].strip()
+    except Exception:
+        pass
     return None
 
 
 def write_version(version):
-    os.makedirs(os.path.dirname(VERSION_FILE), exist_ok=True)
-    with open(VERSION_FILE, "w") as f:
-        f.write(version)
+    """Write version into bundle.yaml in the pushbutton folder."""
+    try:
+        if os.path.exists(BUNDLE_YAML):
+            with open(BUNDLE_YAML, "r") as f:
+                lines = f.readlines()
+            new_lines = []
+            replaced = False
+            for line in lines:
+                if line.strip().startswith("version:") and not replaced:
+                    new_lines.append("version: {}\n".format(version))
+                    replaced = True
+                else:
+                    new_lines.append(line)
+            if not replaced:
+                new_lines.append("version: {}\n".format(version))
+            with open(BUNDLE_YAML, "w") as f:
+                f.writelines(new_lines)
+        else:
+            os.makedirs(os.path.dirname(BUNDLE_YAML), exist_ok=True)
+            with open(BUNDLE_YAML, "w") as f:
+                f.write("version: {}\n".format(version))
+    except Exception:
+        pass
 
 
 def fetch_changelog():
+    """Fetch and parse bundle.yaml from GitHub."""
     try:
         with urllib.request.urlopen(CHANGELOG_URL, timeout=8) as r:
-            return json.loads(r.read().decode())
+            raw = r.read().decode()
+        result = {}
+        changelog = []
+        in_changelog = False
+        for line in raw.splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if stripped.startswith("- ") and in_changelog:
+                changelog.append(stripped[2:].strip())
+                continue
+            if ":" in stripped:
+                in_changelog = False
+                key, _, val = stripped.partition(":")
+                key = key.strip()
+                val = val.strip()
+                if key == "changelog":
+                    in_changelog = True
+                elif val:
+                    result[key] = val
+        if changelog:
+            result["changes"] = changelog
+        return result if result else None
     except Exception:
         return None
 
@@ -124,14 +174,10 @@ def download_and_install(log_fn, done_fn, error_fn):
             log_fn("Warning: script.py or seed43.xaml missing from repo ZIP.")
             log_fn("Check the repo includes the Seed43.extension folder.")
 
-        # Write version — stored outside the extension folder so it survives updates
+        # Write version into bundle.yaml
         changelog = fetch_changelog()
         version = changelog.get("version", "unknown") if changelog else "unknown"
         write_version(version)
-        # Also write backup version file at Extensions level
-        backup_version = os.path.join(EXTENSIONS_DIR, "seed43_version.txt")
-        with open(backup_version, "w") as f:
-            f.write(version)
 
         # Cleanup
         if os.path.exists(TEMP_ZIP):

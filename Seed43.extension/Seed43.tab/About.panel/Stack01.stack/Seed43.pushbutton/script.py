@@ -467,9 +467,48 @@ class Seed43Dialog(object):
                     raise Exception("Seed43.extension not found in ZIP. Found: " + str(os.listdir(extracted_root)))
 
                 log("Installing update...")
+
+                # ── Backup installed tools before overwriting ──────────────
+                TOOLS_DIR  = os.path.join(S43_INSTALL, "Seed43.tab",
+                                          "Document Studio.panel")
+                BACKUP_DIR = os.path.join(os.environ.get("TEMP", ""),
+                                          "seed43_tools_backup")
+                tools_backed_up = []
+
+                if os.path.exists(TOOLS_DIR):
+                    if os.path.exists(BACKUP_DIR):
+                        shutil.rmtree(BACKUP_DIR)
+                    os.makedirs(BACKUP_DIR)
+                    for item in os.listdir(TOOLS_DIR):
+                        item_path = os.path.join(TOOLS_DIR, item)
+                        # Back up any pushbutton folders that have a bundle.yaml
+                        # (i.e. user-installed tools, not Seed43 core files)
+                        if os.path.isdir(item_path) and item.endswith(".pushbutton"):
+                            yaml_path = os.path.join(item_path, "bundle.yaml")
+                            if os.path.exists(yaml_path):
+                                dest = os.path.join(BACKUP_DIR, item)
+                                shutil.copytree(item_path, dest)
+                                tools_backed_up.append(item)
+                                log("Backed up: {0}".format(item))
+
+                # ── Replace extension ──────────────────────────────────────
                 if os.path.exists(S43_INSTALL):
                     shutil.rmtree(S43_INSTALL)
                 shutil.copytree(src, S43_INSTALL)
+
+                # ── Restore backed up tools ────────────────────────────────
+                if tools_backed_up:
+                    restore_dir = os.path.join(S43_INSTALL, "Seed43.tab",
+                                               "Document Studio.panel")
+                    os.makedirs(restore_dir, exist_ok=True)
+                    for item in tools_backed_up:
+                        src_tool  = os.path.join(BACKUP_DIR, item)
+                        dest_tool = os.path.join(restore_dir, item)
+                        if os.path.exists(dest_tool):
+                            shutil.rmtree(dest_tool)
+                        shutil.copytree(src_tool, dest_tool)
+                        log("Restored: {0}".format(item))
+                    shutil.rmtree(BACKUP_DIR)
 
                 # Fetch and write version into bundle.yaml in script folder
                 remote  = fetch_bundle(CHANGELOG_URL)

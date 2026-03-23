@@ -54,7 +54,24 @@ TOOLS = [
                              o=GITHUB_ORG, r="Seed43-PyTransmit", b=BRANCH),
         "zip_url":       "https://github.com/{o}/{r}/archive/refs/heads/{b}.zip".format(
                              o=GITHUB_ORG, r="Seed43-PyTransmit", b=BRANCH),
-    }
+        "description":   "Transmit Revit files with automatic sheet and link management.",
+        "ui_prefix":     "pt",
+    },
+    {
+        "id":            "3dtools",
+        "name":          "3D Tools",
+        "repo":          "3D-Tools",
+        "install_dir":   os.path.join(APPDATA, "pyRevit", "Extensions", "Seed43.extension",
+                             "Seed43.tab", "3D Tools.panel"),
+        "yaml_file":     os.path.join(APPDATA, "pyRevit", "Extensions", "Seed43.extension",
+                             "Seed43.tab", "3D Tools.panel", "bundle.yaml"),
+        "changelog_url": "https://raw.githubusercontent.com/{o}/{r}/{b}/bundle.yaml".format(
+                             o=GITHUB_ORG, r="3D-Tools", b=BRANCH),
+        "zip_url":       "https://github.com/{o}/{r}/archive/refs/heads/{b}.zip".format(
+                             o=GITHUB_ORG, r="3D-Tools", b=BRANCH),
+        "description":   "A collection of 3D workflow tools for Revit.",
+        "ui_prefix":     "td",
+    },
 ]
 
 S43_YAML_FILE    = os.path.join(APPDATA, "pyRevit", "Extensions", "Seed43.extension",
@@ -182,40 +199,29 @@ def dispatch(window, fn):
     window.Dispatcher.Invoke(System.Action(fn))
 
 
-# ── Dialog ────────────────────────────────────────────────────────────────────
+# ── Tool handler (one instance per tool entry) ────────────────────────────────
 
-class Seed43Dialog(object):
+class ToolHandler(object):
+    """Manages install/uninstall state and UI for a single tool entry."""
 
-    def __init__(self):
-        self.window     = load_xaml(XAML_PATH)
-        self.tool       = TOOLS[0]
+    def __init__(self, window, tool):
+        self.window     = window
+        self.tool       = tool
+        self._prefix    = tool["ui_prefix"]
         self._expanded  = False
         self._installed = False
         self._busy      = False
         self._bind()
-        self._check_versions()
 
-    # ── Bind events ───────────────────────────────────────────────────────────
+    def _name(self, suffix):
+        return "{0}_{1}".format(self._prefix, suffix)
+
+    def _find(self, suffix):
+        return self.window.FindName(self._name(suffix))
 
     def _bind(self):
-        self.window.FindName("header_close").Click              += lambda s, e: self.window.Close()
-        self.window.FindName("footer_reload").Click             += self._on_reload
-        self.window.FindName("update_ribbon").MouseLeftButtonUp += self._on_s43_update
-        self.window.FindName("pt_header").MouseLeftButtonUp     += self._on_toggle
-        self.window.FindName("pt_action_btn").Click             += self._on_action
-
-    def _on_reload(self, sender, args):
-        self.window.Close()
-        try:
-            from pyrevit.loader import sessionmgr
-            sessionmgr.reload_pyrevit()
-        except Exception as ex:
-            MessageBox.Show(
-                "Could not reload PyRevit:\n\n" + str(ex),
-                "Reload Failed",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning
-            )
+        self._find("header").MouseLeftButtonUp += self._on_toggle
+        self._find("action_btn").Click         += self._on_action
 
     # ── Toggle expand / collapse ──────────────────────────────────────────────
 
@@ -223,12 +229,12 @@ class Seed43Dialog(object):
         if self._busy:
             return
         self._expanded = not self._expanded
-        self.window.FindName("pt_body").Visibility = (
+        self._find("body").Visibility = (
             Visibility.Visible if self._expanded else Visibility.Collapsed)
-        self.window.FindName("pt_chevron").Text = (
+        self._find("chevron").Text = (
             u"\u25B2" if self._expanded else u"\u25BC")
 
-    # ── Action button (Install / Uninstall) ───────────────────────────────────
+    # ── Action button ─────────────────────────────────────────────────────────
 
     def _on_action(self, sender, args):
         if self._busy:
@@ -247,7 +253,7 @@ class Seed43Dialog(object):
 
         def log(msg):
             dispatch(self.window, lambda: setattr(
-                self.window.FindName("pt_progress_lbl"), "Text", msg))
+                self._find("progress_lbl"), "Text", msg))
 
         def worker():
             try:
@@ -275,7 +281,7 @@ class Seed43Dialog(object):
                 if os.path.exists(tool["install_dir"]):
                     shutil.rmtree(tool["install_dir"])
                 os.makedirs(tool["install_dir"])
-                # Copy all files from repo root directly into pushbutton folder
+                # Copy all files from repo root directly into install folder
                 for item in os.listdir(extracted_root):
                     s = os.path.join(extracted_root, item)
                     d = os.path.join(tool["install_dir"], item)
@@ -306,8 +312,9 @@ class Seed43Dialog(object):
 
     def _run_uninstall(self):
         result = MessageBox.Show(
-            "Uninstall PyTransmit?\n\nThis will delete all files from:\n" + self.tool["install_dir"],
-            "Uninstall PyTransmit",
+            "Uninstall {0}?\n\nThis will delete all files from:\n{1}".format(
+                self.tool["name"], self.tool["install_dir"]),
+            "Uninstall " + self.tool["name"],
             MessageBoxButton.YesNo,
             MessageBoxImage.Question
         )
@@ -320,7 +327,7 @@ class Seed43Dialog(object):
 
         def log(msg):
             dispatch(self.window, lambda: setattr(
-                self.window.FindName("pt_progress_lbl"), "Text", msg))
+                self._find("progress_lbl"), "Text", msg))
 
         def worker():
             try:
@@ -339,47 +346,107 @@ class Seed43Dialog(object):
     # ── State helpers ─────────────────────────────────────────────────────────
 
     def _set_busy_ui(self, label):
-        self.window.FindName("pt_action_btn").IsEnabled       = False
-        self.window.FindName("pt_progress_wrap").Visibility   = Visibility.Visible
-        self.window.FindName("pt_progress_lbl").Text          = label
+        self._find("action_btn").IsEnabled     = False
+        self._find("progress_wrap").Visibility = Visibility.Visible
+        self._find("progress_lbl").Text        = label
 
     def _on_install_done(self, version, remote):
         self._busy      = False
         self._installed = True
-        self.window.FindName("pt_progress_wrap").Visibility = Visibility.Collapsed
-        btn           = self.window.FindName("pt_action_btn")
+        self._find("progress_wrap").Visibility = Visibility.Collapsed
+        btn           = self._find("action_btn")
         btn.IsEnabled = True
         btn.Content   = "Uninstall"
         btn.Style     = self.window.FindResource("DangerBtn")
-        self.window.FindName("pt_dot").Fill = \
+        self._find("dot").Fill = \
             System.Windows.Media.BrushConverter().ConvertFrom("#208A3C")
-        self.window.FindName("pt_status_lbl").Text = \
+        self._find("status_lbl").Text = \
             u"Installed  v{0}  \u2192  {1}".format(version, self.tool["install_dir"])
         if remote:
             ver     = remote.get("version", "")
             changes = remote.get("changes", [])
-            self.window.FindName("pt_changelog").Text = \
+            self._find("changelog").Text = \
                 u"Latest: v{0}\n{1}".format(ver, u"\n".join([u"\u203a " + c for c in changes]))
 
     def _on_uninstall_done(self):
         self._busy      = False
         self._installed = False
-        self.window.FindName("pt_progress_wrap").Visibility = Visibility.Collapsed
-        btn           = self.window.FindName("pt_action_btn")
+        self._find("progress_wrap").Visibility = Visibility.Collapsed
+        btn           = self._find("action_btn")
         btn.IsEnabled = True
         btn.Content   = "Install"
         btn.Style     = self.window.FindResource("SmallBtn")
-        self.window.FindName("pt_dot").Fill = \
+        self._find("dot").Fill = \
             System.Windows.Media.BrushConverter().ConvertFrom("#A0AABB")
-        self.window.FindName("pt_status_lbl").Text = "Not installed"
-        self.window.FindName("pt_changelog").Text  = ""
+        self._find("status_lbl").Text = "Not installed"
+        self._find("changelog").Text  = ""
 
     def _on_error(self, msg):
         self._busy = False
-        self.window.FindName("pt_progress_wrap").Visibility = Visibility.Collapsed
-        self.window.FindName("pt_action_btn").IsEnabled     = True
+        self._find("progress_wrap").Visibility = Visibility.Collapsed
+        self._find("action_btn").IsEnabled     = True
         MessageBox.Show("Operation failed:\n\n" + msg, "Seed43",
                         MessageBoxButton.OK, MessageBoxImage.Error)
+
+    # ── Version check UI update ───────────────────────────────────────────────
+
+    def update_ui(self, local, remote):
+        if local:
+            self._installed = True
+            btn         = self._find("action_btn")
+            btn.Content = "Uninstall"
+            btn.Style   = self.window.FindResource("DangerBtn")
+            self._find("dot").Fill = \
+                System.Windows.Media.BrushConverter().ConvertFrom("#208A3C")
+            self._find("status_lbl").Text = \
+                u"Installed  v{0}  \u2192  {1}".format(local, self.tool["install_dir"])
+        else:
+            self._find("status_lbl").Text = "Not installed"
+
+        if remote:
+            ver     = remote.get("version", "")
+            changes = remote.get("changes", [])
+            self._find("changelog").Text = \
+                u"Latest: v{0}\n{1}".format(ver, u"\n".join([u"\u203a " + c for c in changes]))
+        else:
+            self._find("changelog").Text = "Could not reach GitHub"
+
+
+# ── Dialog ────────────────────────────────────────────────────────────────────
+
+class Seed43Dialog(object):
+
+    def __init__(self):
+        self.window          = load_xaml(XAML_PATH)
+        self._tool_handlers  = []
+        self._bind()
+        self._init_tool_handlers()
+        self._check_versions()
+
+    # ── Bind events ───────────────────────────────────────────────────────────
+
+    def _bind(self):
+        self.window.FindName("header_close").Click              += lambda s, e: self.window.Close()
+        self.window.FindName("footer_reload").Click             += self._on_reload
+        self.window.FindName("update_ribbon").MouseLeftButtonUp += self._on_s43_update
+
+    def _init_tool_handlers(self):
+        for tool in TOOLS:
+            handler = ToolHandler(self.window, tool)
+            self._tool_handlers.append(handler)
+
+    def _on_reload(self, sender, args):
+        self.window.Close()
+        try:
+            from pyrevit.loader import sessionmgr
+            sessionmgr.reload_pyrevit()
+        except Exception as ex:
+            MessageBox.Show(
+                "Could not reload PyRevit:\n\n" + str(ex),
+                "Reload Failed",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning
+            )
 
     # ── Version checks ────────────────────────────────────────────────────────
 
@@ -388,9 +455,14 @@ class Seed43Dialog(object):
             local_s43  = get_local_version(S43_YAML_FILE)
             remote_s43 = fetch_bundle(CHANGELOG_URL)
             dispatch(self.window, lambda: self._update_s43_ui(local_s43, remote_s43))
-            local_pt  = get_local_version(self.tool["yaml_file"])
-            remote_pt = fetch_bundle(self.tool["changelog_url"])
-            dispatch(self.window, lambda: self._update_pt_ui(local_pt, remote_pt))
+
+            for handler in self._tool_handlers:
+                tool      = handler.tool
+                local_v   = get_local_version(tool["yaml_file"])
+                remote_v  = fetch_bundle(tool["changelog_url"])
+                # Capture loop vars for closure
+                h, lv, rv = handler, local_v, remote_v
+                dispatch(self.window, lambda h=h, lv=lv, rv=rv: h.update_ui(lv, rv))
 
         t = Thread(ThreadStart(worker))
         t.IsBackground = True
@@ -548,26 +620,9 @@ class Seed43Dialog(object):
                 MessageBoxImage.Warning
             )
 
-    def _update_pt_ui(self, local, remote):
-        if local:
-            self._installed = True
-            btn         = self.window.FindName("pt_action_btn")
-            btn.Content = "Uninstall"
-            btn.Style   = self.window.FindResource("DangerBtn")
-            self.window.FindName("pt_dot").Fill = \
-                System.Windows.Media.BrushConverter().ConvertFrom("#208A3C")
-            self.window.FindName("pt_status_lbl").Text = \
-                u"Installed  v{0}  \u2192  {1}".format(local, self.tool["install_dir"])
-        else:
-            self.window.FindName("pt_status_lbl").Text = "Not installed"
-
-        if remote:
-            ver     = remote.get("version", "")
-            changes = remote.get("changes", [])
-            self.window.FindName("pt_changelog").Text = \
-                u"Latest: v{0}\n{1}".format(ver, u"\n".join([u"\u203a " + c for c in changes]))
-        else:
-            self.window.FindName("pt_changelog").Text = "Could not reach GitHub"
+    def _on_error(self, msg):
+        MessageBox.Show("Operation failed:\n\n" + msg, "Seed43",
+                        MessageBoxButton.OK, MessageBoxImage.Error)
 
     def show(self):
         self.window.ShowDialog()

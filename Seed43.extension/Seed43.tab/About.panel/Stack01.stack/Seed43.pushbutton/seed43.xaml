@@ -260,6 +260,63 @@
             </StackPanel>
         </Border>
 
+        <!-- 3D Tools card -->
+        <Border Style="{StaticResource CardStyle}">
+            <StackPanel>
+
+                <!-- Always-visible header row -->
+                <Border x:Name="td_header" Background="Transparent"
+                        Padding="16,12" Cursor="Hand">
+                    <DockPanel>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse x:Name="td_dot" Width="7" Height="7"
+                                     Fill="#A0AABB" Margin="0,0,6,0"/>
+                            <TextBlock Text="3D Tools"
+                                       Style="{StaticResource SectionLabel}" Margin="0"/>
+                            <TextBlock x:Name="td_chevron" Text="&#x25BC;"
+                                       FontSize="9" Foreground="#A0AABB"
+                                       Margin="6,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <Button x:Name="td_action_btn" Content="Install"
+                                Style="{StaticResource SmallBtn}"
+                                HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                    </DockPanel>
+                </Border>
+
+                <!-- Progress bar -->
+                <Border x:Name="td_progress_wrap" Visibility="Collapsed"
+                        Background="#2B3340" Padding="16,0,16,10">
+                    <StackPanel>
+                        <Border Background="#232933" CornerRadius="4" Height="4">
+                            <ProgressBar x:Name="td_progress"
+                                         IsIndeterminate="True"
+                                         Foreground="#208A3C"
+                                         Background="Transparent"
+                                         BorderThickness="0" Height="4"/>
+                        </Border>
+                        <TextBlock x:Name="td_progress_lbl" Text=""
+                                   Style="{StaticResource DimLabel}" Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Expanded detail -->
+                <Border x:Name="td_body" Visibility="Collapsed"
+                        BorderBrush="#3a4555" BorderThickness="0,1,0,0"
+                        Padding="16,12,16,14">
+                    <StackPanel>
+                        <TextBlock Text="A collection of 3D workflow tools for Revit."
+                                   Style="{StaticResource FieldLabel}" Margin="0,0,0,8"/>
+                        <TextBlock x:Name="td_status_lbl" Text="Not installed"
+                                   Style="{StaticResource DimLabel}"/>
+                        <Border BorderBrush="#3a4555" BorderThickness="0,1,0,0" Margin="0,10,0,10"/>
+                        <TextBlock x:Name="td_changelog" Text=""
+                                   Style="{StaticResource DimLabel}"/>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </Border>
+
         <!-- Footer -->
         <DockPanel Margin="0,4,0,0">
             <Button x:Name="footer_reload" Content="Reload PyRevit"

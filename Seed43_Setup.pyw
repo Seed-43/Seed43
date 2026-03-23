@@ -152,56 +152,18 @@ def download_and_install(log_fn, done_fn, error_fn):
             raise Exception("Could not find extracted folder.")
 
         log_fn("Installing extension files...")
-        # We only want the Seed43.extension subfolder from the repo ZIP
         src = os.path.join(extracted_root, "Seed43.extension")
         if not os.path.exists(src):
             raise Exception("Seed43.extension folder not found in repo ZIP.")
 
-        # Backup installed tools before overwriting
-        TOOLS_DIR  = os.path.join(INSTALL_DIR, "Seed43.tab", "Document Studio.panel")
-        BACKUP_DIR = os.path.join(TEMP_DIR, "seed43_tools_backup")
-        tools_backed_up = []
-
-        if os.path.exists(TOOLS_DIR):
-            if os.path.exists(BACKUP_DIR):
-                shutil.rmtree(BACKUP_DIR)
-            os.makedirs(BACKUP_DIR)
-            for item in os.listdir(TOOLS_DIR):
-                item_path = os.path.join(TOOLS_DIR, item)
-                if os.path.isdir(item_path) and item.endswith(".pushbutton"):
-                    yaml_path = os.path.join(item_path, "bundle.yaml")
-                    if os.path.exists(yaml_path):
-                        shutil.copytree(item_path, os.path.join(BACKUP_DIR, item))
-                        tools_backed_up.append(item)
-                        log_fn("Backed up: {0}".format(item))
-
-        # Replace extension
+        # Full wipe and reinstall
         if os.path.exists(INSTALL_DIR):
             shutil.rmtree(INSTALL_DIR)
         shutil.copytree(src, INSTALL_DIR)
 
-        # Restore backed up tools
-        if tools_backed_up:
-            restore_dir = os.path.join(INSTALL_DIR, "Seed43.tab", "Document Studio.panel")
-            os.makedirs(restore_dir, exist_ok=True)
-            for item in tools_backed_up:
-                dest_tool = os.path.join(restore_dir, item)
-                if os.path.exists(dest_tool):
-                    shutil.rmtree(dest_tool)
-                shutil.copytree(os.path.join(BACKUP_DIR, item), dest_tool)
-                log_fn("Restored: {0}".format(item))
-            shutil.rmtree(BACKUP_DIR)
-
-        # Ensure pushbutton folder exists and script files are in place
-        log_fn("Installing About button scripts...")
-        os.makedirs(PUSHBUTTON_DIR, exist_ok=True)
-
-        # script.py and seed43.xaml are already inside the repo ZIP
-        # under Seed43.extension/.../Seed43.pushbutton/ — nothing extra needed.
-        # This step confirms they landed correctly.
+        # Confirm script files landed correctly
         script_ok = os.path.exists(os.path.join(PUSHBUTTON_DIR, "script.py"))
         xaml_ok   = os.path.exists(os.path.join(PUSHBUTTON_DIR, "seed43.xaml"))
-
         if not script_ok or not xaml_ok:
             log_fn("Warning: script.py or seed43.xaml missing from repo ZIP.")
             log_fn("Check the repo includes the Seed43.extension folder.")

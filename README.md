@@ -1,7 +1,7 @@
 # Seed43 installer
 
 Standalone installer for the Seed43 PyRevit extension.
-Downloads directly from GitHub, no Git installation required on the user's machine.
+Downloads directly from GitHub.
 
 ## Requirements
 - Internet connection

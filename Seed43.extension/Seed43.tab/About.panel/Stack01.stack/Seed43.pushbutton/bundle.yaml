@@ -2,8 +2,9 @@ title: Seed43
 author: Seed-43
 contact: https://github.com/Seed-43
 
-version: 1.4.0
+version: 1.4.1
 date: 2026-04-07
 changelog:
+  - New code run
   - added code to add tab sorting
   - added tab sorting

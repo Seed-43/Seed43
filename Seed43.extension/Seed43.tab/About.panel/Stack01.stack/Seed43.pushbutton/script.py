@@ -569,6 +569,15 @@ class Seed43Dialog(object):
                             log("Removed: {0}".format(item))
 
                 sync_tree(src_about, dst_about)
+                
+                # Fetch and write Seed43.tab bundle.yaml
+                src_yaml = os.path.join(src, "Seed43.tab", "bundle.yaml")
+                dst_yaml = os.path.join(S43_INSTALL, "Seed43.tab", "bundle.yaml")
+
+                if os.path.exists(src_yaml):
+                    if not os.path.exists(os.path.dirname(dst_yaml)):
+                        os.makedirs(os.path.dirname(dst_yaml))
+                    shutil.copy2(src_yaml, dst_yaml)
 
                 # Fetch and write version into bundle.yaml in script folder
                 remote  = fetch_bundle(CHANGELOG_URL)

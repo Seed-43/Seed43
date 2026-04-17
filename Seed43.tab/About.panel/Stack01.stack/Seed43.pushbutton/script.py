@@ -2,7 +2,7 @@
 """
 Seed43 About / Install dialog
 PyRevit pushbutton script - IronPython + WPF
-Location: Seed43.extension/Seed43.tab/About.panel/Stack01.stack/Seed43.pushbutton/script.py
+Location: Seed43.tab/About.panel/Stack01.stack/Seed43.pushbutton/script.py
 Loads UI from: seed43.xaml (same folder)
 """
 
@@ -36,7 +36,7 @@ GITHUB_ORG   = "Seed-43"
 MAIN_REPO    = "Seed43"
 BRANCH       = "main"
 
-CHANGELOG_URL = "https://raw.githubusercontent.com/{o}/{r}/{b}/Seed43.extension/Seed43.tab/About.panel/Stack01.stack/Seed43.pushbutton/bundle.yaml".format(
+CHANGELOG_URL = "https://raw.githubusercontent.com/{o}/{r}/{b}/Seed43.tab/About.panel/Stack01.stack/Seed43.pushbutton/bundle.yaml".format(
     o=GITHUB_ORG, r=MAIN_REPO, b=BRANCH)
 
 APPDATA = os.environ.get("APPDATA", "")
@@ -79,7 +79,6 @@ S43_YAML_FILE    = os.path.join(APPDATA, "pyRevit", "Extensions", "Seed43.extens
 
 
 def _parse_yaml_version(path):
-    """Parse version from a simple yaml file."""
     try:
         if File.Exists(path):
             for line in File.ReadAllText(path).splitlines():
@@ -92,7 +91,6 @@ def _parse_yaml_version(path):
 
 
 def _write_yaml_version(path, version):
-    """Write version field into a yaml file."""
     try:
         if File.Exists(path):
             lines = list(File.ReadAllLines(path))
@@ -126,7 +124,6 @@ def load_xaml(path):
     return window
 
 def fetch_bundle(url):
-    """Fetch and parse a simple bundle.yaml from a URL. Returns dict or None."""
     try:
         wc = WebClient()
         wc.Headers.Add("Cache-Control", "no-cache, no-store")
@@ -153,7 +150,6 @@ def fetch_bundle(url):
                     result[key] = val
         if changelog:
             result["changelog"] = changelog
-        # Map to expected keys
         result["version"] = result.get("version", "")
         result["changes"] = result.get("changelog", [])
         return result
@@ -161,7 +157,6 @@ def fetch_bundle(url):
         return None
 
 def fetch_json(url):
-    """Legacy alias — routes to fetch_bundle for yaml URLs."""
     return fetch_bundle(url)
 
 def get_local_version(yaml_file):
@@ -171,7 +166,6 @@ def write_local_version(yaml_file, version):
     _write_yaml_version(yaml_file, version)
 
 def _write_yaml_version_py(path, version):
-    """Plain Python version of yaml version writer — used in update worker."""
     try:
         if os.path.exists(path):
             with open(path, "r") as f:
@@ -199,10 +193,7 @@ def dispatch(window, fn):
     window.Dispatcher.Invoke(System.Action(fn))
 
 
-# ── Tool handler (one instance per tool entry) ────────────────────────────────
-
 class ToolHandler(object):
-    """Manages install/uninstall state and UI for a single tool entry."""
 
     def __init__(self, window, tool):
         self.window     = window
@@ -223,8 +214,6 @@ class ToolHandler(object):
         self._find("header").MouseLeftButtonUp += self._on_toggle
         self._find("action_btn").Click         += self._on_action
 
-    # ── Toggle expand / collapse ──────────────────────────────────────────────
-
     def _on_toggle(self, sender, args):
         if self._busy:
             return
@@ -234,8 +223,6 @@ class ToolHandler(object):
         self._find("chevron").Text = (
             u"\u25B2" if self._expanded else u"\u25BC")
 
-    # ── Action button ─────────────────────────────────────────────────────────
-
     def _on_action(self, sender, args):
         if self._busy:
             return
@@ -243,8 +230,6 @@ class ToolHandler(object):
             self._run_uninstall()
         else:
             self._run_install()
-
-    # ── Install ───────────────────────────────────────────────────────────────
 
     def _run_install(self):
         self._busy = True
@@ -281,7 +266,6 @@ class ToolHandler(object):
                 if os.path.exists(tool["install_dir"]):
                     shutil.rmtree(tool["install_dir"])
                 os.makedirs(tool["install_dir"])
-                # Copy all files from repo root directly into install folder
                 for item in os.listdir(extracted_root):
                     s = os.path.join(extracted_root, item)
                     d = os.path.join(tool["install_dir"], item)
@@ -307,8 +291,6 @@ class ToolHandler(object):
         t = Thread(ThreadStart(worker))
         t.IsBackground = True
         t.Start()
-
-    # ── Uninstall ─────────────────────────────────────────────────────────────
 
     def _run_uninstall(self):
         result = MessageBox.Show(
@@ -342,8 +324,6 @@ class ToolHandler(object):
         t = Thread(ThreadStart(worker))
         t.IsBackground = True
         t.Start()
-
-    # ── State helpers ─────────────────────────────────────────────────────────
 
     def _set_busy_ui(self, label):
         self._find("action_btn").IsEnabled     = False
@@ -388,8 +368,6 @@ class ToolHandler(object):
         MessageBox.Show("Operation failed:\n\n" + msg, "Seed43",
                         MessageBoxButton.OK, MessageBoxImage.Error)
 
-    # ── Version check UI update ───────────────────────────────────────────────
-
     def update_ui(self, local, remote):
         if local:
             self._installed = True
@@ -412,8 +390,6 @@ class ToolHandler(object):
             self._find("changelog").Text = "Could not reach GitHub"
 
 
-# ── Dialog ────────────────────────────────────────────────────────────────────
-
 class Seed43Dialog(object):
 
     def __init__(self):
@@ -422,8 +398,6 @@ class Seed43Dialog(object):
         self._bind()
         self._init_tool_handlers()
         self._check_versions()
-
-    # ── Bind events ───────────────────────────────────────────────────────────
 
     def _bind(self):
         self.window.FindName("header_close").Click              += lambda s, e: self.window.Close()
@@ -448,8 +422,6 @@ class Seed43Dialog(object):
                 MessageBoxImage.Warning
             )
 
-    # ── Version checks ────────────────────────────────────────────────────────
-
     def _check_versions(self):
         def worker():
             local_s43  = get_local_version(S43_YAML_FILE)
@@ -460,7 +432,6 @@ class Seed43Dialog(object):
                 tool      = handler.tool
                 local_v   = get_local_version(tool["yaml_file"])
                 remote_v  = fetch_bundle(tool["changelog_url"])
-                # Capture loop vars for closure
                 h, lv, rv = handler, local_v, remote_v
                 dispatch(self.window, lambda h=h, lv=lv, rv=rv: h.update_ui(lv, rv))
 
@@ -476,7 +447,6 @@ class Seed43Dialog(object):
             changes = remote.get("changes", [])
             self.window.FindName("s43_changelog").Text = \
                 u"Latest: v{0}   {1}".format(ver, u"  \u2022  ".join(changes[:2]))
-            # Show orange ribbon if update available
             if local and ver and ver != local:
                 self._remote_s43_version = ver
                 self.window.FindName("update_ribbon_version").Text = \
@@ -523,7 +493,6 @@ class Seed43Dialog(object):
                 with zipfile.ZipFile(TEMP_ZIP, "r") as z:
                     z.extractall(TEMP_DIR)
 
-                # Find extracted root folder
                 extracted_root = None
                 for item in os.listdir(TEMP_DIR):
                     full = os.path.join(TEMP_DIR, item)
@@ -533,15 +502,9 @@ class Seed43Dialog(object):
                 if not extracted_root:
                     raise Exception("Could not find extracted folder.")
 
-                # Find Seed43.extension inside extracted root
-                src = os.path.join(extracted_root, "Seed43.extension")
-                if not os.path.exists(src):
-                    raise Exception("Seed43.extension not found in ZIP. Found: " + str(os.listdir(extracted_root)))
-
                 log("Installing update...")
 
-                # Only update files inside About.panel — nothing else is touched
-                src_about = os.path.join(src, "Seed43.tab", "About.panel")
+                src_about = os.path.join(extracted_root, "Seed43.tab", "About.panel")
                 dst_about = os.path.join(S43_INSTALL, "Seed43.tab", "About.panel")
 
                 if not os.path.exists(src_about):
@@ -570,7 +533,14 @@ class Seed43Dialog(object):
 
                 sync_tree(src_about, dst_about)
 
-                # Fetch and write version into bundle.yaml in script folder
+                src_yaml = os.path.join(extracted_root, "Seed43.tab", "bundle.yaml")
+                dst_yaml = os.path.join(S43_INSTALL, "Seed43.tab", "bundle.yaml")
+
+                if os.path.exists(src_yaml):
+                    if not os.path.exists(os.path.dirname(dst_yaml)):
+                        os.makedirs(os.path.dirname(dst_yaml))
+                    shutil.copy2(src_yaml, dst_yaml)
+
                 remote  = fetch_bundle(CHANGELOG_URL)
                 version = remote.get("version", "unknown") if remote else "unknown"
 
@@ -581,7 +551,6 @@ class Seed43Dialog(object):
 
                 log("Done — v{0}".format(version))
 
-                # Cleanup
                 if os.path.exists(TEMP_ZIP):
                     os.remove(TEMP_ZIP)
                 if os.path.exists(TEMP_DIR):
@@ -607,7 +576,6 @@ class Seed43Dialog(object):
             MessageBoxButton.OK,
             MessageBoxImage.Information
         )
-        # Close dialog then reload PyRevit
         self.window.Close()
         try:
             from pyrevit.loader import sessionmgr

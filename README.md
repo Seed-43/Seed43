@@ -1,20 +1,66 @@
-# Seed43 installer
+# Seed43 | PyRevit Extension
 
-Standalone installer for the Seed43 PyRevit extension.
-Downloads directly from GitHub.
+**Seed43** is a free PyRevit extension providing tools to improve your Revit workflows.  
+Includes an in-app manager to install and update additional tools directly from GitHub.
 
-## Requirements
-- Internet connection
-- Python 3.x installed
-- PyRevit
+---
 
-## What and what
-1. Download `Seed43_Setup.pyw` from `github.com/Seed-43`
-2. Double-click `Seed43_Setup.pyw.`
-3. The installer saves the files to:
-   `%APPDATA%\pyRevit\Extensions\seed43`
-4. Confirms `script.py` and `seed43.xaml` are present in the About pushbutton folder
-5. Prompts the user to reload PyRevit in Revit
+## Tools Included
 
-## Files & Purpose 
-`Seed43_Setup.pyw` - Run directly by users, no compile needed
+| Tool | Description |
+|------|-------------|
+| **PyTransmit** | Transmit Revit files with automatic sheet and link management |
+| **3D Tools** | A collection of 3D workflow tools for Revit |
+
+---
+
+## Compatibility
+
+- Revit 2025 / 2026
+- [PyRevit](https://github.com/pyrevitlabs/pyRevit) required
+
+---
+
+## Installation
+
+### Option 1 - Setup Installer (Recommended)
+
+1. Download `Seed43_Setup.pyw` from this repo
+2. Double-click to run — no Python install needed
+3. Click **Install**
+4. Reload PyRevit inside Revit
+
+### Option 2 - Batch Script
+
+1. Download `install.bat` from this repo
+2. Double-click to run
+3. Reload PyRevit inside Revit
+
+### Option 3 - PyRevit Extension Manager
+
+1. Open PyRevit Settings → Extensions
+2. Add custom extension source:
+3. Find **Seed43** in the list and click Install
+
+---
+
+## After Installation
+
+The **Seed43** tab will appear in Revit after reloading PyRevit.  
+Use the **About** button in the tab to manage and update tools.
+
+---
+
+## Contact
+
+- Website: [seed43.org](https://seed43.org)
+- LinkedIn: [Seed43](https://www.linkedin.com/company/seed43/)
+- GitHub: [Seed-43](https://github.com/Seed-43)
+- Issues: [GitHub Issues](https://github.com/Seed-43/Seed43/issues)
+
+---
+
+## License
+
+GNU General Public License v3 - free to use and modify.
+

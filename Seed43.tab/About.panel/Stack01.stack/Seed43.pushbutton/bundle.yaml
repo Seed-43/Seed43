@@ -1,0 +1,12 @@
+title: Seed43
+author: Seed-43
+contact: https://github.com/Seed-43
+
+version: 1.2.0
+date: 2026-03-23
+changelog:
+  - Initial stable release
+  - About panel with PyTransmit install/uninstall
+  - Collapsible tool cards with changelog display
+  - Orange update ribbon with auto-reload
+  - Switched to bundle.yaml versioning

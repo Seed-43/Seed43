@@ -3,7 +3,7 @@
         "rocket_mode_compatible": false,
         "type": "extension",
         "name": "Seed43",
-        "description": "Seed43 tools for Revit — includes PyTransmit and 3D Tools with an in-app extension manager.",
+        "description": "Seed43 tools for Revit",
         "author": "Seed43",
         "author_profile": "https://www.linkedin.com/company/seed43/",
         "url": "https://github.com/Seed-43/Seed43.git",

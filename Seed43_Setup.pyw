@@ -1,7 +1,7 @@
 """
 Seed43 Setup
 Installs the Seed43 PyRevit extension into:
-  %APPDATA%/pyRevit/Extensions/seed43
+  %APPDATA%/pyRevit/Extensions/Seed43.extension
 
 Downloads directly from GitHub - no Git installation required.
 Double-click Seed43_Setup.pyw to run.
@@ -22,7 +22,7 @@ MAIN_REPO     = "Seed43"
 BRANCH        = "main"
 ZIP_URL       = "https://github.com/{o}/{r}/archive/refs/heads/{b}.zip".format(
                     o=GITHUB_ORG, r=MAIN_REPO, b=BRANCH)
-CHANGELOG_URL = "https://raw.githubusercontent.com/{o}/{r}/{b}/Seed43.extension/Seed43.tab/About.panel/Stack01.stack/Seed43.pushbutton/bundle.yaml".format(
+CHANGELOG_URL = "https://raw.githubusercontent.com/{o}/{r}/{b}/Seed43.tab/About.panel/Stack01.stack/Seed43.pushbutton/bundle.yaml".format(
                     o=GITHUB_ORG, r=MAIN_REPO, b=BRANCH)
 
 EXTENSIONS_DIR = os.path.join(os.environ.get("APPDATA", ""), "pyRevit", "Extensions")
@@ -58,7 +58,6 @@ FONT              = "Segoe UI"
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def get_installed_version():
-    """Read version from bundle.yaml in the pushbutton folder."""
     try:
         if os.path.exists(BUNDLE_YAML):
             with open(BUNDLE_YAML, "r") as f:
@@ -72,7 +71,6 @@ def get_installed_version():
 
 
 def write_version(version):
-    """Write version into bundle.yaml in the pushbutton folder."""
     try:
         if os.path.exists(BUNDLE_YAML):
             with open(BUNDLE_YAML, "r") as f:
@@ -98,7 +96,6 @@ def write_version(version):
 
 
 def fetch_changelog():
-    """Fetch and parse bundle.yaml from GitHub."""
     try:
         with urllib.request.urlopen(CHANGELOG_URL, timeout=8) as r:
             raw = r.read().decode()
@@ -129,7 +126,6 @@ def fetch_changelog():
 
 
 def download_and_install(log_fn, done_fn, error_fn):
-    """Runs in a background thread — downloads and installs the extension."""
     try:
         log_fn("Connecting to GitHub...")
         urllib.request.urlretrieve(ZIP_URL, TEMP_ZIP)
@@ -140,7 +136,6 @@ def download_and_install(log_fn, done_fn, error_fn):
         with zipfile.ZipFile(TEMP_ZIP, "r") as z:
             z.extractall(TEMP_EXTRACT)
 
-        # GitHub ZIPs extract to reponame-branch/
         extracted_root = None
         for item in os.listdir(TEMP_EXTRACT):
             full = os.path.join(TEMP_EXTRACT, item)
@@ -152,28 +147,25 @@ def download_and_install(log_fn, done_fn, error_fn):
             raise Exception("Could not find extracted folder.")
 
         log_fn("Installing extension files...")
-        src = os.path.join(extracted_root, "Seed43.extension")
-        if not os.path.exists(src):
-            raise Exception("Seed43.extension folder not found in repo ZIP.")
+        src_tab = os.path.join(extracted_root, "Seed43.tab")
+        if not os.path.exists(src_tab):
+            raise Exception("Seed43.tab folder not found in repo ZIP.")
 
-        # Full wipe and reinstall
         if os.path.exists(INSTALL_DIR):
             shutil.rmtree(INSTALL_DIR)
-        shutil.copytree(src, INSTALL_DIR)
+        os.makedirs(INSTALL_DIR)
+        shutil.copytree(src_tab, os.path.join(INSTALL_DIR, "Seed43.tab"))
 
-        # Confirm script files landed correctly
         script_ok = os.path.exists(os.path.join(PUSHBUTTON_DIR, "script.py"))
         xaml_ok   = os.path.exists(os.path.join(PUSHBUTTON_DIR, "seed43.xaml"))
         if not script_ok or not xaml_ok:
             log_fn("Warning: script.py or seed43.xaml missing from repo ZIP.")
-            log_fn("Check the repo includes the Seed43.extension folder.")
+            log_fn("Check the repo includes the Seed43.tab folder.")
 
-        # Write version into bundle.yaml
         changelog = fetch_changelog()
         version = changelog.get("version", "unknown") if changelog else "unknown"
         write_version(version)
 
-        # Cleanup
         if os.path.exists(TEMP_ZIP):
             os.remove(TEMP_ZIP)
         if os.path.exists(TEMP_EXTRACT):
@@ -186,7 +178,6 @@ def download_and_install(log_fn, done_fn, error_fn):
 
 
 def uninstall(log_fn, done_fn, error_fn):
-    """Runs in a background thread — removes the extension."""
     try:
         log_fn("Removing files...")
         if os.path.exists(INSTALL_DIR):
@@ -260,11 +251,7 @@ class Seed43Setup(tk.Tk):
         self.geometry("{w}x{h}+{x}+{y}".format(
             w=w, h=h, x=(sw - w) // 2, y=(sh - h) // 2))
 
-    # ── Build UI ──────────────────────────────────────────────────────────────
-
     def _build(self):
-
-        # Header
         header = tk.Frame(self, bg=C_HEADER_BG, height=64)
         header.pack(fill="x")
         header.pack_propagate(False)
@@ -277,11 +264,9 @@ class Seed43Setup(tk.Tk):
         tk.Label(wm, text="  |  Setup", font=(FONT, 14),
                  fg=C_TEXT,   bg=C_HEADER_BG).pack(side="left")
 
-        # Body
         body = tk.Frame(self, bg=C_WIN_BG, padx=20, pady=16)
         body.pack(fill="both", expand=True)
 
-        # Status card
         status_card = Card(body)
         status_card.pack(fill="x", pady=(0, 12))
         SectionLabel(status_card, "Installation Status").pack(anchor="w")
@@ -297,7 +282,6 @@ class Seed43Setup(tk.Tk):
                                      font=(FONT, 9), fg=C_TEXT_DIM, bg=C_CARD_BG)
         self._version_lbl.pack(anchor="w", pady=(4, 0))
 
-        # Install path card
         path_card = Card(body)
         path_card.pack(fill="x", pady=(0, 12))
         SectionLabel(path_card, "Install Location").pack(anchor="w")
@@ -308,7 +292,6 @@ class Seed43Setup(tk.Tk):
         tk.Label(path_bg, text=INSTALL_DIR, font=(FONT, 8),
                  fg=C_INPUT_FG, bg=C_INPUT_BG, anchor="w").pack(fill="x")
 
-        # Log card
         log_card = Card(body)
         log_card.pack(fill="x", pady=(0, 12))
         SectionLabel(log_card, "Activity Log").pack(anchor="w", pady=(0, 6))
@@ -321,7 +304,6 @@ class Seed43Setup(tk.Tk):
                             selectbackground=C_GREEN, wrap="word")
         self._log.pack(fill="x")
 
-        # Progress bar
         self._prog_frame = tk.Frame(body, bg=C_WIN_BG)
         prog_bg = tk.Frame(self._prog_frame, bg=C_CARD_BG, height=4,
                            highlightbackground=C_GREEN, highlightthickness=1)
@@ -329,7 +311,6 @@ class Seed43Setup(tk.Tk):
         self._prog_fill = tk.Frame(prog_bg, bg=C_GREEN, height=4)
         self._prog_fill.place(relwidth=0, relheight=1)
 
-        # Buttons
         btn_row = tk.Frame(body, bg=C_WIN_BG)
         btn_row.pack(fill="x", pady=(12, 4))
 
@@ -345,8 +326,6 @@ class Seed43Setup(tk.Tk):
             bg_normal=C_SECONDARY_BTN, bg_hover=C_SECONDARY_HOVER,
             text="Close", font=(FONT, 9), fg=C_TEXT,
             width=10, height=1, command=self.destroy).pack(side="right")
-
-    # ── Status check ──────────────────────────────────────────────────────────
 
     def _check_status(self):
         version = get_installed_version()
@@ -374,15 +353,11 @@ class Seed43Setup(tk.Tk):
         self._dot.config(fg=c)
         self._status_lbl.config(text=text, fg=c)
 
-    # ── Log ───────────────────────────────────────────────────────────────────
-
     def _log_line(self, msg):
         self._log.config(state="normal")
         self._log.insert("end", "> {0}\n".format(msg))
         self._log.see("end")
         self._log.config(state="disabled")
-
-    # ── Progress animation ────────────────────────────────────────────────────
 
     def _animate(self, val):
         if not self._installing:
@@ -390,8 +365,6 @@ class Seed43Setup(tk.Tk):
         t = (math.sin(val * 0.15) + 1) / 2
         self._prog_fill.place(relwidth=max(0.08, t), relheight=1)
         self.after(30, self._animate, val + 1)
-
-    # ── Action button ─────────────────────────────────────────────────────────
 
     def _on_action(self):
         if self._installed:
@@ -402,8 +375,6 @@ class Seed43Setup(tk.Tk):
                 self._run_uninstall()
         else:
             self._run_install()
-
-    # ── Install ───────────────────────────────────────────────────────────────
 
     def _run_install(self):
         self._action_btn.config(state="disabled")
@@ -437,8 +408,6 @@ class Seed43Setup(tk.Tk):
             "Installation complete — v{0}\n\nReload PyRevit inside Revit to see the Seed43 tab.".format(version)
         )
 
-    # ── Uninstall ─────────────────────────────────────────────────────────────
-
     def _run_uninstall(self):
         self._action_btn.config(state="disabled")
         self._set_status("busy", "Uninstalling...")
@@ -466,8 +435,6 @@ class Seed43Setup(tk.Tk):
         self._log_line("Uninstall complete.")
         self._action_btn.config(state="normal", text="Install")
         self._action_btn.set_normal(C_GREEN, C_GREEN_HOVER, C_GREEN_PRESSED)
-
-    # ── Error ─────────────────────────────────────────────────────────────────
 
     def _on_error(self, err):
         self._installing = False

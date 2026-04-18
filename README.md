@@ -23,10 +23,10 @@ Includes an in-app manager to install and update additional tools directly from 
 
 ## Installation
 
-### Option 1 - Setup Installer (Recommended)
+### Option 1 - Setup Installer
 
 1. Download `Seed43_Setup.pyw` from this repo
-2. Double-click to run — no Python install needed
+2. Double-click to run
 3. Click **Install**
 4. Reload PyRevit inside Revit
 

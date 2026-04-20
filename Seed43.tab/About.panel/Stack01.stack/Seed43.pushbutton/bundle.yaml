@@ -3,7 +3,6 @@ author: Seed-43
 contact: https://github.com/Seed-43
 
 version: 26.04.20
-date: 2026-04-20
 changelog:
   - Initial stable release
   - About panel with PyTransmit install/uninstall

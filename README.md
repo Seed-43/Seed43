@@ -4,7 +4,7 @@
 
 ---
 
-## Tools that can be installed from the Seed43 tool are.
+## Tools that can be installed from within the Seed43 tool are.
 
 | Tool | Description |
 |------|-------------|

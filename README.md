@@ -46,7 +46,7 @@
 ## After Installation
 
 The **Seed43** tab will appear in Revit after reloading PyRevit.  
-Use the **About** button in the tab to manage and update tools.
+Use the **About** button in the tab to install, manage and update tools.
 
 ---
 

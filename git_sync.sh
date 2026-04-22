@@ -14,6 +14,9 @@ STATE_FILE=".git_sync_state"
 echo "Current folder:"
 pwd
 
+# 🔐 TOKEN (you fill this in)
+GITHUB_TOKEN=SHA256:8NMuP/DuNTPXr8Kk/KXQWNdzHCMyO/LHrme+l1aTu0A
+
 if [ ! -f "$STATE_FILE" ]; then
   echo "FIRST RUN → PULL MODE"
 
@@ -36,8 +39,18 @@ read msg
 
 git commit -m "$msg"
 
-git push
+# 🔐 Safe push using token
+if [ -z "$GITHUB_TOKEN" ]; then
+  echo "ERROR: GITHUB_TOKEN is not set"
+  exit 1
+fi
 
-rm -f "$STATE_FILE"
+git push "https://Seed43:${GITHUB_TOKEN}@github.com/Seed-43/Seed43.git"
 
-echo "DONE"
+if [ $? -eq 0 ]; then
+  rm -f "$STATE_FILE"
+  echo "DONE"
+else
+  echo "PUSH FAILED - state file preserved"
+  exit 1
+fi

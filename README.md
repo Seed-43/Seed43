@@ -5,7 +5,7 @@ Includes an in-app manager to install and update additional tools directly from 
 
 ---
 
-## Tools Included
+## Tools that can be installed from the Seed43 tool are.
 
 | Tool | Description |
 |------|-------------|

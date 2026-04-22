@@ -1,7 +1,6 @@
 # Seed43 | PyRevit Extension
 
-**Seed43** is a free PyRevit extension providing tools to improve your Revit workflows.  
-Includes an in-app manager to install and update additional tools directly from GitHub.
+**Seed43** is a free PyRevit extension providing an in-app manager to install and update additional Seed43 tools directly from GitHub.
 
 ---
 

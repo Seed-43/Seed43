@@ -1,34 +1,8 @@
 # -*- coding: utf-8 -*-
-__title__  = "Check for Updates"
-__author__  = "Seed43"
-__doc__     = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
-_____________________________________________________________________
-Description:
-Checks whether a newer version of Seed43 is available on GitHub and
-offers to download and apply the update automatically.
-
-The version is read from a version.txt file stored on GitHub. If a
-newer version is found, a window appears showing your current version
-and the available version. Clicking Update Now downloads the latest
-Seed43.tab folder from GitHub and replaces the one on your machine.
-Your settings and config files are not affected.
-_____________________________________________________________________
-How-to:
--> Run the tool from the Seed43 tab
--> If an update is available, a window will appear
--> Click Update Now to apply it, or Not Now to skip
--> If already up to date, a brief message confirms this
-_____________________________________________________________________
-Notes:
-- An internet connection is required
-- The update replaces only the Seed43.tab folder
-- Your settings and config files are not affected
-- Revit must be restarted after updating for changes to take effect
-_____________________________________________________________________
-Last update:
-- Initial release
-_____________________________________________________________________
+"""
+Seed43 Startup migration script.
+Runs automatically when Revit starts via pyRevit.
+Shows an update popup and replaces the entire Seed43.extension folder from GitHub.
 """
 
 import os
@@ -51,10 +25,27 @@ from System.Windows.Threading import Dispatcher
 from System.Threading import Thread, ThreadStart
 from System import Uri, UriKind, Action
 
-from pyrevit import forms, script
+from pyrevit import forms
 
 
-# ── XAML ──────────────────────────────────────────────────────────────────────
+# -- VARIABLES -----------------------------------------------------------------
+
+GITHUB_USER   = "Seed-43"
+GITHUB_REPO   = "Seed43"
+GITHUB_BRANCH = "main"
+
+REPO_ZIP_URL  = "https://github.com/{}/{}/archive/refs/heads/{}.zip".format(
+    GITHUB_USER, GITHUB_REPO, GITHUB_BRANCH)
+
+APPDATA       = os.environ.get("APPDATA", "")
+EXTENSION_DIR = os.path.join(APPDATA, "pyRevit", "Extensions", "Seed43.extension")
+
+# icon sits next to this script before the update wipes it
+SCRIPT_DIR    = os.path.dirname(__file__)
+ICON_PATH     = os.path.join(SCRIPT_DIR, "icon.png")
+
+
+# -- XAML ----------------------------------------------------------------------
 
 WINDOW_XAML = """
 <Window
@@ -237,6 +228,7 @@ WINDOW_XAML = """
                            Margin="0,0,0,8"/>
 
                 <TextBlock x:Name="update_msg_lbl"
+                           Text="A new version of Seed43 is available.&#x0a;&#x0a;Click Update Now to install the latest version, or Not Now to skip."
                            Foreground="#2B3340"
                            FontSize="12"
                            TextWrapping="Wrap"
@@ -282,166 +274,109 @@ WINDOW_XAML = """
 """
 
 
-# ── VARIABLES ─────────────────────────────────────────────────────────────────
+# -- UPDATE LOGIC --------------------------------------------------------------
 
-GITHUB_USER   = "Seed-43"
-GITHUB_REPO   = "Seed43"
-GITHUB_BRANCH = "main"
+def download_and_apply_update(window, status_lbl, progress_bar):
+    """
+    Download zip from GitHub, wipe Seed43.extension, copy everything in.
+    Runs on a background thread; dispatches UI updates back to the window.
+    Skips existing .json and .yaml files to preserve local config.
+    """
+    tmp_zip = os.path.join(os.environ.get("TEMP", APPDATA), "seed43_startup_update.zip")
+    tmp_dir = os.path.join(os.environ.get("TEMP", APPDATA), "seed43_startup_update_tmp")
 
-VERSION_URL  = "https://raw.githubusercontent.com/{}/{}/{}/version.txt".format(
-    GITHUB_USER, GITHUB_REPO, GITHUB_BRANCH)
+    SKIP_EXT = (".json", ".yaml")
 
-REPO_ZIP_URL = "https://github.com/{}/{}/archive/refs/heads/{}.zip".format(
-    GITHUB_USER, GITHUB_REPO, GITHUB_BRANCH)
+    def log(msg):
+        window.Dispatcher.Invoke(Action(lambda: setattr(status_lbl, "Text", msg)))
 
-SCRIPT_DIR    = os.path.dirname(__file__)
-APPDATA       = os.environ.get("APPDATA", "")
-EXTENSION_DIR = os.path.join(APPDATA, "pyRevit", "Extensions", "Seed43.extension")
-TAB_DIR       = os.path.join(EXTENSION_DIR, "Seed43.tab")
-VERSION_FILE  = os.path.join(EXTENSION_DIR, "version.txt")
-ICON_PATH     = os.path.join(SCRIPT_DIR, "icon.png")
+    def set_progress(val):
+        window.Dispatcher.Invoke(Action(lambda: setattr(progress_bar, "Value", val)))
 
-# File extensions to skip during update, preserving local config files
-SKIP_EXTENSIONS = (".yaml", ".json")
+    def show_progress():
+        window.Dispatcher.Invoke(Action(lambda: setattr(progress_bar, "Visibility", Visibility.Visible)))
 
-
-# ── FUNCTIONS ─────────────────────────────────────────────────────────────────
-
-def read_local_version():
-    """Read the installed version string from the extension root version.txt.
-    Returns only the first non-empty line as the version number."""
-    try:
-        if not File.Exists(VERSION_FILE):
-            return "0.0.0"
-        reader  = StreamReader(VERSION_FILE)
-        content = reader.ReadToEnd()
-        reader.Close()
-        for line in content.splitlines():
-            line = line.strip()
-            if line:
-                return line
-    except Exception:
-        pass
-    return "0.0.0"
-
-
-def fetch_remote_version():
-    """Download version.txt from GitHub and return only the version number.
-    Returns None if the request fails."""
-    try:
-        client = WebClient()
-        raw    = client.DownloadString(VERSION_URL).strip()
-        for line in raw.splitlines():
-            line = line.strip()
-            if line:
-                return line
-    except Exception:
-        return None
-
-
-def version_tuple(version_str):
-    """Convert a version string like 1.2.3 to a tuple (1, 2, 3) for comparison."""
-    try:
-        return tuple(int(x) for x in version_str.strip().split("."))
-    except Exception:
-        return (0, 0, 0)
-
-
-def download_and_apply_update(status_lbl, progress_bar):
-    """Download the repo zip, swap in the new Seed43.tab, update version.txt.
-    Skips yaml and json files to preserve local config.
-    Returns True on success, False on failure."""
-    tmp_zip = os.path.join(EXTENSION_DIR, "_seed43_update.zip")
-    tmp_dir = os.path.join(EXTENSION_DIR, "_seed43_update_tmp")
+    def show_status():
+        window.Dispatcher.Invoke(Action(lambda: setattr(status_lbl, "Visibility", Visibility.Visible)))
 
     try:
-        # ── Download ──────────────────────────────────────────────────────────
+        show_status()
+        show_progress()
+        log("Connecting to GitHub...")
 
-        def on_progress(sender, e):
-            progress_bar.Visibility = Visibility.Visible
-            progress_bar.Value      = e.ProgressPercentage
+        wc = WebClient()
+        wc.Headers.Add("Cache-Control", "no-cache, no-store")
+        wc.DownloadFile(REPO_ZIP_URL, tmp_zip)
+        set_progress(40)
 
-        status_lbl.Visibility = Visibility.Visible
-        status_lbl.Text       = "Downloading update..."
-
-        client = WebClient()
-        client.DownloadProgressChanged += on_progress
-        client.DownloadFile(REPO_ZIP_URL, tmp_zip)
-
-        # ── Extract ───────────────────────────────────────────────────────────
-
-        status_lbl.Text = "Extracting files..."
-
-        if Directory.Exists(tmp_dir):
+        log("Extracting...")
+        if os.path.exists(tmp_dir):
             shutil.rmtree(tmp_dir)
-        Directory.CreateDirectory(tmp_dir)
-
+        os.makedirs(tmp_dir)
         with zipfile.ZipFile(tmp_zip, "r") as zf:
             zf.extractall(tmp_dir)
+        set_progress(60)
 
-        extracted_root = os.path.join(tmp_dir, "{}-{}".format(GITHUB_REPO, GITHUB_BRANCH))
-        new_tab        = os.path.join(extracted_root, "Seed43.tab")
+        extracted_root = None
+        for item in os.listdir(tmp_dir):
+            full = os.path.join(tmp_dir, item)
+            if os.path.isdir(full):
+                extracted_root = full
+                break
+        if not extracted_root:
+            raise Exception("Could not find extracted folder.")
 
-        if not os.path.isdir(new_tab):
-            status_lbl.Text = "Update failed: Seed43.tab not found in download."
-            return False
+        log("Installing...")
 
-        # ── Replace Seed43.tab, skipping yaml and json files ─────────────────
+        # Wipe and replace Seed43.extension
+        if os.path.isdir(EXTENSION_DIR):
+            shutil.rmtree(EXTENSION_DIR)
 
-        status_lbl.Text = "Applying update..."
+        def safe_copy_tree(src, dst):
+            if not os.path.exists(dst):
+                os.makedirs(dst)
+            for item in os.listdir(src):
+                s = os.path.join(src, item)
+                d = os.path.join(dst, item)
+                if os.path.isdir(s):
+                    safe_copy_tree(s, d)
+                else:
+                    ext = os.path.splitext(item)[1].lower()
+                    if ext in SKIP_EXT and os.path.exists(d):
+                        continue
+                    shutil.copy2(s, d)
 
-        if os.path.isdir(TAB_DIR):
-            shutil.rmtree(TAB_DIR)
-        shutil.copytree(
-            new_tab,
-            TAB_DIR,
-            ignore=shutil.ignore_patterns(*["*" + ext for ext in SKIP_EXTENSIONS])
-        )
+        safe_copy_tree(extracted_root, EXTENSION_DIR)
+        set_progress(90)
 
-        # ── Update local version.txt ──────────────────────────────────────────
-
-        new_version_file = os.path.join(extracted_root, "version.txt")
-        if os.path.isfile(new_version_file):
-            shutil.copy2(new_version_file, VERSION_FILE)
-
-        # ── Cleanup ───────────────────────────────────────────────────────────
-
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-        if os.path.isfile(tmp_zip):
+        # Cleanup
+        if os.path.exists(tmp_zip):
             os.remove(tmp_zip)
+        if os.path.exists(tmp_dir):
+            shutil.rmtree(tmp_dir)
 
-        progress_bar.Value = 100
-        status_lbl.Text    = "Update complete. Please restart Revit."
+        set_progress(100)
+        log("Update complete. Please restart Revit.")
         return True
 
     except Exception as ex:
-        status_lbl.Visibility = Visibility.Visible
-        status_lbl.Text       = "Update failed: {}".format(str(ex))
-        shutil.rmtree(tmp_dir, ignore_errors=True)
+        log("Update failed: {}".format(str(ex)))
         try:
-            if os.path.isfile(tmp_zip):
+            if os.path.exists(tmp_zip):
                 os.remove(tmp_zip)
+            if os.path.exists(tmp_dir):
+                shutil.rmtree(tmp_dir)
         except Exception:
             pass
         return False
 
 
-# ── WINDOW CONTROLLER ─────────────────────────────────────────────────────────
+# -- WINDOW --------------------------------------------------------------------
 
 class UpdateWindow(object):
 
-    def __init__(self, local_version, remote_version):
-        self.window = XamlReader.Parse(WINDOW_XAML)
-
-        # ── Load icon ─────────────────────────────────────────────────────────
-        if os.path.exists(ICON_PATH):
-            img       = self.window.FindName("header_icon")
-            bmp       = BitmapImage()
-            bmp.BeginInit()
-            bmp.UriSource = Uri(ICON_PATH, UriKind.Absolute)
-            bmp.EndInit()
-            img.Source = bmp
-
+    def __init__(self):
+        self.window       = XamlReader.Parse(WINDOW_XAML)
         self.title_lbl    = self.window.FindName("update_title_lbl")
         self.msg_lbl      = self.window.FindName("update_msg_lbl")
         self.progress_bar = self.window.FindName("update_progress")
@@ -450,87 +385,65 @@ class UpdateWindow(object):
         self.update_btn   = self.window.FindName("update_btn")
         self.close_btn    = self.window.FindName("header_close_btn")
 
-        self._updated = False
+        if os.path.exists(ICON_PATH):
+            img           = self.window.FindName("header_icon")
+            bmp           = BitmapImage()
+            bmp.BeginInit()
+            bmp.UriSource = Uri(ICON_PATH, UriKind.Absolute)
+            bmp.EndInit()
+            img.Source    = bmp
 
-        self.msg_lbl.Text = (
-            "A new version of Seed43 is available.\n\n"
-            "Your version:    {}\n"
-            "Latest version:  {}\n\n"
-            "Would you like to update now?"
-        ).format(local_version, remote_version)
-
-        self._bind_events()
-
-    def _bind_events(self):
-        self.skip_btn.Click   += self._on_skip
-        self.close_btn.Click  += self._on_skip
+        self.close_btn.Click  += lambda s, e: self.window.Close()
+        self.skip_btn.Click   += lambda s, e: self.window.Close()
         self.update_btn.Click += self._on_update
-
-    def _on_skip(self, sender, e):
-        self.window.Close()
 
     def _on_update(self, sender, e):
         self.update_btn.IsEnabled = False
         self.skip_btn.IsEnabled   = False
+        self.close_btn.IsEnabled  = False
 
-        success       = download_and_apply_update(self.status_lbl, self.progress_bar)
-        self._updated = success
+        window      = self.window
+        status_lbl  = self.status_lbl
+        progress_bar = self.progress_bar
+        title_lbl   = self.title_lbl
+        update_btn  = self.update_btn
+        skip_btn    = self.skip_btn
+        close_btn   = self.close_btn
 
-        if success:
-            self.title_lbl.Text       = "Update Complete"
-            self.update_btn.Content   = "Done"
-            self.update_btn.IsEnabled = True
-            self.update_btn.Click    -= self._on_update
-            self.update_btn.Click    += self._on_skip
-        else:
-            self.skip_btn.IsEnabled   = True
-            self.update_btn.IsEnabled = True
+        def worker():
+            success = download_and_apply_update(window, status_lbl, progress_bar)
+
+            def done():
+                if success:
+                    title_lbl.Text          = "Update Complete"
+                    update_btn.Content      = "Done"
+                    update_btn.IsEnabled    = True
+                    update_btn.Click       -= self._on_update
+                    update_btn.Click       += lambda s, e: window.Close()
+                else:
+                    skip_btn.IsEnabled  = True
+                    update_btn.IsEnabled = True
+                close_btn.IsEnabled = True
+
+            window.Dispatcher.Invoke(Action(done))
+
+        t = Thread(ThreadStart(worker))
+        t.IsBackground = True
+        t.Start()
 
     def show(self):
         self.window.ShowDialog()
-        return self._updated
 
 
-# ── MAIN ──────────────────────────────────────────────────────────────────────
-
-def _check_and_notify(ui_dispatcher):
-    """Run silently in the background, only show the update window if needed."""
-    try:
-        local_version  = read_local_version()
-        remote_version = fetch_remote_version()
-
-        # ── No connection or no update needed, do nothing ─────────────────────
-        if remote_version is None:
-            return
-        if version_tuple(remote_version) <= version_tuple(local_version):
-            return
-
-        # ── Update available, show the window on the UI thread ────────────────
-        def show_window():
-            window  = UpdateWindow(local_version, remote_version)
-            updated = window.show()
-            if updated:
-                forms.alert(
-                    "Update applied successfully.\n\n"
-                    "Please restart Revit for the changes to take effect.",
-                    title="Seed43 Update"
-                )
-
-        ui_dispatcher.Invoke(Action(show_window))
-
-    except Exception:
-        pass
-
+# -- ENTRY POINT ---------------------------------------------------------------
 
 def main():
     ui_dispatcher = Dispatcher.CurrentDispatcher
 
-    def worker():
-        _check_and_notify(ui_dispatcher)
+    def show():
+        UpdateWindow().show()
 
-    t = Thread(ThreadStart(worker))
-    t.IsBackground = True
-    t.Start()
+    ui_dispatcher.Invoke(Action(show))
 
 
 if __name__ == "__main__":

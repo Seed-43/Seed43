@@ -1,14 +1,38 @@
 # -*- coding: utf-8 -*-
-"""
-Seed43 About / Install dialog
-PyRevit pushbutton script - IronPython + WPF
-Location: Seed43.tab/About.panel/Stack01.stack/Seed43.pushbutton/script.py
-Loads UI from: seed43.xaml (same folder)
+__title__  = "Check for Updates"
+__author__  = "Seed43"
+__doc__     = """
+𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+_____________________________________________________________________
+Description:
+Checks whether a newer version of Seed43 is available on GitHub and
+offers to download and apply the update automatically.
+
+The version is read from a version.txt file stored on GitHub. If a
+newer version is found, a window appears showing your current version
+and the available version. Clicking Update Now downloads the latest
+Seed43.tab folder from GitHub and replaces the one on your machine.
+Your settings and config files are not affected.
+_____________________________________________________________________
+How-to:
+-> Run the tool from the Seed43 tab
+-> If an update is available, a window will appear
+-> Click Update Now to apply it, or Not Now to skip
+-> If already up to date, a brief message confirms this
+_____________________________________________________________________
+Notes:
+- An internet connection is required
+- The update replaces only the Seed43.tab folder
+- Your settings and config files are not affected
+- Revit must be restarted after updating for changes to take effect
+_____________________________________________________________________
+Last update:
+- Initial release
+_____________________________________________________________________
 """
 
 import os
 import clr
-import json
 import shutil
 import zipfile
 
@@ -17,585 +41,497 @@ clr.AddReference("PresentationCore")
 clr.AddReference("WindowsBase")
 clr.AddReference("System")
 clr.AddReference("System.Net")
-clr.AddReference("System.IO.Compression")
-clr.AddReference("System.IO.Compression.FileSystem")
 
-import System
-from System.Windows.Markup import XamlReader
-from System.Windows import MessageBox, MessageBoxButton, MessageBoxImage, Visibility
-import System.Net
-import System.IO
-import System.IO.Compression
+from System.IO import File, Directory, StreamReader
 from System.Net import WebClient
-from System.IO import File, Directory, Path, StreamReader
-from System.IO.Compression import ZipFile
+from System.Windows.Markup import XamlReader
+from System.Windows import Visibility
+from System.Windows.Media.Imaging import BitmapImage
+from System.Windows.Threading import Dispatcher
 from System.Threading import Thread, ThreadStart
+from System import Uri, UriKind, Action
 
-# ── Constants ─────────────────────────────────────────────────────────────────
-GITHUB_ORG   = "Seed-43"
-MAIN_REPO    = "Seed43"
-BRANCH       = "main"
-
-CHANGELOG_URL = "https://raw.githubusercontent.com/{o}/{r}/{b}/Seed43.tab/About.panel/Stack01.stack/Seed43.pushbutton/bundle.yaml".format(
-    o=GITHUB_ORG, r=MAIN_REPO, b=BRANCH)
-
-APPDATA = os.environ.get("APPDATA", "")
-
-TOOLS = [
-    {
-        "id":            "pytransmit",
-        "name":          "PyTransmit",
-        "repo":          "Seed43-PyTransmit",
-        "install_dir":   os.path.join(APPDATA, "pyRevit", "Extensions", "Seed43.extension",
-                             "Seed43.tab", "Document Studio.panel", "pyTransmit.pushbutton"),
-        "yaml_file":     os.path.join(APPDATA, "pyRevit", "Extensions", "Seed43.extension",
-                             "Seed43.tab", "Document Studio.panel", "pyTransmit.pushbutton", "bundle.yaml"),
-        "changelog_url": "https://raw.githubusercontent.com/{o}/{r}/{b}/bundle.yaml".format(
-                             o=GITHUB_ORG, r="Seed43-PyTransmit", b=BRANCH),
-        "zip_url":       "https://github.com/{o}/{r}/archive/refs/heads/{b}.zip".format(
-                             o=GITHUB_ORG, r="Seed43-PyTransmit", b=BRANCH),
-        "description":   "Transmit Revit files with automatic sheet and link management.",
-        "ui_prefix":     "pt",
-    },
-    {
-        "id":            "3dtools",
-        "name":          "3D Tools",
-        "repo":          "3D-Tools",
-        "install_dir":   os.path.join(APPDATA, "pyRevit", "Extensions", "Seed43.extension",
-                             "Seed43.tab", "3D Tools.panel"),
-        "yaml_file":     os.path.join(APPDATA, "pyRevit", "Extensions", "Seed43.extension",
-                             "Seed43.tab", "3D Tools.panel", "bundle.yaml"),
-        "changelog_url": "https://raw.githubusercontent.com/{o}/{r}/{b}/bundle.yaml".format(
-                             o=GITHUB_ORG, r="3D-Tools", b=BRANCH),
-        "zip_url":       "https://github.com/{o}/{r}/archive/refs/heads/{b}.zip".format(
-                             o=GITHUB_ORG, r="3D-Tools", b=BRANCH),
-        "description":   "A collection of 3D workflow tools for Revit.",
-        "ui_prefix":     "td",
-    },
-]
-
-S43_YAML_FILE    = os.path.join(APPDATA, "pyRevit", "Extensions", "Seed43.extension",
-                     "Seed43.tab", "About.panel", "Stack01.stack", "Seed43.pushbutton", "bundle.yaml")
+from pyrevit import forms, script
 
 
-def _parse_yaml_version(path):
+# ── XAML ──────────────────────────────────────────────────────────────────────
+
+WINDOW_XAML = """
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Seed43 Update"
+    Width="420"
+    SizeToContent="Height"
+    ResizeMode="NoResize"
+    WindowStartupLocation="CenterScreen"
+    Background="#3B4553"
+    TextElement.FontFamily="Segoe UI">
+
+    <Window.Resources>
+
+        <DropShadowEffect x:Key="HeaderShadow"
+                          Color="Black" Opacity="0.3"
+                          ShadowDepth="2" BlurRadius="6"/>
+
+        <DropShadowEffect x:Key="CardShadow"
+                          Color="Black" Opacity="0.2"
+                          ShadowDepth="2" BlurRadius="4"/>
+
+        <Style x:Key="SmallButtonStyle" TargetType="Button">
+            <Setter Property="Background"      Value="#208A3C"/>
+            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"         Value="12,4"/>
+            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Height"          Value="24"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#2B933F"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#1A6E2E"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Background" Value="#555555"/>
+                                <Setter Property="Foreground"                  Value="#888888"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SecondaryButtonStyle" TargetType="Button">
+            <Setter Property="Background"      Value="#404553"/>
+            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"         Value="16,8"/>
+            <Setter Property="FontSize"        Value="12"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#4E5566"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#333B48"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Background" Value="#555555"/>
+                                <Setter Property="Foreground"                  Value="#888888"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CloseButtonStyle" TargetType="Button">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize"        Value="14"/>
+            <Setter Property="Width"           Value="30"/>
+            <Setter Property="Height"          Value="30"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="15">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#FF5555"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#CC4444"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </Window.Resources>
+
+    <Grid>
+
+        <!-- Header -->
+        <Border Height="70"
+                VerticalAlignment="Top"
+                Background="#232933"
+                CornerRadius="0,0,12,12"
+                Effect="{StaticResource HeaderShadow}"
+                Panel.ZIndex="10">
+            <Grid Margin="24,0,24,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <Image x:Name="header_icon"
+                           Width="32" Height="32"
+                           VerticalAlignment="Center"
+                           Margin="0,0,10,0"/>
+                    <TextBlock FontSize="32" FontWeight="Bold"
+                               Foreground="#208A3C" Text="SEED"/>
+                    <TextBlock FontSize="32" FontWeight="SemiBold"
+                               Foreground="#F4FAFF" Text="43"/>
+                    <TextBlock FontSize="20" FontWeight="SemiBold"
+                               Foreground="#F4FAFF" Opacity="0.75"
+                               VerticalAlignment="Bottom"
+                               Margin="10,0,0,5"
+                               Text="  |  Update"/>
+                </StackPanel>
+                <Button x:Name="header_close_btn"
+                        Grid.Column="1"
+                        Style="{StaticResource CloseButtonStyle}"
+                        Content="&#x2716;"
+                        VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+
+        <!-- Update card -->
+        <Border Margin="24,90,24,24"
+                Background="#F4FAFF"
+                BorderBrush="#208A3C"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="24"
+                Effect="{StaticResource CardShadow}">
+            <StackPanel>
+
+                <TextBlock x:Name="update_title_lbl"
+                           Text="Update Available"
+                           Foreground="#208A3C"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,8"/>
+
+                <TextBlock x:Name="update_msg_lbl"
+                           Foreground="#2B3340"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,20"/>
+
+                <ProgressBar x:Name="update_progress"
+                             Height="4"
+                             Margin="0,0,0,12"
+                             Minimum="0"
+                             Maximum="100"
+                             Value="0"
+                             Foreground="#208A3C"
+                             Background="#D0D8E0"
+                             BorderThickness="0"
+                             Visibility="Collapsed"/>
+
+                <TextBlock x:Name="status_lbl"
+                           Foreground="#208A3C"
+                           FontSize="11"
+                           Margin="0,0,0,12"
+                           Visibility="Collapsed"/>
+
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right">
+                    <Button x:Name="skip_btn"
+                            Content="Not Now"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Padding="12,4"
+                            Height="24"
+                            FontSize="11"
+                            Margin="0,0,8,0"/>
+                    <Button x:Name="update_btn"
+                            Content="Update Now"
+                            Style="{StaticResource SmallButtonStyle}"
+                            Width="100"/>
+                </StackPanel>
+
+            </StackPanel>
+        </Border>
+
+    </Grid>
+</Window>
+"""
+
+
+# ── VARIABLES ─────────────────────────────────────────────────────────────────
+
+GITHUB_USER   = "Seed-43"
+GITHUB_REPO   = "Seed43"
+GITHUB_BRANCH = "main"
+
+VERSION_URL  = "https://raw.githubusercontent.com/{}/{}/{}/version.txt".format(
+    GITHUB_USER, GITHUB_REPO, GITHUB_BRANCH)
+
+REPO_ZIP_URL = "https://github.com/{}/{}/archive/refs/heads/{}.zip".format(
+    GITHUB_USER, GITHUB_REPO, GITHUB_BRANCH)
+
+SCRIPT_DIR    = os.path.dirname(__file__)
+APPDATA       = os.environ.get("APPDATA", "")
+EXTENSION_DIR = os.path.join(APPDATA, "pyRevit", "Extensions", "Seed43.extension")
+TAB_DIR       = os.path.join(EXTENSION_DIR, "Seed43.tab")
+VERSION_FILE  = os.path.join(EXTENSION_DIR, "version.txt")
+ICON_PATH     = os.path.join(SCRIPT_DIR, "icon.png")
+
+# File extensions to skip during update, preserving local config files
+SKIP_EXTENSIONS = (".yaml", ".json")
+
+
+# ── FUNCTIONS ─────────────────────────────────────────────────────────────────
+
+def read_local_version():
+    """Read the installed version string from the extension root version.txt.
+    Returns only the first non-empty line as the version number."""
     try:
-        if File.Exists(path):
-            for line in File.ReadAllText(path).splitlines():
-                stripped = line.strip()
-                if stripped.startswith("version:"):
-                    return stripped.split(":", 1)[1].strip()
+        if not File.Exists(VERSION_FILE):
+            return "0.0.0"
+        reader  = StreamReader(VERSION_FILE)
+        content = reader.ReadToEnd()
+        reader.Close()
+        for line in content.splitlines():
+            line = line.strip()
+            if line:
+                return line
     except Exception:
         pass
-    return None
+    return "0.0.0"
 
 
-def _write_yaml_version(path, version):
+def fetch_remote_version():
+    """Download version.txt from GitHub and return only the version number.
+    Returns None if the request fails."""
     try:
-        if File.Exists(path):
-            lines = list(File.ReadAllLines(path))
-            new_lines = []
-            replaced = False
-            for line in lines:
-                if line.strip().startswith("version:") and not replaced:
-                    new_lines.append("version: " + version)
-                    replaced = True
-                else:
-                    new_lines.append(line)
-            if not replaced:
-                new_lines.append("version: " + version)
-            File.WriteAllLines(path, new_lines)
-        else:
-            Directory.CreateDirectory(Path.GetDirectoryName(path))
-            File.WriteAllText(path, "version: " + version + "\n")
-    except Exception:
-        pass
-
-# ── Load XAML from file ───────────────────────────────────────────────────────
-SCRIPT_DIR = os.path.dirname(__file__)
-XAML_PATH  = os.path.join(SCRIPT_DIR, "seed43.xaml")
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def load_xaml(path):
-    reader = StreamReader(path)
-    window = XamlReader.Load(reader.BaseStream)
-    reader.Close()
-    return window
-
-def fetch_bundle(url):
-    try:
-        wc = WebClient()
-        wc.Headers.Add("Cache-Control", "no-cache, no-store")
-        wc.Headers.Add("Pragma", "no-cache")
-        raw = wc.DownloadString(url)
-        result = {}
-        changelog = []
-        in_changelog = False
+        client = WebClient()
+        raw    = client.DownloadString(VERSION_URL).strip()
         for line in raw.splitlines():
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#"):
-                continue
-            if stripped.startswith("- ") and in_changelog:
-                changelog.append(stripped[2:].strip())
-                continue
-            if ":" in stripped:
-                in_changelog = False
-                key, _, val = stripped.partition(":")
-                key = key.strip()
-                val = val.strip()
-                if key == "changelog":
-                    in_changelog = True
-                elif val:
-                    result[key] = val
-        if changelog:
-            result["changelog"] = changelog
-        result["version"] = result.get("version", "")
-        result["changes"] = result.get("changelog", [])
-        return result
+            line = line.strip()
+            if line:
+                return line
     except Exception:
         return None
 
-def fetch_json(url):
-    return fetch_bundle(url)
 
-def get_local_version(yaml_file):
-    return _parse_yaml_version(yaml_file)
-
-def write_local_version(yaml_file, version):
-    _write_yaml_version(yaml_file, version)
-
-def _write_yaml_version_py(path, version):
+def version_tuple(version_str):
+    """Convert a version string like 1.2.3 to a tuple (1, 2, 3) for comparison."""
     try:
-        if os.path.exists(path):
-            with open(path, "r") as f:
-                lines = f.readlines()
-            new_lines = []
-            replaced = False
-            for line in lines:
-                if line.strip().startswith("version:") and not replaced:
-                    new_lines.append("version: {}\n".format(version))
-                    replaced = True
-                else:
-                    new_lines.append(line)
-            if not replaced:
-                new_lines.append("version: {}\n".format(version))
-            with open(path, "w") as f:
-                f.writelines(new_lines)
+        return tuple(int(x) for x in version_str.strip().split("."))
+    except Exception:
+        return (0, 0, 0)
+
+
+def download_and_apply_update(status_lbl, progress_bar):
+    """Download the repo zip, swap in the new Seed43.tab, update version.txt.
+    Skips yaml and json files to preserve local config.
+    Returns True on success, False on failure."""
+    tmp_zip = os.path.join(EXTENSION_DIR, "_seed43_update.zip")
+    tmp_dir = os.path.join(EXTENSION_DIR, "_seed43_update_tmp")
+
+    try:
+        # ── Download ──────────────────────────────────────────────────────────
+
+        def on_progress(sender, e):
+            progress_bar.Visibility = Visibility.Visible
+            progress_bar.Value      = e.ProgressPercentage
+
+        status_lbl.Visibility = Visibility.Visible
+        status_lbl.Text       = "Downloading update..."
+
+        client = WebClient()
+        client.DownloadProgressChanged += on_progress
+        client.DownloadFile(REPO_ZIP_URL, tmp_zip)
+
+        # ── Extract ───────────────────────────────────────────────────────────
+
+        status_lbl.Text = "Extracting files..."
+
+        if Directory.Exists(tmp_dir):
+            shutil.rmtree(tmp_dir)
+        Directory.CreateDirectory(tmp_dir)
+
+        with zipfile.ZipFile(tmp_zip, "r") as zf:
+            zf.extractall(tmp_dir)
+
+        extracted_root = os.path.join(tmp_dir, "{}-{}".format(GITHUB_REPO, GITHUB_BRANCH))
+        new_tab        = os.path.join(extracted_root, "Seed43.tab")
+
+        if not os.path.isdir(new_tab):
+            status_lbl.Text = "Update failed: Seed43.tab not found in download."
+            return False
+
+        # ── Replace Seed43.tab, skipping yaml and json files ─────────────────
+
+        status_lbl.Text = "Applying update..."
+
+        if os.path.isdir(TAB_DIR):
+            shutil.rmtree(TAB_DIR)
+        shutil.copytree(
+            new_tab,
+            TAB_DIR,
+            ignore=shutil.ignore_patterns(*["*" + ext for ext in SKIP_EXTENSIONS])
+        )
+
+        # ── Update local version.txt ──────────────────────────────────────────
+
+        new_version_file = os.path.join(extracted_root, "version.txt")
+        if os.path.isfile(new_version_file):
+            shutil.copy2(new_version_file, VERSION_FILE)
+
+        # ── Cleanup ───────────────────────────────────────────────────────────
+
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        if os.path.isfile(tmp_zip):
+            os.remove(tmp_zip)
+
+        progress_bar.Value = 100
+        status_lbl.Text    = "Update complete. Please restart Revit."
+        return True
+
+    except Exception as ex:
+        status_lbl.Visibility = Visibility.Visible
+        status_lbl.Text       = "Update failed: {}".format(str(ex))
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        try:
+            if os.path.isfile(tmp_zip):
+                os.remove(tmp_zip)
+        except Exception:
+            pass
+        return False
+
+
+# ── WINDOW CONTROLLER ─────────────────────────────────────────────────────────
+
+class UpdateWindow(object):
+
+    def __init__(self, local_version, remote_version):
+        self.window = XamlReader.Parse(WINDOW_XAML)
+
+        # ── Load icon ─────────────────────────────────────────────────────────
+        if os.path.exists(ICON_PATH):
+            img       = self.window.FindName("header_icon")
+            bmp       = BitmapImage()
+            bmp.BeginInit()
+            bmp.UriSource = Uri(ICON_PATH, UriKind.Absolute)
+            bmp.EndInit()
+            img.Source = bmp
+
+        self.title_lbl    = self.window.FindName("update_title_lbl")
+        self.msg_lbl      = self.window.FindName("update_msg_lbl")
+        self.progress_bar = self.window.FindName("update_progress")
+        self.status_lbl   = self.window.FindName("status_lbl")
+        self.skip_btn     = self.window.FindName("skip_btn")
+        self.update_btn   = self.window.FindName("update_btn")
+        self.close_btn    = self.window.FindName("header_close_btn")
+
+        self._updated = False
+
+        self.msg_lbl.Text = (
+            "A new version of Seed43 is available.\n\n"
+            "Your version:    {}\n"
+            "Latest version:  {}\n\n"
+            "Would you like to update now?"
+        ).format(local_version, remote_version)
+
+        self._bind_events()
+
+    def _bind_events(self):
+        self.skip_btn.Click   += self._on_skip
+        self.close_btn.Click  += self._on_skip
+        self.update_btn.Click += self._on_update
+
+    def _on_skip(self, sender, e):
+        self.window.Close()
+
+    def _on_update(self, sender, e):
+        self.update_btn.IsEnabled = False
+        self.skip_btn.IsEnabled   = False
+
+        success       = download_and_apply_update(self.status_lbl, self.progress_bar)
+        self._updated = success
+
+        if success:
+            self.title_lbl.Text       = "Update Complete"
+            self.update_btn.Content   = "Done"
+            self.update_btn.IsEnabled = True
+            self.update_btn.Click    -= self._on_update
+            self.update_btn.Click    += self._on_skip
         else:
-            with open(path, "w") as f:
-                f.write("version: {}\n".format(version))
+            self.skip_btn.IsEnabled   = True
+            self.update_btn.IsEnabled = True
+
+    def show(self):
+        self.window.ShowDialog()
+        return self._updated
+
+
+# ── MAIN ──────────────────────────────────────────────────────────────────────
+
+def _check_and_notify(ui_dispatcher):
+    """Run silently in the background, only show the update window if needed."""
+    try:
+        local_version  = read_local_version()
+        remote_version = fetch_remote_version()
+
+        # ── No connection or no update needed, do nothing ─────────────────────
+        if remote_version is None:
+            return
+        if version_tuple(remote_version) <= version_tuple(local_version):
+            return
+
+        # ── Update available, show the window on the UI thread ────────────────
+        def show_window():
+            window  = UpdateWindow(local_version, remote_version)
+            updated = window.show()
+            if updated:
+                forms.alert(
+                    "Update applied successfully.\n\n"
+                    "Please restart Revit for the changes to take effect.",
+                    title="Seed43 Update"
+                )
+
+        ui_dispatcher.Invoke(Action(show_window))
+
     except Exception:
         pass
 
 
-def dispatch(window, fn):
-    window.Dispatcher.Invoke(System.Action(fn))
+def main():
+    ui_dispatcher = Dispatcher.CurrentDispatcher
 
+    def worker():
+        _check_and_notify(ui_dispatcher)
 
-class ToolHandler(object):
+    t = Thread(ThreadStart(worker))
+    t.IsBackground = True
+    t.Start()
 
-    def __init__(self, window, tool):
-        self.window     = window
-        self.tool       = tool
-        self._prefix    = tool["ui_prefix"]
-        self._expanded  = False
-        self._installed = False
-        self._busy      = False
-        self._bind()
 
-    def _name(self, suffix):
-        return "{0}_{1}".format(self._prefix, suffix)
-
-    def _find(self, suffix):
-        return self.window.FindName(self._name(suffix))
-
-    def _bind(self):
-        self._find("header").MouseLeftButtonUp += self._on_toggle
-        self._find("action_btn").Click         += self._on_action
-
-    def _on_toggle(self, sender, args):
-        if self._busy:
-            return
-        self._expanded = not self._expanded
-        self._find("body").Visibility = (
-            Visibility.Visible if self._expanded else Visibility.Collapsed)
-        self._find("chevron").Text = (
-            u"\u25B2" if self._expanded else u"\u25BC")
-
-    def _on_action(self, sender, args):
-        if self._busy:
-            return
-        if self._installed:
-            self._run_uninstall()
-        else:
-            self._run_install()
-
-    def _run_install(self):
-        self._busy = True
-        self._set_busy_ui("Connecting to GitHub...")
-        tool = self.tool
-
-        def log(msg):
-            dispatch(self.window, lambda: setattr(
-                self._find("progress_lbl"), "Text", msg))
-
-        def worker():
-            try:
-                tmp_zip = System.IO.Path.Combine(
-                    System.IO.Path.GetTempPath(), tool["repo"] + "_install.zip")
-                tmp_dir = System.IO.Path.Combine(
-                    System.IO.Path.GetTempPath(), tool["repo"] + "_extracted")
-
-                log("Downloading files...")
-                WebClient().DownloadFile(tool["zip_url"], tmp_zip)
-
-                log("Extracting...")
-                if Directory.Exists(tmp_dir):
-                    Directory.Delete(tmp_dir, True)
-                ZipFile.ExtractToDirectory(tmp_zip, tmp_dir)
-
-                extracted_root = None
-                for d in Directory.GetDirectories(tmp_dir):
-                    extracted_root = d
-                    break
-                if not extracted_root:
-                    raise System.Exception("Could not find extracted folder.")
-
-                log("Installing...")
-                if os.path.exists(tool["install_dir"]):
-                    shutil.rmtree(tool["install_dir"])
-                os.makedirs(tool["install_dir"])
-                for item in os.listdir(extracted_root):
-                    s = os.path.join(extracted_root, item)
-                    d = os.path.join(tool["install_dir"], item)
-                    if os.path.isdir(s):
-                        shutil.copytree(s, d)
-                    else:
-                        shutil.copy2(s, d)
-
-                if File.Exists(tmp_zip):
-                    File.Delete(tmp_zip)
-                if Directory.Exists(tmp_dir):
-                    Directory.Delete(tmp_dir, True)
-
-                remote  = fetch_json(tool["changelog_url"])
-                version = remote.get("version", "unknown") if remote else "unknown"
-                write_local_version(tool["yaml_file"], version)
-
-                dispatch(self.window, lambda: self._on_install_done(version, remote))
-
-            except System.Exception as ex:
-                dispatch(self.window, lambda: self._on_error(str(ex)))
-
-        t = Thread(ThreadStart(worker))
-        t.IsBackground = True
-        t.Start()
-
-    def _run_uninstall(self):
-        result = MessageBox.Show(
-            "Uninstall {0}?\n\nThis will delete all files from:\n{1}".format(
-                self.tool["name"], self.tool["install_dir"]),
-            "Uninstall " + self.tool["name"],
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question
-        )
-        if str(result) != "Yes":
-            return
-
-        self._busy = True
-        self._set_busy_ui("Removing files...")
-        tool = self.tool
-
-        def log(msg):
-            dispatch(self.window, lambda: setattr(
-                self._find("progress_lbl"), "Text", msg))
-
-        def worker():
-            try:
-                log("Removing files...")
-                if Directory.Exists(tool["install_dir"]):
-                    Directory.Delete(tool["install_dir"], True)
-                log("Cleaning up...")
-                dispatch(self.window, lambda: self._on_uninstall_done())
-            except System.Exception as ex:
-                dispatch(self.window, lambda: self._on_error(str(ex)))
-
-        t = Thread(ThreadStart(worker))
-        t.IsBackground = True
-        t.Start()
-
-    def _set_busy_ui(self, label):
-        self._find("action_btn").IsEnabled     = False
-        self._find("progress_wrap").Visibility = Visibility.Visible
-        self._find("progress_lbl").Text        = label
-
-    def _on_install_done(self, version, remote):
-        self._busy      = False
-        self._installed = True
-        self._find("progress_wrap").Visibility = Visibility.Collapsed
-        btn           = self._find("action_btn")
-        btn.IsEnabled = True
-        btn.Content   = "Uninstall"
-        btn.Style     = self.window.FindResource("DangerBtn")
-        self._find("dot").Fill = \
-            System.Windows.Media.BrushConverter().ConvertFrom("#208A3C")
-        self._find("status_lbl").Text = \
-            u"Installed  v{0}  \u2192  {1}".format(version, self.tool["install_dir"])
-        if remote:
-            ver     = remote.get("version", "")
-            changes = remote.get("changes", [])
-            self._find("changelog").Text = \
-                u"Latest: v{0}\n{1}".format(ver, u"\n".join([u"\u203a " + c for c in changes]))
-
-    def _on_uninstall_done(self):
-        self._busy      = False
-        self._installed = False
-        self._find("progress_wrap").Visibility = Visibility.Collapsed
-        btn           = self._find("action_btn")
-        btn.IsEnabled = True
-        btn.Content   = "Install"
-        btn.Style     = self.window.FindResource("SmallBtn")
-        self._find("dot").Fill = \
-            System.Windows.Media.BrushConverter().ConvertFrom("#A0AABB")
-        self._find("status_lbl").Text = "Not installed"
-        self._find("changelog").Text  = ""
-
-    def _on_error(self, msg):
-        self._busy = False
-        self._find("progress_wrap").Visibility = Visibility.Collapsed
-        self._find("action_btn").IsEnabled     = True
-        MessageBox.Show("Operation failed:\n\n" + msg, "Seed43",
-                        MessageBoxButton.OK, MessageBoxImage.Error)
-
-    def update_ui(self, local, remote):
-        if local:
-            self._installed = True
-            btn         = self._find("action_btn")
-            btn.Content = "Uninstall"
-            btn.Style   = self.window.FindResource("DangerBtn")
-            self._find("dot").Fill = \
-                System.Windows.Media.BrushConverter().ConvertFrom("#208A3C")
-            self._find("status_lbl").Text = \
-                u"Installed  v{0}  \u2192  {1}".format(local, self.tool["install_dir"])
-        else:
-            self._find("status_lbl").Text = "Not installed"
-
-        if remote:
-            ver     = remote.get("version", "")
-            changes = remote.get("changes", [])
-            self._find("changelog").Text = \
-                u"Latest: v{0}\n{1}".format(ver, u"\n".join([u"\u203a " + c for c in changes]))
-        else:
-            self._find("changelog").Text = "Could not reach GitHub"
-
-
-class Seed43Dialog(object):
-
-    def __init__(self):
-        self.window          = load_xaml(XAML_PATH)
-        self._tool_handlers  = []
-        self._bind()
-        self._init_tool_handlers()
-        self._check_versions()
-
-    def _bind(self):
-        self.window.FindName("header_close").Click              += lambda s, e: self.window.Close()
-        self.window.FindName("footer_reload").Click             += self._on_reload
-        self.window.FindName("update_ribbon").MouseLeftButtonUp += self._on_s43_update
-
-    def _init_tool_handlers(self):
-        for tool in TOOLS:
-            handler = ToolHandler(self.window, tool)
-            self._tool_handlers.append(handler)
-
-    def _on_reload(self, sender, args):
-        self.window.Close()
-        try:
-            from pyrevit.loader import sessionmgr
-            sessionmgr.reload_pyrevit()
-        except Exception as ex:
-            MessageBox.Show(
-                "Could not reload PyRevit:\n\n" + str(ex),
-                "Reload Failed",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning
-            )
-
-    def _check_versions(self):
-        def worker():
-            local_s43  = get_local_version(S43_YAML_FILE)
-            remote_s43 = fetch_bundle(CHANGELOG_URL)
-            dispatch(self.window, lambda: self._update_s43_ui(local_s43, remote_s43))
-
-            for handler in self._tool_handlers:
-                tool      = handler.tool
-                local_v   = get_local_version(tool["yaml_file"])
-                remote_v  = fetch_bundle(tool["changelog_url"])
-                h, lv, rv = handler, local_v, remote_v
-                dispatch(self.window, lambda h=h, lv=lv, rv=rv: h.update_ui(lv, rv))
-
-        t = Thread(ThreadStart(worker))
-        t.IsBackground = True
-        t.Start()
-
-    def _update_s43_ui(self, local, remote):
-        self.window.FindName("s43_version").Text = (
-            u"\u25CF  Installed  v{0}".format(local) if local else "Version unknown")
-        if remote:
-            ver     = remote.get("version", "")
-            changes = remote.get("changes", [])
-            self.window.FindName("s43_changelog").Text = \
-                u"Latest: v{0}   {1}".format(ver, u"  \u2022  ".join(changes[:2]))
-            if local and ver and ver != local:
-                self._remote_s43_version = ver
-                self.window.FindName("update_ribbon_version").Text = \
-                    u"v{0}  \u2192  v{1}".format(local, ver)
-                self.window.FindName("update_ribbon").Visibility = Visibility.Visible
-        else:
-            self.window.FindName("s43_changelog").Text = "Could not reach GitHub"
-
-    def _on_s43_update(self, sender, args):
-        result = MessageBox.Show(
-            "Update Seed43 extension to v{0}?\n\nThe extension will be re-downloaded from GitHub.\nReload PyRevit in Revit after updating.".format(
-                getattr(self, "_remote_s43_version", "latest")),
-            "Update Seed43",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question
-        )
-        if str(result) != "Yes":
-            return
-
-        self.window.FindName("update_ribbon").Visibility = Visibility.Collapsed
-
-        EXTENSIONS_DIR = os.path.join(os.environ.get("APPDATA", ""), "pyRevit", "Extensions")
-        S43_INSTALL    = os.path.join(EXTENSIONS_DIR, "Seed43.extension")
-        ZIP_URL        = "https://github.com/{o}/{r}/archive/refs/heads/{b}.zip".format(
-                            o=GITHUB_ORG, r=MAIN_REPO, b=BRANCH)
-        TEMP_ZIP       = os.path.join(os.environ.get("TEMP", ""), "seed43_update.zip")
-        TEMP_DIR       = os.path.join(os.environ.get("TEMP", ""), "seed43_update_extracted")
-
-        def log(msg):
-            dispatch(self.window, lambda: setattr(
-                self.window.FindName("s43_changelog"), "Text", msg))
-
-        def worker():
-            try:
-                log("Downloading update...")
-                wc = WebClient()
-                wc.Headers.Add("Cache-Control", "no-cache, no-store")
-                wc.DownloadFile(ZIP_URL, TEMP_ZIP)
-
-                log("Extracting...")
-                if os.path.exists(TEMP_DIR):
-                    shutil.rmtree(TEMP_DIR)
-                os.makedirs(TEMP_DIR)
-                with zipfile.ZipFile(TEMP_ZIP, "r") as z:
-                    z.extractall(TEMP_DIR)
-
-                extracted_root = None
-                for item in os.listdir(TEMP_DIR):
-                    full = os.path.join(TEMP_DIR, item)
-                    if os.path.isdir(full):
-                        extracted_root = full
-                        break
-                if not extracted_root:
-                    raise Exception("Could not find extracted folder.")
-
-                log("Installing update...")
-
-                src_about = os.path.join(extracted_root, "Seed43.tab", "About.panel")
-                dst_about = os.path.join(S43_INSTALL, "Seed43.tab", "About.panel")
-
-                if not os.path.exists(src_about):
-                    raise Exception("About.panel not found in repo ZIP.")
-
-                def sync_tree(src_dir, dst_dir):
-                    if not os.path.exists(dst_dir):
-                        os.makedirs(dst_dir)
-                    src_items = set(os.listdir(src_dir))
-                    dst_items = set(os.listdir(dst_dir)) if os.path.exists(dst_dir) else set()
-                    for item in src_items:
-                        s = os.path.join(src_dir, item)
-                        d = os.path.join(dst_dir, item)
-                        if os.path.isdir(s):
-                            sync_tree(s, d)
-                        else:
-                            shutil.copy2(s, d)
-                    for item in dst_items - src_items:
-                        d = os.path.join(dst_dir, item)
-                        if os.path.isdir(d):
-                            shutil.rmtree(d)
-                            log("Removed: {0}".format(item))
-                        else:
-                            os.remove(d)
-                            log("Removed: {0}".format(item))
-
-                sync_tree(src_about, dst_about)
-
-                src_yaml = os.path.join(extracted_root, "Seed43.tab", "bundle.yaml")
-                dst_yaml = os.path.join(S43_INSTALL, "Seed43.tab", "bundle.yaml")
-
-                if os.path.exists(src_yaml):
-                    if not os.path.exists(os.path.dirname(dst_yaml)):
-                        os.makedirs(os.path.dirname(dst_yaml))
-                    shutil.copy2(src_yaml, dst_yaml)
-
-                remote  = fetch_bundle(CHANGELOG_URL)
-                version = remote.get("version", "unknown") if remote else "unknown"
-
-                bundle_path = os.path.join(
-                    S43_INSTALL, "Seed43.tab", "About.panel",
-                    "Stack01.stack", "Seed43.pushbutton", "bundle.yaml")
-                _write_yaml_version_py(bundle_path, version)
-
-                log("Done — v{0}".format(version))
-
-                if os.path.exists(TEMP_ZIP):
-                    os.remove(TEMP_ZIP)
-                if os.path.exists(TEMP_DIR):
-                    shutil.rmtree(TEMP_DIR)
-
-                dispatch(self.window, lambda: self._on_s43_update_done(version))
-
-            except Exception as ex:
-                dispatch(self.window, lambda: self._on_error(str(ex)))
-
-        t = Thread(ThreadStart(worker))
-        t.IsBackground = True
-        t.Start()
-
-    def _on_s43_update_done(self, version):
-        self._local_s43_version = version
-        self.window.FindName("update_ribbon").Visibility = Visibility.Collapsed
-        self.window.FindName("s43_version").Text = u"\u25CF  Installed  v{0}".format(version)
-        self.window.FindName("s43_changelog").Text = u"Updated to v{0} \u2014 reloading PyRevit...".format(version)
-        result = MessageBox.Show(
-            "Seed43 updated to v{0}.\n\nPyRevit will now reload to apply the update.".format(version),
-            "Seed43 Updated",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information
-        )
-        self.window.Close()
-        try:
-            from pyrevit.loader import sessionmgr
-            sessionmgr.reload_pyrevit()
-        except Exception as ex:
-            MessageBox.Show(
-                "Please reload PyRevit manually.\n\n" + str(ex),
-                "Reload Required",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning
-            )
-
-    def _on_error(self, msg):
-        MessageBox.Show("Operation failed:\n\n" + msg, "Seed43",
-                        MessageBoxButton.OK, MessageBoxImage.Error)
-
-    def show(self):
-        self.window.ShowDialog()
-
-
-# ── Entry point ───────────────────────────────────────────────────────────────
-dialog = Seed43Dialog()
-dialog.show()
+if __name__ == "__main__":
+    main()

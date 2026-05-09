@@ -1,11 +1,9 @@
 @echo off
-:: Seed43 installer — downloads Seed43.tab from GitHub into Seed43.extension
-
+:: Seed43 installer \u2014 downloads Seed43.tab from GitHub into Seed43.extension
 set GITHUB_ORG=Seed-43
 set MAIN_REPO=Seed43
 set BRANCH=main
 set ZIP_URL=https://github.com/%GITHUB_ORG%/%MAIN_REPO%/archive/refs/heads/%BRANCH%.zip
-
 set INSTALL_DIR=%APPDATA%\pyRevit\Extensions\Seed43.extension
 set TEMP_ZIP=%TEMP%\seed43_install.zip
 set TEMP_EXTRACT=%TEMP%\seed43_extracted
@@ -30,17 +28,38 @@ if errorlevel 1 (
 
 :: GitHub extracts to reponame-branch folder
 for /d %%i in ("%TEMP_EXTRACT%\*") do set EXTRACTED_ROOT=%%i
-
 if not exist "%EXTRACTED_ROOT%\Seed43.tab" (
     echo Error: Seed43.tab not found in repo ZIP.
     pause
     exit /b 1
 )
 
-echo Installing to: %INSTALL_DIR%
-if exist "%INSTALL_DIR%" rmdir /s /q "%INSTALL_DIR%"
+:: Remove existing extension if present, then recreate clean
+echo Removing existing Seed43.extension if present...
+if exist "%INSTALL_DIR%" (
+    rmdir /s /q "%INSTALL_DIR%"
+    if errorlevel 1 (
+        echo Error: Could not remove existing installation. Is Revit still running?
+        pause
+        exit /b 1
+    )
+    echo Existing installation removed.
+)
+echo Creating fresh Seed43.extension...
 mkdir "%INSTALL_DIR%"
+if errorlevel 1 (
+    echo Error: Could not create install directory.
+    pause
+    exit /b 1
+)
+
+echo Installing to: %INSTALL_DIR%
 xcopy /e /i /q "%EXTRACTED_ROOT%\Seed43.tab" "%INSTALL_DIR%\Seed43.tab"
+if errorlevel 1 (
+    echo Error: File copy failed.
+    pause
+    exit /b 1
+)
 
 echo Cleaning up...
 del /q "%TEMP_ZIP%"

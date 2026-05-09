@@ -1,0 +1,32 @@
+[
+  {
+    "description": "Mail", 
+    "code": "M", 
+    "separator": "-"
+  }, 
+  {
+    "description": "Hand", 
+    "code": "H", 
+    "separator": "-"
+  }, 
+  {
+    "description": "Courier", 
+    "code": "C", 
+    "separator": "-"
+  }, 
+  {
+    "description": "Pickup", 
+    "code": "P", 
+    "separator": "-"
+  }, 
+  {
+    "description": "Email", 
+    "code": "E", 
+    "separator": "-"
+  }, 
+  {
+    "description": "Cloud Transfer", 
+    "code": "CT", 
+    "separator": "-"
+  }
+]

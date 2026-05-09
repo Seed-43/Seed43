@@ -1,0 +1,35 @@
+{
+  "active_template": "Revit Drafting View", 
+  "text_styles": {
+    "Header": {
+      "size_mm": 2.5, 
+      "italic": false, 
+      "bold": true, 
+      "underline": false, 
+      "font": "Arial", 
+      "color": "#000000"
+    }, 
+    "Title": {
+      "size_mm": 4.5, 
+      "italic": false, 
+      "bold": true, 
+      "underline": false, 
+      "font": "Arial", 
+      "color": "#000000"
+    }, 
+    "Data": {
+      "size_mm": 2.2000000000000002, 
+      "italic": false, 
+      "bold": false, 
+      "underline": false, 
+      "font": "Arial", 
+      "color": "#000000"
+    }
+  }, 
+  "logo_path": "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\Document Studio.panel\\pyTransmit.pushbutton\\logo.png", 
+  "col_pct": [
+    22, 
+    28, 
+    20
+  ]
+}

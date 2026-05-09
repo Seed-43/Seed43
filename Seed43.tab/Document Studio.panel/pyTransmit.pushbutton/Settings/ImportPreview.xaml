@@ -1,0 +1,210 @@
+<!--
+===================================================================================
+pyImport  –  IMPORT PREVIEW WINDOW
+===================================================================================
+Sections:
+  1. Window / Resources
+  2. Styles  –  Buttons · DataGrid
+  3. Layout  –  Header (title + subtitle)
+                → DataGrid content area
+                → Footer (Close button, right-aligned)
+===================================================================================
+-->
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Import Preview"
+        Height="600"
+        Width="800"
+        ShowInTaskbar="False"
+        ResizeMode="CanResize"
+        WindowStartupLocation="CenterOwner"
+        Background="#3B4553"
+        TextElement.FontFamily="Segoe UI">
+
+    <Window.Resources>
+
+        <!-- ═══════════════════════════════════════════════════════════════
+             COLOURS
+        ═══════════════════════════════════════════════════════════════ -->
+        <SolidColorBrush x:Key="AccentColor"    Color="#208A3C"/>
+        <SolidColorBrush x:Key="CardBackground" Color="#2B3340"/>
+        <SolidColorBrush x:Key="LightText"      Color="#F4FAFF"/>
+
+        <!-- ═══════════════════════════════════════════════════════════════
+             BUTTONS
+        ═══════════════════════════════════════════════════════════════ -->
+
+        <!-- Primary -->
+        <Style x:Key="ModernButtonStyle" TargetType="Button">
+            <Setter Property="Background"      Value="{StaticResource AccentColor}"/>
+            <Setter Property="Foreground"      Value="{StaticResource LightText}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"         Value="24,8"/>
+            <Setter Property="FontSize"        Value="14"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="MainBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="MainBorder" Property="Background" Value="#2B933F"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="MainBorder" Property="Background" Value="#1A6E2E"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Secondary  –  Close -->
+        <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource ModernButtonStyle}">
+            <Setter Property="Background" Value="#4A5568"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#5A6678"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#3A4558"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- ═══════════════════════════════════════════════════════════════
+             DATAGRID
+        ═══════════════════════════════════════════════════════════════ -->
+        <Style x:Key="PreviewDataGridStyle" TargetType="DataGrid">
+            <Setter Property="Background"          Value="{StaticResource CardBackground}"/>
+            <Setter Property="BorderThickness"     Value="0"/>
+            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="#404553"/>
+            <Setter Property="RowBackground"       Value="Transparent"/>
+            <Setter Property="AlternatingRowBackground" Value="#2B3340"/>
+            <Setter Property="AutoGenerateColumns" Value="False"/>
+            <Setter Property="CanUserAddRows"      Value="False"/>
+            <Setter Property="CanUserDeleteRows"   Value="False"/>
+            <Setter Property="CanUserReorderColumns" Value="False"/>
+            <Setter Property="CanUserResizeRows"   Value="False"/>
+            <Setter Property="SelectionMode"       Value="Single"/>
+            <Setter Property="HeadersVisibility"   Value="Column"/>
+            <Setter Property="IsReadOnly"          Value="True"/>
+            <Setter Property="FontSize"            Value="12"/>
+        </Style>
+
+        <Style x:Key="PreviewColumnHeaderStyle" TargetType="DataGridColumnHeader">
+            <Setter Property="Background"                Value="{StaticResource AccentColor}"/>
+            <Setter Property="Foreground"                Value="White"/>
+            <Setter Property="FontWeight"                Value="SemiBold"/>
+            <Setter Property="FontSize"                  Value="12"/>
+            <Setter Property="Height"                    Value="40"/>
+            <Setter Property="Padding"                   Value="12,0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        </Style>
+
+        <Style x:Key="PreviewCellStyle" TargetType="DataGridCell">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground"      Value="{StaticResource LightText}"/>
+            <Setter Property="Padding"         Value="12,8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridCell">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderThickness="0"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PreviewRowStyle" TargetType="DataGridRow">
+            <Setter Property="Background" Value="Transparent"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#404553"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+    </Window.Resources>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         LAYOUT
+    ═══════════════════════════════════════════════════════════════════ -->
+    <DockPanel>
+
+        <!-- ── HEADER ─────────────────────────────────────────────────── -->
+        <Border DockPanel.Dock="Top"
+                Background="#232933"
+                Height="70"
+                CornerRadius="0,0,12,12">
+            <Border.Effect>
+                <DropShadowEffect Color="Black" Opacity="0.3" ShadowDepth="2" BlurRadius="6"/>
+            </Border.Effect>
+
+            <Grid Margin="24,0,24,0">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Left">
+                    <TextBlock Text="Import Preview"
+                               Foreground="{StaticResource LightText}"
+                               FontSize="18" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="preview_info_tb"
+                               Text="Review the data below before confirming import."
+                               Foreground="{StaticResource LightText}"
+                               FontSize="12" Opacity="0.7"
+                               Margin="0,4,0,0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ── FOOTER  –  Close button (right-aligned) ────────────────── -->
+        <Border DockPanel.Dock="Bottom"
+                Background="#232933"
+                Padding="24,16"
+                BorderBrush="#404553"
+                BorderThickness="0,1,0,0">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="close_btn"
+                        Content="Close"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Width="120"
+                        Click="close_window"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ── DATA AREA ──────────────────────────────────────────────── -->
+        <Border Background="#3B4553" Padding="24">
+            <Border Background="{StaticResource CardBackground}"
+                    CornerRadius="8"
+                    Padding="0">
+                <Border.Effect>
+                    <DropShadowEffect Color="Black" Opacity="0.2" ShadowDepth="2" BlurRadius="4"/>
+                </Border.Effect>
+                <DataGrid x:Name="preview_grid"
+                          Style="{StaticResource PreviewDataGridStyle}"
+                          ColumnHeaderStyle="{StaticResource PreviewColumnHeaderStyle}"
+                          CellStyle="{StaticResource PreviewCellStyle}"
+                          RowStyle="{StaticResource PreviewRowStyle}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Recipient (Role / Company)"
+                                            Binding="{Binding Recipient}"
+                                            Width="*"/>
+                        <DataGridTextColumn Header="Attention To (Company / Person)"
+                                            Binding="{Binding AttentionTo}"
+                                            Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
+        </Border>
+
+    </DockPanel>
+</Window>

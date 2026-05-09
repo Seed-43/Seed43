@@ -1,0 +1,22 @@
+[
+  {
+    "display_order": 0, 
+    "id": 0, 
+    "distribution": "Architect/Designer"
+  }, 
+  {
+    "display_order": 1, 
+    "id": 1, 
+    "distribution": "Owner/Developer"
+  }, 
+  {
+    "display_order": 2, 
+    "id": 2, 
+    "distribution": "Contractor"
+  }, 
+  {
+    "display_order": 3, 
+    "id": 3, 
+    "distribution": "Local Authority"
+  }
+]

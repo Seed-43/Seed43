@@ -1,0 +1,43 @@
+name: About
+author: Seed43
+contact: https://github.com/Seed-43
+version: 260501
+
+
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  _____________________________________________________________________
+  
+  Description:
+  Seed43 system extension interface.
+
+  handles:
+  - GitHub version checking and changelog fetch
+  - Extension update system
+  - Tool toggl
+  - Ribbon Drag & drop panel reordering system
+  - Local version tracking and update validation
+
+  Designed as the central control panel for Seed43 tools.
+  _____________________________________________________________________
+  
+  How-to:
+  → Click Seed43 > About
+  → UI loads automatically
+  
+  From here you can:
+     - View installed version
+     - Check the latest GitHub version
+     - Update Seed43 extension
+     - Reorder tool panels
+     - Enable/disable tools
+  _____________________________________________________________________
+  
+  Last update:
+  - Full UI + update system restructure
+  - Added drag & drop ordering system
+  - Added bundle.yaml sync system
+  - Improved GitHub update pipeline
+  _____________________________________________________________________
+
+engine: ironpython

@@ -1,0 +1,20 @@
+{
+  "show_projno": false, 
+  "page_height_mode": "a4", 
+  "out_excel": true, 
+  "show_printsize": false, 
+  "out_pdf": true, 
+  "show_from": false, 
+  "show_initials": false, 
+  "show_format": false, 
+  "group_params": [], 
+  "recipient_mode": "dist", 
+  "show_method": false, 
+  "show_projname": false, 
+  "show_client": false, 
+  "show_reason": true, 
+  "out_drafting": true, 
+  "out_schedule": true, 
+  "page_height_mm": 287, 
+  "out_legend": true
+}

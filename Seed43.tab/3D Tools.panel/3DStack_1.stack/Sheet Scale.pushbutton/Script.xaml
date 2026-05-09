@@ -1,0 +1,24 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Find and Replace Detail Numbers" Width="400" Height="300" ResizeMode="CanMinimize">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock x:Name="main_title" Grid.Row="0" FontWeight="Bold" Margin="0,0,0,10"/>
+        <Label Grid.Row="1" Content="Find:"/>
+        <TextBox x:Name="input_detail_number_find" Grid.Row="1" Margin="50,0,0,10"/>
+        <Label Grid.Row="2" Content="Replace:"/>
+        <TextBox x:Name="input_detail_number_replace" Grid.Row="2" Margin="50,0,0,10"/>
+        <Label Grid.Row="3" Content="Prefix:"/>
+        <TextBox x:Name="input_detail_number_prefix" Grid.Row="3" Margin="50,0,0,10"/>
+        <Label Grid.Row="4" Content="Suffix:"/>
+        <TextBox x:Name="input_detail_number_suffix" Grid.Row="4" Margin="50,0,0,10"/>
+        <Button Grid.Row="5" Content="Run" Click="button_run" Width="100" HorizontalAlignment="Right" Margin="0,10,0,0"/>
+    </Grid>
+</Window>

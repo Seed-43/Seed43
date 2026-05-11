@@ -1,0 +1,31 @@
+title: "Inspector"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  _____________________________________________________________________
+  Description:
+  Pick any element in the model and get a full breakdown of everything
+  Revit knows about it, displayed in a structured report.
+  
+  Shows:
+  - Identity (category, class, ID, name, level, workset, phase)
+  - Element type and all its parameters
+  - Family information (for loadable families)
+  - Location and geometry (point, curve, or bounding box)
+  - Mechanical connections (for pipes, ducts, fittings)
+  - All instance parameters
+  - All parameters that can be used in view filters
+  _____________________________________________________________________
+  How-to:
+  -> Run the tool
+  -> Click any element in the model (linked elements are excluded)
+  -> The report opens in the pyRevit output window
+  _____________________________________________________________________
+  Notes:
+  - Linked elements cannot be picked with this tool
+  - The report is read-only, it does not change anything in the model
+  - Coordinates are shown in feet (Revit internal units)
+  _____________________________________________________________________
+  Last update:
+  - Initial release
+  _____________________________________________________________________

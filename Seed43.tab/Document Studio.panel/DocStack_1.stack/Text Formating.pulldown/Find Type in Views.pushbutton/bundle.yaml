@@ -1,0 +1,31 @@
+title: "Find Text Type in Views"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  _____________________________________________________________________
+  Description:
+  Finds all Text Notes of a selected Text Type across the project.
+  
+  - Scans the entire model for matching text notes
+  - Identifies all Views and Legends containing them
+  - Displays a count per location
+  - Allows quick navigation to any result
+  - Automatically selects matching text notes in the view
+  
+  Useful for:
+  - Checking and auditing text styles
+  - Cleaning inconsistent documentation
+  - Locating incorrect annotation usage
+  _____________________________________________________________________
+  How-to:
+  -> Run the tool
+  -> Select a Text Type
+  -> Choose a View or Legend from the results list
+  
+  -> Tool will:
+      - Open the selected view
+      - Select all matching text notes
+  _____________________________________________________________________
+  Last update:
+  - Initial release
+  _____________________________________________________________________

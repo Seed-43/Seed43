@@ -1,0 +1,38 @@
+title: "Revision Status Colour"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  _____________________________________________________________________
+  Description:
+  Colours revision clouds and their tags in all views based on whether
+  the parent revision has been marked as issued.
+  
+  - Issued revisions:     clouds and tags shown in light gray
+  - Not issued revisions: clouds and tags shown in red
+  
+  Works automatically across every view that contains revision clouds.
+  _____________________________________________________________________
+  How-to:
+  -> Run the tool
+  -> No selection required, runs automatically
+  -> The tool will:
+      - Collect all revision clouds and tags across the model
+      - Check whether each cloud belongs to an issued or not-issued
+        revision
+      - Apply graphic overrides to clouds and their tags per view
+  -> Result:
+      - Issued clouds and tags shown in gray
+      - Not-issued clouds and tags shown in red
+      - A summary is printed on completion
+  _____________________________________________________________________
+  Notes:
+  - The tool checks whether a revision has been officially marked as
+    issued, not by looking at its name
+  - You cannot change the text colour of a tag individually in Revit,
+    any colour change affects the whole tag appearance
+  - Works on all views containing clouds, not limited to the active view
+  - All changes are made in a single transaction and can be undone
+  _____________________________________________________________________
+  Last update:
+  - Initial release
+  _____________________________________________________________________

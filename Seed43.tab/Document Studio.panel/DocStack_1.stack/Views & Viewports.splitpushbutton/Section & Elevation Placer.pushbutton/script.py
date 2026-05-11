@@ -1,37 +1,5 @@
 # -*- coding: utf-8 -*-
-__title__     = "Section & Elevation Placer"
-__author__    = "Seed-43"
-__doc__       = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
-_____________________________________________________________________
-Description:
-
-Select view references (callouts, sections, elevations) in the active view
-and place their associated views on a chosen sheet.
-
-Includes options for:
-- Applying a view template
-- Selecting a target sheet
-- Choosing viewport type
-- Reusing last-used settings for speed and consistency
-
-Automatically detects whether views are already placed on sheets
-and separates workflow accordingly.
-_____________________________________________________________________
-How-to:
--> Open a view containing callouts / sections / elevations
--> Run the script
--> Select view references (ESC to finish)
--> Choose view template (or None)
--> Select target sheet
--> Views are placed automatically
--> Choose viewport type (optional)
-_____________________________________________________________________
-Last update:
-- Initial release
-_____________________________________________________________________
-"""
-
+# script.py
 import clr
 clr.AddReference('PresentationFramework')
 clr.AddReference('System.Windows')

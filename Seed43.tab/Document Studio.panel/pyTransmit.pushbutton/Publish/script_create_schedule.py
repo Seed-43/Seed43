@@ -765,6 +765,10 @@ def _block_just(b):
     j = b.get('just', 'left')
     return {'left': 'Left', 'center': 'Center', 'right': 'Right'}.get(j, 'Left')
 
+def _block_valign(b):
+    v = b.get('v_just', 'middle')
+    return {'top': 'Top', 'middle': 'Middle', 'bottom': 'Bottom'}.get(v, 'Middle')
+
 def _block_size(b):
     ts = _TEXT_STYLES.get(b.get('text_style', 'Data'), {})
     return ts.get('size_mm', _DATA_MM)
@@ -1067,7 +1071,7 @@ def _render_page(hdr, page_sheet_items, is_first_page):
                 if ec_s != ec_e:
                     safe_merge(hdr, ri2, ec_s, ri2, ec_e)
                 safe_text(hdr, ri2, ec_s, label)
-                apply_style(hdr, ri2, ec_s, bold=bold, size_mm=sz, halign=just,
+                apply_style(hdr, ri2, ec_s, bold=bold, size_mm=sz, halign=just, valign=_block_valign(b),
                             bg_rgb=_header_bg if bold else None,
                             fg_rgb=_header_fg if bold else None, font=_block_font(b))
                 if bold:
@@ -1109,7 +1113,7 @@ def _render_page(hdr, page_sheet_items, is_first_page):
                     val  = parse_date_short(_raw.replace('\r\n', '/').replace('\r', '/').replace('\n', '/')) if _raw else ''
                     safe_text(hdr, ri2, REV_START + j, val)
                     apply_style(hdr, ri2, REV_START + j, bold=False, size_mm=_DATA_MM,
-                                halign='Center', valign='Middle')
+                                halign='Center', valign=_block_valign(b))
                     if _rot in (90, 270):
                         try:
                             from Autodesk.Revit.DB import TableCellStyle as _TCSR
@@ -1128,7 +1132,7 @@ def _render_page(hdr, page_sheet_items, is_first_page):
                 if ec_s != ec_e:
                     safe_merge(hdr, ri2, ec_s, ri2, ec_e)
                 safe_text(hdr, ri2, ec_s, _leg)
-                apply_style(hdr, ri2, ec_s, bold=False, size_mm=sz, halign='Left', valign='Top')
+                apply_style(hdr, ri2, ec_s, bold=False, size_mm=sz, halign=just, valign=_block_valign(b))
                 _apply_block_cell_borders(hdr, ri2, ec_s, ec_e, brd)
 
             # ── spine_reason / spine_method / spine_initials / etc ────────────
@@ -1141,7 +1145,7 @@ def _render_page(hdr, page_sheet_items, is_first_page):
                 for j in range(MAX_REVS):
                     val = rev_meta[j][_key] if j < n_revs else ''
                     safe_text(hdr, ri2, REV_START + j, val)
-                    apply_style(hdr, ri2, REV_START + j, bold=False, size_mm=sz, halign='Center')
+                    apply_style(hdr, ri2, REV_START + j, bold=False, size_mm=sz, halign=just, valign=_block_valign(b))
                 _apply_block_cell_borders(hdr, ri2, REV_START, LAST_COL, brd)
 
             # ── recipient blocks (sent_to / attn_to / spine_copies) ───────────
@@ -1152,11 +1156,11 @@ def _render_page(hdr, page_sheet_items, is_first_page):
                          if _p.get('recipients') and idx < len(_p['recipients']) else '')
                 if t == 'sent_to':
                     safe_text(hdr, ri2, ec_s, rec)
-                    apply_style(hdr, ri2, ec_s, bold=False, size_mm=sz, halign=just, font=_block_font(b))
+                    apply_style(hdr, ri2, ec_s, bold=False, size_mm=sz, halign=just, valign=_block_valign(b), font=_block_font(b))
                 elif t == 'attn_to':
                     if ec_s != ec_e: safe_merge(hdr, ri2, ec_s, ri2, ec_e)
                     safe_text(hdr, ri2, ec_s, _attn)
-                    apply_style(hdr, ri2, ec_s, bold=False, size_mm=sz, halign=just, font=_block_font(b))
+                    apply_style(hdr, ri2, ec_s, bold=False, size_mm=sz, halign=just, valign=_block_valign(b), font=_block_font(b))
                 elif t == 'spine_copies':
                     for j in range(MAX_REVS):
                         _copies = ''
@@ -1164,7 +1168,7 @@ def _render_page(hdr, page_sheet_items, is_first_page):
                             _copies = _parse_copies_for_recipient(
                                 issued_revisions[j].IssuedTo or '', rec, idx)
                         safe_text(hdr, ri2, REV_START + j, _copies)
-                        apply_style(hdr, ri2, REV_START + j, bold=False, size_mm=sz, halign='Center')
+                        apply_style(hdr, ri2, REV_START + j, bold=False, size_mm=sz, halign=just, valign=_block_valign(b))
             # Queue data-row borders for recipient rows
             if kind2 == 'recip':
                 _is_last_r = pr.get('is_last', False)
@@ -1185,11 +1189,11 @@ def _render_page(hdr, page_sheet_items, is_first_page):
                     sheet = sr_item
                     if t == 'sheet_number':
                         safe_text(hdr, ri2, ec_s, str(sheet.SheetNumber))
-                        apply_style(hdr, ri2, ec_s, bold=False, size_mm=sz, halign=just, font=_block_font(b))
+                        apply_style(hdr, ri2, ec_s, bold=False, size_mm=sz, halign=just, valign=_block_valign(b), font=_block_font(b))
                     elif t == 'sheet_desc':
                         if ec_s != ec_e: safe_merge(hdr, ri2, ec_s, ri2, ec_e)
                         safe_text(hdr, ri2, ec_s, str(sheet.Name))
-                        apply_style(hdr, ri2, ec_s, bold=False, size_mm=sz, halign=just, font=_block_font(b))
+                        apply_style(hdr, ri2, ec_s, bold=False, size_mm=sz, halign=just, valign=_block_valign(b), font=_block_font(b))
                     elif t == 'spine_rev':
                         _srev_ids = set(sheet.GetAllRevisionIds())
                         for j in range(MAX_REVS):
@@ -1200,7 +1204,7 @@ def _render_page(hdr, page_sheet_items, is_first_page):
                                 val = rev_letter(_rv.SequenceNumber) if _rv.Id in _srev_ids else ''
                             safe_text(hdr, ri2, REV_START + j, val)
                             apply_style(hdr, ri2, REV_START + j, bold=False,
-                                        size_mm=sz, halign='Center')
+                                        size_mm=sz, halign=just, valign=_block_valign(b))
                 # Queue data-row borders for sheet rows
                 if sr_kind == 'sheet':
                     _is_last_s = pr.get('is_last', False)
@@ -1427,15 +1431,27 @@ with Transaction(doc, "pyTransmit footer") as tf:
                 break
         _first_gri = min(_p1_group_ris) if _p1_group_ris else None
         for gri in _p1_group_ris:
-            _is_first_group_row = (gri == _first_gri)
             for _ci in range(TOTAL_COLS):
-                _lci_g = _ci if _ci < REV_START else REV_START
-                _cs_g  = _get_sched_style(_sched_to_layout.get(gri, 0), _lci_g)
-                _show_l_g = _cs_g.get('l', False) if _ci == 0 else False
-                _show_r_g = _cs_g.get('r', False) if _ci == TOTAL_COLS - 1 else False
-                # No top border on first group row, it sits directly under the column headers
-                _top_g = False if _is_first_group_row else _data_h
-                _set_cell_border(hdr_f, gri, _ci, _top_g, _data_h, _show_l_g, _show_r_g)
+                _set_cell_border(hdr_f, gri, _ci, _data_h, _data_h, False, False)
+            # Re-assert bottom on the sheet row immediately above this group row
+            # so Revit adjacency doesn't let the group row's top override it.
+            _above_ri = gri - 1
+            if _above_ri in _sched_to_layout:
+                _above_data_b = _sched_data_b.get(_above_ri, {})
+                _above_h = _above_data_b.get('h', True)
+                _above_v = _above_data_b.get('v', True)
+                for _ci in range(TOTAL_COLS):
+                    _lci_a = _ci if _ci < REV_START else REV_START
+                    _cs_a  = _get_sched_style(_sched_to_layout[_above_ri], _lci_a)
+                    _show_t_a = _cs_a.get('t', False)
+                    if _ci < REV_START:
+                        _show_l_a = _cs_a.get('l', False) if _ci == 0 else _above_v
+                        _show_r_a = _cs_a.get('r', False) if _ci == REV_START - 1 else _above_v
+                    else:
+                        _rci = _ci - REV_START
+                        _show_l_a = _cs_a.get('l', False) if _rci == 0 else _above_v
+                        _show_r_a = _cs_a.get('r', False) if _ci == TOTAL_COLS - 1 else _above_v
+                    _set_cell_border(hdr_f, _above_ri, _ci, _show_t_a, _above_h, _show_l_a, _show_r_a)
 
     tf.Commit()
 # ── Overflow pages ────────────────────────────────────────────────────────────
@@ -1537,15 +1553,28 @@ for page_idx, page_items in enumerate(pages[1:], start=2):
                         _lci_a2 = _ci if _ci < REV_START else REV_START
                         _cs_a2 = _get_sched_style(_above_lr2, _lci_a2) if _above_lr2 is not None else {}
                         _set_cell_border(hdr2_f, _br, _ci, _cs_a2.get('b', False), False, False, False)
+                _first_gri2 = min(_p2_group_ris) if _p2_group_ris else None
                 for _gr in _p2_group_ris:
                     for _ci in range(TOTAL_COLS):
-                        _cs_g2  = _get_sched_style(_s2_to_layout.get(_gr, 0),
-                                                             _ci if _ci < REV_START else REV_START)
-                        _show_l_g2 = _cs_g2.get('l', False) if _ci == 0 else False
-                        _show_r_g2 = _cs_g2.get('r', False) if _ci == TOTAL_COLS - 1 else False
-                        _first_gri2 = min(_p2_group_ris) if _p2_group_ris else None
-                        _top_g2 = False if _gr == _first_gri2 else _data_h
-                        _set_cell_border(hdr2_f, _gr, _ci, _top_g2, _data_h, _show_l_g2, _show_r_g2)
+                        _set_cell_border(hdr2_f, _gr, _ci, _data_h, _data_h, False, False)
+                    # Re-assert bottom on the sheet row immediately above
+                    _above_ri2 = _gr - 1
+                    if _above_ri2 in _s2_to_layout:
+                        _above_db2 = _s2_data_b.get(_above_ri2, {})
+                        _above_h2  = _above_db2.get('h', True)
+                        _above_v2  = _above_db2.get('v', True)
+                        for _ci in range(TOTAL_COLS):
+                            _lci_a2 = _ci if _ci < REV_START else REV_START
+                            _cs_a2  = _get_sched_style(_s2_to_layout[_above_ri2], _lci_a2)
+                            _show_t_a2 = _cs_a2.get('t', False)
+                            if _ci < REV_START:
+                                _show_l_a2 = _cs_a2.get('l', False) if _ci == 0 else _above_v2
+                                _show_r_a2 = _cs_a2.get('r', False) if _ci == REV_START - 1 else _above_v2
+                            else:
+                                _rci2 = _ci - REV_START
+                                _show_l_a2 = _cs_a2.get('l', False) if _rci2 == 0 else _above_v2
+                                _show_r_a2 = _cs_a2.get('r', False) if _ci == TOTAL_COLS - 1 else _above_v2
+                            _set_cell_border(hdr2_f, _above_ri2, _ci, _show_t_a2, _above_h2, _show_l_a2, _show_r_a2)
             tb2.Commit()
 
         output.print_md("   Created `{}`  ({} rows)".format(sched_name, len(page_items)))

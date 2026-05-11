@@ -1,55 +1,11 @@
 # -*- coding: utf-8 -*-
-__title__  = "Change Text Type and Format"
-__author__  = "Seed43"
-__doc__     = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
-_____________________________________________________________________
-Description:
-Batch updates Text Notes across the project by changing their Text
-Type and applying formatting.
-
-- Change Text Type (optional)
-- Apply formatting:
-    - Bold
-    - Italic
-    - Underline
-- Works across the entire project
-
-Worksharing support:
-- Automatically checks out required elements
-- Handles worksets safely
-- Optional sync with central
-
-Useful for:
-- Global text standardisation
-- QA cleanup
-- Fixing inconsistent annotation styles
-_____________________________________________________________________
-How-to:
--> Run the tool
--> Select SOURCE Text Type (the type you want to change FROM)
--> Select TARGET Text Type (optional, the type to change TO)
--> Select formatting options (optional)
-
--> Tool will:
-    - Update all matching Text Notes
-
-Note:
-- Formatting can be applied without changing type
-- Type can be changed without applying formatting
-_____________________________________________________________________
-Last update:
-- Initial release
-_____________________________________________________________________
-"""
-
+# change_type_format.py
 from pyrevit import revit, DB, forms, script
 from System.Collections.Generic import List
 
 doc    = revit.doc
 uidoc  = revit.uidoc
 output = script.get_output()
-
 
 # ── GET TEXT NOTE TYPES ───────────────────────────────────────────────────────
 
@@ -58,7 +14,6 @@ type_names = sorted(set(
     tn.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString()
     for tn in tntypes
 ))
-
 
 # ── SELECT SOURCE TYPE ────────────────────────────────────────────────────────
 
@@ -72,12 +27,10 @@ source_type_ids = {
     if tn.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString() == source_type_name
 }
 
-
 # ── SELECT TARGET TYPE ────────────────────────────────────────────────────────
 
 target_type_name = forms.SelectFromList.show(
     type_names, title="Pick TARGET Text Type", multiselect=False)
-
 
 # ── SELECT FORMATTING OPTIONS ─────────────────────────────────────────────────
 
@@ -95,7 +48,6 @@ target_type_id = (
     if target_type_name else None
 )
 
-
 # ── FIND SOURCE TEXTS ─────────────────────────────────────────────────────────
 
 all_textnotes = DB.FilteredElementCollector(doc).OfClass(DB.TextNote).ToElements()
@@ -105,7 +57,6 @@ total_texts   = len(source_texts)
 if total_texts == 0:
     output.print_md("# No texts found with source type")
     script.exit()
-
 
 # ── CHECKOUT FOR WORKSHARED MODELS ────────────────────────────────────────────
 
@@ -133,7 +84,6 @@ if doc.IsWorkshared:
         DB.WorksharingUtils.CheckoutElements(doc, element_ids_list)
     except Exception:
         pass
-
 
 # ── APPLY CHANGES ─────────────────────────────────────────────────────────────
 

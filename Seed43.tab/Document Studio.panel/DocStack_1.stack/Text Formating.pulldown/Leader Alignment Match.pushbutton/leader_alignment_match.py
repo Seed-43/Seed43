@@ -1,46 +1,8 @@
 # -*- coding: utf-8 -*-
-__title__  = "Match Text Alignment"
-__author__  = "Seed43"
-__doc__     = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
-_____________________________________________________________________
-Description:
-Matches paragraph alignment settings between Text Notes in the model.
-
-Transfers alignment properties from a reference Text Note to selected
-target Text Notes, ensuring consistent annotation presentation.
-
-Includes:
-- Horizontal Alignment (Left, Centre, Right)
-- Vertical Alignment (Top, Middle, Bottom)
-- Leader Attachment Points (Left, Right)
-
-Does NOT modify text content or leaders themselves, only alignment
-settings.
-_____________________________________________________________________
-How-to:
--> Run the tool
--> Select a REFERENCE Text Note (the one with the alignment to copy)
--> Select TARGET Text Notes to update
--> Repeat selection as needed (ESC to finish)
-
--> Alignment updates instantly on each selection
-_____________________________________________________________________
-Notes:
-- Only works on Text Note elements
-- Multiple targets can be selected in one run
-- No changes are made to text content or leader geometry
-- Press ESC at any time to exit safely
-_____________________________________________________________________
-Last update:
-- Initial release
-_____________________________________________________________________
-"""
-
+# leader_alignment_match.py
 from pyrevit import revit, DB, forms, script
 
 doc = revit.doc
-
 
 # ── FUNCTIONS ─────────────────────────────────────────────────────────────────
 
@@ -76,7 +38,6 @@ def copy_text_alignment(from_text, to_texts):
                 changed += 1
 
         return changed
-
 
 # ── PICK REFERENCE ────────────────────────────────────────────────────────────
 

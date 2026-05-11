@@ -1,44 +1,5 @@
 # -*- coding: utf-8 -*-
-__title__  = "Revision Status Colour"
-__author__  = "Seed43"
-__doc__     = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
-_____________________________________________________________________
-Description:
-Colours revision clouds and their tags in all views based on whether
-the parent revision has been marked as issued.
-
-- Issued revisions:     clouds and tags shown in light gray
-- Not issued revisions: clouds and tags shown in red
-
-Works automatically across every view that contains revision clouds.
-_____________________________________________________________________
-How-to:
--> Run the tool
--> No selection required, runs automatically
--> The tool will:
-    - Collect all revision clouds and tags across the model
-    - Check whether each cloud belongs to an issued or not-issued
-      revision
-    - Apply graphic overrides to clouds and their tags per view
--> Result:
-    - Issued clouds and tags shown in gray
-    - Not-issued clouds and tags shown in red
-    - A summary is printed on completion
-_____________________________________________________________________
-Notes:
-- The tool checks whether a revision has been officially marked as
-  issued, not by looking at its name
-- You cannot change the text colour of a tag individually in Revit,
-  any colour change affects the whole tag appearance
-- Works on all views containing clouds, not limited to the active view
-- All changes are made in a single transaction and can be undone
-_____________________________________________________________________
-Last update:
-- Initial release
-_____________________________________________________________________
-"""
-
+# revision_status_colour.py
 from pyrevit import revit, DB, script
 
 # ── [LIB] Snippets/_revisions.py ─────────────────────────────────────────────
@@ -46,7 +7,6 @@ from Snippets._revisions import get_revision_description
 
 doc    = revit.doc
 output = script.get_output()
-
 
 # ── UI STYLE ──────────────────────────────────────────────────────────────────
 
@@ -67,14 +27,12 @@ body {
 output.print_html("<div class='header'>REVISION STATUS COLOUR ENGINE INITIALISING</div>")
 output.print_html("<div class='line'>------------------------------------</div>")
 
-
 # ── PRE-CACHE REVISION NAMES ──────────────────────────────────────────────────
 
 rev_name_cache = {
     r.Id: get_revision_description(r)
     for r in DB.FilteredElementCollector(doc).OfClass(DB.Revision).ToElements()
 }
-
 
 # ── COLLECT AND CLASSIFY CLOUDS ───────────────────────────────────────────────
 
@@ -107,7 +65,6 @@ for cloud in clouds:
             "<div class='warn'>WARNING (cloud classification): {}</div>".format(str(e)))
         cloud_issued[cloud.Id] = False
 
-
 # ── GRAPHIC OVERRIDES ─────────────────────────────────────────────────────────
 
 issued_color     = DB.Color(192, 192, 192)  # Light gray
@@ -118,7 +75,6 @@ ogs_issued.SetProjectionLineColor(issued_color)
 
 ogs_not_issued = DB.OverrideGraphicSettings()
 ogs_not_issued.SetProjectionLineColor(not_issued_color)
-
 
 # ── APPLY OVERRIDES ───────────────────────────────────────────────────────────
 
@@ -191,7 +147,6 @@ with revit.Transaction("Colour Revision Clouds"):
         except Exception as e:
             output.print_html(
                 "<div class='warn'>WARNING (tag override): {}</div>".format(str(e)))
-
 
 # ── SUMMARY ───────────────────────────────────────────────────────────────────
 

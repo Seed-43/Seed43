@@ -1,0 +1,28 @@
+title: "Update Tag Value To All Elements"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  _____________________________________________________________________
+  Description:
+  Picks a tag, reads a text parameter from the element it is tagging,
+  then finds every element in the model that has the same value for
+  that parameter and updates them all to a new value you type in.
+  
+  Useful for fixing a parameter value that was applied inconsistently
+  across many elements.
+  _____________________________________________________________________
+  How-to:
+  -> Run the tool
+  -> Click on a tag in the model
+  -> Choose which text parameter to edit from the list
+  -> Type the new value you want to apply
+  -> All elements with the old value are updated automatically
+  _____________________________________________________________________
+  Notes:
+  - Only text-type parameters are shown in the list
+  - Read-only parameters cannot be updated and are excluded
+  - The tag must reference a host element (not a linked element)
+  _____________________________________________________________________
+  Last update:
+  - Initial release
+  _____________________________________________________________________

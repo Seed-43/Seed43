@@ -1,37 +1,5 @@
 # -*- coding: utf-8 -*-
-__title__  = "Set Rebar to Workset"
-__author__  = "Fred da Silveira"
-__doc__     = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
-_____________________________________________________________________
-Description:
-Assigns every rebar element in the model to a chosen workset.
-
-The tool is smart about finding the right workset:
-- If exactly one workset with "rebar" in its name exists, it is used
-  automatically with no prompt
-- If several rebar worksets exist, you are shown a list of them plus
-  an Other option to pick from all worksets
-- If no rebar worksets exist, all worksets are listed with an option
-  to create a new one on the spot
-_____________________________________________________________________
-How-to:
--> Run the tool in a workshared Revit model
--> Choose the target workset (auto-detected if only one rebar workset
-   is found)
--> All rebar elements are moved to the selected workset
--> A message confirms how many elements were updated
-_____________________________________________________________________
-Notes:
-- The model must be workshared (using Worksets) for this tool to work
-- Creating a new workset requires a valid name
-- If no rebar is found in the model, the tool will notify you and stop
-_____________________________________________________________________
-Last update:
-- Initial release
-_____________________________________________________________________
-"""
-
+# set_workset.py
 from pyrevit import revit, DB, forms
 from Autodesk.Revit.DB import FilteredWorksetCollector, WorksetKind
 import sys
@@ -39,12 +7,10 @@ import sys
 doc   = revit.doc
 uidoc = revit.uidoc
 
-
 # ── GET WORKSETS ──────────────────────────────────────────────────────────────
 
 worksets       = FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset).ToWorksets()
 rebar_worksets = [ws for ws in worksets if "rebar" in ws.Name.lower()]
-
 
 # ── FUNCTIONS ─────────────────────────────────────────────────────────────────
 
@@ -80,7 +46,6 @@ def select_or_create_workset():
 
     return next(ws for ws in worksets if ws.Name == selected_name)
 
-
 def get_target_workset():
     """Determine which workset to use based on what already exists."""
     num_rebar = len(rebar_worksets)
@@ -102,13 +67,11 @@ def get_target_workset():
     # No rebar worksets found, go straight to full list
     return select_or_create_workset()
 
-
 # ── GET TARGET WORKSET ────────────────────────────────────────────────────────
 
 target_ws = get_target_workset()
 if not target_ws:
     sys.exit()
-
 
 # ── COLLECT REBAR ─────────────────────────────────────────────────────────────
 
@@ -121,7 +84,6 @@ rebar_elements = list(
 if not rebar_elements:
     forms.alert("No rebar elements found in the model.")
     sys.exit()
-
 
 # ── SET WORKSET ───────────────────────────────────────────────────────────────
 

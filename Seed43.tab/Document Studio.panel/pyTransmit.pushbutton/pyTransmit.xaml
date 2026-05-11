@@ -115,6 +115,14 @@
                                Opacity="0.75"
                                VerticalAlignment="Center"
                                Visibility="Collapsed"/>
+                    <TextBlock x:Name="export_format_header_lbl"
+                               Text="  |  Export Format"
+                               FontWeight="SemiBold"
+                               FontSize="20"
+                               Foreground="#F4FAFF"
+                               Opacity="0.75"
+                               VerticalAlignment="Center"
+                               Visibility="Collapsed"/>
                 </StackPanel>
 
                 <!-- RIGHT NORMAL: execute + hamburger (hidden when settings open) -->
@@ -149,6 +157,7 @@
                             
                             <StackPanel>
                                 <Button x:Name="setup_menu_btn"             Content="&#x2699;  Setup"             Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_setup_click"/>
+                                <Button x:Name="export_format_menu_btn"     Content="&#x1F4CB;  Export Format"     Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_export_format_click"/>
                                 <Button x:Name="styling_menu_btn"           Content="&#x1F3A8;  Branding &amp; Styling"  Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_styling_click"/>
                                 <Button x:Name="recipient_manager_menu_btn" Content="&#x1F465;  Recipient Manager" Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_recipient_click"/>
                                 <Button x:Name="options_manager_menu_btn"   Content="&#x1F527;  Options Manager"   Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_options_click"/>
@@ -182,6 +191,15 @@
                         VerticalAlignment="Center"
                         Visibility="Collapsed"
                         Click="styling_back_click"/>
+
+                <!-- RIGHT EXPORT FORMAT mode: just a close button -->
+                <Button x:Name="export_format_close_btn"
+                        Content="&#x2716;"
+                        Style="{StaticResource CloseButtonStyle}"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Visibility="Collapsed"
+                        Click="export_format_back_click"/>
 
                 <!-- RIGHT RECIPIENT mode: Export + close -->
                 <StackPanel x:Name="recipient_header_btns"
@@ -271,8 +289,8 @@
         </Border>
 
         <!-- Main Content -->
-        <ScrollViewer x:Name="main_content" Margin="24,12,24,24" Style="{StaticResource MacScrollViewer}">
-            <StackPanel>
+        <ScrollViewer x:Name="main_content" Margin="24,12,24,24" Style="{StaticResource MacScrollViewer}" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
+            <StackPanel HorizontalAlignment="Stretch">
 
                 <!-- Project Information Card — hidden when all rows are off -->
                 <Border x:Name="project_info_card" Style="{StaticResource CardStyle}">
@@ -423,23 +441,23 @@
                 <!-- Sheet Grouping Card -->
                 <Border Style="{StaticResource CardStyle}">
                     <StackPanel>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,8">
                             <TextBlock Text="Sheet Parameters" Style="{StaticResource SectionLabelStyle}"/>
                             <TextBlock Text="Grouping Drawing Sheets by Selected Parameters"
                                        Style="{StaticResource FieldLabelStyle}"
                                        Margin="8,0,0,0"/>
                         </StackPanel>
+                        <DockPanel LastChildFill="False" Margin="0,0,0,8">
+                            <Border x:Name="group_label_toggle" DockPanel.Dock="Left"
+                                    Width="40" Height="20" CornerRadius="10"
+                                    Cursor="Hand" Margin="0,0,8,0"/>
+                            <TextBlock x:Name="group_label_toggle_tb" DockPanel.Dock="Left"
+                                       Text="Text Off" FontSize="9"
+                                       VerticalAlignment="Center"
+                                       Foreground="#F4FAFF"/>
+                        </DockPanel>
                         <StackPanel x:Name="formatting_stack">
-                            <DockPanel LastChildFill="True" Margin="0,0,0,0">
-                                <Border x:Name="group_label_toggle" DockPanel.Dock="Left"
-                                        Width="40" Height="20" CornerRadius="10"
-                                        Cursor="Hand" Margin="0,0,8,0"/>
-                                <TextBlock x:Name="group_label_toggle_tb" DockPanel.Dock="Left"
-                                           Text="Text Off" FontSize="9"
-                                           VerticalAlignment="Center" Margin="0,0,8,0"
-                                           Foreground="#F4FAFF"/>
-                                <ComboBox x:Name="sheet_param_cb_1" Style="{StaticResource ModernComboBoxStyle}"/>
-                            </DockPanel>
+                            <ComboBox x:Name="sheet_param_cb_1" Style="{StaticResource ModernComboBoxStyle}" Margin="0,0,0,4"/>
                             <ComboBox x:Name="sheet_param_cb_2" Style="{StaticResource ModernComboBoxStyle}" Visibility="Collapsed"/>
                             <ComboBox x:Name="sheet_param_cb_3" Style="{StaticResource ModernComboBoxStyle}" Visibility="Collapsed"/>
                             <ComboBox x:Name="sheet_param_cb_4" Style="{StaticResource ModernComboBoxStyle}" Visibility="Collapsed"/>
@@ -498,8 +516,8 @@
               Panel.ZIndex="50"
               VerticalAlignment="Stretch"
               HorizontalAlignment="Stretch">
-            <ScrollViewer Style="{StaticResource MacScrollViewer}">
-                <StackPanel Margin="24,12,24,24">
+            <ScrollViewer Style="{StaticResource MacScrollViewer}" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
+                <StackPanel Margin="24,12,24,24" HorizontalAlignment="Stretch">
 
                     <!-- Project Settings section -->
                     <Border Style="{StaticResource CardStyle}">
@@ -575,7 +593,41 @@
                             </Border>
                         </StackPanel>
                     </Border>
-                    <!-- Transmittal Export Format section -->
+                    <!-- Transmittal Export Format section moved to ExportFormatPanel -->
+
+                    <Border Background="#1E2730" CornerRadius="6" Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="4"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Background="#208A3C" CornerRadius="3,0,0,3"/>
+                            <TextBlock Grid.Column="1" Text="&#x2139;" Foreground="#208A3C" FontSize="13" Margin="10,8,8,8" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="Settings are saved automatically when you close this panel."
+                                       Foreground="#7EC8A0" FontSize="10" Opacity="0.9"
+                                       TextWrapping="Wrap" Margin="0,8,8,8" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- ══════════════════════════════════════════════════════════
+             EXPORT FORMAT PANEL
+        ══════════════════════════════════════════════════════════ -->
+        <Grid x:Name="ExportFormatPanel"
+              Margin="0,0,0,0"
+              Background="#3B4553"
+              Visibility="Collapsed"
+              Panel.ZIndex="50"
+              VerticalAlignment="Stretch"
+              HorizontalAlignment="Stretch">
+            <ScrollViewer Margin="24,12,24,24" Style="{StaticResource MacScrollViewer}" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
+                <StackPanel HorizontalAlignment="Stretch">
+
+                    <!-- Export Format card -->
                     <Border Style="{StaticResource CardStyle}">
                         <StackPanel>
                             <TextBlock Text="Transmittal Export Format" Style="{StaticResource SectionLabelStyle}"/>
@@ -603,8 +655,7 @@
                                                      Checked="setup_fields_changed"
                                                      Unchecked="setup_fields_changed"/>
                                         <ComboBox x:Name="layout_schedule_cb"
-                                                  Grid.Column="1"
-                                                  Height="24" FontSize="11"
+                                                  Grid.Column="1" Height="24" FontSize="11"
                                                   Style="{StaticResource ModernComboBoxStyle}"
                                                   Margin="8,0,0,0"
                                                   SelectionChanged="layout_assignment_changed"/>
@@ -631,8 +682,7 @@
                                                      Checked="setup_fields_changed"
                                                      Unchecked="setup_fields_changed"/>
                                         <ComboBox x:Name="layout_drafting_cb"
-                                                  Grid.Column="1"
-                                                  Height="24" FontSize="11"
+                                                  Grid.Column="1" Height="24" FontSize="11"
                                                   Style="{StaticResource ModernComboBoxStyle}"
                                                   Margin="8,0,0,0"
                                                   SelectionChanged="layout_assignment_changed"/>
@@ -659,8 +709,7 @@
                                                      Checked="setup_fields_changed"
                                                      Unchecked="setup_fields_changed"/>
                                         <ComboBox x:Name="layout_legend_cb"
-                                                  Grid.Column="1"
-                                                  Height="24" FontSize="11"
+                                                  Grid.Column="1" Height="24" FontSize="11"
                                                   Style="{StaticResource ModernComboBoxStyle}"
                                                   Margin="8,0,0,0"
                                                   SelectionChanged="layout_assignment_changed"/>
@@ -687,8 +736,7 @@
                                                      Checked="setup_fields_changed"
                                                      Unchecked="setup_fields_changed"/>
                                         <ComboBox x:Name="layout_excel_cb"
-                                                  Grid.Column="1"
-                                                  Height="24" FontSize="11"
+                                                  Grid.Column="1" Height="24" FontSize="11"
                                                   Style="{StaticResource ModernComboBoxStyle}"
                                                   Margin="8,0,0,0"
                                                   SelectionChanged="layout_assignment_changed"/>
@@ -715,15 +763,13 @@
                                                      Checked="setup_fields_changed"
                                                      Unchecked="setup_fields_changed"/>
                                         <ComboBox x:Name="layout_pdf_cb"
-                                                  Grid.Column="1"
-                                                  Height="24" FontSize="11"
+                                                  Grid.Column="1" Height="24" FontSize="11"
                                                   Style="{StaticResource ModernComboBoxStyle}"
                                                   Margin="8,0,0,0"
                                                   SelectionChanged="layout_assignment_changed"/>
                                     </Grid>
                                 </StackPanel>
                             </Border>
-
                         </StackPanel>
                     </Border>
 
@@ -756,8 +802,8 @@
               Panel.ZIndex="50"
               VerticalAlignment="Stretch"
               HorizontalAlignment="Stretch">
-            <ScrollViewer Style="{StaticResource MacScrollViewer}">
-                <StackPanel Margin="24,12,24,24">
+            <ScrollViewer Style="{StaticResource MacScrollViewer}" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
+                <StackPanel Margin="24,12,24,24" HorizontalAlignment="Stretch">
 
                     <!-- Logo section -->
                     <Border Style="{StaticResource CardStyle}">
@@ -1379,8 +1425,8 @@
               Panel.ZIndex="52"
               VerticalAlignment="Stretch"
               HorizontalAlignment="Stretch">
-            <ScrollViewer Style="{StaticResource MacScrollViewer}">
-                <StackPanel Margin="24,12,24,24">
+            <ScrollViewer Style="{StaticResource MacScrollViewer}" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
+                <StackPanel Margin="24,12,24,24" HorizontalAlignment="Stretch">
 
                     <!-- Info card -->
                     <Border Style="{StaticResource CardStyle}">
@@ -1473,8 +1519,8 @@
               Panel.ZIndex="52"
               VerticalAlignment="Stretch"
               HorizontalAlignment="Stretch">
-            <ScrollViewer Style="{StaticResource MacScrollViewer}">
-                <StackPanel Margin="24,12,24,24">
+            <ScrollViewer Style="{StaticResource MacScrollViewer}" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
+                <StackPanel Margin="24,12,24,24" HorizontalAlignment="Stretch">
 
                     <!-- Info card -->
                     <Border Style="{StaticResource CardStyle}">
@@ -1563,7 +1609,7 @@
               Panel.ZIndex="52"
               VerticalAlignment="Stretch"
               HorizontalAlignment="Stretch">
-            <ScrollViewer Style="{StaticResource MacScrollViewer}">
+            <ScrollViewer Style="{StaticResource MacScrollViewer}" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
                 <StackPanel Margin="24,12,24,24">
 
                     <!-- ── NAMING TEMPLATE ────────────────────────────── -->

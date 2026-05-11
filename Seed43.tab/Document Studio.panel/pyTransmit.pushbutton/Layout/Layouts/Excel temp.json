@@ -1,0 +1,800 @@
+{
+  "rows": [
+    {
+      "section": "body", 
+      "blocks": [
+        {
+          "data_borders": {
+            "h": true, 
+            "v": true
+          }, 
+          "label": "", 
+          "height_pct": null, 
+          "span": 4, 
+          "borders": {
+            "t": false, 
+            "l": false, 
+            "b": false, 
+            "r": false
+          }, 
+          "v_just": "middle", 
+          "alt_rows": false, 
+          "list_style": "list", 
+          "bg_color": null, 
+          "type": "text", 
+          "content": "Documentation List", 
+          "text_style": "Header", 
+          "enabled": true, 
+          "just": "left", 
+          "alt_color": "#F5F7FA", 
+          "_id": 11, 
+          "row_span": 1
+        }, 
+        null, 
+        null, 
+        null
+      ], 
+      "merge_down": true
+    }, 
+    {
+      "section": "body", 
+      "blocks": [
+        {
+          "label": "", 
+          "type": "text", 
+          "content": "Date of Issue", 
+          "enabled": true, 
+          "data_borders": {
+            "h": true, 
+            "v": true
+          }, 
+          "list_style": "list", 
+          "date_format": "dd/MM/yyyy", 
+          "prefix": "", 
+          "alt_color": "#F5F7FA", 
+          "v_just": "middle", 
+          "just": "right", 
+          "_id": 2, 
+          "text_style": "Header", 
+          "row_span": 1, 
+          "span": 3, 
+          "borders": {
+            "t": true, 
+            "l": true, 
+            "b": true, 
+            "r": true
+          }, 
+          "bg_color": null, 
+          "page_format": "Page X of Y", 
+          "rotation": 0, 
+          "alt_rows": false, 
+          "height_pct": null, 
+          "suffix": ""
+        }, 
+        null, 
+        null, 
+        {
+          "label": "", 
+          "type": "spine_dates", 
+          "content": "", 
+          "enabled": true, 
+          "data_borders": {
+            "h": true, 
+            "v": true
+          }, 
+          "list_style": "list", 
+          "date_format": "dd/MM/yyyy", 
+          "prefix": "", 
+          "alt_color": "#F5F7FA", 
+          "v_just": "middle", 
+          "just": "center", 
+          "_id": 1, 
+          "text_style": "Data", 
+          "row_span": 1, 
+          "span": 1, 
+          "borders": {
+            "t": true, 
+            "l": true, 
+            "b": true, 
+            "r": true
+          }, 
+          "bg_color": null, 
+          "page_format": "Page X of Y", 
+          "rotation": 270, 
+          "alt_rows": false, 
+          "height_pct": null, 
+          "suffix": ""
+        }
+      ], 
+      "merge_down": true
+    }, 
+    {
+      "section": "body", 
+      "blocks": [
+        {
+          "data_borders": {
+            "h": true, 
+            "v": true
+          }, 
+          "label": "", 
+          "height_pct": null, 
+          "span": 1, 
+          "borders": {
+            "t": true, 
+            "l": false, 
+            "b": false, 
+            "r": false
+          }, 
+          "v_just": "middle", 
+          "alt_rows": false, 
+          "list_style": "list", 
+          "bg_color": null, 
+          "type": "text", 
+          "content": "Sheet", 
+          "text_style": "Header", 
+          "enabled": true, 
+          "just": "left", 
+          "alt_color": "#F5F7FA", 
+          "_id": 32, 
+          "row_span": 1
+        }, 
+        {
+          "data_borders": {
+            "h": true, 
+            "v": true
+          }, 
+          "label": "", 
+          "height_pct": null, 
+          "span": 2, 
+          "borders": {
+            "t": true, 
+            "l": false, 
+            "b": false, 
+            "r": false
+          }, 
+          "v_just": "middle", 
+          "alt_rows": false, 
+          "list_style": "list", 
+          "bg_color": null, 
+          "type": "text", 
+          "content": "Description", 
+          "text_style": "Header", 
+          "enabled": true, 
+          "just": "left", 
+          "alt_color": "#F5F7FA", 
+          "_id": 33, 
+          "row_span": 1
+        }, 
+        null, 
+        {
+          "data_borders": {
+            "h": true, 
+            "v": true
+          }, 
+          "label": "", 
+          "height_pct": null, 
+          "span": 1, 
+          "borders": {
+            "t": true, 
+            "l": false, 
+            "b": false, 
+            "r": false
+          }, 
+          "v_just": "middle", 
+          "alt_rows": false, 
+          "list_style": "list", 
+          "bg_color": null, 
+          "type": "text", 
+          "content": "Revision", 
+          "text_style": "Header", 
+          "enabled": true, 
+          "just": "left", 
+          "alt_color": "#F5F7FA", 
+          "_id": 34, 
+          "row_span": 1
+        }
+      ], 
+      "merge_down": true
+    }, 
+    {
+      "section": "body", 
+      "blocks": [
+        {
+          "data_borders": {
+            "h": true, 
+            "v": true
+          }, 
+          "label": "", 
+          "height_pct": null, 
+          "span": 1, 
+          "borders": {
+            "t": true, 
+            "l": true, 
+            "b": true, 
+            "r": true
+          }, 
+          "v_just": "middle", 
+          "alt_rows": false, 
+          "list_style": "list", 
+          "bg_color": null, 
+          "type": "sheet_number", 
+          "content": "", 
+          "text_style": "Data", 
+          "enabled": true, 
+          "just": "left", 
+          "alt_color": "#F5F7FA", 
+          "_id": 36, 
+          "row_span": 1
+        }, 
+        {
+          "data_borders": {
+            "h": true, 
+            "v": true
+          }, 
+          "label": "", 
+          "height_pct": null, 
+          "span": 2, 
+          "borders": {
+            "t": true, 
+            "l": true, 
+            "b": true, 
+            "r": true
+          }, 
+          "v_just": "middle", 
+          "alt_rows": false, 
+          "list_style": "list", 
+          "bg_color": null, 
+          "type": "sheet_desc", 
+          "content": "", 
+          "text_style": "Data", 
+          "enabled": true, 
+          "just": "left", 
+          "alt_color": "#F5F7FA", 
+          "_id": 35, 
+          "row_span": 1
+        }, 
+        null, 
+        {
+          "data_borders": {
+            "h": true, 
+            "v": true
+          }, 
+          "label": "", 
+          "height_pct": null, 
+          "span": 1, 
+          "borders": {
+            "t": true, 
+            "l": true, 
+            "b": true, 
+            "r": true
+          }, 
+          "v_just": "middle", 
+          "alt_rows": false, 
+          "list_style": "list", 
+          "bg_color": null, 
+          "type": "spine_rev", 
+          "content": "", 
+          "rotation": 0, 
+          "text_style": "Data", 
+          "enabled": true, 
+          "just": "center", 
+          "alt_color": "#F5F7FA", 
+          "_id": 38, 
+          "row_span": 1
+        }
+      ], 
+      "merge_down": false
+    }, 
+    {
+      "blocks": [
+        {
+          "data_borders": {
+            "h": true, 
+            "v": true
+          }, 
+          "label": "", 
+          "height_pct": null, 
+          "span": 4, 
+          "borders": {
+            "t": true, 
+            "l": false, 
+            "b": false, 
+            "r": false
+          }, 
+          "v_just": "middle", 
+          "alt_rows": false, 
+          "list_style": "list", 
+          "bg_color": null, 
+          "type": "text", 
+          "content": "Distribution List", 
+          "text_style": "Header", 
+          "enabled": true, 
+          "just": "left", 
+          "alt_color": "#F5F7FA", 
+          "_id": 1, 
+          "row_span": 1
+        }, 
+        null, 
+        null, 
+        null
+      ], 
+      "merge_down": true
+    }, 
+    {
+      "blocks": [
+        {
+          "data_borders": {
+            "h": true, 
+            "v": true
+          }, 
+          "label": "", 
+          "height_pct": null, 
+          "span": 1, 
+          "borders": {
+            "t": false, 
+            "l": false, 
+            "b": false, 
+            "r": false
+          }, 
+          "v_just": "middle", 
+          "alt_rows": false, 
+          "list_style": "list", 
+          "bg_color": null, 
+          "type": "text", 
+          "content": "Sent To", 
+          "text_style": "Header", 
+          "enabled": true, 
+          "just": "left", 
+          "alt_color": "#F5F7FA", 
+          "_id": 5, 
+          "row_span": 1
+        }, 
+        {
+          "data_borders": {
+            "h": true, 
+            "v": true
+          }, 
+          "label": "", 
+          "height_pct": null, 
+          "span": 2, 
+          "borders": {
+            "t": false, 
+            "l": false, 
+            "b": false, 
+            "r": false
+          }, 
+          "v_just": "middle", 
+          "alt_rows": false, 
+          "list_style": "list", 
+          "bg_color": null, 
+          "type": "text", 
+          "content": "Attention To", 
+          "text_style": "Header", 
+          "enabled": true, 
+          "just": "left", 
+          "alt_color": "#F5F7FA", 
+          "_id": 6, 
+          "row_span": 1
+        }, 
+        null, 
+        {
+          "data_borders": {
+            "h": true, 
+            "v": true
+          }, 
+          "label": "", 
+          "height_pct": null, 
+          "span": 1, 
+          "borders": {
+            "t": false, 
+            "l": false, 
+            "b": false, 
+            "r": false
+          }, 
+          "v_just": "middle", 
+          "alt_rows": false, 
+          "list_style": "list", 
+          "bg_color": null, 
+          "type": "text", 
+          "content": "Number of Copies", 
+          "text_style": "Header", 
+          "enabled": true, 
+          "just": "left", 
+          "alt_color": "#F5F7FA", 
+          "_id": 7, 
+          "row_span": 1
+        }
+      ], 
+      "merge_down": true
+    }, 
+    {
+      "blocks": [
+        {
+          "data_borders": {
+            "h": true, 
+            "v": true
+          }, 
+          "label": "", 
+          "height_pct": null, 
+          "span": 1, 
+          "borders": {
+            "t": true, 
+            "l": true, 
+            "b": true, 
+            "r": true
+          }, 
+          "v_just": "middle", 
+          "alt_rows": false, 
+          "list_style": "list", 
+          "bg_color": null, 
+          "type": "sent_to", 
+          "content": "", 
+          "text_style": "Data", 
+          "enabled": true, 
+          "just": "left", 
+          "alt_color": "#F5F7FA", 
+          "_id": 8, 
+          "row_span": 1
+        }, 
+        {
+          "data_borders": {
+            "h": true, 
+            "v": true
+          }, 
+          "label": "", 
+          "height_pct": null, 
+          "span": 2, 
+          "borders": {
+            "t": true, 
+            "l": true, 
+            "b": true, 
+            "r": true
+          }, 
+          "v_just": "middle", 
+          "alt_rows": false, 
+          "list_style": "list", 
+          "bg_color": null, 
+          "type": "attn_to", 
+          "content": "", 
+          "text_style": "Data", 
+          "enabled": true, 
+          "just": "left", 
+          "alt_color": "#F5F7FA", 
+          "_id": 9, 
+          "row_span": 1
+        }, 
+        null, 
+        {
+          "data_borders": {
+            "h": true, 
+            "v": true
+          }, 
+          "label": "", 
+          "height_pct": null, 
+          "span": 1, 
+          "borders": {
+            "t": true, 
+            "l": true, 
+            "b": true, 
+            "r": true
+          }, 
+          "v_just": "middle", 
+          "alt_rows": false, 
+          "list_style": "list", 
+          "bg_color": null, 
+          "type": "spine_copies", 
+          "content": "", 
+          "text_style": "Data", 
+          "enabled": true, 
+          "just": "center", 
+          "alt_color": "#F5F7FA", 
+          "_id": 14, 
+          "row_span": 1
+        }
+      ], 
+      "merge_down": true
+    }, 
+    {
+      "section": "body", 
+      "blocks": [
+        {
+          "label": "", 
+          "type": "blank", 
+          "content": "", 
+          "enabled": true, 
+          "data_borders": {
+            "h": true, 
+            "v": true
+          }, 
+          "list_style": "list", 
+          "date_format": "dd/MM/yyyy", 
+          "prefix": "", 
+          "alt_color": "#F5F7FA", 
+          "v_just": "middle", 
+          "just": "left", 
+          "_id": 3, 
+          "text_style": "Data", 
+          "row_span": 1, 
+          "span": 4, 
+          "borders": {
+            "t": false, 
+            "l": false, 
+            "b": false, 
+            "r": false
+          }, 
+          "bg_color": null, 
+          "page_format": "Page X of Y", 
+          "rotation": 0, 
+          "alt_rows": false, 
+          "height_pct": null, 
+          "suffix": ""
+        }, 
+        null, 
+        null, 
+        null
+      ], 
+      "merge_down": true
+    }, 
+    {
+      "section": "body", 
+      "blocks": [
+        {
+          "label": "", 
+          "type": "text", 
+          "content": "Reason for Issue", 
+          "enabled": true, 
+          "data_borders": {
+            "h": true, 
+            "v": true
+          }, 
+          "list_style": "list", 
+          "date_format": "dd/MM/yyyy", 
+          "prefix": "", 
+          "alt_color": "#F5F7FA", 
+          "v_just": "middle", 
+          "just": "left", 
+          "_id": 4, 
+          "text_style": "Header", 
+          "row_span": 1, 
+          "span": 3, 
+          "borders": {
+            "t": true, 
+            "l": true, 
+            "b": true, 
+            "r": true
+          }, 
+          "bg_color": null, 
+          "page_format": "Page X of Y", 
+          "rotation": 0, 
+          "alt_rows": false, 
+          "height_pct": null, 
+          "suffix": ""
+        }, 
+        null, 
+        null, 
+        {
+          "label": "", 
+          "type": "spine_reason", 
+          "content": "", 
+          "enabled": true, 
+          "data_borders": {
+            "h": true, 
+            "v": true
+          }, 
+          "list_style": "list", 
+          "date_format": "dd/MM/yyyy", 
+          "prefix": "", 
+          "alt_color": "#F5F7FA", 
+          "v_just": "middle", 
+          "just": "center", 
+          "_id": 5, 
+          "text_style": "Data", 
+          "row_span": 1, 
+          "span": 1, 
+          "borders": {
+            "t": true, 
+            "l": true, 
+            "b": true, 
+            "r": true
+          }, 
+          "bg_color": null, 
+          "page_format": "Page X of Y", 
+          "rotation": 0, 
+          "alt_rows": false, 
+          "height_pct": null, 
+          "suffix": ""
+        }
+      ], 
+      "merge_down": true
+    }, 
+    {
+      "section": "body", 
+      "blocks": [
+        {
+          "label": "", 
+          "type": "text", 
+          "content": "Reason for Issue Key", 
+          "enabled": true, 
+          "data_borders": {
+            "h": true, 
+            "v": true
+          }, 
+          "list_style": "list", 
+          "date_format": "dd/MM/yyyy", 
+          "prefix": "", 
+          "alt_color": "#F5F7FA", 
+          "v_just": "bottom", 
+          "just": "left", 
+          "_id": 6, 
+          "text_style": "Data", 
+          "row_span": 1, 
+          "span": 1, 
+          "borders": {
+            "t": true, 
+            "l": false, 
+            "b": false, 
+            "r": false
+          }, 
+          "bg_color": null, 
+          "page_format": "Page X of Y", 
+          "rotation": 0, 
+          "alt_rows": false, 
+          "height_pct": null, 
+          "suffix": ""
+        }, 
+        {
+          "label": "", 
+          "type": "reason_list", 
+          "content": "", 
+          "enabled": true, 
+          "data_borders": {
+            "h": false, 
+            "v": false
+          }, 
+          "list_style": "row", 
+          "date_format": "dd/MM/yyyy", 
+          "prefix": "", 
+          "alt_color": "#F5F7FA", 
+          "v_just": "bottom", 
+          "just": "center", 
+          "_id": 7, 
+          "text_style": "Data", 
+          "row_span": 1, 
+          "span": 3, 
+          "borders": {
+            "t": true, 
+            "l": false, 
+            "b": false, 
+            "r": false
+          }, 
+          "bg_color": null, 
+          "page_format": "Page X of Y", 
+          "rotation": 0, 
+          "alt_rows": false, 
+          "height_pct": null, 
+          "suffix": ""
+        }, 
+        null, 
+        null
+      ], 
+      "merge_down": false
+    }
+  ], 
+  "page_h_mm": 200, 
+  "hlines": {
+    "1": [
+      true, 
+      true, 
+      true, 
+      true
+    ], 
+    "2": [
+      true, 
+      true, 
+      true, 
+      true
+    ], 
+    "9": [
+      true, 
+      true, 
+      true, 
+      true
+    ], 
+    "3": [
+      true, 
+      true, 
+      true, 
+      true
+    ], 
+    "6": [
+      true, 
+      true, 
+      true, 
+      true
+    ], 
+    "7": [
+      true, 
+      true, 
+      true, 
+      true
+    ], 
+    "4": [
+      true, 
+      true, 
+      true, 
+      true
+    ], 
+    "8": [
+      true, 
+      true, 
+      true, 
+      true
+    ]
+  }, 
+  "rev_count": 10, 
+  "template": "Excel Temp", 
+  "col_pct": [
+    22, 
+    28, 
+    20
+  ], 
+  "page_w_mm": 150, 
+  "text_styles": {
+    "Data": {
+      "color": "#000000", 
+      "font": "Arial", 
+      "underline": false, 
+      "size_mm": 2.2000000000000002, 
+      "italic": false, 
+      "bold": false
+    }, 
+    "Header": {
+      "color": "#000000", 
+      "font": "Arial", 
+      "underline": false, 
+      "size_mm": 2.5, 
+      "italic": false, 
+      "bold": true
+    }, 
+    "Title": {
+      "color": "#000000", 
+      "font": "Arial", 
+      "underline": false, 
+      "size_mm": 4.5, 
+      "italic": false, 
+      "bold": true
+    }
+  }, 
+  "logo_path": "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\Document Studio.panel\\pyTransmit.pushbutton\\logo.png", 
+  "vlines": {
+    "1": [
+      true, 
+      false, 
+      false, 
+      true, 
+      true
+    ], 
+    "8": [
+      true, 
+      false, 
+      false, 
+      true, 
+      true
+    ], 
+    "3": [
+      true, 
+      true, 
+      false, 
+      true, 
+      true
+    ], 
+    "6": [
+      true, 
+      true, 
+      false, 
+      true, 
+      true
+    ]
+  }, 
+  "orientation": "portrait"
+}

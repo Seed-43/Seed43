@@ -1,53 +1,5 @@
 # -*- coding: utf-8 -*-
-__title__  = "Filter Delete and Backup"
-__author__  = "Seed43"
-__doc__     = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
-_____________________________________________________________________
-Description:
-Manages Revit View Filters with built-in automatic backup and version
-tracking.
-
-- Displays all Parameter Filters in a searchable list
-- Allows multi-select deletion of filters
-- Automatically creates a backup file next to the Revit model
-- Tracks changes to filters over time (categories and rules)
-- Archives previous versions when filters are modified
-
-Designed to safely clean up filters without losing data.
-_____________________________________________________________________
-How-to:
--> Run the tool
--> Select one or more filters from the list
--> Click Delete Selected
-
--> Confirm deletion:
-    - Shows selected filters
-    - Indicates if a backup will be created
-
--> The tool will:
-    - Delete selected filters
-    - Update the backup file automatically
-
--> Backup file location:
-    Same folder as Revit model:
-    [ModelName]_filters_backup.json
-_____________________________________________________________________
-Notes:
-- Backup only works if the Revit model has been saved
-- Unsaved models will not generate a backup file
-- The backup updates automatically on every run
-- Modified filters are versioned, not overwritten
-
-- This tool deletes filters only:
-    - It does NOT remove them from views first
-    - Revit may block deletion if the filter is still in use
-_____________________________________________________________________
-Last update:
-- Initial release
-_____________________________________________________________________
-"""
-
+# filter_delete_backup.py
 # pylint: disable=import-error,invalid-name,broad-except
 
 import clr
@@ -73,7 +25,6 @@ logger = script.get_logger()
 
 TODAY = datetime.datetime.now().strftime("%Y-%m-%d")
 
-
 # ── FUNCTIONS ─────────────────────────────────────────────────────────────────
 
 def serialise_filter(f):
@@ -94,7 +45,6 @@ def serialise_filter(f):
         "cats":  cat_ids,
         "rules": rules_str,
     }
-
 
 def sync_backup(backup, live_filters):
     """Update the backup dict with any new or changed filters."""
@@ -126,11 +76,9 @@ def sync_backup(backup, live_filters):
 
     return backup, updated
 
-
 def get_all_filters():
     """Return all ParameterFilterElement objects in the project."""
     return list(FilteredElementCollector(doc).OfClass(ParameterFilterElement))
-
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
@@ -202,7 +150,6 @@ def main():
         msg += "\n\nFailed:\n" + "\n".join(failed)
 
     forms.alert(msg, title="Manage Filters")
-
 
 if __name__ == "__main__":
     main()

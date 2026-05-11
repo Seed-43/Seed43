@@ -1,0 +1,43 @@
+title: "View Organiser"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  _____________________________________________________________________
+  Description:
+  Renames every view placed on a sheet into a consistent format and
+  syncs browser folder grouping across the project in one pass.
+  - Renames views to: Sheet Number - Detail Number - View Title
+  - Copies the sheet's folder value to the view (browser grouping)
+  - Preserves original view name in "Title on Sheet" if blank
+  - Resolves duplicate names with a numbered suffix
+  - Unchecks "Folder" in all view templates so syncing isn't blocked
+  Runs fully automatically, no selection required.
+  _____________________________________________________________________
+  How-to:
+  -> Run the tool
+  -> No selection required, runs automatically
+  -> On first run:
+      • Two dropdowns appear to choose the folder parameter
+      • Source: which parameter on SHEETS holds the folder value
+      • Destination: which parameter on VIEWS receives it
+      • Config is saved next to the script for future runs
+  -> Tool will:
+      • Uncheck "Folder" in all view templates (Part 1)
+      • Temp-rename all views to clear the namespace (T2a)
+      • Apply final names and sync folder parameters (T2b)
+  -> Result:
+      • All sheet-placed views renamed consistently
+      • Browser folders in sync with sheet folders
+      • Summary printed on completion
+  _____________________________________________________________________
+  Notes:
+  - Legends, schedules, and drawing sheets are excluded
+  - View templates are not renamed
+  - Duplicate names get a (2), (3)... suffix rather than failing
+  - Two-transaction split means a T2b failure leaves only temp names
+    which are undoable with Ctrl+Z
+  - Config stored at: view_organiser_config.json next to this script
+  _____________________________________________________________________
+  Last update:
+  - Initial release
+  _____________________________________________________________________

@@ -1,41 +1,5 @@
 # -*- coding: utf-8 -*-
-__title__  = "Sheet Scale"
-__author__ = "Seed43"
-__doc__    = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
-_____________________________________________________________________
-Description:
-Finds and replaces detail numbers on section viewports across one or
-more selected sheets. Supports adding a prefix, suffix, or swapping
-part of the existing number for something new.
-
-Processes all section viewports on the selected sheets at once.
-Automatically skips any change that would create a duplicate detail
-number on the same sheet.
-_____________________________________________________________________
-How-to:
--> Select one or more sheets in the project browser or make a sheet
-   the active view
--> Run the tool
--> In the window that opens, type what you want to find and replace
--> Add a prefix or suffix if needed
--> Click Run
-
-The tool will update all section viewport detail numbers on the
-selected sheets and tell you how many were changed.
-_____________________________________________________________________
-Notes:
-- Only section viewports are affected, not plans or elevations
-- If a resulting number already exists on that sheet, that viewport
-  is skipped with a warning
-- If a number is already taken, the tool will try up to 5 times
-  by appending an asterisk before giving up
-_____________________________________________________________________
-Last update:
-- Initial release
-_____________________________________________________________________
-"""
-
+# sheet_scale.py
 from Autodesk.Revit.DB import (
     ViewSheet, ViewType, Transaction, BuiltInParameter
 )
@@ -51,7 +15,6 @@ from System.Windows.Input import MouseButtonState
 
 uidoc = __revit__.ActiveUIDocument
 doc   = __revit__.ActiveUIDocument.Document
-
 
 # ── GET SELECTED SHEETS ───────────────────────────────────────────────────────
 
@@ -73,7 +36,6 @@ if not sheets:
         exitscript=True
     )
 
-
 # ── GET SECTION VIEWPORTS ─────────────────────────────────────────────────────
 
 selected_viewports = []
@@ -92,7 +54,6 @@ if not selected_viewports:
         exitscript=True
     )
 
-
 # ── FUNCTIONS ─────────────────────────────────────────────────────────────────
 
 def update_project_browser():
@@ -101,7 +62,6 @@ def update_project_browser():
     project_browser    = DockablePane(project_browser_id)
     project_browser.Hide()
     project_browser.Show()
-
 
 # ── GUI ───────────────────────────────────────────────────────────────────────
 
@@ -200,7 +160,6 @@ class MyWindow(forms.WPFWindow):
         if not self.detail_number_find:
             forms.alert("Find field cannot be empty.", exitscript=True)
         self.rename()
-
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 

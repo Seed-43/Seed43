@@ -1,76 +1,5 @@
 # -*- coding: utf-8 -*-
-__title__  = "Filter Annotations"
-__author__  = "Seed43"
-__doc__     = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
-_____________________________________________________________________
-Description:
-Creates smart View Filters for annotation and datum elements directly
-from user selection.
-
-- Select any annotation or datum element in the model
-- Automatically detects the best parameter to build a filter
-- Creates a filter matching:
-    - Category
-    - Type, Name, View, or other valid parameters
-- Applies the filter to the active view or its template
-- Automatically hides matching elements
-
-Smart parameter detection:
-- Tests multiple built-in parameters in priority order
-- Verifies parameter validity before creating the filter
-- Falls back safely if the parameter is not valid for the category
-
-Fallback system:
-- If no valid parameter is found:
-    - Creates a category-only filter (affects ALL elements in category)
-    - Prompts user before applying
-
-Designed for fast isolation and cleanup of annotation graphics.
-_____________________________________________________________________
-How-to:
--> Run the tool
--> Select an annotation or datum element
-   (e.g. section line, level, grid, tag, etc.)
-
--> Tool will:
-    - Detect category and type
-    - Find a valid filter parameter
-    - Create a filter automatically
-
--> If filter already exists:
-    - Use Existing, applies it
-    - Create New, duplicates with unique name
-    - Skip, does nothing
-
--> Result:
-    - Filter is applied to the current view (or view template)
-    - Matching elements are hidden
-
--> Press ESC to exit the tool
-_____________________________________________________________________
-Notes:
-- Works on annotation and datum elements, NOT host model elements
-- If you select a model element:
-    - The tool will warn and suggest the correct workflow
-
-- View Template support:
-    - If a template controls filters, the filter is applied to the
-      template instead
-
-- Category-only filters:
-    - Will hide ALL elements of that category in the view
-    - Use with caution
-
-- Parameter detection is dynamic:
-    - Not all categories support all parameters
-    - The tool tests validity before creating the filter
-_____________________________________________________________________
-Last update:
-- Initial release
-_____________________________________________________________________
-"""
-
+# filter_annotations.py
 # pylint: disable=import-error,invalid-name,broad-except
 
 import clr
@@ -102,7 +31,6 @@ logger = script.get_logger()
 FILTER_NAME_FORMAT     = "Annotation - {0} ({1})"
 FILTER_NAME_FORMAT_ALL = "Annotation - {0} (All)"
 
-
 # ── VARIABLES ─────────────────────────────────────────────────────────────────
 # Hardcoded param IDs confirmed working from debug output.
 # Ordered list of (param_integer_id, use_AsValueString) to try in order.
@@ -118,7 +46,6 @@ PARAM_CANDIDATES = [
     (int(BuiltInParameter.ALL_MODEL_MARK),      False),
 ]
 
-
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 
 def _safe_bic(name):
@@ -126,7 +53,6 @@ def _safe_bic(name):
         return getattr(BuiltInCategory, name)
     except AttributeError:
         return None
-
 
 _HOST_BICS = set(filter(None, [
     _safe_bic("OST_Walls"),             _safe_bic("OST_Floors"),
@@ -141,13 +67,11 @@ _HOST_BICS = set(filter(None, [
     _safe_bic("OST_CurtainWallMullions"),
 ]))
 
-
 def is_host_model(category):
     try:
         return category.BuiltInCategory in _HOST_BICS
     except Exception:
         return False
-
 
 # ── SELECTION FILTER ──────────────────────────────────────────────────────────
 
@@ -156,7 +80,6 @@ class AnnotationSelFilter(ISelectionFilter):
         return not isinstance(element, RevitLinkInstance)
     def AllowReference(self, reference, xyz):
         return False
-
 
 # ── FIND BEST PARAMETER ───────────────────────────────────────────────────────
 
@@ -223,7 +146,6 @@ def find_working_param(element, element_type, category):
 
     return None, None
 
-
 # ── CREATE NAME FILTER ────────────────────────────────────────────────────────
 
 def create_name_filter(filter_name, category, param_id, value):
@@ -234,7 +156,6 @@ def create_name_filter(filter_name, category, param_id, value):
     rule      = FilterStringRule(provider, evaluator, value)
     ef        = ElementParameterFilter(rule)
     return ParameterFilterElement.Create(doc, filter_name, cat_ids, ef)
-
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
@@ -344,7 +265,6 @@ def main():
             return
         logger.error("Error: {}", str(ex))
         forms.alert("Error occurred. Check pyRevit console.", title="Error")
-
 
 if __name__ == "__main__":
     main()

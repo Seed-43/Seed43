@@ -1,50 +1,5 @@
 # -*- coding: utf-8 -*-
-__title__  = "CAD Layer Manager"
-__author__  = "Seed43"
-__doc__     = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
-_____________________________________________________________________
-Description:
-Ever had a CAD file come in with 50 layers you do not need? This tool
-lets you quickly show or hide individual CAD layers straight from the
-view you are working in, without digging through Visibility/Graphics.
-
-Tick a layer on or off and the view updates immediately so you can
-see exactly what you are doing as you go. If you change your mind,
-click Cancel and everything goes back to how it was.
-
-Works with both imported and linked CAD files.
-If the active view uses a view template, changes are applied to the
-template automatically so they take effect everywhere that template
-is used.
-_____________________________________________________________________
-How-to:
-Either click on a CAD file before running the tool, or just run it
-and click on one when asked.
-
-A list of all the layers in that CAD file will appear. Check the
-layers you want visible and uncheck the ones you want hidden. The
-view updates live as you go.
-
-When you are happy with the result, click Apply Changes to save.
-If you want to undo everything, click Cancel or close the window
-and the layers will go back to how they were.
-
-Note: if the view has a view template, changes apply to the template
-and will affect all views using it.
-_____________________________________________________________________
-Notes:
-- Works with both imported and linked CAD files
-- Live updates happen as you tick each checkbox
-- Cancel fully reverts all changes made during the session
-- If the active view has a view template, that template is updated
-  rather than the view directly
-_____________________________________________________________________
-Last update:
-- Initial release
-_____________________________________________________________________
-"""
-
+# cad_layer_manager.py
 import os
 import clr
 clr.AddReference("PresentationFramework")
@@ -67,7 +22,6 @@ active_view = revit.active_view
 
 XAML_PATH = os.path.join(os.path.dirname(__file__), "LayerManager.xaml")
 
-
 # ── RESOLVE TARGET VIEW ───────────────────────────────────────────────────────
 
 template_id = active_view.ViewTemplateId
@@ -77,7 +31,6 @@ if template_id != DB.ElementId.InvalidElementId:
 else:
     target_view    = active_view
     using_template = False
-
 
 # ── RESOLVE CAD AND LAYERS ────────────────────────────────────────────────────
 
@@ -101,7 +54,6 @@ for sc in subcategories:
     except Exception:
         original_visibility[sc.Id] = False
 
-
 # ── LAYER DATA MODEL ──────────────────────────────────────────────────────────
 
 class LayerItem(object):
@@ -115,9 +67,7 @@ class LayerItem(object):
             self.visible  = True
             self.can_hide = False
 
-
 layer_items = [LayerItem(sc) for sc in subcategories]
-
 
 # ── WINDOW CONTROLLER ─────────────────────────────────────────────────────────
 
@@ -318,7 +268,6 @@ class LayerManagerWindow(object):
         self._set_placeholder(True)
         self.window.ShowDialog()
         return self._result
-
 
 # ── LAUNCH ────────────────────────────────────────────────────────────────────
 

@@ -1,36 +1,5 @@
 # -*- coding: utf-8 -*-
-__title__  = "About"
-__author__ = "Seed43"
-__doc__    = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
-_____________________________________________________________________
-Description:
-Opens the Seed43 About window.
-From here you can check which version of the Seed43 toolbar is installed,
-see what has changed in the latest version, and update to the newest
-version with one click.
-You can also reorder your tools and panels in the ribbon from this window.
-_____________________________________________________________________
-How-to:
--> Run the tool
--> The About window will open
--> Check the version shown under Seed43
--> If an update is available an update button will appear
--> Click the update button to download and install the latest version
--> Once the update is done, reload pyRevit when prompted
--> To reorder tools, drag them into the order you want and click Apply
-_____________________________________________________________________
-Notes:
-- An internet connection is required to check for and download updates
-- After updating, you will need to reload pyRevit for the changes to take effect
-- Reordering tools changes how they appear in the Revit ribbon
-- If a file cannot be saved during reorder, check it is not set to read only
-_____________________________________________________________________
-Last update:
-- Initial release
-_____________________________________________________________________
-"""
-
+# about.py
 import os
 import clr
 import json
@@ -100,7 +69,6 @@ def load_xaml(path):
     reader.Close()
     return window
 
-
 def read_local_version():
     """Read the installed version string from the extension root version.txt.
     Returns only the first non-empty line as the version number."""
@@ -117,7 +85,6 @@ def read_local_version():
     except Exception:
         pass
     return "0.0.0"
-
 
 def read_last_update():
     """Read the Last update notes from the extension root version.txt.
@@ -144,7 +111,6 @@ def read_last_update():
     except Exception:
         return []
 
-
 def fetch_remote_version():
     """Download version.txt from GitHub and return the version number string.
     Returns None if the request fails."""
@@ -158,7 +124,6 @@ def fetch_remote_version():
     except Exception:
         return None
 
-
 def version_tuple(version_str):
     """Convert a version string like 1.2.3 to a tuple (1, 2, 3) for comparison."""
     try:
@@ -166,10 +131,8 @@ def version_tuple(version_str):
     except Exception:
         return (0, 0, 0)
 
-
 def dispatch(window, fn):
     window.Dispatcher.Invoke(System.Action(fn))
-
 
 # ── Tool scanner helpers ───────────────────────────────────────────────────────
 
@@ -178,16 +141,13 @@ def folder_ext(name):
     idx  = base.rfind('.')
     return base[idx:].lower() if idx != -1 else None
 
-
 def strip_ext(name, ext):
     base = name[:-4] if name.lower().endswith('.off') else name
     cut  = base.lower().rfind(ext)
     return base[:cut] if cut != -1 else base
 
-
 def is_panel_folder(name):
     return folder_ext(name) == '.panel'
-
 
 def has_script(folder_path):
     try:
@@ -197,7 +157,6 @@ def has_script(folder_path):
         )
     except Exception:
         return False
-
 
 def scan_pushbuttons(folder_path):
     """Return button dicts for every .pushbutton directly inside folder_path."""
@@ -214,7 +173,6 @@ def scan_pushbuttons(folder_path):
         if ext == '.pushbutton' and has_script(path):
             buttons.append({'type': 'button', 'name': strip_ext(name, '.pushbutton'), 'path': path})
     return buttons
-
 
 def scan_panel(panel_path):
     """
@@ -289,7 +247,6 @@ def scan_panel(panel_path):
 
     return items
 
-
 # ── Folder toggle logic ────────────────────────────────────────────────────────
 
 class FolderRenamer(object):
@@ -326,7 +283,6 @@ class FolderRenamer(object):
             pass
         if self.parent:
             self.parent.sync()
-
 
 class FolderHandler(object):
     ON_COLOR  = "#208A3C"
@@ -379,7 +335,6 @@ class FolderHandler(object):
                 dispatch(self.window, fail)
         Thread(ThreadStart(worker)).Start()
 
-
 # ── Order persistence ─────────────────────────────────────────────────────────
 
 ORDER_FILE = os.path.join(SCRIPT_DIR, "tool_order.json")
@@ -423,7 +378,6 @@ def save_order(names):
     data = load_order_data()
     data["panels"] = names
     save_order_data(data)
-
 
 def write_bundle_yaml(names):
     """
@@ -507,7 +461,6 @@ def load_group_order(group_path):
         pass
     return []
 
-
 def write_group_yaml(group_path, names):
     """
     Write (or create) bundle.yaml inside a pulldown/split folder.
@@ -549,7 +502,6 @@ def write_group_yaml(group_path, names):
     except Exception:
         return False
 
-
 def apply_group_order(children, group_path):
     """Sort child items by the saved layout order in the group's bundle.yaml."""
     saved = load_group_order(group_path)
@@ -560,7 +512,6 @@ def apply_group_order(children, group_path):
     unknown = [c for c in children if c['name'] not in index]
     known.sort(key=lambda c: index[c['name']])
     return known + unknown
-
 
 def apply_order(panels, saved_order):
     """
@@ -574,7 +525,6 @@ def apply_order(panels, saved_order):
     unknown = [p for p in panels if p['name'] not in index]
     known.sort(key=lambda p: index[p['name']])
     return known + unknown
-
 
 # ── Tool UI builder ───────────────────────────────────────────────────────────
 
@@ -1250,7 +1200,6 @@ class ToolManager(object):
             return card
         return row
 
-
 # ── Main dialog ───────────────────────────────────────────────────────────────
 
 class Seed43Dialog(object):
@@ -1485,7 +1434,6 @@ class Seed43Dialog(object):
 
     def show(self):
         self.window.ShowDialog()
-
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 dialog = Seed43Dialog()

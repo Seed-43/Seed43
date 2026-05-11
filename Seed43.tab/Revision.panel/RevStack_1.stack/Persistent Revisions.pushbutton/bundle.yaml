@@ -1,0 +1,36 @@
+title: "Persistent Revisions"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  _____________________________________________________________________
+  Description:
+  Permanently links revision clouds to their parent sheets, ensuring
+  revision history is never lost regardless of where the cloud is placed.
+  
+  - Scans ALL revision clouds in the model
+  - Detects whether each cloud lives on a sheet or a hosted view
+  - Propagates revisions to the correct sheet automatically
+  - Never removes existing sheet revisions (additive only)
+  - Skips placeholder sheets safely
+  _____________________________________________________________________
+  How-to:
+  -> Run the tool
+  -> No selection required, runs automatically
+  -> The tool will:
+      - Collect all revision clouds across the model
+      - Map each cloud to its parent sheet
+      - Apply any missing revisions to the sheet revision list
+  -> Result:
+      - All sheets updated with their correct revisions
+      - A live log shows every sheet and revision linked
+      - A summary is printed on completion
+  _____________________________________________________________________
+  Notes:
+  - Revision clouds on views hosted on sheets are correctly propagated
+  - Placeholder sheets are skipped as they cannot hold revisions
+  - Existing sheet revisions are preserved, nothing is removed
+  - All changes are made in a single transaction and can be undone
+  _____________________________________________________________________
+  Last update:
+  - Initial release
+  _____________________________________________________________________

@@ -1,34 +1,5 @@
 # -*- coding: utf-8 -*-
-__title__  = "pyTransmit"
-__author__ = "Nagel Consultants"
-__doc__    = """
-VERSION 250507
-_____________________________________________________________________
-Description:
-Main window for pyTransmit. Collects revision and issue details,
-manages recipients, options, layout and export settings, then
-publishes the transmittal document to the selected output formats.
-
-_____________________________________________________________________
-How-to:
-1. Fill in the revision details and select the issue reason and method.
-2. Choose who the transmittal is being sent to under Recipients.
-3. Click Publish to generate the selected output formats.
-
-_____________________________________________________________________
-Notes:
-Output formats and their layout templates are configured under
-Settings, then Layout. Each format can be assigned its own layout
-independently.
-
-_____________________________________________________________________
-Last update:
-250507 - Added group label toggle for sheet grouping. Fixed group
-boundary borders in Excel and Schedule exporters. Custom page size
-now saves correctly per template.
-_____________________________________________________________________
-"""
-
+# script.py
 from pyrevit import revit, forms, script, DB
 from Autodesk.Revit.DB import (
     FilteredElementCollector, BuiltInCategory, XYZ, Line, TextNote, TextNoteType, Transaction, CurveElement,
@@ -57,9 +28,10 @@ def _find_seed43_styles():
     """Walk up from the pushbutton folder to find Seed43Styles.xaml. Returns path or None."""
     folder = _SCRIPT_DIR_MAIN
     for _ in range(6):
-        candidate = os.path.join(folder, 'Seed43Styles.xaml')
-        if os.path.isfile(candidate):
-            return candidate
+        for sub in ('', 'UI'):
+            candidate = os.path.join(folder, sub, 'Seed43Styles.xaml')
+            if os.path.isfile(candidate):
+                return candidate
         folder = os.path.dirname(folder)
     return None
 
@@ -79,7 +51,6 @@ _PYTRANSMIT_ZIP_URL = (
 )
 _SCRIPT_DIR         = os.path.dirname(os.path.abspath(__file__))
 _YAML_FILE          = os.path.join(_SCRIPT_DIR, "bundle.yaml")
-
 
 def _pt_parse_yaml(path):
     """Parse a simple yaml file into a dict."""
@@ -110,7 +81,6 @@ def _pt_parse_yaml(path):
         pass
     return result
 
-
 def _pt_write_version_to_yaml(version):
     """Write installed version into local pytransmit.yaml version field."""
     try:
@@ -135,11 +105,9 @@ def _pt_write_version_to_yaml(version):
     except Exception:
         pass
 
-
 def _pt_get_local_version():
     data = _pt_parse_yaml(_YAML_FILE)
     return data.get("version", None)
-
 
 def _pt_fetch_remote_version():
     try:
@@ -174,7 +142,6 @@ def _pt_fetch_remote_version():
         return result.get("version", ""), changelog
     except Exception:
         return None, []
-
 
 def _pt_do_update(remote_ver):
     """Download and install the latest PyTransmit files."""
@@ -251,7 +218,6 @@ def _pt_do_update(remote_ver):
     except Exception as ex:
         return False, str(ex)
 
-
 def _pt_check_and_notify():
     """Check for update and show orange ribbon if found — called after window init."""
     try:
@@ -267,7 +233,6 @@ def _pt_check_and_notify():
         _pt_check_and_notify._local_ver  = local_ver or "unknown"
     except Exception:
         pass
-
 
 # Run update check on startup
 _pt_check_and_notify()
@@ -301,7 +266,6 @@ key_lift_additional = -0.00814044  # -2.48mm for Distribution Table
 description_width_ft = 0.328084  # 100mm in feet (updated from 80mm)
 attention_to_width_ft = 0.295276  # 90mm in feet (90 / 304.8, updated from 70mm)
 logo_space_ft = 0.131234  # 40mm in feet for logo space above Sheet/Description headers
-
 
 # --- XAML UI CLASS ---
 class RevTableWindow(Window):
@@ -359,7 +323,7 @@ class RevTableWindow(Window):
         self.sheet_param_combos = [self.sheet_param_cb_1]
         self.selected_params = []
         self.param_counter = 1
-        self.group_label_on = False
+        self.group_label_on = self._load_sync().get('group_label_on', True)
         self._setup_group_label_toggle()
         
         self.sheet_params = self.get_sheet_parameters()
@@ -423,7 +387,6 @@ class RevTableWindow(Window):
         except:
             pass
         
-    
     def _setup_group_label_toggle(self):
         """Build the on/off toggle switch for group label display."""
         import System.Windows.Media as _SWM
@@ -470,6 +433,7 @@ class RevTableWindow(Window):
                 else _SWM.Color.FromRgb(0xA0, 0xAA, 0xBB))
         except Exception:
             pass
+        self._save_sync()
 
     def get_sheet_parameters(self):
         sheets = FilteredElementCollector(self.doc).OfCategory(BuiltInCategory.OST_Sheets).WhereElementIsNotElementType().ToElements()
@@ -873,15 +837,16 @@ class RevTableWindow(Window):
         # Hide everything first
         for n in ['SetupPanel', 'RecipientPanel', 'OptionsPanel',
                   'ExportSettingsPanel', 'ImportSettingsPanel', 'StylingPanel',
-                  'FileNamingPanel',
+                  'FileNamingPanel', 'ExportFormatPanel',
                   'main_content',
                   'header_normal_btns', 'setup_close_btn', 'styling_close_btn',
+                  'export_format_close_btn',
                   'recipient_header_btns', 'options_header_btns',
                   'export_settings_header_btns', 'import_settings_header_btns',
                   'filenaming_header_btns',
                   'setup_header_lbl', 'recipient_header_lbl', 'options_header_lbl',
                   'export_settings_header_lbl', 'import_settings_header_lbl',
-                  'styling_header_lbl', 'filenaming_header_lbl']:
+                  'styling_header_lbl', 'filenaming_header_lbl', 'export_format_header_lbl']:
             hide(n)
 
         if panel_name == "main":
@@ -919,6 +884,10 @@ class RevTableWindow(Window):
             show('FileNamingPanel')
             show('filenaming_header_lbl')
             show('filenaming_header_btns')
+        elif panel_name == "export_format":
+            show('ExportFormatPanel')
+            show('export_format_header_lbl')
+            show('export_format_close_btn')
 
     # ── Back / close handlers ─────────────────────────────────────────────
 
@@ -1069,6 +1038,21 @@ class RevTableWindow(Window):
     def options_export_click(self, sender, args):
         if self.opt_ctrl:
             self.opt_ctrl.export_data(sender, args)
+
+    def menu_export_format_click(self, sender, args):
+        """☰ → Export Format: open the export format configuration panel."""
+        self.OptionsPopup.IsOpen = False
+        self.options_btn.IsChecked = False
+        self._show_panel("export_format")
+
+    def export_format_back_click(self, sender, args):
+        """Export Format X — save config and return to main."""
+        if self.setup_ctrl:
+            self.setup_ctrl.save()
+            self.setup_ctrl.apply()
+        self._save_layout_assignments()
+        self._save_sync()
+        self._show_panel("main")
 
     def menu_setup_click(self, sender, args):
         """☰ → Setup: open the Setup configuration panel."""
@@ -2129,22 +2113,38 @@ class RevTableWindow(Window):
             sync_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pytransmit_sync.json')
             cfg = {}
             if os.path.isfile(sync_path):
-                with open(sync_path, 'r') as f: cfg = json.load(f)
+                with open(sync_path, 'r') as f: cfg = _json.load(f)
             for cb_name in self._LAYOUT_COMBOS:
                 cb = getattr(self, cb_name, None)
                 if cb and cb.SelectedItem:
                     cfg['layout_assign_{}'.format(cb_name)] = str(cb.SelectedItem)
-            with open(sync_path, 'w') as f: json.dump(cfg, f, indent=2)
+            with open(sync_path, 'w') as f: _json.dump(cfg, f, indent=2)
+        except Exception: pass
+
+    def _load_sync(self):
+        """Load pytransmit_sync.json as a dict."""
+        try:
+            sync_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pytransmit_sync.json')
+            if os.path.isfile(sync_path):
+                with open(sync_path, 'r') as f: return _json.load(f)
+        except Exception: pass
+        return {}
+
+    def _save_sync(self):
+        """Persist non-layout settings (group_label_on, etc.) to pytransmit_sync.json."""
+        try:
+            sync_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pytransmit_sync.json')
+            cfg = self._load_sync()
+            cfg['group_label_on'] = getattr(self, 'group_label_on', True)
+            with open(sync_path, 'w') as f: _json.dump(cfg, f, indent=2)
         except Exception: pass
 
     def _load_layout_assignments(self):
         """Load layout combo selections from pytransmit_sync.json."""
         try:
-            sync_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pytransmit_sync.json')
-            if os.path.isfile(sync_path):
-                with open(sync_path, 'r') as f: cfg = json.load(f)
-                return {k.replace('layout_assign_', ''): v
-                        for k, v in cfg.items() if k.startswith('layout_assign_')}
+            cfg = self._load_sync()
+            return {k.replace('layout_assign_', ''): v
+                    for k, v in cfg.items() if k.startswith('layout_assign_')}
         except Exception: pass
         return {}
 
@@ -2579,7 +2579,6 @@ class RevTableWindow(Window):
             tb_str = traceback.format_exc() or str(e) or repr(e)
             forms.alert("Error exporting Revit data:\n{}".format(tb_str))
 
-
 # --- generate_tables removed - this script only updates revision data ---
 
 # --- MAIN EXECUTION ---
@@ -2635,7 +2634,6 @@ def main():
         window.ShowDialog()
     except Exception as ex:
         forms.alert("Error initializing window: {}".format(str(ex)), exitscript=True)
-
 
 if __name__ == "__main__":
     main()

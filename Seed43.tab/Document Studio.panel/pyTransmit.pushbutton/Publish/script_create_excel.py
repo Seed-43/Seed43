@@ -570,7 +570,7 @@ def write_legend(r1, c, r2, title, legend_text, block):
                                       'bold': True,  'font_color': _fg})
     _plain_fmt = workbook.add_format({'font_name': _font, 'font_size': _pt,
                                       'bold': False, 'font_color': _fg})
-    _cell_fmt  = block_fmt(block, override={'bold': False, 'valign': 'top', 'wrap': True,
+    _cell_fmt  = block_fmt(block, override={'bold': False, 'valign': _valign_to_xl(block.get('v_just', 'top')), 'wrap': True,
                                              'top': 0, 'bottom': 1, 'left': 0, 'right': 0})
     if _bg: _cell_fmt.set_bg_color(_bg)
     if r1 == r2:

@@ -1,46 +1,5 @@
 # -*- coding: utf-8 -*-
-__title__  = "Write Cloud Parameter"
-__author__  = "Seed43"
-__doc__     = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
-_____________________________________________________________________
-Description:
-Writes sheet and revision data directly to the built-in Revision Cloud
-parameters so clouds carry their context wherever they appear.
-
-Writes: Sheet Number + Revision Number to the Mark parameter
-Example result: "S202 - C"
-
-Works for:
-- Clouds placed directly on sheets
-- Clouds inside views that are placed on sheets
-_____________________________________________________________________
-How-to:
--> Run the tool
--> No selection required, runs automatically
--> The tool will:
-    - Collect all revision clouds in the model
-    - Resolve each cloud's parent sheet
-    - Write the sheet number and revision number to the Mark parameter
--> Result:
-    - All reachable clouds are updated
-    - Skipped clouds are logged with the reason
-    - A summary is printed on completion
-_____________________________________________________________________
-Notes:
-- Uses the built-in Mark parameter, no project parameters required
-- Mark is written as "Sheet - RevNumber" (for example "S202 - C")
-- The revision number shown is the label visible on the sheet,
-  not the internal sequence number
-- Clouds on views that are not placed on any sheet are skipped
-- Clouds whose workset is not editable are logged and skipped
-- All writes happen in a single transaction and can be undone
-_____________________________________________________________________
-Last update:
-- Initial release
-_____________________________________________________________________
-"""
-
+# wright_cloud_parameter.py
 from pyrevit import revit, DB, script
 
 doc    = revit.doc
@@ -48,7 +7,6 @@ output = script.get_output()
 
 INVALID_ID = DB.ElementId.InvalidElementId
 BIP_MARK   = DB.BuiltInParameter.ALL_MODEL_MARK
-
 
 # ── UI STYLE ──────────────────────────────────────────────────────────────────
 
@@ -69,7 +27,6 @@ body {
 output.print_html("<div class='header'>WRITE CLOUD PARAMETER ENGINE</div>")
 output.print_html("<div class='line'>------------------------------------</div>")
 
-
 # ── COLLECT CLOUDS ────────────────────────────────────────────────────────────
 # OfClass(DB.RevisionCloud) is not valid, clouds are AnnotationSymbol elements
 # filtered by the OST_RevisionClouds category.
@@ -88,7 +45,6 @@ if not clouds:
 output.print_html("<div class='sheet'>Found {} revision clouds</div>".format(len(clouds)))
 output.print_html("<div class='sheet'>Writing to: Mark (sheet number - revision number)</div>")
 output.print_html("<div class='line'>------------------------------------</div>")
-
 
 # ── PRE-CACHE VIEW TO SHEET MAP ───────────────────────────────────────────────
 # Build ViewId to SheetId lookup in one pass so the cloud loop
@@ -110,7 +66,6 @@ for vp in (
 output.print_html(
     "<div class='sheet'>Mapped {} views to sheets</div>".format(len(view_to_sheet)))
 
-
 # ── PRE-CACHE REVISION NUMBERS ────────────────────────────────────────────────
 # PROJECT_REVISION_REVISION_NUM is the user-facing revision number shown on
 # the sheet (for example "C" or "3"), not the internal sequence number.
@@ -124,7 +79,6 @@ for rev in DB.FilteredElementCollector(doc).OfClass(DB.Revision).ToElements():
             rev_num_cache[rev.Id] = param.AsString() or ""
     except Exception:
         pass
-
 
 # ── APPLY ─────────────────────────────────────────────────────────────────────
 
@@ -192,7 +146,6 @@ with revit.Transaction("Write Sheet and Sequence to Revision Clouds"):
             output.print_html(
                 "<div class='warn'>WARNING: Cloud {} | Workset: {} | {}</div>".format(
                     cloud.Id, ws_name, str(ex)))
-
 
 # ── SUMMARY ───────────────────────────────────────────────────────────────────
 

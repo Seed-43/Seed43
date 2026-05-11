@@ -1,0 +1,40 @@
+title: "Match Label Properties"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  _____________________________________________________________________
+  Description:
+  Matches properties between annotation labels and text elements in the
+  model.
+  
+  Provides controlled transfer of key annotation formatting properties
+  from a reference element to one or more target elements.
+  
+  Supports selective matching of:
+  - Text Style (Type)
+  - Width (where supported)
+  - Horizontal Alignment
+  - Vertical Alignment
+  
+  Useful for standardising annotation consistency across views, families,
+  and documentation sheets.
+  _____________________________________________________________________
+  How-to:
+  -> Run the tool
+  -> Select properties to match
+  -> Pick the REFERENCE label or text (the source)
+  -> Pick TARGET labels or texts (repeat selection)
+  -> Press ESC when finished
+  
+  -> Changes apply immediately per selection batch
+  _____________________________________________________________________
+  Notes:
+  - Works with Text Notes and Text Elements where supported
+  - Some properties may not be editable depending on the family or view
+  - Multiple targets can be selected in one run session
+  - Press ESC to exit the selection loop safely
+  - Only the properties you selected are changed
+  _____________________________________________________________________
+  Last update:
+  - Initial release
+  _____________________________________________________________________

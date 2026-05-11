@@ -1,0 +1,34 @@
+title: "Format Selected Text Notes"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  _____________________________________________________________________
+  Description:
+  Interactive formatting tool for Text Notes in Revit.
+  
+  - Apply formatting instantly to selected Text Notes
+  - Supports:
+      - Bold
+      - Italic
+      - Underline
+  - Works in continuous selection mode for fast repetitive editing
+  - Updates formatting immediately as elements are picked in the model
+  
+  Designed for fast manual annotation formatting and documentation
+  cleanup.
+  _____________________________________________________________________
+  How-to:
+  -> Run the tool
+  -> Select formatting options (Bold, Italic, Underline)
+  -> Pick Text Notes in the model
+  -> Continue selecting multiple elements
+  -> Press ESC to finish
+  _____________________________________________________________________
+  Notes:
+  - Only Text Notes are affected
+  - Formatting applies to the full text content of each note
+  - Ideal for rapid annotation checking and standardisation
+  _____________________________________________________________________
+  Last update:
+  - Initial release
+  _____________________________________________________________________

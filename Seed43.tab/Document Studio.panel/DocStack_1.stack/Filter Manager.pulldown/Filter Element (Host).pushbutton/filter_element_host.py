@@ -1,60 +1,5 @@
 # -*- coding: utf-8 -*-
-__title__  = "Filter Element (Host)"
-__author__  = "Seed43"
-__doc__     = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
-_____________________________________________________________________
-Description:
-Creates View Filters for host model elements based on the selected
-element type.
-
-- Select any host model element (walls, doors, furniture, etc.)
-- Automatically detects:
-    - Category
-    - Type Name
-- Creates a filter matching:
-    - Category and Type Name
-- Applies the filter to the active view or its template
-- Automatically hides matching elements
-
-Designed for fast isolation and control of model elements by type.
-_____________________________________________________________________
-How-to:
--> Run the tool
--> Select a host model element
-
--> Tool will:
-    - Detect element type
-    - Create a filter based on type name
-    - Apply filter to view (or template)
-
--> If filter already exists:
-    - Use Existing, applies it
-    - Create New, duplicates with unique name
-    - Skip, does nothing
-
--> Result:
-    - All matching elements are hidden in the view
-
--> Press ESC to exit the tool
-_____________________________________________________________________
-Notes:
-- Works on host model elements only, NOT annotation elements
-- Linked elements are ignored
-- Requires a valid element type and category
-
-- View Template support:
-    - If a template is assigned, the filter is applied to the template
-
-- Filter logic:
-    - Uses the Type Name parameter
-    - Matches all instances of that type within the category
-_____________________________________________________________________
-Last update:
-- Initial release
-_____________________________________________________________________
-"""
-
+# filter_element_host.py
 # pylint: disable=import-error,invalid-name,broad-except
 
 import clr
@@ -85,7 +30,6 @@ logger = script.get_logger()
 BUILTIN_PARAM      = BuiltInParameter.SYMBOL_NAME_PARAM
 FILTER_NAME_FORMAT = "Host - {0} - {1}"
 
-
 # ── SELECTION FILTER ──────────────────────────────────────────────────────────
 
 class HostElementFilter(ISelectionFilter):
@@ -93,7 +37,6 @@ class HostElementFilter(ISelectionFilter):
         return not isinstance(element, RevitLinkInstance)
     def AllowReference(self, reference, xyz):
         return False
-
 
 # ── FUNCTIONS ─────────────────────────────────────────────────────────────────
 
@@ -108,7 +51,6 @@ def get_element_name(element_type, element):
     if param and param.HasValue:
         return param.AsString()
     return "Unknown"
-
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
@@ -179,7 +121,6 @@ def main():
             return
         logger.error("Error: {}", str(ex))
         forms.alert("Error occurred. Check pyRevit console.", title="Error")
-
 
 if __name__ == "__main__":
     main()

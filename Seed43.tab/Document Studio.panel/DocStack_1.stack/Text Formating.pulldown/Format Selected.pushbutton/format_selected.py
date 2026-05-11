@@ -1,44 +1,8 @@
 # -*- coding: utf-8 -*-
-__title__  = "Format Selected Text Notes"
-__author__  = "Seed43"
-__doc__     = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
-_____________________________________________________________________
-Description:
-Interactive formatting tool for Text Notes in Revit.
-
-- Apply formatting instantly to selected Text Notes
-- Supports:
-    - Bold
-    - Italic
-    - Underline
-- Works in continuous selection mode for fast repetitive editing
-- Updates formatting immediately as elements are picked in the model
-
-Designed for fast manual annotation formatting and documentation
-cleanup.
-_____________________________________________________________________
-How-to:
--> Run the tool
--> Select formatting options (Bold, Italic, Underline)
--> Pick Text Notes in the model
--> Continue selecting multiple elements
--> Press ESC to finish
-_____________________________________________________________________
-Notes:
-- Only Text Notes are affected
-- Formatting applies to the full text content of each note
-- Ideal for rapid annotation checking and standardisation
-_____________________________________________________________________
-Last update:
-- Initial release
-_____________________________________________________________________
-"""
-
+# format_selected.py
 from pyrevit import revit, DB, forms, script
 
 doc = revit.doc
-
 
 # ── SELECT FORMATTING OPTIONS ─────────────────────────────────────────────────
 
@@ -56,7 +20,6 @@ if not selected_formats:
 do_bold      = "Bold"      in selected_formats
 do_italic    = "Italic"    in selected_formats
 do_underline = "Underline" in selected_formats
-
 
 # ── PICK AND FORMAT TEXTS ─────────────────────────────────────────────────────
 

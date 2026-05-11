@@ -1,0 +1,35 @@
+title: "Sheet Scale"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  _____________________________________________________________________
+  Description:
+  Finds and replaces detail numbers on section viewports across one or
+  more selected sheets. Supports adding a prefix, suffix, or swapping
+  part of the existing number for something new.
+  
+  Processes all section viewports on the selected sheets at once.
+  Automatically skips any change that would create a duplicate detail
+  number on the same sheet.
+  _____________________________________________________________________
+  How-to:
+  -> Select one or more sheets in the project browser or make a sheet
+     the active view
+  -> Run the tool
+  -> In the window that opens, type what you want to find and replace
+  -> Add a prefix or suffix if needed
+  -> Click Run
+  
+  The tool will update all section viewport detail numbers on the
+  selected sheets and tell you how many were changed.
+  _____________________________________________________________________
+  Notes:
+  - Only section viewports are affected, not plans or elevations
+  - If a resulting number already exists on that sheet, that viewport
+    is skipped with a warning
+  - If a number is already taken, the tool will try up to 5 times
+    by appending an asterisk before giving up
+  _____________________________________________________________________
+  Last update:
+  - Initial release
+  _____________________________________________________________________

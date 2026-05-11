@@ -1,42 +1,5 @@
 # -*- coding: utf-8 -*-
-__title__  = "Persistent Revisions"
-__author__  = "Seed43"
-__doc__     = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
-_____________________________________________________________________
-Description:
-Permanently links revision clouds to their parent sheets, ensuring
-revision history is never lost regardless of where the cloud is placed.
-
-- Scans ALL revision clouds in the model
-- Detects whether each cloud lives on a sheet or a hosted view
-- Propagates revisions to the correct sheet automatically
-- Never removes existing sheet revisions (additive only)
-- Skips placeholder sheets safely
-_____________________________________________________________________
-How-to:
--> Run the tool
--> No selection required, runs automatically
--> The tool will:
-    - Collect all revision clouds across the model
-    - Map each cloud to its parent sheet
-    - Apply any missing revisions to the sheet revision list
--> Result:
-    - All sheets updated with their correct revisions
-    - A live log shows every sheet and revision linked
-    - A summary is printed on completion
-_____________________________________________________________________
-Notes:
-- Revision clouds on views hosted on sheets are correctly propagated
-- Placeholder sheets are skipped as they cannot hold revisions
-- Existing sheet revisions are preserved, nothing is removed
-- All changes are made in a single transaction and can be undone
-_____________________________________________________________________
-Last update:
-- Initial release
-_____________________________________________________________________
-"""
-
+# persistent_revisions.py
 from pyrevit import DB, script
 from collections import defaultdict
 from System.Collections.Generic import List
@@ -48,7 +11,6 @@ doc    = __revit__.ActiveUIDocument.Document
 output = script.get_output()
 
 INVALID_ID = DB.ElementId.InvalidElementId
-
 
 # ── UI STYLE ──────────────────────────────────────────────────────────────────
 
@@ -69,14 +31,12 @@ body {
 output.print_html("<div class='header'>PERSISTENT REVISION ENGINE INITIALISING</div>")
 output.print_html("<div class='line'>------------------------------------</div>")
 
-
 # ── PRE-CACHE REVISIONS ───────────────────────────────────────────────────────
 
 rev_name_cache = {
     r.Id: get_revision_description(r)
     for r in DB.FilteredElementCollector(doc).OfClass(DB.Revision).ToElements()
 }
-
 
 # ── VIEW TO SHEET MAP ─────────────────────────────────────────────────────────
 
@@ -89,7 +49,6 @@ for vp in DB.FilteredElementCollector(doc).OfClass(DB.Viewport).ToElements():
     except Exception as e:
         output.print_html(
             "<div class='warn'>WARNING (viewport mapping): {}</div>".format(str(e)))
-
 
 # ── COLLECT REVISION CLOUDS ───────────────────────────────────────────────────
 
@@ -118,7 +77,6 @@ for c in (
     except Exception as e:
         output.print_html(
             "<div class='warn'>WARNING (cloud collection): {}</div>".format(str(e)))
-
 
 # ── APPLY ─────────────────────────────────────────────────────────────────────
 
@@ -162,14 +120,12 @@ except Exception as e:
     output.print_html(
         "<div class='warn'>ERROR (transaction rolled back): {}</div>".format(str(e)))
 
-
 # ── LIVE LOG ──────────────────────────────────────────────────────────────────
 
 for sheet_number, rev_names in log_entries:
     output.print_html("<div class='sheet'>Sheet {}</div>".format(sheet_number))
     for name in rev_names:
         output.print_html("<div class='rev'>Linked Rev: {}</div>".format(name))
-
 
 # ── SUMMARY ───────────────────────────────────────────────────────────────────
 

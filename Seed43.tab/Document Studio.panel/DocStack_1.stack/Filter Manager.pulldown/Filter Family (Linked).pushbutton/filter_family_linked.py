@@ -1,67 +1,5 @@
 # -*- coding: utf-8 -*-
-__title__  = "Filter Family (Linked)"
-__author__  = "Seed43"
-__doc__     = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
-_____________________________________________________________________
-Description:
-Creates View Filters for elements selected from linked models, based
-on family name.
-
-- Select a linked model, then pick elements inside it
-- Automatically detects:
-    - Category
-    - Family name
-- Creates a filter matching:
-    - Category and Family Name
-- Applies the filter to the active view or its template
-- Automatically hides matching elements
-
-Persistent workflow:
-- Remembers the selected linked model
-- Allows repeated element selection without re-picking the link
-
-Designed for fast isolation and control of linked model content.
-_____________________________________________________________________
-How-to:
--> Run the tool
--> Select a linked model
--> Select an element inside the linked model (use TAB if needed)
-
--> Tool will:
-    - Detect category and family
-    - Create a filter based on family name
-    - Apply filter to view (or template)
-
--> If filter already exists:
-    - Use Existing, applies it
-    - Create New, duplicates with unique name
-    - Skip, does nothing
-
--> Continue selecting elements from the same link
--> Press ESC to exit the tool
-_____________________________________________________________________
-Notes:
-- Works on linked model elements only, NOT host elements
-- The linked model must be loaded
-- Ensures the selected element belongs to the chosen link
-
-- View Template support:
-    - If a template controls filters, the filter is applied to the
-      template instead
-
-- Filter logic:
-    - Uses the Family Name parameter
-    - Matches all instances of that family within the category
-
-- Persistent link selection:
-    - Improves speed when working with large linked models
-_____________________________________________________________________
-Last update:
-- Initial release
-_____________________________________________________________________
-"""
-
+# filter_family_linked.py
 # pylint: disable=import-error,invalid-name,broad-except
 
 import clr
@@ -92,7 +30,6 @@ logger = script.get_logger()
 BUILTIN_PARAM      = BuiltInParameter.SYMBOL_FAMILY_NAME_PARAM
 FILTER_NAME_FORMAT = "Linked - {0} - {1}"
 
-
 # ── SELECTION FILTER ──────────────────────────────────────────────────────────
 
 class LinkInstanceFilter(ISelectionFilter):
@@ -100,7 +37,6 @@ class LinkInstanceFilter(ISelectionFilter):
         return isinstance(element, RevitLinkInstance)
     def AllowReference(self, reference, xyz):
         return False
-
 
 # ── FUNCTIONS ─────────────────────────────────────────────────────────────────
 
@@ -125,7 +61,6 @@ def get_family_name(element_type, element):
     except Exception:
         pass
     return "Unknown"
-
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
@@ -223,7 +158,6 @@ def main():
             return
         logger.error("Error: {}".format(str(ex)))
         forms.alert("Error occurred. Check pyRevit console.", title="Error")
-
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,24 @@
+title: "Isolate Levels"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  _____________________________________________________________________
+  Description:
+  Temporarily isolates all model elements on a chosen level in the
+  active view. Pick a level from the list and the view will show only
+  elements that belong to that level.
+  _____________________________________________________________________
+  How-to:
+  -> Run the tool
+  -> Choose a level from the list that appears
+  -> The active view isolates to show only elements on that level
+  -> Use the Revit "Reset Temporary Hide/Isolate" button to clear
+  _____________________________________________________________________
+  Notes:
+  - This applies a temporary isolate, not a permanent visibility change
+  - Works on the active view only
+  - The level list shows all levels in the current project
+  _____________________________________________________________________
+  Last update:
+  - Initial release
+  _____________________________________________________________________

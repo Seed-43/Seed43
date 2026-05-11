@@ -1,50 +1,5 @@
 # -*- coding: utf-8 -*-
-__title__  = "Filter Restore"
-__author__  = "Seed43"
-__doc__     = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
-_____________________________________________________________________
-Description:
-Restores View Filters from the backup file created by Filter Delete
-and Backup.
-
-- Displays all filters stored in the backup file
-- Identifies:
-    - Missing filters, which can be restored
-    - Existing filters, which can optionally be overwritten
-- Recreates filters using the stored category data
-
-Important limitation:
-- Filter rules are NOT fully restored
-- Restored filters will match the original categories only
-- Rules must be manually reconfigured if needed
-_____________________________________________________________________
-How-to:
--> Run the tool
--> Select filters to restore
--> Choose whether to overwrite existing filters
--> Click Restore Selected
-
--> The tool will:
-    - Recreate missing filters
-    - Optionally overwrite existing ones
-_____________________________________________________________________
-Notes:
-- The backup file must exist (created by Filter Delete and Backup)
-- The file is stored next to the Revit model
-
-- Restore behaviour:
-    - Categories are restored
-    - Rules are NOT reconstructed (this is a current limitation)
-
-- Overwrite:
-    - Deletes the existing filter before recreating it
-_____________________________________________________________________
-Last update:
-- Initial release
-_____________________________________________________________________
-"""
-
+# filters_restore.py
 # pylint: disable=import-error,invalid-name,broad-except
 
 import clr
@@ -67,7 +22,6 @@ from Snippets._revisions import get_backup_path, load_backup
 doc    = revit.doc
 logger = script.get_logger()
 
-
 # ── FUNCTIONS ─────────────────────────────────────────────────────────────────
 
 def get_live_filters():
@@ -76,7 +30,6 @@ def get_live_filters():
         f.Name: f
         for f in FilteredElementCollector(doc).OfClass(ParameterFilterElement)
     }
-
 
 def restore_filter(name, entry):
     """
@@ -108,7 +61,6 @@ def restore_filter(name, entry):
 
     except Exception as ex:
         return False, type(ex).__name__
-
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
@@ -206,7 +158,6 @@ def main():
     )
 
     forms.alert(msg, title="Restore Filters")
-
 
 if __name__ == "__main__":
     main()

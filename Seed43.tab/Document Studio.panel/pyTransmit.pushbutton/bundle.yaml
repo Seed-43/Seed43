@@ -1,9 +1,28 @@
-title: PyTransmit
-author: Seed-43
-contact: https://github.com/Seed-43
-
-version: 26.04.10
-
-changelog:
-  - Fix bugs
-  - Updated Revit schedule layout
+title: "pyTransmit"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟓𝟎𝟓𝟎𝟕
+  _____________________________________________________________________
+  Description:
+  Main window for pyTransmit. Collects revision and issue details,
+  manages recipients, options, layout and export settings, then
+  publishes the transmittal document to the selected output formats.
+  
+  _____________________________________________________________________
+  How-to:
+  1. Fill in the revision details and select the issue reason and method.
+  2. Choose who the transmittal is being sent to under Recipients.
+  3. Click Publish to generate the selected output formats.
+  
+  _____________________________________________________________________
+  Notes:
+  Output formats and their layout templates are configured under
+  Settings, then Layout. Each format can be assigned its own layout
+  independently.
+  
+  _____________________________________________________________________
+  Last update:
+  250507 - Added group label toggle for sheet grouping. Fixed group
+  boundary borders in Excel and Schedule exporters. Custom page size
+  now saves correctly per template.
+  _____________________________________________________________________

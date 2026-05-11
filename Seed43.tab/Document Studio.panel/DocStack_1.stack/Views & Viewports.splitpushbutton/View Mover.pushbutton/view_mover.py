@@ -1,54 +1,15 @@
 # -*- coding: utf-8 -*-
-__title__  = "Move Viewports"
-__author__  = "Seed43"
-__doc__     = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
-_____________________________________________________________________
-Description:
-Moves selected viewports and schedule instances from the current sheet
-to a target sheet while preserving key layout and annotation data.
-
-Preserves:
-- View Type and Viewport Type
-- Title and Label position
-- Label offsets and line length
-- Schedule placement
-- Detail Numbers (auto-resolves conflicts)
-
-Automatic behaviour:
-- Skips duplicate views already placed on the target sheet
-- Auto-prefixes conflicting Detail Numbers with "**"
-- Maintains viewport placement consistency where possible
-
-Useful for sheet restructuring and documentation reorganisation.
-_____________________________________________________________________
-How-to:
--> Open a sheet
--> Run the tool
--> Select target sheet
--> Select viewports and schedules to move
--> Tool processes automatically:
-   - duplicates are skipped
-   - number conflicts are auto-fixed
-   - elements are moved to the target sheet
-_____________________________________________________________________
-Last update:
-- Initial release
-_____________________________________________________________________
-"""
-
+# view_mover.py
 from pyrevit import revit, DB, forms, script
 from pyrevit.forms import WarningBar
 
 doc = revit.doc
-
 
 # ── VALIDATE ACTIVE SHEET ─────────────────────────────────────────────────────
 
 cursheet = revit.active_view
 if cursheet.ViewType != DB.ViewType.DrawingSheet:
     forms.alert("Please run this tool from a sheet view.", exitscript=True)
-
 
 # ── SELECT TARGET SHEET ───────────────────────────────────────────────────────
 
@@ -62,7 +23,6 @@ dest_sheet = forms.select_sheets(
 
 if not dest_sheet:
     forms.alert("You must select a target sheet.", exitscript=True)
-
 
 # ── SELECT VIEWPORTS ──────────────────────────────────────────────────────────
 
@@ -80,7 +40,6 @@ selected_vports = [
 if not selected_vports:
     forms.alert("At least one viewport or schedule must be selected.", exitscript=True)
 
-
 # ── FUNCTIONS ─────────────────────────────────────────────────────────────────
 
 def get_existing_data(sheet):
@@ -97,11 +56,9 @@ def get_existing_data(sheet):
         existing_view_ids.add(vp.ViewId)
     return existing_numbers, existing_view_ids
 
-
 # ── GET EXISTING DATA ─────────────────────────────────────────────────────────
 
 existing_detail_numbers, existing_view_ids = get_existing_data(dest_sheet)
-
 
 # ── MOVE ELEMENTS ─────────────────────────────────────────────────────────────
 
@@ -194,7 +151,6 @@ except Exception as e:
     t.RollBack()
     forms.alert("Transaction failed: {}".format(str(e)), title="Error")
     script.exit()
-
 
 # ── RESULT ────────────────────────────────────────────────────────────────────
 

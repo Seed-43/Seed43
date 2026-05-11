@@ -1,0 +1,42 @@
+title: "Change Text Type and Format"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  _____________________________________________________________________
+  Description:
+  Batch updates Text Notes across the project by changing their Text
+  Type and applying formatting.
+  
+  - Change Text Type (optional)
+  - Apply formatting:
+      - Bold
+      - Italic
+      - Underline
+  - Works across the entire project
+  
+  Worksharing support:
+  - Automatically checks out required elements
+  - Handles worksets safely
+  - Optional sync with central
+  
+  Useful for:
+  - Global text standardisation
+  - QA cleanup
+  - Fixing inconsistent annotation styles
+  _____________________________________________________________________
+  How-to:
+  -> Run the tool
+  -> Select SOURCE Text Type (the type you want to change FROM)
+  -> Select TARGET Text Type (optional, the type to change TO)
+  -> Select formatting options (optional)
+  
+  -> Tool will:
+      - Update all matching Text Notes
+  
+  Note:
+  - Formatting can be applied without changing type
+  - Type can be changed without applying formatting
+  _____________________________________________________________________
+  Last update:
+  - Initial release
+  _____________________________________________________________________

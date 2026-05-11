@@ -1,43 +1,10 @@
 # -*- coding: utf-8 -*-
-__title__  = "Find Text Type in Views"
-__author__  = "Seed43"
-__doc__     = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
-_____________________________________________________________________
-Description:
-Finds all Text Notes of a selected Text Type across the project.
-
-- Scans the entire model for matching text notes
-- Identifies all Views and Legends containing them
-- Displays a count per location
-- Allows quick navigation to any result
-- Automatically selects matching text notes in the view
-
-Useful for:
-- Checking and auditing text styles
-- Cleaning inconsistent documentation
-- Locating incorrect annotation usage
-_____________________________________________________________________
-How-to:
--> Run the tool
--> Select a Text Type
--> Choose a View or Legend from the results list
-
--> Tool will:
-    - Open the selected view
-    - Select all matching text notes
-_____________________________________________________________________
-Last update:
-- Initial release
-_____________________________________________________________________
-"""
-
+# find_type_in_views.py
 from pyrevit import revit, DB, forms, script
 from System.Collections.Generic import List
 
 doc   = revit.doc
 uidoc = revit.uidoc
-
 
 # ── GET TEXT NOTE TYPES ───────────────────────────────────────────────────────
 
@@ -46,7 +13,6 @@ type_names = sorted(set(
     tn.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString()
     for tn in tntypes
 ))
-
 
 # ── SELECT TYPE TO SEARCH FOR ─────────────────────────────────────────────────
 
@@ -60,7 +26,6 @@ selected_type_ids = {
     if tn.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString() == selected_type_name
 }
 
-
 # ── FIND MATCHING TEXT NOTES ──────────────────────────────────────────────────
 
 all_textnotes  = DB.FilteredElementCollector(doc).OfClass(DB.TextNote).ToElements()
@@ -71,7 +36,6 @@ if not matching_texts:
         "No text notes found with type: {}".format(selected_type_name),
         exitscript=True
     )
-
 
 # ── MAP TEXTS TO VIEWS ────────────────────────────────────────────────────────
 
@@ -95,7 +59,6 @@ for text in matching_texts:
             }
         view_dict[view_id]["count"] += 1
 
-
 # ── BUILD SELECTION LIST ──────────────────────────────────────────────────────
 
 selection_items = [
@@ -113,7 +76,6 @@ if not selection_items:
         exitscript=True
     )
 
-
 # ── PICK VIEW TO OPEN ─────────────────────────────────────────────────────────
 
 selected_label = forms.SelectFromList.show(
@@ -124,7 +86,6 @@ selected_label = forms.SelectFromList.show(
 
 if not selected_label:
     script.exit()
-
 
 # ── OPEN AND SELECT ───────────────────────────────────────────────────────────
 

@@ -1,37 +1,5 @@
 # -*- coding: utf-8 -*-
-__title__  = "Inspector"
-__author__  = "Seed43"
-__doc__     = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
-_____________________________________________________________________
-Description:
-Pick any element in the model and get a full breakdown of everything
-Revit knows about it, displayed in a structured report.
-
-Shows:
-- Identity (category, class, ID, name, level, workset, phase)
-- Element type and all its parameters
-- Family information (for loadable families)
-- Location and geometry (point, curve, or bounding box)
-- Mechanical connections (for pipes, ducts, fittings)
-- All instance parameters
-- All parameters that can be used in view filters
-_____________________________________________________________________
-How-to:
--> Run the tool
--> Click any element in the model (linked elements are excluded)
--> The report opens in the pyRevit output window
-_____________________________________________________________________
-Notes:
-- Linked elements cannot be picked with this tool
-- The report is read-only, it does not change anything in the model
-- Coordinates are shown in feet (Revit internal units)
-_____________________________________________________________________
-Last update:
-- Initial release
-_____________________________________________________________________
-"""
-
+# inspector.py
 import clr
 clr.AddReference("RevitAPI")
 clr.AddReference("RevitAPIUI")
@@ -46,7 +14,6 @@ doc   = revit.doc
 uidoc = revit.uidoc
 out   = output.get_output()
 
-
 # ── SELECTION FILTER ──────────────────────────────────────────────────────────
 
 class AnyFilter(ISelectionFilter):
@@ -54,7 +21,6 @@ class AnyFilter(ISelectionFilter):
         return not isinstance(element, RevitLinkInstance)
     def AllowReference(self, reference, xyz):
         return False
-
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 
@@ -65,13 +31,11 @@ def bip_name(param_id):
     except Exception:
         return "-"
 
-
 def param_value(param):
     """Return a readable string value for a parameter."""
     if not param or not param.HasValue:
         return "<no value>"
     return param.AsString() or param.AsValueString() or str(param.AsDouble())
-
 
 def element_name(eid):
     """Resolve an ElementId to a display name string."""
@@ -80,13 +44,11 @@ def element_name(eid):
     el = doc.GetElement(eid)
     return getattr(el, "Name", str(eid)) if el else str(eid)
 
-
 def xyz_str(xyz):
     """Format an XYZ point as a readable string in feet."""
     if xyz is None:
         return "-"
     return "({:.3f}, {:.3f}, {:.3f}) ft".format(xyz.X, xyz.Y, xyz.Z)
-
 
 def dump_params(element):
     """Return sorted rows of name, ID, and value for all parameters."""
@@ -98,7 +60,6 @@ def dump_params(element):
         except Exception:
             pass
     return sorted(rows, key=lambda r: r[0].lower())
-
 
 # ── SECTIONS ──────────────────────────────────────────────────────────────────
 
@@ -137,7 +98,6 @@ def section_identity(element, cat):
         pass
     out.print_table(rows, columns=["Property", "Value"])
 
-
 def section_type_info(element):
     try:
         type_id = element.GetTypeId()
@@ -159,7 +119,6 @@ def section_type_info(element):
     out.print_md("### Type Parameters")
     trows = dump_params(etype)
     out.print_table(trows or [["-", "", ""]], columns=["Name", "Param ID", "Value"])
-
 
 def section_family_info(element):
     if not isinstance(element, FamilyInstance):
@@ -187,7 +146,6 @@ def section_family_info(element):
     except Exception:
         pass
     out.print_table(rows or [["-", ""]], columns=["Property", "Value"])
-
 
 def section_location(element):
     loc = getattr(element, "Location", None)
@@ -220,7 +178,6 @@ def section_location(element):
         pass
     out.print_table(rows or [["-", ""]], columns=["Property", "Value"])
 
-
 def section_mep(element):
     try:
         mep = getattr(element, "MEPModel", None)
@@ -249,12 +206,10 @@ def section_mep(element):
         columns=["Connector ID", "Domain", "System Type", "Origin"]
     )
 
-
 def section_instance_params(element):
     out.print_md("## Instance Parameters")
     rows = dump_params(element)
     out.print_table(rows or [["-", "", ""]], columns=["Name", "Param ID", "Value"])
-
 
 def section_filterable_params(element, cat):
     out.print_md("## Filterable Parameters for `{}`".format(cat.Name))
@@ -271,7 +226,6 @@ def section_filterable_params(element, cat):
         )
     except Exception as ex:
         out.print_md("**GetAllFilterableParams failed:** `{}`".format(ex))
-
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
@@ -296,7 +250,6 @@ def main():
     section_instance_params(element)
     if cat:
         section_filterable_params(element, cat)
-
 
 if __name__ == "__main__":
     main()

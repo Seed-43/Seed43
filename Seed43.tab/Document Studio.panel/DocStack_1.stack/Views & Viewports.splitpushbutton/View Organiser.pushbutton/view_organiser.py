@@ -1,49 +1,5 @@
 # -*- coding: utf-8 -*-
-__title__  = "View Organiser"
-__author__ = "Seed-43"
-__doc__    = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
-_____________________________________________________________________
-Description:
-Renames every view placed on a sheet into a consistent format and
-syncs browser folder grouping across the project in one pass.
-- Renames views to: Sheet Number - Detail Number - View Title
-- Copies the sheet's folder value to the view (browser grouping)
-- Preserves original view name in "Title on Sheet" if blank
-- Resolves duplicate names with a numbered suffix
-- Unchecks "Folder" in all view templates so syncing isn't blocked
-Runs fully automatically, no selection required.
-_____________________________________________________________________
-How-to:
--> Run the tool
--> No selection required, runs automatically
--> On first run:
-    • Two dropdowns appear to choose the folder parameter
-    • Source: which parameter on SHEETS holds the folder value
-    • Destination: which parameter on VIEWS receives it
-    • Config is saved next to the script for future runs
--> Tool will:
-    • Uncheck "Folder" in all view templates (Part 1)
-    • Temp-rename all views to clear the namespace (T2a)
-    • Apply final names and sync folder parameters (T2b)
--> Result:
-    • All sheet-placed views renamed consistently
-    • Browser folders in sync with sheet folders
-    • Summary printed on completion
-_____________________________________________________________________
-Notes:
-- Legends, schedules, and drawing sheets are excluded
-- View templates are not renamed
-- Duplicate names get a (2), (3)... suffix rather than failing
-- Two-transaction split means a T2b failure leaves only temp names
-  which are undoable with Ctrl+Z
-- Config stored at: view_organiser_config.json next to this script
-_____________________________________________________________________
-Last update:
-- Initial release
-_____________________________________________________________________
-"""
-
+# view_organiser.py
 # --- Imports ---
 import clr
 import os
@@ -69,12 +25,10 @@ def eid_int(element_id):
     except AttributeError:
         return element_id.IntegerValue   # Revit 2023 and earlier
 
-
 # ── Config (folder parameter mapping) ───────────────────────────────────────
 # Saved next to this script so it travels with the extension.
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "view_organiser_config.json")
 NONE_LABEL  = "— None —"
-
 
 def get_text_param_names(elements):
     """
@@ -97,7 +51,6 @@ def get_text_param_names(elements):
         except Exception:
             pass
     return sorted(names)
-
 
 def pick_folder_params(all_sheets, all_views):
     """
@@ -149,7 +102,6 @@ def pick_folder_params(all_sheets, all_views):
         None if view_choice  == NONE_LABEL else view_choice
     )
 
-
 def load_config():
     """Return config dict from JSON, or None if file doesn't exist."""
     if os.path.isfile(CONFIG_PATH):
@@ -159,7 +111,6 @@ def load_config():
         except Exception:
             return None
     return None
-
 
 def save_config(sheet_param, view_param):
     """Persist the chosen parameter names to JSON."""
@@ -224,7 +175,6 @@ def print_info(text):
 def print_dim(text):
     output.print_html("<div class='rev'>→ {}</div>".format(text))
 
-
 # --- Helpers ---
 
 def clean_title(title):
@@ -261,7 +211,6 @@ def unique_name(base_name, used_names):
     used_names[name] = True
     return name
 
-
 # ══════════════════════════════════════════════════════════════════════════════
 start_time = time.time()
 print_header("VIEW ORGANISER ENGINE INITIALISING")
@@ -281,7 +230,6 @@ all_sheets = list(
     .OfClass(ViewSheet)
     .ToElements()
 )
-
 
 # ── Folder parameter config ──────────────────────────────────────────────────
 config = load_config()
@@ -304,7 +252,6 @@ else:
 
 SYNC_FOLDERS = bool(sheet_folder_param_name and view_folder_param_name)
 print_separator()
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PART 1 — Uncheck "Folder" in all view templates
@@ -345,7 +292,6 @@ else:
     print_warning("'Folder' parameter not found in view templates — skipping Part 1")
 
 print_separator()
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PART 2 — View renaming and folder sync
@@ -569,8 +515,6 @@ else:
             except Exception as e:
                 print_error("Error processing parent view {}: {}".format(
                     eid_int(parent_id), str(e)))
-
-
 
         t2b.Commit()
 

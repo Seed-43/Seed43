@@ -1,13 +1,12 @@
-title: "Match Text Alignment"
+﻿title: "Match Alignment"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
 tooltip: |
-  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 260521
   _____________________________________________________________________
   Description:
   Matches paragraph alignment settings between Text Notes in the model.
   
-  Transfers alignment properties from a reference Text Note to selected
-  target Text Notes, ensuring consistent annotation presentation.
+  Transfers alignment properties from a reference Text Note to the selected target Text Notes, ensuring consistent annotation presentation.
   
   Includes:
   - Horizontal Alignment (Left, Centre, Right)
@@ -26,11 +25,11 @@ tooltip: |
   -> Alignment updates instantly on each selection
   _____________________________________________________________________
   Notes:
-  - Only works on Text Note elements
+  - Only works on Text Notes
   - Multiple targets can be selected in one run
   - No changes are made to text content or leader geometry
   - Press ESC at any time to exit safely
   _____________________________________________________________________
   Last update:
-  - Initial release
+  - Updated to use pyrevitlib
   _____________________________________________________________________

@@ -1,30 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-BrandingSettings.py  —  pyTransmit Branding & Styling panel controller
-=======================================================================
-Manages the Branding & Styling panel embedded in the main pyTransmit window.
-
-Handles:
-  - Logo source path  (network / shared drive — authoritative copy)
-    Auto-synced to Settings/logo.<ext> on startup and each time panel opens.
-    The user sets the source path only. The local copy location is automatic
-    (always Settings/ next to this script). No manual local path or save button.
-  - Title bar background colour  (hex #RRGGBB)
-  - Column header background colour (hex #RRGGBB)
-
-Config is persisted in Settings/branding.json.
-
-Startup behaviour
------------------
-  auto_sync_logo()  is called early in script.py __init__.
-  It silently copies from source to Settings/ if reachable.
-  If unreachable, the existing Settings/logo file is kept and used.
-
-Save behaviour (matches SetupSettings / RecipientSettings pattern)
------------------
-  styling_back_click in script.py calls  brand_ctrl.save_and_back()
-  which saves config then returns to main panel — no Save button needed.
-"""
+# BrandingSettings.py
 
 import os
 import json

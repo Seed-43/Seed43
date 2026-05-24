@@ -1,0 +1,31 @@
+﻿title: "Find & Replace"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 260521
+  _____________________________________________________________________
+  Description:
+  Find and replace text strings inside Revit Text Notes.
+
+  Scope options:
+  - Selected Text Notes (pick in canvas)
+  - Active View Only
+  - Entire Project
+
+  Match options:
+  - Case-Sensitive
+  - Case-Insensitive
+
+  Leave the Replace field blank to delete the matched text entirely.
+  _____________________________________________________________________
+  How-to:
+  -> Run the tool
+  -> Choose scope
+  -> Choose match mode
+  -> Enter the text to find
+  -> Enter the replacement text (or leave blank to delete)
+  -> Confirm, and the replacement is applied in a single transaction
+  _____________________________________________________________________
+  Last update:
+  - Initial release
+  _____________________________________________________________________
+

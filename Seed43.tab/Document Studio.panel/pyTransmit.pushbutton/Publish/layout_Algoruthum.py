@@ -1,47 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-layout_Algoruthum.py
-====================
-General row height distribution algorithm for pyTransmit layout exporters.
-
-Used by: script_create_excel.py, script_create_schedule.py, and any future exporters.
-
-The algorithm handles the general case of a layout grid where:
-  - Rows are grouped via merge_down
-  - Col A (and optionally B) may have content on some rows but not others
-  - Col C/D blocks may span multiple rows vertically (dates, legends, spine data)
-  - The total height of a spanning block must be distributed across the rows it spans
-
-Rules
------
-1. A row whose col A has a single-line block → fixed height (SINGLE_LINE_H)
-2. A row whose col A spans down (is None in this row because a block above merges
-   through it) → free height (receives distributed remainder)
-3. For each spanning block in cols B-D:
-   - Total required height = block_height_fn(block)
-   - Fixed rows within the span contribute their fixed height
-   - Remainder is split equally among free rows in the span
-4. A row's final height = max of all requirements placed on it
-
-Usage
------
-    from layout_Algoruthum import compute_row_heights
-
-    heights = compute_row_heights(
-        rows          = ROWS,           # list of layout row dicts
-        groups        = GROUPS,         # list of (start_ri, end_ri) tuples
-        excel_starts  = _row_excel_start,  # {layout_ri: first_excel_row}
-        excel_counts  = _row_excel_count,  # {layout_ri: n_excel_rows}
-        block_height_fn = _row_height_pt,  # fn(block) -> float pts
-        single_line_h = 18.0,           # height for a single-line row
-        min_h         = 15.0,           # minimum row height
-    )
-    # heights: {excel_row_index: float}
-
-    for er, h in heights.items():
-        ws.set_row(er, h)
-"""
-
+# layout_Algoruthum.py
 
 def compute_row_heights(rows, groups, excel_starts, excel_counts,
                         block_height_fn, single_line_h=18.0, min_h=15.0):

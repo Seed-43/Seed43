@@ -2,19 +2,9 @@
 # filters_restore.py
 # pylint: disable=import-error,invalid-name,broad-except
 
-import clr
-clr.AddReference("RevitAPI")
-clr.AddReference("RevitAPIUI")
-clr.AddReference("System")
-
 from System.Collections.Generic import List
 from System.IO import File
-from Autodesk.Revit.DB import (
-    FilteredElementCollector,
-    ParameterFilterElement,
-    ElementId,
-)
-from pyrevit import revit, forms, script
+from pyrevit import revit, DB, forms, script
 
 # ── [LIB] Snippets/_revisions.py ─────────────────────────────────────────────
 from Snippets._revisions import get_backup_path, load_backup
@@ -28,7 +18,8 @@ def get_live_filters():
     """Return a dict of {filter_name: ParameterFilterElement} from the project."""
     return {
         f.Name: f
-        for f in FilteredElementCollector(doc).OfClass(ParameterFilterElement)
+        for f in DB.FilteredElementCollector(doc).OfClass(
+            DB.ParameterFilterElement)
     }
 
 def restore_filter(name, entry):
@@ -46,17 +37,17 @@ def restore_filter(name, entry):
         if not cat_ids_raw:
             return False, "No categories in backup entry"
 
-        cat_id_list = List[ElementId]()
+        cat_id_list = List[DB.ElementId]()
         for cid in cat_ids_raw:
             try:
-                cat_id_list.Add(ElementId(int(cid)))
+                cat_id_list.Add(DB.ElementId(int(cid)))
             except Exception:
                 pass
 
         if cat_id_list.Count == 0:
             return False, "Could not parse category IDs"
 
-        ParameterFilterElement.Create(doc, name, cat_id_list)
+        DB.ParameterFilterElement.Create(doc, name, cat_id_list)
         return True, None
 
     except Exception as ex:
@@ -77,7 +68,8 @@ def main():
 
     backup = load_backup(backup_path)
     if not backup:
-        forms.alert("Backup file is empty or unreadable.", title="Restore Filters")
+        forms.alert("Backup file is empty or unreadable.",
+                    title="Restore Filters")
         return
 
     live = get_live_filters()
@@ -87,9 +79,11 @@ def main():
     for name in sorted(backup.keys()):
         date = backup[name].get("date", "unknown")
         if name not in live:
-            options.append("{} [{}]  --  MISSING from project".format(name, date))
+            options.append(
+                "{} [{}]  --  MISSING from project".format(name, date))
         else:
-            options.append("{} [{}]  --  already exists".format(name, date))
+            options.append(
+                "{} [{}]  --  already exists".format(name, date))
 
     selected = forms.SelectFromList.show(
         options,
@@ -147,7 +141,8 @@ def main():
             else:
                 failed.append("{} - {}".format(name, err or "unknown error"))
 
-    msg = "Restored {} filter{}.".format(restored, "s" if restored != 1 else "")
+    msg = "Restored {} filter{}.".format(
+        restored, "s" if restored != 1 else "")
     if skipped:
         msg += "\nSkipped: {}".format(skipped)
     if failed:

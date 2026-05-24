@@ -1,13 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-Settings Manager for pyTransmit
-================================
-Manage Reason for Issue, Method of Issue, Document Format, and Print Size settings.
-Located in: Settings Manager/SettingsManager.py
-
-Author: pyTransmit Suite
-Version: 1.1
-"""
+# OptionsSettings.py
 
 import os
 import json

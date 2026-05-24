@@ -1,18 +1,5 @@
 {
   "groups": {
-    "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\Document Studio.panel\\DocStack_1.stack\\Views & Viewports.splitpushbutton": [
-      "Section & Elevation Placer", 
-      "View Mover", 
-      "View Organiser"
-    ], 
-    "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\Document Studio.panel\\DocStack_1.stack\\Text Formating.pulldown": [
-      "Leader Alignment Match", 
-      "Match Width", 
-      "Change Type & Format", 
-      "Find Type in Views", 
-      "Format Selected", 
-      "Match Properties"
-    ], 
     "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\Document Studio.panel\\DocStack_1.stack\\Filter Manager.pulldown": [
       "Filter Annotations", 
       "Filter Element (Host)", 
@@ -25,37 +12,55 @@
     "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\Document Studio.panel": [
       "pyTransmit", 
       "CAD Layer Manager", 
-      "DocStack_1"
+      "DocStack_1", 
+      "PyTables"
     ], 
-    "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\Dev Tools.panel": [
-      "Inspector", 
-      "Parameter Manager"
+    "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\3D Tools.panel\\3DStack_1.stack": [
+      "Isolate Levels", 
+      "Sheet Scale"
     ], 
-    "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\3D Tools.panel\\Rebar.pulldown": [
-      "Toggle Concealment", 
-      "Set Workset", 
-      "Update Tag Value To All Elements"
+    "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\Revision.panel": [
+      "RevStack_1"
+    ], 
+    "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\Document Studio.panel\\DocStack_1.stack\\Text Formating.pulldown": [
+      "Leader Alignment Match", 
+      "Match Width", 
+      "Match Properties", 
+      "Format Selected", 
+      "Change Type & Format", 
+      "Find Type in Views", 
+      "Match Leader Alignment", 
+      "Find Replace", 
+      "Fix Newlines"
     ], 
     "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\Revision.panel\\RevStack_1.stack": [
       "Persistent Revisions", 
       "Wright Cloud Parameter", 
       "Revision Status Colour"
     ], 
+    "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\3D Tools.panel\\Rebar.pulldown": [
+      "Toggle Concealment", 
+      "Set Workset", 
+      "Update Tag Value To All Elements"
+    ], 
+    "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\Dev Tools.panel": [
+      "Inspector", 
+      "Parameter Manager"
+    ], 
     "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\3D Tools.panel": [
       "Rebar", 
       "3DStack_1"
     ], 
-    "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\Revision.panel": [
-      "RevStack_1"
+    "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\Document Studio.panel\\DocStack_1.stack\\Views Manager.pulldown": [
+      "pyViewPlacer", 
+      "View Mover", 
+      "View Organiser", 
+      "Organiser Reset"
     ], 
     "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\Document Studio.panel\\DocStack_1.stack": [
-      "Views & Viewports", 
       "Filter Manager", 
-      "Text Formating"
-    ], 
-    "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\3D Tools.panel\\3DStack_1.stack": [
-      "Isolate Levels", 
-      "Sheet Scale"
+      "Text Formating", 
+      "Views Manager"
     ]
   }, 
   "panels": [

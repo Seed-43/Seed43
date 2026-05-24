@@ -2,15 +2,8 @@
 # filter_family_host.py
 # pylint: disable=import-error,invalid-name,broad-except
 
-import clr
-clr.AddReference("RevitAPI")
-clr.AddReference("RevitAPIUI")
-clr.AddReference("System")
-
-from Autodesk.Revit.DB import *
-from Autodesk.Revit.UI import *
-from Autodesk.Revit.UI.Selection import *
-from pyrevit import revit, forms, script
+from pyrevit import revit, DB, UI, forms, script
+from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 
 # ── [LIB] Snippets/_filters.py ───────────────────────────────────────────────
 from Snippets._filters import (
@@ -27,14 +20,14 @@ doc    = revit.doc
 uidoc  = revit.uidoc
 logger = script.get_logger()
 
-BUILTIN_PARAM      = BuiltInParameter.SYMBOL_FAMILY_NAME_PARAM
+BUILTIN_PARAM      = DB.BuiltInParameter.SYMBOL_FAMILY_NAME_PARAM
 FILTER_NAME_FORMAT = "Host - {0} - {1}"
 
 # ── SELECTION FILTER ──────────────────────────────────────────────────────────
 
 class HostElementFilter(ISelectionFilter):
     def AllowElement(self, element):
-        return not isinstance(element, RevitLinkInstance)
+        return not isinstance(element, DB.RevitLinkInstance)
     def AllowReference(self, reference, xyz):
         return False
 
@@ -66,7 +59,8 @@ def get_family_name(element_type, element):
 
 def main():
     try:
-        with forms.WarningBar(title="Filter Family (Host): Select element. ESC to cancel."):
+        with forms.WarningBar(
+                title="Filter Family (Host): Select element. ESC to cancel."):
             while True:
                 try:
                     picked_ref = uidoc.Selection.PickObject(
@@ -76,14 +70,15 @@ def main():
                     )
                     element = doc.GetElement(picked_ref.ElementId)
 
-                    if isinstance(element, RevitLinkInstance):
+                    if isinstance(element, DB.RevitLinkInstance):
                         forms.alert("Please select a host model element.",
                                     title="Invalid Selection")
                         continue
 
                     element_type = get_element_type(element, doc)
                     if not element_type:
-                        forms.alert("Could not get valid element type.", title="Error")
+                        forms.alert("Could not get valid element type.",
+                                    title="Error")
                         continue
 
                     category = element.Category or element_type.Category
@@ -92,13 +87,14 @@ def main():
                         continue
 
                     family_name = get_family_name(element_type, element)
-                    filter_name = FILTER_NAME_FORMAT.format(category.Name, family_name)
+                    filter_name = FILTER_NAME_FORMAT.format(
+                        category.Name, family_name)
                     existing    = find_existing_filter(filter_name, doc)
 
                     if existing:
                         opt = forms.alert(
-                            "Filter '{}' already exists.\n\nWhat do you want to do?".format(
-                                filter_name),
+                            "Filter '{}' already exists.\n\n"
+                            "What do you want to do?".format(filter_name),
                             options=["Use Existing", "Create New", "Skip"],
                             title="Filter Already Exists"
                         )
@@ -113,23 +109,25 @@ def main():
                     with revit.Transaction("Create Parameter Filter"):
                         param_filter = create_parameter_filter(
                             filter_name, category,
-                            ElementId(BUILTIN_PARAM), family_name, doc)
+                            DB.ElementId(BUILTIN_PARAM), family_name, doc)
                         if param_filter:
                             apply_filter_to_target(param_filter, doc, revit)
                         else:
                             forms.alert("Failed to create filter.", title="Error")
 
                 except Exception as ex:
-                    if "cancelled" in str(ex).lower() or "aborted" in str(ex).lower():
+                    if "cancelled" in str(ex).lower() or \
+                            "aborted" in str(ex).lower():
                         break
-                    logger.error("Error: {}", str(ex))
-                    forms.alert("Error occurred. Check pyRevit console.", title="Error")
+                    logger.error("Error: {}".format(str(ex)))
+                    forms.alert("Error occurred. Check pyRevit console.",
+                                title="Error")
                     break
 
     except Exception as ex:
         if "cancelled" in str(ex).lower() or "aborted" in str(ex).lower():
             return
-        logger.error("Error: {}", str(ex))
+        logger.error("Error: {}".format(str(ex)))
         forms.alert("Error occurred. Check pyRevit console.", title="Error")
 
 if __name__ == "__main__":

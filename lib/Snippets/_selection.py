@@ -1,42 +1,4 @@
 # -*- coding: utf-8 -*-
-__title__  = "_selection"
-__author__  = "Seed43"
-__doc__     = """
-VERSION 260507
-_____________________________________________________________________
-Description:
-Shared helper functions for picking and resolving elements in Revit.
-
-Used across Filter Manager, CAD Layer Manager, and Isolate Levels.
-Import the functions you need.
-
-Example:
-    from Snippets._selection import get_element_type, get_element_category
-    from Snippets._selection import resolve_cad_instance
-    from Snippets._selection import get_levels
-_____________________________________________________________________
-Functions:
-get_element_type(element, doc)
-    Return the ElementType for a given element.
-
-get_element_type_linked(sourcedoc, element)
-    Same as get_element_type but reads from a linked document.
-
-get_element_category(element, doc)
-    Return the Category for an element, falling back to its type.
-
-resolve_cad_instance(uidoc, doc, revit, forms, script)
-    Return the CAD ImportInstance to work with, from selection or pick.
-
-get_levels(doc)
-    Return all levels in the project.
-_____________________________________________________________________
-Last update:
-- Initial release, extracted from Filter Manager scripts, CAD Layer
-  Manager, and Isolate Levels
-_____________________________________________________________________
-"""
-
 from Autodesk.Revit.DB import ElementType, ElementId, ImportInstance
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 

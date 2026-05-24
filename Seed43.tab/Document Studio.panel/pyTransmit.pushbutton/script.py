@@ -2,7 +2,7 @@
 # script.py
 from pyrevit import revit, forms, script, DB
 from Autodesk.Revit.DB import (
-    FilteredElementCollector, BuiltInCategory, XYZ, Line, TextNote, TextNoteType, Transaction, CurveElement,
+    FilteredElementCollector, BuiltInCategory, XYZ, Line, TextNote, TextNoteType, CurveElement,
     ViewFamilyType, ViewFamily, ViewDrafting, TextNoteOptions, HorizontalTextAlignment, Color, GraphicsStyle, Category,
     OverrideGraphicSettings, ImageType, ImageTypeOptions, ImageInstance, ImageTypeSource, ImagePlacementOptions, BoxPlacement
 )
@@ -12,7 +12,8 @@ from itertools import groupby
 from pyrevit.forms import WPFWindow  # kept for other uses
 import wpf
 from System.Windows import Window, ResourceDictionary
-from System import Uri
+from System import Uri, UriKind
+from System.Windows.Media.Imaging import BitmapImage
 import clr
 clr.AddReference("PresentationFramework")
 from System.Windows.Controls import ComboBox
@@ -293,9 +294,53 @@ class RevTableWindow(Window):
                 pass
             forms.alert("Failed to load pyTransmit.xaml:\n\n{}".format(msg), exitscript=True)
 
+        # ── Load icon ─────────────────────────────────────────────────────────
+        _icon_path = os.path.join(_SCRIPT_DIR_MAIN, "icon.png")
+        if os.path.exists(_icon_path):
+            _img = self.FindName("header_icon")
+            if _img:
+                _bmp = BitmapImage()
+                _bmp.BeginInit()
+                _bmp.UriSource = Uri(_icon_path, UriKind.Absolute)
+                _bmp.EndInit()
+                _img.Source = _bmp
+
         # Initialise panel controllers (panels are now in pyTransmit.xaml directly)
         self._init_controllers()
-        
+        self.Closing += self._on_closing
+
+        # ── Set close button icons ─────────────────────────────────────────────
+        try:
+            from Snippets._icons import make_icon as _mi
+            _close_icon_names = [
+                'setup_close_btn', 'styling_close_btn', 'export_format_close_btn',
+                'recipient_close_btn', 'options_close_btn', 'export_settings_close_btn',
+                'import_settings_close_btn', 'filenaming_close_btn',
+            ]
+            for _btn_name in _close_icon_names:
+                _btn = self.FindName(_btn_name)
+                if _btn:
+                    _btn.Content = _mi('close', size=14, color='#F4FAFF')
+            # ── Log menu warning icon ─────────────────────────────────────────
+            _log_holder = self.FindName('log_icon_holder')
+            if _log_holder:
+                _log_holder.Child = _mi('warning', size=14, color='#F4FAFF')
+        except Exception:
+            pass
+
+        # ── Log state, always starts off ─────────────────────────────────────
+        self._log_enabled  = False
+        self._log_zip_path = ''
+        try:
+            import json as _lj
+            _lcfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                      'Settings', 'pytransmit_setup.json')
+            with open(_lcfg_path, 'r') as _lf:
+                _lcfg = _lj.load(_lf)
+            self._log_zip_path = _lcfg.get('log_zip_path', '')
+        except Exception:
+            pass
+
         if not hasattr(self, 'execute_btn'):
             forms.alert("Button 'execute_btn' not found in XAML.", exitscript=True)
         
@@ -305,10 +350,12 @@ class RevTableWindow(Window):
             forms.alert("Failed to bind button Click events: {}".format(str(e)), exitscript=True)
         
         self.doc = revit.doc
-        all_revs = list(FilteredElementCollector(self.doc).OfClass(DB.Revision))
+        all_revs = list(revit.query.get_elements_by_class(DB.Revision, doc=self.doc))
         self.non_issued_revs = [rev for rev in all_revs if not rev.Issued]
         self.issued_revs = [rev for rev in all_revs if rev.Issued]
         self.issued_revs = sorted(self.issued_revs, key=lambda r: r.SequenceNumber)
+        self._rev_numbering_type = ''
+        self._init_rev_type_selector()
 
         try:
             self.revision_cb.ItemsSource = ["{} - {}".format(rev.SequenceNumber, rev.Description) for rev in self.non_issued_revs]
@@ -387,6 +434,51 @@ class RevTableWindow(Window):
         except:
             pass
         
+    def _init_rev_type_selector(self):
+        """
+        Detect distinct revision numbering types from the issued revision list.
+        If only one type exists, auto-select it and hide the combo.
+        If multiple types exist, populate the combo and show it.
+        """
+        import System.Windows as _SW
+
+        def _num_type(rev):
+            try:
+                _se = self.doc.GetElement(rev.RevisionNumberingSequenceId)
+                return str(_se.NumberType).split('.')[-1] if _se else 'None'
+            except Exception:
+                return 'Unknown'
+
+        # Collect distinct types preserving order of first appearance
+        _seen = []
+        for _r in self.issued_revs:
+            _t = _num_type(_r)
+            if _t not in _seen:
+                _seen.append(_t)
+
+        _cb  = getattr(self, 'rev_type_cb',  None)
+        _row = getattr(self, 'rev_type_row', None)
+
+        if len(_seen) <= 1:
+            # Auto-select the only type (or blank if no revisions)
+            self._rev_numbering_type = _seen[0] if _seen else ''
+            if _row:
+                _row.Visibility = _SW.Visibility.Collapsed
+        else:
+            # Multiple types — show the combo
+            self._rev_numbering_type = _seen[0]
+            if _cb:
+                _cb.ItemsSource    = _seen
+                _cb.SelectedIndex  = 0
+                _cb.SelectionChanged += self._on_rev_type_changed
+            if _row:
+                _row.Visibility = _SW.Visibility.Visible
+
+    def _on_rev_type_changed(self, sender, args):
+        """Update _rev_numbering_type when the combo selection changes."""
+        if sender.SelectedItem is not None:
+            self._rev_numbering_type = str(sender.SelectedItem)
+
     def _setup_group_label_toggle(self):
         """Build the on/off toggle switch for group label display."""
         import System.Windows.Media as _SWM
@@ -519,16 +611,13 @@ class RevTableWindow(Window):
                     selected_rev = self.non_issued_revs[selected_rev_index]
                     # Build issued-to string from current recipient mode + setup field toggles
                     data_str, initials_str = self._build_issued_to_string()
-                    t = Transaction(self.doc, "Set Issued To Data and Mark Issued")
-                    t.Start()
                     try:
-                        selected_rev.IssuedTo = data_str
-                        if initials_str:
-                            selected_rev.IssuedBy = initials_str
-                        selected_rev.Issued = True
-                        t.Commit()
+                        with revit.Transaction("Set Issued To Data and Mark Issued"):
+                            selected_rev.IssuedTo = data_str
+                            if initials_str:
+                                selected_rev.IssuedBy = initials_str
+                            selected_rev.Issued = True
                     except Exception, e:
-                        t.RollBack()
                         forms.alert("Failed to update revision data: {}".format(str(e)), exitscript=True)
                         return
 
@@ -552,6 +641,10 @@ class RevTableWindow(Window):
             self.Close()
 
         except Exception, e:
+            try:
+                self.Close()
+            except Exception:
+                pass
             forms.alert("Error in execute_btn_click: {}".format(str(e)), exitscript=True)
 
     def _build_issued_to_string(self):
@@ -681,6 +774,11 @@ class RevTableWindow(Window):
         if recipient_parts:
             _rec_prefix = 'DL' if mode == 'dist' else 'CL'
             parts.append('{}: {}'.format(_rec_prefix, ' '.join(recipient_parts)))
+
+        # Rev Numbering Type tag — records which type was selected for this issue
+        _rnt = getattr(self, '_rev_numbering_type', '')
+        if _rnt:
+            parts.append('RT:{}'.format(_rnt))
 
         # VIS tag — snapshot which info rows are visible.
         # Always written (even if empty) so the mismatch checker can distinguish
@@ -892,106 +990,8 @@ class RevTableWindow(Window):
     # ── Back / close handlers ─────────────────────────────────────────────
 
     def _show_save_dialog(self, panel_label):
-        """Show a themed Save / Discard dialog matching the pyTransmit XAML theme.
-        Returns True if the user chose Save, False if Discard."""
-        import clr
-        clr.AddReference("PresentationFramework")
-        clr.AddReference("PresentationCore")
-        clr.AddReference("WindowsBase")
-        import System.Windows.Markup as Markup
-
-        xaml = """
-<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="" Width="340" SizeToContent="Height"
-        WindowStyle="None" ResizeMode="NoResize"
-        WindowStartupLocation="CenterScreen"
-        Background="Transparent"
-        FontFamily="Segoe UI"
-        AllowsTransparency="True">
-    <Border Background="#2B3340" CornerRadius="10" Margin="12" Padding="24,20,24,20">
-        <Border.Effect>
-            <DropShadowEffect Color="Black" Opacity="0.5" ShadowDepth="4" BlurRadius="16"/>
-        </Border.Effect>
-        <StackPanel>
-            <!-- green accent bar -->
-            <Border Background="#208A3C" Height="3" CornerRadius="2" Margin="0,0,0,16"/>
-            <!-- title -->
-            <TextBlock Text="Save Changes"
-                       Foreground="#F4FAFF" FontSize="15" FontWeight="Bold"
-                       Margin="0,0,0,8"/>
-            <!-- message -->
-            <TextBlock x:Name="msg_tb"
-                       Foreground="#F4FAFF" FontSize="12" Opacity="0.85"
-                       TextWrapping="Wrap" Margin="0,0,0,24"/>
-            <!-- buttons -->
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button x:Name="discard_btn" Content="Discard"
-                        Foreground="#F4FAFF" FontSize="12" FontWeight="Bold"
-                        BorderThickness="0" Padding="20,8" Margin="0,0,8,0"
-                        Cursor="Hand">
-                    <Button.Template>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="Bd" Background="#404553" CornerRadius="6"
-                                    Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#4E5566"/>
-                                </Trigger>
-                                <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#333B48"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Button.Template>
-                </Button>
-                <Button x:Name="save_btn" Content="Save"
-                        Foreground="#F4FAFF" FontSize="12" FontWeight="Bold"
-                        BorderThickness="0" Padding="20,8"
-                        Cursor="Hand">
-                    <Button.Template>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="Bd" Background="#208A3C" CornerRadius="6"
-                                    Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#2B933F"/>
-                                </Trigger>
-                                <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#1A6E2E"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Button.Template>
-                </Button>
-            </StackPanel>
-        </StackPanel>
-    </Border>
-</Window>
-"""
-
-        dlg = Markup.XamlReader.Parse(xaml)
-        dlg.FindName("msg_tb").Text = "Do you want to save your changes to {}?".format(panel_label)
-
-        result = [False]
-
-        def on_save(s, e):
-            result[0] = True
-            dlg.Close()
-
-        def on_discard(s, e):
-            result[0] = False
-            dlg.Close()
-
-        dlg.FindName("save_btn").Click    += on_save
-        dlg.FindName("discard_btn").Click += on_discard
-
-        dlg.ShowDialog()
-        return result[0]
+        from Dialogs import Dialogs as _D
+        return _D.save_discard(panel_label)
 
     def recipient_back_click(self, sender, args):
         try:
@@ -1097,6 +1097,19 @@ class RevTableWindow(Window):
     def styling_back_click(self, sender, args):
         """Styling X — legacy handler kept for safety."""
         self._show_panel("main")
+
+    def _on_closing(self, sender, args):
+        """Save all controller state when the window is closed."""
+        for ctrl in [
+            getattr(self, 'filenaming_ctrl', None),
+            getattr(self, 'opt_ctrl',        None),
+            getattr(self, 'recipient_ctrl',  None),
+        ]:
+            try:
+                if ctrl:
+                    ctrl.save_config()
+            except Exception:
+                pass
 
     def filenaming_back_click(self, sender, args):
         """File Naming X — auto-save and return to main."""
@@ -1290,6 +1303,7 @@ class RevTableWindow(Window):
             method_code  = parse_tag(issued_to, 'M')
             format_val   = parse_tag(issued_to, 'F')
             size_val     = parse_tag(issued_to, 'S')
+            rev_type_val = parse_tag(issued_to, 'RT')
 
             # ── Initials ──────────────────────────────────────────────────
             try:
@@ -1324,6 +1338,15 @@ class RevTableWindow(Window):
                         try: cb.SelectedIndex = i + 1  # +1 for (none)
                         except: pass
                         return
+
+            # Restore rev numbering type selection
+            try:
+                if rev_type_val:
+                    _cb = getattr(self, 'rev_type_cb', None)
+                    if _cb and rev_type_val in list(_cb.ItemsSource or []):
+                        _cb.SelectedItem = rev_type_val
+                        self._rev_numbering_type = rev_type_val
+            except Exception: pass
 
             if self.opt_ctrl:
                 select_coded ('reason_cb',    self.opt_ctrl.reason_data,    reason_code)
@@ -1386,7 +1409,6 @@ class RevTableWindow(Window):
     def _prefill_project_info(self):
         """Pre-fill Organisation/Client/Project No/Project textboxes from Revit."""
         try:
-            from Autodesk.Revit.DB import FilteredElementCollector
             pi = self.doc.ProjectInformation
             def _gp(name):
                 try:
@@ -1470,8 +1492,27 @@ class RevTableWindow(Window):
         if _cur_vis == _proj_vis and _cur_ex == _proj_ex:
             return  # All good — no mismatch
 
+        # Build human-readable diff
+        _VIS_LABELS = {'FR': 'Organisation', 'CL': 'Client', 'PN': 'Project No.', 'PJ': 'Project'}
+        _EX_LABELS  = {'RS': 'Revit Schedule', 'RD': 'Drafting View', 'RL': 'Legend',
+                       'Excl': 'Excel', 'PDF': 'PDF'}
+        _diff_lines = []
+        for _code in sorted((_proj_vis | _cur_vis)):
+            _lbl = _VIS_LABELS.get(_code, _code)
+            if _code in _proj_vis and _code not in _cur_vis:
+                _diff_lines.append(u'  {} — was ON, now OFF'.format(_lbl))
+            elif _code not in _proj_vis and _code in _cur_vis:
+                _diff_lines.append(u'  {} — was OFF, now ON'.format(_lbl))
+        for _code in sorted((_proj_ex | _cur_ex)):
+            _lbl = _EX_LABELS.get(_code, _code)
+            if _code in _proj_ex and _code not in _cur_ex:
+                _diff_lines.append(u'  {} — was ON, now OFF'.format(_lbl))
+            elif _code not in _proj_ex and _code in _cur_ex:
+                _diff_lines.append(u'  {} — was OFF, now ON'.format(_lbl))
+        _diff_text = u'\n'.join(_diff_lines)
+
         # Show styled mismatch dialog
-        _result = self._show_mismatch_dialog()
+        _result = self._show_mismatch_dialog(_diff_text)
 
         if _result == 'update':
             # Permanently update Setup settings to match project snapshot
@@ -1513,82 +1554,9 @@ class RevTableWindow(Window):
             self.setup_ctrl.save()
         self.setup_ctrl.apply()
 
-    def _show_mismatch_dialog(self):
-        """
-        Styled dialog matching the Save/Discard pattern.
-        Returns: 'update' | 'session' | 'ignore'
-        """
-        try:
-            import System.Windows.Markup as Markup
-            xaml = (
-                '<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"'
-                ' xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"'
-                ' Title="" Width="420" SizeToContent="Height"'
-                ' WindowStyle="None" ResizeMode="NoResize"'
-                ' WindowStartupLocation="CenterScreen"'
-                ' Background="Transparent" FontFamily="Segoe UI" AllowsTransparency="True">'
-                '<Border Background="#2B3340" CornerRadius="10" Margin="12" Padding="24,20,24,20">'
-                '<Border.Effect><DropShadowEffect Color="Black" Opacity="0.5" ShadowDepth="4" BlurRadius="16"/></Border.Effect>'
-                '<StackPanel>'
-                '<Border Background="#208A3C" Height="3" CornerRadius="2" Margin="0,0,0,16"/>'
-                '<TextBlock Text="Settings Mismatch"'
-                ' Foreground="#F4FAFF" FontSize="15" FontWeight="Bold" Margin="0,0,0,8"/>'
-                '<TextBlock Text="This project was previously issued with different settings."'
-                ' Foreground="#F4FAFF" FontSize="12" Opacity="0.85" TextWrapping="Wrap" Margin="0,0,0,24"/>'
-                '<StackPanel Orientation="Horizontal" HorizontalAlignment="Right">'
-                '<Button x:Name="ignore_btn" Content="Ignore"'
-                ' Foreground="#F4FAFF" FontSize="12" FontWeight="Bold"'
-                ' BorderThickness="0" Padding="20,8" Margin="0,0,8,0" Cursor="Hand">'
-                '<Button.Template><ControlTemplate TargetType="Button">'
-                '<Border x:Name="Bd" Background="#404553" CornerRadius="6" Padding="{TemplateBinding Padding}">'
-                '<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>'
-                '</Border>'
-                '<ControlTemplate.Triggers>'
-                '<Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="Background" Value="#4E5566"/></Trigger>'
-                '<Trigger Property="IsPressed" Value="True"><Setter TargetName="Bd" Property="Background" Value="#333B48"/></Trigger>'
-                '</ControlTemplate.Triggers>'
-                '</ControlTemplate></Button.Template>'
-                '</Button>'
-                '<Button x:Name="session_btn" Content="This Issue Only"'
-                ' Foreground="#F4FAFF" FontSize="12" FontWeight="Bold"'
-                ' BorderThickness="0" Padding="20,8" Margin="0,0,8,0" Cursor="Hand">'
-                '<Button.Template><ControlTemplate TargetType="Button">'
-                '<Border x:Name="Bd" Background="#404553" CornerRadius="6" Padding="{TemplateBinding Padding}">'
-                '<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>'
-                '</Border>'
-                '<ControlTemplate.Triggers>'
-                '<Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="Background" Value="#4E5566"/></Trigger>'
-                '<Trigger Property="IsPressed" Value="True"><Setter TargetName="Bd" Property="Background" Value="#333B48"/></Trigger>'
-                '</ControlTemplate.Triggers>'
-                '</ControlTemplate></Button.Template>'
-                '</Button>'
-                '<Button x:Name="update_btn" Content="Update Settings"'
-                ' Foreground="#F4FAFF" FontSize="12" FontWeight="Bold"'
-                ' BorderThickness="0" Padding="20,8" Cursor="Hand">'
-                '<Button.Template><ControlTemplate TargetType="Button">'
-                '<Border x:Name="Bd" Background="#208A3C" CornerRadius="6" Padding="{TemplateBinding Padding}">'
-                '<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>'
-                '</Border>'
-                '<ControlTemplate.Triggers>'
-                '<Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="Background" Value="#2B933F"/></Trigger>'
-                '<Trigger Property="IsPressed" Value="True"><Setter TargetName="Bd" Property="Background" Value="#1A6E2E"/></Trigger>'
-                '</ControlTemplate.Triggers>'
-                '</ControlTemplate></Button.Template>'
-                '</Button>'
-                '</StackPanel></StackPanel></Border></Window>'
-            )
-            dlg = Markup.XamlReader.Parse(xaml)
-            result = ['ignore']
-            def on_update(s, e):  result[0] = 'update';  dlg.Close()
-            def on_session(s, e): result[0] = 'session'; dlg.Close()
-            def on_ignore(s, e):  result[0] = 'ignore';  dlg.Close()
-            dlg.FindName("update_btn").Click  += on_update
-            dlg.FindName("session_btn").Click += on_session
-            dlg.FindName("ignore_btn").Click  += on_ignore
-            dlg.ShowDialog()
-            return result[0]
-        except:
-            return 'ignore'
+    def _show_mismatch_dialog(self, diff_text=''):
+        from Dialogs import Dialogs as _D
+        return _D.settings_mismatch(diff_text)
 
     def _build_dist_rows(self):
         """Build fixed Distribution List rows in the main window from distribution.json."""
@@ -2206,6 +2174,57 @@ class RevTableWindow(Window):
         if self.import_ctrl: self.import_ctrl.save_config()
         self._show_panel("main")
 
+    def _update_log_menu_label(self):
+        """Flip the log menu label to show whether logging is on or off."""
+        try:
+            lbl = self.FindName('log_menu_label')
+            if lbl:
+                lbl.Text = 'Log: ON  (click to cancel)' if self._log_enabled else 'Enable Log'
+        except Exception:
+            pass
+
+    def _save_log_setting(self):
+        """Write log_zip_path into pytransmit_setup.json, leaving all other keys intact."""
+        try:
+            import json as _lj
+            _lcfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                      'Settings', 'pytransmit_setup.json')
+            try:
+                with open(_lcfg_path, 'r') as _lf:
+                    _lcfg = _lj.load(_lf)
+            except Exception:
+                _lcfg = {}
+            _lcfg['log_zip_path'] = self._log_zip_path
+            with open(_lcfg_path, 'w') as _lf:
+                _lj.dump(_lcfg, _lf, indent=2)
+        except Exception:
+            pass
+
+    def menu_log_click(self, sender, args):
+        """☰ Enable Log: ask where to save, turn on, or cancel if already on."""
+        self.OptionsPopup.IsOpen   = False
+        self.options_btn.IsChecked = False
+
+        if self._log_enabled:
+            self._log_enabled = False
+            self._update_log_menu_label()
+            return
+
+        try:
+            import datetime as _ldt
+            _default = 'pyTransmit_log_{}.zip'.format(
+                _ldt.datetime.now().strftime('%y%m%d_%H%M%S'))
+            from Dialogs import Dialogs as _D
+            _path = _D.file_save('Save Log File', _default, 'zip')
+            if not _path:
+                return
+            self._log_zip_path = _path
+            self._log_enabled  = True
+            self._save_log_setting()
+            self._update_log_menu_label()
+        except Exception, e:
+            forms.alert('Could not set log path: ' + str(e))
+
     def menu_help_click(self, sender, args):
         """☰ → Help: open HELP_URL in the default browser."""
         self.OptionsPopup.IsOpen   = False
@@ -2278,6 +2297,14 @@ class RevTableWindow(Window):
         except Exception, e:
             forms.alert("Error exporting to Excel:\n{}".format(str(e)))
     
+    def _show_file_save_dialog(self, title, filename, ext_label, ext, initial_folder=None):
+        from Dialogs import Dialogs as _D
+        return _D.file_save(title, filename, ext, initial_folder)
+
+    def _show_open_file_dialog(self, title, message):
+        from Dialogs import Dialogs as _D
+        return _D.open_file(title, message)
+
     def run_revit_export(self):
         """Run Revit export — dispatches to the correct Publish script based on output_type."""
         try:
@@ -2328,9 +2355,8 @@ class RevTableWindow(Window):
             # If no revision is being issued, fall back to last issued revision's stored data
             _last_issued = None
             try:
-                from Autodesk.Revit.DB import FilteredElementCollector, Revision
                 _all_revs = sorted(
-                    FilteredElementCollector(self.doc).OfClass(Revision).ToElements(),
+                    revit.query.get_elements_by_class(DB.Revision, doc=self.doc),
                     key=lambda r: r.SequenceNumber)
                 _issued = [r for r in _all_revs if r.Issued]
                 if _issued: _last_issued = _issued[-1]
@@ -2522,7 +2548,114 @@ class RevTableWindow(Window):
                 'header_fg_color':   _bc.get_header_fg_color() if _bc else '#000000',
                 '_settings_dir':     settings_dir,
                 'script_dir':        script_dir,
+                'rev_numbering_type': getattr(self, '_rev_numbering_type', ''),
+                '_open_file_dialog':  self._show_open_file_dialog,
             }
+
+            # ── Pre-collect save paths for file outputs ────────────────────────
+            # Ask for paths upfront. Cancelling one skips only that output.
+            import re as _re
+            import datetime as _dt
+
+            # Resolve project info
+            try:
+                _pi        = revit.doc.ProjectInformation
+                _proj_num  = (_pi.get_Parameter(DB.BuiltInParameter.PROJECT_NUMBER).AsString() or '') if _pi else ''
+                _proj_name = (_pi.get_Parameter(DB.BuiltInParameter.PROJECT_NAME).AsString() or revit.doc.Title or '') if _pi else revit.doc.Title or ''
+            except Exception:
+                _proj_num  = ''
+                _proj_name = ''
+
+            # Resolve output folder via filenaming_ctrl
+            _fn_ctrl       = getattr(self, 'filenaming_ctrl', None)
+            _output_folder = None
+            try:
+                if _fn_ctrl and _proj_num:
+                    # Resolve full folder name on disk (e.g. '4285 - Alterations...')
+                    _job_folder_name = _proj_num
+                    try:
+                        from FileNamingSettings import find_project_folder
+                        _roots = [r for r in [_fn_ctrl._projects_root,
+                                              _fn_ctrl._projects_older_root] if r]
+                        _found = find_project_folder(_proj_num, _roots)
+                        if _found:
+                            import os as _os
+                            _job_folder_name = _os.path.basename(_found)
+                    except Exception:
+                        pass
+                    _resolved = _fn_ctrl.resolve_output_path(
+                        _proj_num,
+                        values={'job_number': _job_folder_name,
+                                'proj_number': _job_folder_name}
+                    )
+                    if _resolved and os.path.isdir(_resolved):
+                        _output_folder = _resolved
+            except Exception:
+                pass
+
+            # Resolve filename from transmittal naming template
+            try:
+                _today  = _dt.date.today()
+                _tmpl   = _fn_ctrl.get_template() if _fn_ctrl else ''
+                _subs   = {
+                    '{proj_number}':  _proj_num,
+                    '{proj_name}':    _proj_name,
+                    '{current_date}': _today.strftime('%Y-%m-%d'),
+                    '{issue_date}':   _today.strftime('%Y-%m-%d'),
+                    '{date_cc}':      _today.strftime('%Y')[:2],
+                    '{date_yy}':      _today.strftime('%y'),
+                    '{date_mm}':      _today.strftime('%m'),
+                    '{date_dd}':      _today.strftime('%d'),
+                }
+                for _k, _v in _subs.items():
+                    _tmpl = _tmpl.replace(_k, _v)
+                _tmpl      = re.sub(r'\{[^}]+\}', '', _tmpl).strip('_- ')
+                _safe_base = re.sub(r'[\\/*?:"<>|]', '_', _tmpl)[:80] if _tmpl else ''
+            except Exception:
+                _safe_base = ''
+            if not _safe_base:
+                _safe_base = re.sub(r'[\\/*?:"<>|]', '_',
+                    'Document_Transmittal_{}_{}'.format(_proj_num, _proj_name))[:60]
+
+            for output_type in output_types:
+                if output_type == 'excel' and not payload.get('_pdf_temp_xlsx_path'):
+                    _path = self._show_file_save_dialog(
+                        title          = u'Save Transmittal — Excel',
+                        filename       = '{}.xlsx'.format(_safe_base),
+                        ext_label      = 'Excel Workbook (*.xlsx)',
+                        ext            = 'xlsx',
+                        initial_folder = _output_folder,
+                    )
+                    payload['_excel_save_path'] = _path  # None = skip this output
+                elif output_type == 'pdf':
+                    _path = self._show_file_save_dialog(
+                        title          = u'Save Transmittal — PDF',
+                        filename       = '{}.pdf'.format(_safe_base),
+                        ext_label      = 'PDF File (*.pdf)',
+                        ext            = 'pdf',
+                        initial_folder = _output_folder,
+                    )
+                    payload['_pdf_save_path'] = _path  # None = skip this output
+
+            # ── Write ptransmit_rev parameter before export ──────────────────
+            try:
+                import imp as _wrev_imp, os as _wrev_os
+                _wrev_path = _wrev_os.path.join(publish_dir, 'write_rev_param.py')
+                if _wrev_os.path.isfile(_wrev_path):
+                    _wrev = _wrev_imp.load_source('write_rev_param', _wrev_path)
+                    _wrev.write_rev_param(revit.doc, publish_dir)
+            except Exception as _wrev_err:
+                import traceback as _wrev_tb
+                forms.alert('ptransmit_rev write failed: ' + str(_wrev_err))
+
+            # ── Set up log capture if logging is enabled ──────────────────────
+            _log_lines        = []
+            _log_layout_paths = []
+            _log_enabled      = getattr(self, '_log_enabled', False)
+            _log_zip_path     = getattr(self, '_log_zip_path', '')
+            payload['_log_lines']   = _log_lines
+            payload['_log_enabled'] = _log_enabled
+            payload['output_types'] = output_types
 
             # ── Dispatch each selected output type ────────────────────────────
             for output_type in output_types:
@@ -2550,6 +2683,7 @@ class RevTableWindow(Window):
 
                 if not os.path.exists(target_script):
                     forms.alert("{} not found at:\n{}".format(err_label, target_script))
+                    _log_lines.append('[SKIP] {} not found: {}'.format(err_label, target_script))
                     continue
 
                 payload['output_type']      = output_type
@@ -2563,16 +2697,48 @@ class RevTableWindow(Window):
                 with open(target_script, 'r') as f:
                     src = f.read()
                 try:
-                    exec(src, ns)
-                    # Suppress the pyRevit output window after each script runs
+                    # Hide the output window before running so it never appears
                     try:
                         _out = script.get_output()
                         if _out: _out.hide()
                     except Exception: pass
+                    _log_lines.append('[START] {}'.format(output_type.upper()))
+                    exec(src, ns)
+                    _log_lines.append('[DONE]  {}'.format(output_type.upper()))
+                    _ljp = payload.get('layout_json_path', '')
+                    if _ljp and _ljp not in _log_layout_paths:
+                        _log_layout_paths.append(_ljp)
+                except SystemExit:
+                    # User cancelled inside the script — skip this output only
+                    _log_lines.append('[CANCELLED] {}'.format(output_type.upper()))
+                    continue
                 except Exception, exec_e:
                     import traceback as _tb
                     tb_str = _tb.format_exc() or str(exec_e) or repr(exec_e)
+                    _log_lines.append('[ERROR] {} : {}'.format(output_type.upper(), tb_str))
                     forms.alert("Error running {}:\n{}".format(err_label, tb_str))
+
+            # ── Build and write log if enabled ────────────────────────────────
+            if _log_enabled and _log_zip_path:
+                try:
+                    import imp as _limp
+                    _log_script = os.path.join(publish_dir, 'script_create_log.py')
+                    _lmod = _limp.load_source('script_create_log', _log_script)
+                    # Add project info to payload for log
+                    payload['proj_number'] = _proj_num
+                    payload['proj_name']   = _proj_name
+                    _ok, _result = _lmod.build_log(
+                        payload, _log_lines, _log_zip_path, _log_layout_paths)
+                    if _ok:
+                        forms.alert('Log saved to:\n{}'.format(_result))
+                    else:
+                        forms.alert('Log could not be saved:\n{}'.format(_result))
+                except Exception, _le:
+                    forms.alert('Log error:\n{}'.format(str(_le)))
+                finally:
+                    # Always turn log off after the run
+                    self._log_enabled = False
+                    self._update_log_menu_label()
 
         except Exception, e:
             import traceback

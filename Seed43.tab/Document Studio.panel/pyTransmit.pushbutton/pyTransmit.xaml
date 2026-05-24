@@ -22,9 +22,7 @@
                 Cursor="Hand"
                 Padding="20,8">
             <DockPanel>
-                <TextBlock Text="&#x25B2;  Update Available — click to update"
-                           FontSize="12" FontWeight="SemiBold"
-                           Foreground="#F4FAFF" VerticalAlignment="Center"/>
+                <ContentControl x:Name="update_ribbon_icon_tb" VerticalAlignment="Center"/>
                 <TextBlock x:Name="update_ribbon_version"
                            Text=""
                            FontSize="11" Foreground="#F4FAFF" Opacity="0.85"
@@ -47,6 +45,10 @@
                 <StackPanel Orientation="Horizontal" 
                             VerticalAlignment="Center" 
                             HorizontalAlignment="Left">
+                    <Image x:Name="header_icon"
+                           Width="28" Height="28"
+                           VerticalAlignment="Center"
+                           Margin="0,0,10,0"/>
                     <TextBlock Text="py" 
                                FontWeight="Bold" 
                                FontSize="32" 
@@ -161,12 +163,21 @@
                                 <Button x:Name="styling_menu_btn"           Content="&#x1F3A8;  Branding &amp; Styling"  Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_styling_click"/>
                                 <Button x:Name="recipient_manager_menu_btn" Content="&#x1F465;  Recipient Manager" Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_recipient_click"/>
                                 <Button x:Name="options_manager_menu_btn"   Content="&#x1F527;  Options Manager"   Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_options_click"/>
-                                <Button x:Name="file_naming_menu_btn"       Content="&#x1F4C4;  File Naming"        Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_file_naming_click"/>
+                                <Button x:Name="file_naming_menu_btn"       Content="&#x1F3F7;  File Naming"        Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_file_naming_click"/>
                                 <Rectangle Fill="#404553" Height="1" Margin="0,2"/>
                                 <Button x:Name="export_btn" Content="&#x1F4E4;  Export Settings" Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_export_click"/>
                                 <Button x:Name="import_btn" Content="&#x1F4E5;  Import Settings" Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_import_click"/>
                                 <Rectangle Fill="#404553" Height="1" Margin="0,2"/>
-                                <Button x:Name="help_btn"  Content="?  Help"                Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_help_click"/>
+                                <Button x:Name="log_menu_btn" Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_log_click">
+                                    <Button.Content>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border x:Name="log_icon_holder" Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <TextBlock x:Name="log_menu_label" Text="Enable Log" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button.Content>
+                                </Button>
+                                <Rectangle Fill="#404553" Height="1" Margin="0,2"/>
+                                <Button x:Name="help_btn"  Content="&#x2753;  Help"                Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_help_click"/>
                                 <Button x:Name="about_btn" Content="&#x2139;  About pyTransmit" Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_about_click"/>
                             </StackPanel>
                         </Border>
@@ -176,7 +187,7 @@
 
                 <!-- RIGHT SETUP mode: just a close button -->
                 <Button x:Name="setup_close_btn"
-                        Content="&#x2716;"
+                        
                         Style="{StaticResource CloseButtonStyle}"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center"
@@ -185,7 +196,7 @@
 
                 <!-- RIGHT STYLING mode: just a close button -->
                 <Button x:Name="styling_close_btn"
-                        Content="&#x2716;"
+                        
                         Style="{StaticResource CloseButtonStyle}"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center"
@@ -194,7 +205,7 @@
 
                 <!-- RIGHT EXPORT FORMAT mode: just a close button -->
                 <Button x:Name="export_format_close_btn"
-                        Content="&#x2716;"
+                        
                         Style="{StaticResource CloseButtonStyle}"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center"
@@ -214,7 +225,7 @@
                             Margin="0,0,10,0"
                             Click="recipient_export_click"/>
                     <Button x:Name="recipient_close_btn"
-                            Content="&#x2716;"
+                            
                             Style="{StaticResource CloseButtonStyle}"
                             Click="recipient_back_click"/>
                 </StackPanel>
@@ -232,7 +243,7 @@
                             Margin="0,0,10,0"
                             Click="options_export_click"/>
                     <Button x:Name="options_close_btn"
-                            Content="&#x2716;"
+                            
                             Style="{StaticResource CloseButtonStyle}"
                             Click="options_back_click"/>
                 </StackPanel>
@@ -250,7 +261,7 @@
                             Margin="0,0,10,0"
                             Click="export_execute_click"/>
                     <Button x:Name="export_settings_close_btn"
-                            Content="&#x2716;"
+                            
                             Style="{StaticResource CloseButtonStyle}"
                             Click="export_settings_back_click"/>
                 </StackPanel>
@@ -268,7 +279,7 @@
                             Margin="0,0,10,0"
                             Click="import_execute_click"/>
                     <Button x:Name="import_settings_close_btn"
-                            Content="&#x2716;"
+                            
                             Style="{StaticResource CloseButtonStyle}"
                             Click="import_settings_back_click"/>
                 </StackPanel>
@@ -280,7 +291,7 @@
                             VerticalAlignment="Center"
                             Visibility="Collapsed">
                     <Button x:Name="filenaming_close_btn"
-                            Content="&#x2716;"
+                            
                             Style="{StaticResource CloseButtonStyle}"
                             Click="filenaming_back_click"/>
                 </StackPanel>
@@ -371,6 +382,7 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
                                    Text="Project Settings" Style="{StaticResource SectionLabelStyle}"/>
@@ -379,8 +391,20 @@
                         <ComboBox  Grid.Row="1" Grid.Column="1" x:Name="revision_cb"
                                    Style="{StaticResource ModernComboBoxStyle}" Margin="0,0,0,6"/>
 
+                        <!-- Rev numbering type selector, shown only when multiple types exist -->
+                        <StackPanel x:Name="rev_type_row" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+                                    Visibility="Collapsed">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="100"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Rev Numbering" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,8,6" TextWrapping="Wrap"/>
+                                <ComboBox  Grid.Column="1" x:Name="rev_type_cb" Style="{StaticResource ModernComboBoxStyle}" Margin="0,0,0,6"/>
+                            </Grid>
+                        </StackPanel>
                         <!-- Optional fields shown/hidden by Setup -->
-                        <StackPanel x:Name="initials_row" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+                        <StackPanel x:Name="initials_row" Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
                                     Visibility="Collapsed">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -391,7 +415,7 @@
                                 <TextBox   Grid.Column="1" x:Name="initials_tb" Style="{StaticResource ModernTextBoxStyle}" Margin="0,0,0,6"/>
                             </Grid>
                         </StackPanel>
-                        <StackPanel x:Name="reason_row" Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
+                        <StackPanel x:Name="reason_row" Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
                                     Visibility="Collapsed">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -402,7 +426,7 @@
                                 <ComboBox  Grid.Column="1" x:Name="reason_cb" Style="{StaticResource ModernComboBoxStyle}" Margin="0,0,0,6"/>
                             </Grid>
                         </StackPanel>
-                        <StackPanel x:Name="method_row" Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
+                        <StackPanel x:Name="method_row" Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
                                     Visibility="Collapsed">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -413,7 +437,7 @@
                                 <ComboBox  Grid.Column="1" x:Name="method_cb" Style="{StaticResource ModernComboBoxStyle}" Margin="0,0,0,6"/>
                             </Grid>
                         </StackPanel>
-                        <StackPanel x:Name="format_row" Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
+                        <StackPanel x:Name="format_row" Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2"
                                     Visibility="Collapsed">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -424,7 +448,7 @@
                                 <ComboBox  Grid.Column="1" x:Name="format_cb" Style="{StaticResource ModernComboBoxStyle}" Margin="0,0,0,6"/>
                             </Grid>
                         </StackPanel>
-                        <StackPanel x:Name="printsize_row" Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2"
+                        <StackPanel x:Name="printsize_row" Grid.Row="7" Grid.Column="0" Grid.ColumnSpan="2"
                                     Visibility="Collapsed">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -603,7 +627,7 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Border Grid.Column="0" Background="#208A3C" CornerRadius="3,0,0,3"/>
-                            <TextBlock Grid.Column="1" Text="&#x2139;" Foreground="#208A3C" FontSize="13" Margin="10,8,8,8" VerticalAlignment="Center"/>
+                            <ContentControl Grid.Column="1" x:Name="warning_icon_1" Margin="10,8,8,8" VerticalAlignment="Center"/>
                             <TextBlock Grid.Column="2" Text="Settings are saved automatically when you close this panel."
                                        Foreground="#7EC8A0" FontSize="10" Opacity="0.9"
                                        TextWrapping="Wrap" Margin="0,8,8,8" VerticalAlignment="Center"/>
@@ -781,7 +805,7 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Border Grid.Column="0" Background="#208A3C" CornerRadius="3,0,0,3"/>
-                            <TextBlock Grid.Column="1" Text="&#x2139;" Foreground="#208A3C" FontSize="13" Margin="10,8,8,8" VerticalAlignment="Center"/>
+                            <ContentControl Grid.Column="1" x:Name="warning_icon_2" Margin="10,8,8,8" VerticalAlignment="Center"/>
                             <TextBlock Grid.Column="2" Text="Settings are saved automatically when you close this panel."
                                        Foreground="#7EC8A0" FontSize="10" Opacity="0.9"
                                        TextWrapping="Wrap" Margin="0,8,8,8" VerticalAlignment="Center"/>
@@ -981,7 +1005,7 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Border Grid.Column="0" Background="#208A3C" CornerRadius="3,0,0,3"/>
-                            <TextBlock Grid.Column="1" Text="&#x2139;" Foreground="#208A3C" FontSize="13" Margin="10,8,8,8" VerticalAlignment="Center"/>
+                            <ContentControl Grid.Column="1" x:Name="warning_icon_3" Margin="10,8,8,8" VerticalAlignment="Center"/>
                             <TextBlock Grid.Column="2" Text="Settings are saved automatically when you close this panel."
                                        Foreground="#7EC8A0" FontSize="10" Opacity="0.9"
                                        TextWrapping="Wrap" Margin="0,8,8,8" VerticalAlignment="Center"/>
@@ -1498,7 +1522,7 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Border Grid.Column="0" Background="#208A3C" CornerRadius="3,0,0,3"/>
-                            <TextBlock Grid.Column="1" Text="&#x2139;" Foreground="#208A3C" FontSize="13" Margin="10,8,8,8" VerticalAlignment="Center"/>
+                            <ContentControl Grid.Column="1" x:Name="warning_icon_4" Margin="10,8,8,8" VerticalAlignment="Center"/>
                             <TextBlock Grid.Column="2" Text="Settings are saved automatically when you close this panel."
                                        Foreground="#7EC8A0" FontSize="10" Opacity="0.9"
                                        TextWrapping="Wrap" Margin="0,8,8,8" VerticalAlignment="Center"/>
@@ -1589,7 +1613,7 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Border Grid.Column="0" Background="#208A3C" CornerRadius="3,0,0,3"/>
-                            <TextBlock Grid.Column="1" Text="&#x2139;" Foreground="#208A3C" FontSize="13" Margin="10,8,8,8" VerticalAlignment="Center"/>
+                            <ContentControl Grid.Column="1" x:Name="warning_icon_5" Margin="10,8,8,8" VerticalAlignment="Center"/>
                             <TextBlock Grid.Column="2" Text="Settings are saved automatically when you close this panel."
                                        Foreground="#7EC8A0" FontSize="10" Opacity="0.9"
                                        TextWrapping="Wrap" Margin="0,8,8,8" VerticalAlignment="Center"/>
@@ -1774,7 +1798,7 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Border Grid.Column="0" Background="#208A3C" CornerRadius="3,0,0,3"/>
-                            <TextBlock Grid.Column="1" Text="&#x2139;" Foreground="#208A3C" FontSize="13" Margin="10,8,8,8" VerticalAlignment="Center"/>
+                            <ContentControl Grid.Column="1" x:Name="warning_icon_6" Margin="10,8,8,8" VerticalAlignment="Center"/>
                             <TextBlock Grid.Column="2" Text="Settings are saved automatically when you close this panel."
                                        Foreground="#7EC8A0" FontSize="10" Opacity="0.9"
                                        TextWrapping="Wrap" Margin="0,8,8,8" VerticalAlignment="Center"/>

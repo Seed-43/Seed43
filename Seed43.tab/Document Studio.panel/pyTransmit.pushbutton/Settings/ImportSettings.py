@@ -1,27 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-ImportSettings.py  —  pyTransmit Import Settings panel controller
-=================================================================
-Manages the Import Settings panel embedded in the main pyTransmit window.
-
-Handles:
-  - Import folder selection (expects a  pyTransmit Settings  folder)
-  - Per-item checkboxes (Recipients, Reason, Method, Document, Print Size)
-  - Auto-update toggle (silently re-imports from the folder on startup)
-  - Execute import (copies selected JSON files from the folder into Settings/)
-  - Reloading live controller data after import
-
-Config is persisted in pytransmit_sync.json alongside the main script.
-
-Place this file in the  Settings  subfolder next to script.py.
-
-Usage in script.py:
-    from ImportSettings import ImportSettingsController
-    self.import_ctrl = ImportSettingsController(script_dir)
-    self.import_ctrl.attach(self)
-    self.import_ctrl.load_config()
-    self.import_ctrl.run_auto_import()   # call after controllers are ready
-"""
+# ImportSettings.py
 
 import os
 import json

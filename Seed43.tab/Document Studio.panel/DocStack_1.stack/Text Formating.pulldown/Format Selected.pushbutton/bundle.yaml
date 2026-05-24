@@ -1,7 +1,7 @@
-title: "Format Selected Text Notes"
+﻿title: "Format Selected"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
 tooltip: |
-  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 260521
   _____________________________________________________________________
   Description:
   Interactive formatting tool for Text Notes in Revit.
@@ -14,7 +14,7 @@ tooltip: |
   - Works in continuous selection mode for fast repetitive editing
   - Updates formatting immediately as elements are picked in the model
   
-  Designed for fast manual annotation formatting and documentation
+  Designed for fast manual annotation, formatting, and documentation
   cleanup.
   _____________________________________________________________________
   How-to:
@@ -30,5 +30,5 @@ tooltip: |
   - Ideal for rapid annotation checking and standardisation
   _____________________________________________________________________
   Last update:
-  - Initial release
+  - Updated to use pyrevitlib
   _____________________________________________________________________

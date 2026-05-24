@@ -1,35 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-FileNamingSettings.py  —  pyTransmit File Naming Settings panel controller
-===========================================================================
-Manages the File Naming Settings panel embedded in the main pyTransmit window.
-
-Handles:
-  - Transmittal PDF file naming template (drag-and-drop formatter tokens)
-  - Live preview of the resolved filename
-  - Projects root path + optional Older Jobs subfolder
-  - resolve_project_folder(job_number) — range-bucket folder lookup
-    Works for any folder structure where buckets are named  #XXX-{start}-{end}
-    or any prefix, as long as the range is the last two numeric segments.
-
-Config is persisted in  Settings/pytransmit_setup.json  under keys:
-    transmittal_naming_template
-    projects_root
-    projects_older_root
-
-Place this file in the  Settings  subfolder next to script.py.
-
-Usage in script.py:
-    from FileNamingSettings import FileNamingSettingsController
-    self.filenaming_ctrl = FileNamingSettingsController(script_dir)
-    self.filenaming_ctrl.attach(self)
-    self.filenaming_ctrl.load_config()
-
-Resolving a folder at publish time:
-    folder = self.filenaming_ctrl.resolve_project_folder('6041')
-    # Returns full path to e.g.  ...\\#JOB-6001-6100\\6041 - Project Burgundy
-    # or None if not found.
-"""
+# FileNamingSettings.py
 
 import os
 import re
@@ -411,6 +381,8 @@ class FileNamingSettingsController(object):
         for token, val in subs.items():
             tmpl = tmpl.replace(token, val)
         return tmpl
+
+    def save_and_back(self):
         """Save config then navigate back to the main panel."""
         self.save_config()
         h = self._host
@@ -520,6 +492,14 @@ class FileNamingSettingsController(object):
         has_real_job    = bool(live.get('job_number'))
         has_real_bucket = bool(live.get('bucket_folder'))
 
+        # Try to resolve the full folder name on disk (e.g. "4285 - Alterations...")
+        job_folder_name = live.get('job_number') or '4286'
+        if live.get('job_number') and self._projects_root:
+            roots = [r for r in [self._projects_root, self._projects_older_root] if r]
+            resolved = find_project_folder(live.get('job_number'), roots)
+            if resolved:
+                job_folder_name = os.path.basename(resolved)
+
         sample = {
             '{projects_root}':          proj_root,
             '{older_jobs_root}':        active_root,
@@ -527,8 +507,8 @@ class FileNamingSettingsController(object):
             '{bucket}':                 live.get('bucket')        or '4251-4300',
             '{bucket_min}':             live.get('bucket_min')    or '4251',
             '{bucket_max}':             live.get('bucket_max')    or '4300',
-            '{job_number}':             live.get('job_number')    or '4286',
-            '{proj_number}':            live.get('proj_number')   or '4286',
+            '{job_number}':             job_folder_name,
+            '{proj_number}':            job_folder_name,
             '{proj_name}':              live.get('proj_name')     or 'PROJECT_BURGUNDY',
             '{current_date}':           today_str,
             '{issue_date}':             today_str,
@@ -551,20 +531,20 @@ class FileNamingSettingsController(object):
         roots_set = bool(self._projects_root)
         if path_exists:
             colour = '#27AE60'   # green  — real path found on disk
-            suffix = '  \u2713'  # ✓
+            suffix = u'  \u2713'  # ✓
         elif has_real_job and has_real_bucket:
             colour = '#E67E22'   # amber  — resolved but folder missing on disk
-            suffix = '  \u26A0 Folder not found — check path template or create folder'
+            suffix = u'  \u26A0 Folder not found — check path template or create folder'
         elif has_real_job and not has_real_bucket and roots_set:
             colour = '#E67E22'   # amber  — job number found but no matching bucket
-            suffix = '  \u26A0 No bucket folder found for job {} in {}'.format(
+            suffix = u'  \u26A0 No bucket folder found for job {} in {}'.format(
                 live.get('job_number', ''), self._projects_root)
         elif not roots_set:
             colour = '#E05555'   # red    — roots not set at all
-            suffix = '  \u2715 Folder scan failed — Projects Root not configured'
+            suffix = u'  \u2715 Folder scan failed — Projects Root not configured'
         else:
             colour = '#E05555'   # red    — something else wrong
-            suffix = '  \u2715 Folder scan failed — check Projects Root path'
+            suffix = u'  \u2715 Folder scan failed — check Projects Root path'
 
         try:
             preview_tb.Text = preview + suffix

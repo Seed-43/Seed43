@@ -1,7 +1,7 @@
-title: "Match Text Width"
+﻿title: "Match Text Width"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
 tooltip: |
-  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 260521
   _____________________________________________________________________
   Description:
   Copies the text box width from a reference Text Note and applies it
@@ -26,5 +26,5 @@ tooltip: |
   - No changes are made to text content or formatting
   _____________________________________________________________________
   Last update:
-  - Initial release
+  - Updated to use pyrevitlib
   _____________________________________________________________________

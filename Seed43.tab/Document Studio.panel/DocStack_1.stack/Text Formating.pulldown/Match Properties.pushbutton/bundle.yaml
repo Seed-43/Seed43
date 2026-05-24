@@ -1,14 +1,12 @@
-title: "Match Label Properties"
+﻿title: "Match Properties"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
 tooltip: |
-  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 260521
   _____________________________________________________________________
   Description:
-  Matches properties between annotation labels and text elements in the
-  model.
+  Matches properties between annotation labels and text elements in the model.
   
-  Provides controlled transfer of key annotation formatting properties
-  from a reference element to one or more target elements.
+  Provides controlled transfer of key annotation formatting properties from a reference element to one or more target elements.
   
   Supports selective matching of:
   - Text Style (Type)
@@ -36,5 +34,4 @@ tooltip: |
   - Only the properties you selected are changed
   _____________________________________________________________________
   Last update:
-  - Initial release
-  _____________________________________________________________________
+  - Updated to use pyrevitlib  _____________________________________________________________________

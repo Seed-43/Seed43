@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# leader_alignment_match.py
+# match_alignment.py
 from pyrevit import revit, DB, forms, script
 
 doc = revit.doc

@@ -1,23 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-Recipient Database Manager for pyTransmit
-==========================================
-This script provides a comprehensive database management interface for recipient data.
-
-Features:
-- Import from CSV/Excel with column mapping
-- Export to CSV/Excel (all or selected records)
-- Editable DataGrid with inline validation
-- Drag & drop row reordering
-- Multi-select with Ctrl/Shift
-- Context menu (Edit, Delete, Duplicate, Copy)
-- Duplicate detection with fuzzy matching
-- Search/filter functionality
-- Auto-save to SQLite database
-
-Author: pyTransmit Suite
-Version: 1.0
-"""
+# RecipientSettings.py
 
 import os
 import sys

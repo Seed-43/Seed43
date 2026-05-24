@@ -1,10 +1,10 @@
-title: "Find Text Type in Views"
+﻿title: "Find Type"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
 tooltip: |
-  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 260521
   _____________________________________________________________________
   Description:
-  Finds all Text Notes of a selected Text Type across the project.
+  Finds all selected Text Types across the project.
   
   - Scans the entire model for matching text notes
   - Identifies all Views and Legends containing them
@@ -27,5 +27,5 @@ tooltip: |
       - Select all matching text notes
   _____________________________________________________________________
   Last update:
-  - Initial release
+  - Updated to use pyrevitlib
   _____________________________________________________________________

@@ -1,42 +1,5 @@
 # -*- coding: utf-8 -*-
-__title__     = "pyTransmit - Drafting View"
-__author__    = "Nagel Consultants"
-__doc__       = """
-VERSION 250507
-_____________________________________________________________________
-Description:
-Creates or updates a Revit Drafting View containing the full
-transmittal document layout. The layout is driven by the
-Revit Drafting View.json file, so column widths, row heights,
-text sizes, and which sections appear are all controlled from
-the Layout Builder without editing this script.
-
-_____________________________________________________________________
-How-to:
-This script is run automatically by pyTransmit when you click
-Publish. You do not need to run it directly. Once complete,
-find the view in the Project Browser under Drafting Views.
-
-_____________________________________________________________________
-Notes:
-The layout JSON controls which blocks appear and in what order.
-Supported block types: logo, text, sent_to, attn_to,
-spine_copies, spine_dates, spine_initials, spine_reason,
-spine_method, spine_doc_type, spine_print_size, reason_list,
-method_list, sheet_number, sheet_desc, spine_rev, blank.
-
-If the view already exists it will be cleared and redrawn.
-Overflow sheet rows are placed in side-by-side columns on the
-same view rather than creating extra pages.
-
-_____________________________________________________________________
-Last update:
-250507 - Rewrote to be fully JSON-driven. Column widths, row
-heights, and text styles now come from the layout JSON instead
-of hardcoded constants. Matches the pattern used by the Excel
-and Schedule exporters.
-_____________________________________________________________________
-"""
+# script_create_drafting_view.py
 
 # ── IMPORTS ──────────────────────────────────────────────────────────────────
 
@@ -45,7 +8,7 @@ _p = globals().get('PYTRANSMIT_PAYLOAD', {})
 from pyrevit import revit, script, DB, forms
 from Autodesk.Revit.DB import (
     FilteredElementCollector, XYZ, Line, TextNote, TextNoteType,
-    Transaction, CurveElement, ViewFamilyType, ViewFamily, ViewDrafting,
+    CurveElement, ViewFamilyType, ViewFamily, ViewDrafting,
     TextNoteOptions, HorizontalTextAlignment,
     ImageType, ImageTypeOptions, ImageInstance, ImageTypeSource,
     ImagePlacementOptions, BoxPlacement,
@@ -56,6 +19,19 @@ from Autodesk.Revit.DB import (
 import re, os, json, math
 
 output = script.get_output()
+output.hide()
+
+
+# ── Log capture via payload ───────────────────────────────────────────
+_log_lines = PYTRANSMIT_PAYLOAD.get('_log_lines', [])
+def _log(msg):
+    try: _log_lines.append(str(msg))
+    except Exception: pass
+
+class _SilentOutput(object):
+    def print_md(self, msg, *a, **kw): _log(msg)
+    def hide(self): pass
+output = _SilentOutput()
 doc    = revit.doc
 
 # ── CONSTANTS ─────────────────────────────────────────────────────────────────
@@ -217,16 +193,6 @@ def natural_sort_key(s):
     parts = re.split(r'(\d+)', str(s))
     return [int(p) if p.isdigit() else p.lower() for p in parts]
 
-def rev_letter(seq):
-    n = seq - 1
-    if n < 0: return '?'
-    result = ''
-    while True:
-        result = chr(65 + (n % 26)) + result
-        n = n // 26 - 1
-        if n < 0: break
-    return result
-
 def parse_date_slash(raw):
     if not raw: return ""
     m = re.search(r'(\d{1,2})\D(\d{1,2})\D(\d{2,4})', str(raw).strip())
@@ -285,8 +251,20 @@ _SHOW_CLIENT   = _p.get('show_client',   True)
 _SHOW_PROJNO   = _p.get('show_projno',   True)
 _SHOW_PROJNAME = _p.get('show_projname', True)
 
-all_revs    = list(FilteredElementCollector(doc).OfClass(DB.Revision).ToElements())
-issued_revs = sorted([r for r in all_revs if r.Issued], key=lambda r: r.SequenceNumber)
+all_revs    = list(revit.query.get_elements_by_class(DB.Revision, doc=doc))
+all_issued_revs = sorted([r for r in all_revs if r.Issued], key=lambda r: r.SequenceNumber)
+# Filter to selected numbering type if payload specifies one
+_rev_type_filter = _p.get('rev_numbering_type', '')
+if _rev_type_filter:
+    def _get_num_type(rev):
+        try:
+            _se = doc.GetElement(rev.RevisionNumberingSequenceId)
+            return str(_se.NumberType).split('.')[-1] if _se else 'None'
+        except Exception: return 'Unknown'
+    all_issued_revs = [r for r in all_issued_revs
+                       if _get_num_type(r) == _rev_type_filter]
+# all_issued_revs = full history for sheet collection, issued_revs = visible columns only
+issued_revs = all_issued_revs[-MAX_REVS:]
 n_revs      = min(len(issued_revs), MAX_REVS)
 
 _meta_vals = {}
@@ -295,6 +273,15 @@ if _p.get('meta_rows'):
         _k = _LABEL_TO_KEY.get(_lbl.lower().strip())
         if _k:
             _meta_vals[_k] = _val
+
+# ── REVISION UTILITIES ───────────────────────────────────────────────────────
+import os as _ru_os, imp as _ru_imp
+_ru_dir  = _ru_os.path.dirname(_ru_os.path.abspath(__file__))
+_ru_path = _ru_os.path.join(_ru_dir, 'revision_utils.py')
+_ru      = _ru_imp.load_source('revision_utils', _ru_path)
+get_rev_mark           = _ru.get_rev_mark
+build_rev_sheet_lookup = _ru.build_rev_sheet_lookup
+_rev_sheet_lookup      = build_rev_sheet_lookup(doc)
 
 rev_meta = []
 for i in range(MAX_REVS):
@@ -312,15 +299,15 @@ for i in range(MAX_REVS):
             'method':   _meta_vals.get('method')   or _f('M'),
             'format':   _meta_vals.get('format')   or _f('F'),
             'paper':    _meta_vals.get('paper')    or _f('P'),
-            'letter':   rev_letter(rev.SequenceNumber),
+            'letter':   get_rev_mark(rev, sheet=_rev_sheet_lookup.get(rev.Id)),
         })
     else:
         rev_meta.append({k: "" for k in
             ['date', 'initials', 'reason', 'method', 'format', 'paper', 'letter']})
 
 tx_sheets = sorted(
-    [s for s in FilteredElementCollector(doc).OfClass(DB.ViewSheet).ToElements()
-     if any(r.Id in set(s.GetAllRevisionIds()) for r in issued_revs)],
+    [s for s in revit.query.get_elements_by_class(DB.ViewSheet, doc=doc)
+     if any(r.Id in set(s.GetAllRevisionIds()) for r in all_issued_revs)],
     key=lambda s: natural_sort_key(s.SheetNumber)
 )
 
@@ -361,7 +348,7 @@ for row in ROWS:
         _rh = H_SPACER
     _fixed_h += _rh
     # Rows that repeat at the top of overflow columns
-    if first_block.get('content', '') in ('Documentation List', 'Sheet', 'Description', 'Revision'):
+    if row.get('repeat_every_page', False):
         _repeat_h += _rh
 
 _rows_page1  = max(1, int((_PAGE_H_FT - _fixed_h)  / H_DATA)) if _SPLIT else 999999
@@ -395,7 +382,7 @@ def create_line(view, x1, y1, x2, y2):
 def get_or_create_filled_region_type(name, rgb=(255, 255, 255)):
     _col = Color(rgb[0], rgb[1], rgb[2])
     solid_pat = None
-    for fp in FilteredElementCollector(doc).OfClass(FillPatternElement).ToElements():
+    for fp in revit.query.get_elements_by_class(FillPatternElement, doc=doc):
         try:
             if fp.GetFillPattern().IsSolidFill:
                 solid_pat = fp; break
@@ -483,6 +470,22 @@ def create_text_w(view, x, y, text, width, ttype, align=HorizontalTextAlignment.
     except Exception:
         return None
 
+def _place_text(view, x, y, text, width, ttype, just='left'):
+    """Place a text note at x (left edge) with given width, then set alignment.
+
+    Always creates with Left alignment so Revit anchors at x,
+    then updates HorizontalAlignment for center or right.
+    """
+    note = create_text_w(view, x + INDENT, y, text, width - INDENT * 2, ttype,
+                         HorizontalTextAlignment.Left)
+    if note and just == 'center':
+        try: note.HorizontalAlignment = HorizontalTextAlignment.Center
+        except Exception: pass
+    elif note and just == 'right':
+        try: note.HorizontalAlignment = HorizontalTextAlignment.Right
+        except Exception: pass
+    return note
+
 # ── TEXT STYLE HELPERS ────────────────────────────────────────────────────────
 
 def get_or_create_text_style(name, font, size_mm, bold=False, italic=False):
@@ -495,8 +498,7 @@ def get_or_create_text_style(name, font, size_mm, bold=False, italic=False):
                 existing = tt; break
         except Exception:
             pass
-    with Transaction(doc, "Create/Update text style: {}".format(name)) as t:
-        t.Start()
+    with revit.Transaction("Create/Update text style: {}".format(name)) as t:
         new_tt = existing if existing else all_types[0].Duplicate(name)
         one_mm = MM
         for bip, val in [
@@ -507,6 +509,7 @@ def get_or_create_text_style(name, font, size_mm, bold=False, italic=False):
             (DB.BuiltInParameter.TEXT_BACKGROUND,     1),
             (DB.BuiltInParameter.LEADER_OFFSET_SHEET, one_mm),
             (DB.BuiltInParameter.TEXT_TAB_SIZE,       one_mm),
+            (DB.BuiltInParameter.TEXT_WIDTH_SCALE,    0.8),
         ]:
             try:
                 p = new_tt.get_Parameter(bip)
@@ -520,7 +523,6 @@ def get_or_create_text_style(name, font, size_mm, bold=False, italic=False):
                 ap.Set(DB.ElementId.InvalidElementId)
         except Exception:
             pass
-        t.Commit()
     return new_tt
 
 def _make_text_types():
@@ -591,7 +593,7 @@ def _get_or_create_logo():
 VIEW_NAME = _p.get('_legend_temp_view_name') or "pyTransmit Document View"
 
 drafting_view = None
-for v in FilteredElementCollector(doc).OfClass(ViewDrafting).WhereElementIsNotElementType():
+for v in revit.query.get_elements_by_class(ViewDrafting, doc=doc):
     try:
         if v.IsValidObject and v.Name == VIEW_NAME:
             drafting_view = v; break
@@ -605,27 +607,21 @@ if not drafting_view:
             _drafting_vft = vft; break
     if not _drafting_vft:
         forms.alert("No Drafting ViewFamilyType found.", exitscript=True)
-    with Transaction(doc, "pyTransmit DV - Create view") as t:
-        t.Start()
+    with revit.Transaction("pyTransmit DV - Create view") as t:
         drafting_view = ViewDrafting.Create(doc, _drafting_vft.Id)
         drafting_view.Name = VIEW_NAME
         try: drafting_view.Scale = 1
         except Exception: pass
-        t.Commit()
 else:
-    with Transaction(doc, "pyTransmit DV - Set scale") as t:
-        t.Start()
+    with revit.Transaction("pyTransmit DV - Set scale") as t:
         try: drafting_view.Scale = 1
         except Exception: pass
-        t.Commit()
 
-with Transaction(doc, "pyTransmit DV - Clear view") as t:
-    t.Start()
+with revit.Transaction("pyTransmit DV - Clear view") as t:
     for _cls in (CurveElement, TextNote, ImageInstance, FilledRegion):
         for _el in list(FilteredElementCollector(doc, drafting_view.Id).OfClass(_cls).ToElements()):
             try: doc.Delete(_el.Id)
             except Exception: pass
-    t.Commit()
 
 # ── BUILD TEXT TYPES AND FILLED REGION TYPES ─────────────────────────────────
 
@@ -635,11 +631,9 @@ def _tt(style_name):
     """Return TextNoteType for the given style name."""
     return TEXT_TYPES.get(style_name) or TEXT_TYPES.get('Data')
 
-with Transaction(doc, "pyTransmit DV - Create fill types") as _t:
-    _t.Start()
+with revit.Transaction("pyTransmit DV - Create fill types") as _t:
     FRT_TITLE = get_or_create_filled_region_type("Transmittal Title",  _title_bg)
     FRT_HDR   = get_or_create_filled_region_type("Transmittal Header", _header_bg)
-    _t.Commit()
 
 # ── JSON BORDER MAPS ──────────────────────────────────────────────────────────
 # hlines[row_index] = [col0, col1, col2, col3]  , draw bottom line per column
@@ -682,8 +676,15 @@ def draw_row_borders(vw, ri, y_top, y_bot, draw_inner_rev_vlines=False, blocks=N
     # Vertical lines
     _vrow = _VLINES.get(ri)
     if _vrow is not None:
+        # Build set of vline positions interior to a spanning block, these are locked
+        _locked_vpos = set()
+        if blocks:
+            for _bci, _bb in enumerate(blocks):
+                if not _bb: continue
+                for _s in range(1, _bb.get('span', 1)):
+                    _locked_vpos.add(_bci + _s)
         for _vi, _draw in enumerate(_vrow):
-            if _draw and _vi < len(_xs):
+            if _draw and _vi < len(_xs) and _vi not in _locked_vpos:
                 create_line(vw, _xs[_vi], y_top, _xs[_vi], y_bot)
     elif blocks:
         # Fallback: draw left/right outer borders from block flags
@@ -735,7 +736,7 @@ def _row_height_from_block(block):
         return H_DATE
     if t == 'blank':
         pct = block.get('height_pct') or 50
-        return max(2.0 * MM, _line_h * pct / 100.0 * 2)
+        return max(2.0 * MM, _line_h * pct / 100.0)
     if t == 'logo':
         return H_TITLE
     if t in ('sheet_number', 'sheet_desc', 'spine_rev',
@@ -811,8 +812,7 @@ def _get_group_label(sheet):
 vw = drafting_view
 _doc_list_y_start = None
 
-with Transaction(doc, "pyTransmit DV - Draw transmittal") as t:
-    t.Start()
+with revit.Transaction("pyTransmit DV - Draw transmittal") as t:
 
     _logo_type = _get_or_create_logo()
 
@@ -825,12 +825,19 @@ with Transaction(doc, "pyTransmit DV - Draw transmittal") as t:
     # Documentation list header rows are plain text rows whose content labels
     # the sheet table (Documentation List, Sheet, Description, Revision).
     # We identify them by content so the main loop can handle them as a group.
-    _DOC_HDR_CONTENTS = {'Documentation List', 'Sheet', 'Description', 'Revision'}
+    # Pre-pass: record row indices marked to repeat on overflow columns
     _doc_list_row_indices = set()
+    _HEADER_ONLY_TYPES = {'text', 'blank', 'logo', None}
     for _ri, _row in enumerate(ROWS):
-        _first = next((b for b in _row.get('blocks', []) if b), None)
-        if _first and _first.get('content', '') in _DOC_HDR_CONTENTS:
-            _doc_list_row_indices.add(_ri)
+        if _row.get('repeat_every_page', False):
+            # Only treat as a repeating header if all blocks are text/blank/logo,
+            # not spine or data blocks which need their own dispatch handler
+            _all_header = all(
+                (b.get('type') if b else None) in _HEADER_ONLY_TYPES
+                for b in _row.get('blocks', [])
+            )
+            if _all_header:
+                _doc_list_row_indices.add(_ri)
 
     # ── Row type resolver ─────────────────────────────────────────────────────
     # Rows often have a plain text label in col A and the data block in col D.
@@ -869,31 +876,27 @@ with Transaction(doc, "pyTransmit DV - Draw transmittal") as t:
             _hrh  = max(H_HDR, _hsmm * 2.5 * MM)
             _hy_top, _hy_mid, _hy_bot = row(_hrh)
             _hcontent = _hfirst.get('content', '')
-            if _hcontent == 'Documentation List':
-                create_text(vw, x_off + COL_A_X + INDENT,
-                            _ty(_hy_mid, _hsmm), _hcontent,
-                            _tt(_hfirst.get('text_style', 'Header')))
+            _hhas_data = any(b and b.get('type','') in ('sheet_number','sheet_desc','spine_rev')
+                             for b in _hblocks)
+            if not _hhas_data:
+                _place_text(vw, x_off + COL_A_X, _ty(_hy_mid, _hsmm), _hcontent,
+                            TABLE_W, _tt(_hfirst.get('text_style', 'Header')),
+                            _hfirst.get('just', 'left'))
             else:
                 if FRT_HDR:
                     create_filled_region(vw, FRT_HDR,
                         x_off + COL_A_X, _hy_top, x_off + TABLE_W, _hy_bot)
                 _sheet_hdr_y_bot = _hy_bot
-                _ci2 = 0
+                _hci = 0
                 for _b2 in _hblocks:
                     if not _b2:
-                        _ci2 += 1; continue
-                    _bx2   = _col_x(_ci2) if _ci2 < 3 else REV_X[0]
-                    _bsmm2 = _style_mm(_b2.get('text_style', 'Header'))
-                    _bjust2 = _b2.get('just', 'left')
-                    _ba2 = (HorizontalTextAlignment.Right if _bjust2 == 'right' else
-                            HorizontalTextAlignment.Center if _bjust2 == 'center' else
-                            HorizontalTextAlignment.Left)
-                    _bxd = (x_off + _bx2 + INDENT if _bjust2 != 'right'
-                            else x_off + _bx2 + _col_w(_ci2, _b2.get('span', 1)) - INDENT)
-                    create_text(vw, _bxd, _ty(_hy_mid, _bsmm2),
-                                _b2.get('content', ''),
-                                _tt(_b2.get('text_style', 'Header')), _ba2)
-                    _ci2 += _b2.get('span', 1)
+                        continue
+                    _bx2  = _col_x(_hci) if _hci < 3 else REV_X[0]
+                    _bw2  = _col_w(_hci, _b2.get('span', 1))
+                    _place_text(vw, x_off + _bx2, _ty(_hy_mid, _style_mm(_b2.get('text_style', 'Header'))),
+                                _b2.get('content', ''), _bw2,
+                                _tt(_b2.get('text_style', 'Header')), _b2.get('just', 'left'))
+                    _hci += _b2.get('span', 1)
 
     for _ri, _row in enumerate(ROWS):
         _blocks  = _row.get('blocks', [])
@@ -913,30 +916,22 @@ with Transaction(doc, "pyTransmit DV - Draw transmittal") as t:
             if _doc_list_y_start is None:
                 _doc_list_y_start = _y
             y_top, y_mid, y_bot = row(max(H_HDR, _smm * 2.5 * MM))
-            if _content == 'Documentation List':
-                _sheet_hdr_y_bot = None
-                create_text(vw, _x_off + COL_A_X + INDENT, _ty(y_mid, _smm),
-                            _content, _tt(_style))
-            else:
-                if FRT_HDR:
-                    create_filled_region(vw, FRT_HDR,
-                        _x_off + COL_A_X, y_top, _x_off + TABLE_W, y_bot)
-                _sheet_hdr_y_bot = y_bot
-                _ci = 0
-                for _b in _blocks:
-                    if not _b:
-                        _ci += 1; continue
-                    _bx   = _col_x(_ci) if _ci < 3 else REV_X[0]
-                    _bsmm = _style_mm(_b.get('text_style', _style))
-                    _bjust = _b.get('just', 'left')
-                    _ba = (HorizontalTextAlignment.Right if _bjust == 'right' else
-                           HorizontalTextAlignment.Center if _bjust == 'center' else
-                           HorizontalTextAlignment.Left)
-                    _bxd = (_x_off + _bx + INDENT if _bjust != 'right'
-                            else _x_off + _bx + _col_w(_ci, _b.get('span', 1)) - INDENT)
-                    create_text(vw, _bxd, _ty(y_mid, _bsmm),
-                                _b.get('content', ''), _tt(_b.get('text_style', _style)), _ba)
-                    _ci += _b.get('span', 1)
+            _has_data_blocks = any(b and b.get('type','') in ('sheet_number','sheet_desc','spine_rev')
+                                   for b in _blocks)
+            if FRT_HDR:
+                create_filled_region(vw, FRT_HDR,
+                    _x_off + COL_A_X, y_top, _x_off + TABLE_W, y_bot)
+            _sheet_hdr_y_bot = y_bot
+            _dci = 0
+            for _b in _blocks:
+                if not _b:
+                    continue
+                _bx = _col_x(_dci) if _dci < 3 else REV_X[0]
+                _bw = _col_w(_dci, _b.get('span', 1))
+                _place_text(vw, _x_off + _bx, _ty(y_mid, _style_mm(_b.get('text_style', _style))),
+                            _b.get('content', ''), _bw,
+                            _tt(_b.get('text_style', _style)), _b.get('just', 'left'))
+                _dci += _b.get('span', 1)
             continue
 
         # ── Sheet data rows ───────────────────────────────────────────────────
@@ -998,8 +993,8 @@ with Transaction(doc, "pyTransmit DV - Draw transmittal") as t:
                         _sheet_ys = []
                     _gy_top, _gy_mid, _gy_bot = row(H_HDR)
                     if GROUP_LABEL:
-                        create_text(vw, _x_off + COL_A_X + INDENT,
-                                    _ty(_gy_mid, _HDR_MM), _item, _tt('Header'))
+                        _place_text(vw, _x_off + COL_A_X, _ty(_gy_mid, _HDR_MM),
+                                    _item, TABLE_W, _tt('Header'), 'left')
                     _sheet_hdr_y_bot = _gy_bot
                 else:
                     sheet = _item
@@ -1007,10 +1002,10 @@ with Transaction(doc, "pyTransmit DV - Draw transmittal") as t:
                     _sheet_ys.append((_sy_top, _sy_mid, _sy_bot))
                     _rows_in_block += 1
                     _ty2 = _ty(_sy_mid, _DATA_MM)
-                    create_text(vw, _x_off + COL_A_X + INDENT, _ty2,
-                                str(sheet.SheetNumber), _tt('Data'))
-                    create_text_w(vw, _x_off + COL_B_X + INDENT, _ty2,
-                                  str(sheet.Name), C_B + C_C - INDENT * 2, _tt('Data'))
+                    _place_text(vw, _x_off + COL_A_X, _ty2,
+                                str(sheet.SheetNumber), C_A, _tt('Data'), 'left')
+                    _place_text(vw, _x_off + COL_B_X, _ty2,
+                                str(sheet.Name), C_B + C_C, _tt('Data'), 'left')
                     _sheet_rev_ids = set(sheet.GetAllRevisionIds())
                     for _rci in range(MAX_REVS):
                         if _rci < n_revs and issued_revs[_rci].Id in _sheet_rev_ids:
@@ -1038,14 +1033,12 @@ with Transaction(doc, "pyTransmit DV - Draw transmittal") as t:
             _date_b  = next((b for b in _blocks if b and b.get('type') == 'spine_dates'), None)
             if _label_b:
                 _lsmm = _style_mm(_label_b.get('text_style', 'Header'))
-                _la   = (HorizontalTextAlignment.Right
-                         if _label_b.get('just', 'right') == 'right'
-                         else HorizontalTextAlignment.Left)
-                _lx   = (COL_C_X + C_C - INDENT if _la == HorizontalTextAlignment.Right
-                         else COL_A_X + INDENT)
-                create_text(vw, _lx, _ty(y_mid, _lsmm),
+                _label_span = _label_b.get('span', 3)
+                _label_w    = _col_w(0, _label_span)
+                _place_text(vw, COL_A_X, _ty(y_mid, _lsmm),
                             _label_b.get('content', 'Date of Issue'),
-                            _tt(_label_b.get('text_style', 'Header')), _la)
+                            _label_w, _tt(_label_b.get('text_style', 'Header')),
+                            _label_b.get('just', 'right'))
             if _date_b:
                 _dsmm = _style_mm(_date_b.get('text_style', 'Data'))
                 for _rci in range(MAX_REVS):
@@ -1077,15 +1070,13 @@ with Transaction(doc, "pyTransmit DV - Draw transmittal") as t:
             y_top, y_mid, y_bot = row(H_META)
             _label_b3 = next((b for b in _blocks if b and b.get('type') == 'text'), None)
             if _label_b3:
-                _lsmm3 = _style_mm(_label_b3.get('text_style', 'Header'))
-                _la3   = (HorizontalTextAlignment.Right
-                          if _label_b3.get('just', 'right') == 'right'
-                          else HorizontalTextAlignment.Left)
-                _lx3   = (COL_C_X + C_C - INDENT if _la3 == HorizontalTextAlignment.Right
-                          else COL_A_X + INDENT)
-                create_text(vw, _lx3, _ty(y_mid, _lsmm3),
-                            _label_b3.get('content', ''),
-                            _tt(_label_b3.get('text_style', 'Header')), _la3)
+                _lsmm3   = _style_mm(_label_b3.get('text_style', 'Header'))
+                _lspan3  = _label_b3.get('span', 3)
+                _lwidth3 = _col_w(0, _lspan3)
+                _place_text(vw, COL_A_X, _ty(y_mid, _lsmm3),
+                            _label_b3.get('content', ''), _lwidth3,
+                            _tt(_label_b3.get('text_style', 'Header')),
+                            _label_b3.get('just', 'right'))
             for _rci in range(MAX_REVS):
                 _val = rev_meta[_rci].get(_mk, '') if _rci < n_revs else ''
                 if _val:
@@ -1107,9 +1098,17 @@ with Transaction(doc, "pyTransmit DV - Draw transmittal") as t:
                 _label   = _rec.get('label', '')
                 _attn    = _rec.get('attn', '')
                 _rty     = _ty(_ry_mid, _dsmm)
-                create_text(vw, COL_A_X + INDENT, _rty, _label, _tt('Data'))
+                _sent_b  = next((b for b in _blocks if b and b.get('type') == 'sent_to'), None)
+                _attn_b  = next((b for b in _blocks if b and b.get('type') == 'attn_to'), None)
+                _sent_w  = _col_w(0, (_sent_b or {}).get('span', 1))
+                _attn_w  = _col_w(1 if (_sent_b or {}).get('span', 1) < 2 else 2,
+                                  (_attn_b or {}).get('span', 1))
+                _place_text(vw, COL_A_X, _rty, _label, _sent_w, _tt('Data'),
+                            (_sent_b or {}).get('just', 'left'))
                 if _attn:
-                    create_text(vw, COL_B_X + INDENT, _rty, _attn, _tt('Data'))
+                    _attn_x = COL_A_X + _sent_w
+                    _place_text(vw, _attn_x, _rty, _attn, _attn_w, _tt('Data'),
+                                (_attn_b or {}).get('just', 'left'))
                 for _rci in range(MAX_REVS):
                     if _rci >= n_revs: break
                     _ito = issued_revs[_rci].IssuedTo or ''
@@ -1122,8 +1121,15 @@ with Transaction(doc, "pyTransmit DV - Draw transmittal") as t:
             _sent_db     = (_copy_b or _first or {}).get('data_borders', {})
             _vrow6 = _VLINES.get(_ri, [True, True, False, True, True])
             _xs6   = _vline_xs()
+            _locked6 = set()
+            _ci6 = 0
+            for _bb6 in _blocks:
+                if not _bb6: continue
+                for _s in range(1, _bb6.get('span', 1)):
+                    _locked6.add(_ci6 + _s)
+                _ci6 += _bb6.get('span', 1)
             for _vi6, _draw6 in enumerate(_vrow6):
-                if _draw6 and _vi6 < len(_xs6):
+                if _draw6 and _vi6 < len(_xs6) and _vi6 not in _locked6:
                     create_line(vw, _xs6[_vi6], _dist_y_top, _xs6[_vi6], _dist_y_bot)
             if any(_HLINES.get(_ri, [])):
                 create_line(vw, COL_A_X, _dist_y_top, TABLE_W, _dist_y_top)
@@ -1139,26 +1145,52 @@ with Transaction(doc, "pyTransmit DV - Draw transmittal") as t:
 
         # ── reason_list / method_list (inline legend row) ─────────────────────
         if _dispatch in ('reason_list', 'method_list'):
-            _legend   = REASON_LEGEND if _dispatch == 'reason_list' else METHOD_LEGEND
-            _leg_b    = next((b for b in _blocks if b and b.get('type') == _dispatch), None)
-            _leg_smm  = _style_mm(_leg_b.get('text_style', 'Data')) if _leg_b else _DATA_MM
-            _lines    = [l for l in _legend.splitlines() if l.strip()]
-            _leg_rh   = max(H_DATA, _leg_smm * 1.4 * len(_lines) * MM + 2.0 * MM)
+            _legend      = REASON_LEGEND if _dispatch == 'reason_list' else METHOD_LEGEND
+            _leg_b       = next((b for b in _blocks if b and b.get('type') == _dispatch), None)
+            _leg_style   = _leg_b.get('text_style', 'Data') if _leg_b else 'Data'
+            _leg_smm     = _style_mm(_leg_style)
+            _leg_just    = _leg_b.get('just', 'left') if _leg_b else 'left'
+            _leg_ba      = (HorizontalTextAlignment.Right  if _leg_just == 'right'  else
+                            HorizontalTextAlignment.Center if _leg_just == 'center' else
+                            HorizontalTextAlignment.Left)
+            _leg_ls      = _leg_b.get('list_style', 'list') if _leg_b else 'list'
+            _lines       = [l for l in _legend.splitlines() if l.strip()]
+            _render_text = "  |  ".join(_lines) if _leg_ls == 'row' else "\n".join(_lines)
+            _height_lines = 1 if _leg_ls == 'row' else len(_lines)
+            _leg_rh      = max(H_DATA, _leg_smm * 1.4 * _height_lines * MM + 2.0 * MM)
             y_top, y_mid, y_bot = row(_leg_rh)
-            # Label in col A (plain text block)
+            # Label in col A, width-bounded to its span to prevent overflow into legend text
             _label_b4 = next((b for b in _blocks if b and b.get('type') == 'text'), None)
             if _label_b4:
-                _lsmm4 = _style_mm(_label_b4.get('text_style', 'Data'))
-                create_text(vw, COL_A_X + INDENT,
-                            y_top - INDENT - (_lsmm4 * MM),
-                            _label_b4.get('content', ''), _tt(_label_b4.get('text_style', 'Data')))
-            # Legend text from col B onward
-            _leg_span_start = 1  # start after col A label
-            _lx_start = _col_x(_leg_span_start)
-            _lwidth   = TABLE_W - _lx_start - INDENT
-            create_text_w(vw, _lx_start + INDENT,
-                          y_top - INDENT - (_leg_smm * MM),
-                          "  |  ".join(_lines), _lwidth, _tt('Data'))
+                _lsmm4  = _style_mm(_label_b4.get('text_style', 'Data'))
+                _lbx4   = _col_x(0)
+                _lspan4 = _label_b4.get('span', 1)
+                _lw4    = _col_w(0, _lspan4) - INDENT * 2
+                _ljust4 = _label_b4.get('just', 'left')
+                _lba4   = (HorizontalTextAlignment.Right  if _ljust4 == 'right'  else
+                           HorizontalTextAlignment.Center if _ljust4 == 'center' else
+                           HorizontalTextAlignment.Left)
+                create_text_w(vw, _lbx4 + INDENT, _ty(y_mid, _lsmm4),
+                              _label_b4.get('content', ''), _lw4,
+                              _tt(_label_b4.get('text_style', 'Data')), _lba4)
+            # Legend text placed at the reason_list block's canvas column and span
+            # Walk blocks to get canvas column index, not raw array index
+            _leg_ci_canvas = 0
+            for _lb in _blocks:
+                if not _lb: continue
+                if _lb.get('type') == _dispatch: break
+                _leg_ci_canvas += _lb.get('span', 1)
+            _leg_span = _leg_b.get('span', 1) if _leg_b else 1
+            _lx_start = _col_x(_leg_ci_canvas) if _leg_ci_canvas < 3 else REV_X[0]
+            _lwidth   = _col_w(_leg_ci_canvas, _leg_span)
+            # Place with Left anchor so Revit anchors box at _lx_start, then set alignment within
+            _leg_note = create_text_w(vw, _lx_start + INDENT, _ty(y_mid, _leg_smm),
+                                      _render_text, _lwidth - INDENT * 2, _tt(_leg_style),
+                                      HorizontalTextAlignment.Left)
+            if _leg_note and _leg_ba != HorizontalTextAlignment.Left:
+                try: _leg_note.HorizontalAlignment = _leg_ba
+                except Exception: pass
+            draw_row_borders(vw, _ri, y_top, y_bot, blocks=_blocks)
             continue
 
         # ── logo / title bar ──────────────────────────────────────────────────
@@ -1166,8 +1198,9 @@ with Transaction(doc, "pyTransmit DV - Draw transmittal") as t:
             y_top, y_mid, y_bot = row(H_TITLE)
             if FRT_TITLE:
                 create_filled_region(vw, FRT_TITLE, COL_A_X, y_top, TABLE_W, y_bot)
-            create_text(vw, COL_A_X + INDENT, _ty(y_mid, _TITLE_MM),
-                        "Transmittal Document", _tt('Title'))
+            _place_text(vw, COL_A_X, _ty(y_mid, _TITLE_MM),
+                        _content or 'Transmittal Document', TABLE_W, _tt('Title'),
+                        _first.get('just', 'left'))
             if _logo_type:
                 try:
                     _iw = _logo_type.Width; _ih = _logo_type.Height
@@ -1188,18 +1221,20 @@ with Transaction(doc, "pyTransmit DV - Draw transmittal") as t:
 
         # ── plain text / section header ───────────────────────────────────────
         if _dispatch == 'text':
-            y_top, y_mid, y_bot = row(max(H_HDR, _smm * 2.5 * MM))
-            _align = (HorizontalTextAlignment.Right  if _just == 'right'  else
-                      HorizontalTextAlignment.Center if _just == 'center' else
-                      HorizontalTextAlignment.Left)
-            _bx_draw = (COL_A_X + INDENT if _just != 'right'
-                        else COL_C_X + C_C - INDENT)
-            create_text(vw, _bx_draw, _ty(y_mid, _smm), _content, _tt(_style), _align)
-            _bords = _first.get('borders', {})
-            if _bords.get('t'): create_line(vw, COL_A_X, y_top, TABLE_W, y_top)
-            if _bords.get('b'): create_line(vw, COL_A_X, y_bot, TABLE_W, y_bot)
-            if _bords.get('l'): create_line(vw, COL_A_X, y_top, COL_A_X, y_bot)
-            if _bords.get('r'): create_line(vw, TABLE_W, y_top, TABLE_W, y_bot)
+            _row_h = max(H_HDR, _smm * 2.5 * MM)
+            y_top, y_mid, y_bot = row(_row_h)
+            # Render every text block in the row, sized to its canvas column span
+            _tci = 0
+            for _tb in _blocks:
+                if not _tb:
+                    continue
+                _tbx = _col_x(_tci) if _tci < 3 else REV_X[0]
+                _tbw = _col_w(_tci, _tb.get('span', 1))
+                _place_text(vw, _tbx, _ty(y_mid, _style_mm(_tb.get('text_style', 'Data'))),
+                            _tb.get('content', ''), _tbw,
+                            _tt(_tb.get('text_style', 'Data')), _tb.get('just', 'left'))
+                _tci += _tb.get('span', 1)
+            draw_row_borders(vw, _ri, y_top, y_bot, blocks=_blocks)
             continue
 
         # ── blank spacer ──────────────────────────────────────────────────────
@@ -1207,7 +1242,6 @@ with Transaction(doc, "pyTransmit DV - Draw transmittal") as t:
             row(_rh)
             continue
 
-    t.Commit()
 
 output.print_md("## Done!")
 output.print_md("Drafting view **'{}'** updated.".format(VIEW_NAME))

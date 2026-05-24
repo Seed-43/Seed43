@@ -1,43 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-LayoutSettings.py  —  pyTransmit Layout Builder v5
-====================================================
-Full WPF port of the HTML v5 prototype.
-
-Features:
-  - Block palette grouped by function (Layout / Project / Distribution /
-    Documentation / Revision / Metadata)
-  - Canvas rows with 4 column slots; drag-and-drop from palette and between slots
-  - Column span stepper per block + row span for merged groups
-  - Excel-style column drag-resize + editable percentages + settings dialog
-  - Page size selector (A4/A3 portrait/landscape + custom mm)
-  - Row merging: link adjacent rows into groups, move/delete as unit
-  - Row section tags: Body / Repeat Header / Footer (for Excel print layout)
-  - Per-block settings panel:
-      · Horizontal + vertical justification
-      · Background colour
-      · Borders (Top / Bottom / Left / Right)
-      · Data grid lines (Horizontal / Vertical) for data blocks
-      · Spine options (Vertical lines / Rotation) for revision blocks
-      · Text style reference
-      · Alternate row colours (data blocks only)
-      · List vs Row display (Reason / Method blocks)
-      · Page format / date format / prefix / suffix (Page Count / Issue Date)
-  - Global text styles (Title / Header / Data + user-defined)
-      · Font family (system fonts), size (mm), Bold / Italic / Underline, colour
-  - Logo path setting with browse
-  - Revision count control (1-20)
-  - Named templates with add / delete / save as
-  - Per-template JSON files in Settings/layouts/
-  - Live paper preview (scales to panel width, paper padding)
-
-Usage:
-    from LayoutSettings import LayoutSettingsWindow
-    win = LayoutSettingsWindow(script_dir)
-    win.ShowDialog()
-
-    layout = win.get_active_layout()   # dict with rows, rev_count, col_pct ...
-"""
+# LayoutSettings.py
 
 import os
 import json
@@ -58,53 +20,54 @@ import System.Windows.Media.Imaging as _SWMI
 import System.Windows.Shapes as _SWS
 
 from pyrevit.forms import WPFWindow
+from Snippets._icons import make_icon
 
 
 # ── Paths ─────────────────────────────────────────────────────────
 LAYOUT_CONFIG_FILE = 'layout_config.json'    # UI state only
-LAYOUTS_SUBDIR     = 'layouts'                # per-template JSON files
+LAYOUTS_SUBDIR     = 'Layouts'                # per-template JSON files
 
 # ── Palette definition ────────────────────────────────────────────
 # (type, label, icon, group, subtext)
 # group: layout | project | dist | docs | revision | meta
 PALETTE = [
-    ('__grp__', 'Layout',         '', 'layout',   ''),
-    ('logo',          'Logo',              '🖼', 'layout',   ''),
-    ('text',          'Text',              '¶',  'layout',   'body / {{token}}'),
-    ('blank',         'Blank Row',         '▭',  'layout',   '% height spacer'),
-    ('page_count',    'Page Count',        '🔢', 'layout',   'page X of Y'),
-    ('issue_date',    'Current Issue Date','📅', 'layout',   'latest revision date'),
+    ('__grp__',        'Layout',                '', 'layout',   ''),
+    ('logo',           'Logo',                  'logo_image',         'layout',   ''),
+    ('text',           'Text',                  'text',         'layout',   'body / {{token}}'),
+    ('blank',          'Blank Row',             'show_all',           'layout',   '% height spacer'),
+    ('page_count',     'Page Count',            'revisions',          'layout',   'page X of Y'),
+    ('issue_date',     'Current Issue Date',    'select_revision',    'layout',   'latest revision date'),
 
-    ('__grp__', 'Project Info',   '', 'project',  ''),
-    ('proj_org',      'Organisation',      '🏢', 'project',  ''),
-    ('proj_client',   'Client',            '👤', 'project',  ''),
-    ('proj_number',   'Project Number',    '#',  'project',  ''),
-    ('proj_name',     'Project Name',      '📋', 'project',  ''),
+    ('__grp__',        'Project Info',          '', 'project',  ''),
+    ('proj_org',       'Organisation',          'client_list',        'project',  ''),
+    ('proj_client',    'Client',                'recipients',         'project',  ''),
+    ('proj_number',    'Project Number',        'parameters_data',    'project',  ''),
+    ('proj_name',      'Project Name',          'sheet_document',     'project',  ''),
 
-    ('__grp__', 'Distribution',   '', 'dist',     ''),
-    ('sent_to',       'Sent To',           '📬', 'dist',     'company names'),
-    ('attn_to',       'Attention To',      '✉',  'dist',     'contact names'),
+    ('__grp__',        'Distribution',          '', 'dist',     ''),
+    ('sent_to',        'Sent To',               'distribution_list',  'dist',     'company names'),
+    ('attn_to',        'Attention To',          'issued_by',          'dist',     'contact names'),
 
-    ('__grp__', 'Documentation',  '', 'docs',     ''),
-    ('sheet_number',  'Sheet Number',      '#',  'docs',     'drawing numbers'),
-    ('sheet_desc',    'Sheet Description', '📝', 'docs',     'drawing titles'),
-    ('drawing_group', 'Drawing Group',     '📁', 'docs',     'group headers'),
+    ('__grp__',        'Documentation',         '', 'docs',     ''),
+    ('sheet_number',   'Sheet Number',          'parameters_data',    'docs',     'drawing numbers'),
+    ('sheet_desc',     'Sheet Description',     'text',         'docs',     'drawing titles'),
+    ('drawing_group',  'Drawing Group',         'families_components','docs',     'group headers'),
 
-    ('__grp__', 'Revision',       '', 'revision', ''),
-    ('spine_dates',   'Date of Issue',     '📅', 'revision', 'rotated headers'),
-    ('spine_copies',  'Number of Copies',  '📦', 'revision', 'per revision'),
-    ('spine_rev',     'Revision Marks',    '🔄', 'revision', 'A B C per drawing'),
-    ('spine_initials','Initials',          '✍',  'revision', 'issued by'),
-    ('spine_reason',  'Reason for Issue Code', '🔖', 'revision', 'per revision'),
-    ('spine_method',  'Method of Issue Code',  '📨', 'revision', 'per revision'),
-    ('spine_doc_type','Document Type Code',     '🗂', 'revision', 'per revision'),
-    ('spine_print_size','Print Size Code',      '📐', 'revision', 'per revision'),
+    ('__grp__',        'Revision',              '', 'revision', ''),
+    ('spine_dates',    'Date of Issue',         'select_revision',    'revision', 'rotated headers'),
+    ('spine_copies',   'Number of Copies',      'copy_match',      'revision', 'per revision'),
+    ('spine_rev',      'Revision Marks',        'revisions',          'revision', 'A B C per drawing'),
+    ('spine_initials', 'Initials',              'issued_by',          'revision', 'issued by'),
+    ('spine_reason',   'Reason for Issue Code', 'reason_for_issue',   'revision', 'per revision'),
+    ('spine_method',   'Method of Issue Code',  'method_of_issue',    'revision', 'per revision'),
+    ('spine_doc_type', 'Document Type Code',    'sheet_document',     'revision', 'per revision'),
+    ('spine_print_size','Print Size Code',      'print_size',         'revision', 'per revision'),
 
-    ('__grp__', 'Metadata',       '', 'meta',     ''),
-    ('reason_list',   'Reason for Issue',  '❓', 'meta',     'list or row'),
-    ('method_list',   'Method of Issue',   '📮', 'meta',     'list or row'),
-    ('doc_type',      'Document Type',     '🗂', 'meta',     ''),
-    ('print_size',    'Print Size',        '📐', 'meta',     ''),
+    ('__grp__',        'Metadata',              '', 'meta',     ''),
+    ('reason_list',    'Reason for Issue',      'reason_for_issue',   'meta',     'list or row'),
+    ('method_list',    'Method of Issue',       'method_of_issue',    'meta',     'list or row'),
+    ('doc_type',       'Document Type',         'sheet_document',     'meta',     ''),
+    ('print_size',     'Print Size',            'print_size',         'meta',     ''),
 ]
 
 TYPE_NAMES  = {p[0]: p[1] for p in PALETTE if p[0] != '__grp__'}
@@ -236,7 +199,8 @@ def _mk(t, **kw):
          'content':'','rotation':0,
          'prefix':'','suffix':'',
          'page_format':'Page X of Y',
-         'date_format':'dd/MM/yyyy'}
+         'date_format':'dd/MM/yyyy',
+         'repeat_every_page':False}
     d.update(kw)
     return d
 
@@ -1071,6 +1035,10 @@ class LayoutSettingsWindow(WPFWindow):
         self.pal_blocks_btn.Background   = BK['row']
         self._render_style_cards()
 
+        # ── Load UI icons ─────────────────────────────────────────────────────
+        self.del_template_btn.Content = make_icon('delete', size=12, color='#FFFFFF')
+        self.col_settings_btn.Content = make_icon('setup', size=12, color='#FFFFFF')
+
         # Wire column-splitter drag handlers (Excel-style)
         try:
             self._wire_col_splitters()
@@ -1111,7 +1079,8 @@ class LayoutSettingsWindow(WPFWindow):
 
         self._active_tmpl = ui.get('active_template', 'Excel')
         self._text_styles = ui.get('text_styles', copy.deepcopy(DEFAULT_TEXT_STYLES))
-        self._logo_path   = ui.get('logo_path', '')
+        _lp = ui.get('logo_path', '')
+        self._logo_path   = _lp if (_lp and os.path.isfile(_lp)) else ''
         self._col_pct     = ui.get('col_pct', [18, 35, 17])
 
         # 2) Load every template JSON found in the layouts dir
@@ -1173,6 +1142,7 @@ class LayoutSettingsWindow(WPFWindow):
         td = self._templates[self._active_tmpl]
         self._rows        = copy.deepcopy(td.get('rows', []))
         self._rev_count   = int(td.get('rev_count', 4))
+        self._col_pct     = list(td.get('col_pct', self._col_pct))
         self._page_w_mm   = td.get('page_w_mm', 210)
         self._page_h_mm   = td.get('page_h_mm', 297)
         self._orientation = td.get('orientation', 'portrait')
@@ -1206,7 +1176,6 @@ class LayoutSettingsWindow(WPFWindow):
                 'page_h_mm':   td.get('page_h_mm', 297),
                 'orientation': td.get('orientation', 'portrait'),
                 'text_styles': copy.deepcopy(self._text_styles),
-                'logo_path':   self._logo_path,
                 'rows':        td.get('rows', []),
                 'hlines':      td.get('hlines', {}),
                 'vlines':      td.get('vlines', {}),
@@ -1271,6 +1240,7 @@ class LayoutSettingsWindow(WPFWindow):
         if not hasattr(self, '_vlines'): self._vlines = {}
         if ri not in self._vlines: self._vlines[ri] = [False]*5
         self._vlines[ri][pos] = not self._vlines[ri][pos]
+        self._status('vline toggled: row={} pos={} value={}'.format(ri, pos, self._vlines[ri][pos]))
         self._render_canvas(); self._render_preview()
 
     # ── Sync UI controls ─────────────────────────────────────────
@@ -1309,6 +1279,7 @@ class LayoutSettingsWindow(WPFWindow):
 
         self._update_rev_label()
         self._update_prev_info()
+        self._sync_page_cb()
 
     def _update_rev_label(self):
         # No-op now — lbl_d shows the column percentage, not rev count
@@ -1632,6 +1603,7 @@ class LayoutSettingsWindow(WPFWindow):
         td = self._templates[self._active_tmpl]
         self._rows        = copy.deepcopy(td.get('rows', []))
         self._rev_count   = int(td.get('rev_count', 4))
+        self._col_pct     = list(td.get('col_pct', [18, 35, 17]))
         self._page_w_mm   = td.get('page_w_mm', 210)
         self._page_h_mm   = td.get('page_h_mm', 297)
         self._orientation = td.get('orientation', 'portrait')
@@ -1775,7 +1747,14 @@ class LayoutSettingsWindow(WPFWindow):
         sp.Children.Add(hint)
 
         # ── Block settings ────────────────────────────────────────
-        settings_panel = self._make_settings_panel(ri, ci, block)
+        # Compute col-span max and group membership for the span controls
+        _row = self._rows[ri] if ri < len(self._rows) else {}
+        _n_cols = len(_row.get('blocks', []))
+        _mx = _n_cols - ci
+        # A row is in a group if it has merge_down=True, or a row above it does
+        _prev_merge = ri > 0 and self._rows[ri - 1].get('merge_down', False)
+        _in_group = bool(_row.get('merge_down', False) or _prev_merge)
+        settings_panel = self._make_settings_panel(ri, ci, block, _mx, _in_group)
         sp.Children.Add(settings_panel)
 
     # ── Palette builder ───────────────────────────────────────────
@@ -1819,13 +1798,23 @@ class LayoutSettingsWindow(WPFWindow):
         sp = _SWC.StackPanel()
         outer.Child = sp
 
-        # Header row (icon + label) — matches style-card header (Foreground=Accent, FontSize=11, SemiBold)
+        # Header row: vector icon + label
+        hdr_sp = _SWC.StackPanel()
+        hdr_sp.Orientation = _SWC.Orientation.Horizontal
+        if icon:
+            ico = make_icon(icon, size=12, color='#{:02X}{:02X}{:02X}'.format(
+                int(grp_color.Color.R), int(grp_color.Color.G), int(grp_color.Color.B)))
+            ico.Margin = _SW.Thickness(0, 0, 5, 0)
+            ico.VerticalAlignment = _SW.VerticalAlignment.Center
+            hdr_sp.Children.Add(ico)
         hdr_tb = _SWC.TextBlock()
-        hdr_tb.Text = (icon or '') + '  ' + label
+        hdr_tb.Text = label
         hdr_tb.Foreground = grp_color
         hdr_tb.FontSize = 11
         hdr_tb.FontWeight = _SW.FontWeights.SemiBold
-        sp.Children.Add(hdr_tb)
+        hdr_tb.VerticalAlignment = _SW.VerticalAlignment.Center
+        hdr_sp.Children.Add(hdr_tb)
+        sp.Children.Add(hdr_sp)
 
         if sub:
             sub_tb = _SWC.TextBlock()
@@ -1904,19 +1893,34 @@ class LayoutSettingsWindow(WPFWindow):
         self._render_canvas(); self._render_preview()
 
     def _cycle_section(self, ri):
-        """Cycle the row's section tag: body → repeat_header → footer → body.
-        For merged groups, applies to ALL rows in the group."""
-        order = ['body', 'repeat_header', 'footer']
+        """Cycle section and repeat state through 5 steps:
+        body → repeat_header (first page) → repeat_header (every page) → footer (first page) → footer (every page) → body."""
+        # Each state is (section, repeat_every_page)
+        order = [
+            ('body',          False),
+            ('repeat_header', False),
+            ('repeat_header', True),
+            ('footer',        False),
+            ('footer',        True),
+        ]
         start, end = self._get_group(ri)
-        current = self._rows[start].get('section', 'body')
+        current_sec = self._rows[start].get('section', 'body')
+        current_rep = self._rows[start].get('repeat_every_page', False)
+        current = (current_sec, current_rep)
         idx = order.index(current) if current in order else 0
-        new_section = order[(idx + 1) % len(order)]
-        # Apply to all rows in the group
+        new_sec, new_rep = order[(idx + 1) % len(order)]
         for r in range(start, end + 1):
-            self._rows[r]['section'] = new_section
+            self._rows[r]['section'] = new_sec
+            self._rows[r]['repeat_every_page'] = new_rep
         self._render_canvas()
-        labels = {'body': 'Body', 'repeat_header': 'Repeat Header', 'footer': 'Footer'}
-        self._status('Section: {}'.format(labels.get(new_section, new_section)))
+        labels = {
+            ('body',          False): 'Body',
+            ('repeat_header', False): 'Header, first page only',
+            ('repeat_header', True):  'Header, every page',
+            ('footer',        False): 'Footer, last page only',
+            ('footer',        True):  'Footer, every page',
+        }
+        self._status('Section: {}'.format(labels.get((new_sec, new_rep), new_sec)))
 
     def _remove_row(self, ri):
         start, end = self._get_group(ri)
@@ -2075,6 +2079,23 @@ class LayoutSettingsWindow(WPFWindow):
             self._render_canvas()
             self._render_preview()
 
+    # ── Section colour helpers ────────────────────────────────────
+    def _section_brush(self, section, repeat_every_page=False):
+        if section == 'repeat_header':
+            c = _SWM.Color.FromRgb(0x85, 0xC1, 0xE9) if repeat_every_page else _SWM.Color.FromRgb(0x29, 0x80, 0xB9)
+        elif section == 'footer':
+            c = _SWM.Color.FromRgb(0xC3, 0x9B, 0xD7) if repeat_every_page else _SWM.Color.FromRgb(0x8E, 0x44, 0xAD)
+        else:
+            return BK['accent']
+        return _SWM.SolidColorBrush(c)
+
+    def _section_label(self, section, repeat_every_page=False):
+        if section == 'repeat_header':
+            return 'HEADER, EVERY PAGE' if repeat_every_page else 'HEADER, FIRST PAGE'
+        elif section == 'footer':
+            return 'FOOTER, EVERY PAGE' if repeat_every_page else 'FOOTER, LAST PAGE'
+        return ''
+
     # ── Canvas render ─────────────────────────────────────────────
     def _render_canvas(self):
         stack = self.canvas_stack
@@ -2102,15 +2123,12 @@ class LayoutSettingsWindow(WPFWindow):
             if is_group:
                 # Determine group section and colour
                 section = self._rows[start].get('section', 'body')
-                sec_border_colors = {
-                    'body':          BK['accent'],
-                    'repeat_header': _SWM.SolidColorBrush(_SWM.Color.FromRgb(0x29, 0x80, 0xB9)),
-                    'footer':        _SWM.SolidColorBrush(_SWM.Color.FromRgb(0x8E, 0x44, 0xAD)),
-                }
-                sec_label_text = {'body': '', 'repeat_header': 'REPEAT HEADER', 'footer': 'FOOTER'}
+                _is_rep  = self._rows[start].get('repeat_every_page', False)
+                _sec_brush = self._section_brush(section, _is_rep)
+                _sec_label = self._section_label(section, _is_rep)
 
                 group_border = _SWC.Border()
-                group_border.BorderBrush = sec_border_colors.get(section, BK['accent'])
+                group_border.BorderBrush = _sec_brush
                 group_border.BorderThickness = _SW.Thickness(2)
                 group_border.CornerRadius = _SW.CornerRadius(4)
                 group_border.Margin = _SW.Thickness(0, 0, 0, 4)
@@ -2118,10 +2136,10 @@ class LayoutSettingsWindow(WPFWindow):
                 group_border.Child = group_sp
 
                 # Section label at top of group (if not body)
-                if sec_label_text.get(section):
+                if _sec_label:
                     sec_lbl = _SWC.TextBlock()
-                    sec_lbl.Text = sec_label_text[section]
-                    sec_lbl.Foreground = sec_border_colors.get(section, BK['accent'])
+                    sec_lbl.Text = _sec_label
+                    sec_lbl.Foreground = _sec_brush
                     sec_lbl.FontSize = 8
                     sec_lbl.FontWeight = _SW.FontWeights.Bold
                     sec_lbl.Margin = _SW.Thickness(6, 2, 0, 0)
@@ -2146,20 +2164,18 @@ class LayoutSettingsWindow(WPFWindow):
                 section = self._rows[ri].get('section', 'body')
                 if section != 'body':
                     # Wrap standalone row in a section-coloured border
-                    sec_border_colors = {
-                        'repeat_header': _SWM.SolidColorBrush(_SWM.Color.FromRgb(0x29, 0x80, 0xB9)),
-                        'footer':        _SWM.SolidColorBrush(_SWM.Color.FromRgb(0x8E, 0x44, 0xAD)),
-                    }
-                    sec_label_text = {'repeat_header': 'REPEAT HEADER', 'footer': 'FOOTER'}
+                    _is_rep    = self._rows[ri].get('repeat_every_page', False)
+                    _sec_brush = self._section_brush(section, _is_rep)
+                    _sec_label = self._section_label(section, _is_rep)
                     wrap = _SWC.Border()
-                    wrap.BorderBrush = sec_border_colors.get(section, BK['accent'])
+                    wrap.BorderBrush = _sec_brush
                     wrap.BorderThickness = _SW.Thickness(2)
                     wrap.CornerRadius = _SW.CornerRadius(4)
                     wrap.Margin = _SW.Thickness(0, 0, 0, 4)
                     wrap_sp = _SWC.StackPanel()
                     lbl = _SWC.TextBlock()
-                    lbl.Text = sec_label_text.get(section, '')
-                    lbl.Foreground = sec_border_colors.get(section, BK['accent'])
+                    lbl.Text = _sec_label
+                    lbl.Foreground = _sec_brush
                     lbl.FontSize = 8; lbl.FontWeight = _SW.FontWeights.Bold
                     lbl.Margin = _SW.Thickness(6, 2, 0, 0)
                     wrap_sp.Children.Add(lbl)
@@ -2287,9 +2303,9 @@ class LayoutSettingsWindow(WPFWindow):
         _SWC.DockPanel.SetDock(ctrl, _SWC.Dock.Right)
 
         if show_controls:
-            for lbl, fn in [('↑', lambda s,e,r=ri: self._move_row_up(r)),
-                            ('↓', lambda s,e,r=ri: self._move_row_down(r)),
-                            ('✕', lambda s,e,r=ri: self._remove_row(r))]:
+            for _ico_key, fn in [('arrow_up',        lambda s,e,r=ri: self._move_row_up(r)),
+                                  ('arrow_down',      lambda s,e,r=ri: self._move_row_down(r)),
+                                  ('delete',lambda s,e,r=ri: self._remove_row(r))]:
                 btn = _SWC.Border()
                 btn.Width = 18; btn.Height = 18
                 btn.Background = BK['card']
@@ -2299,13 +2315,11 @@ class LayoutSettingsWindow(WPFWindow):
                 btn.Margin = _SW.Thickness(0, 1, 0, 1)
                 btn.Cursor = _SWI.Cursors.Hand
 
-                tb_lbl = _SWC.TextBlock()
-                tb_lbl.Text = lbl
-                tb_lbl.Foreground = BK['white']
-                tb_lbl.FontSize = 9
-                tb_lbl.HorizontalAlignment = _SW.HorizontalAlignment.Center
-                tb_lbl.VerticalAlignment = _SW.VerticalAlignment.Center
-                btn.Child = tb_lbl
+                _cc = _SWC.ContentControl()
+                _cc.Content = make_icon(_ico_key, size=10, color='#FFFFFF')
+                _cc.HorizontalAlignment = _SW.HorizontalAlignment.Center
+                _cc.VerticalAlignment = _SW.VerticalAlignment.Center
+                btn.Child = _cc
 
                 def on_enter(s, e):
                     s.BorderBrush = BK['accent']
@@ -2317,31 +2331,42 @@ class LayoutSettingsWindow(WPFWindow):
                 ctrl.Children.Add(btn)
 
             # Section tag button — only on top row of group (or standalone)
-            section = row.get('section', 'body')
-            sec_labels = {'body': 'B', 'repeat_header': 'R', 'footer': 'F'}
-            sec_tips = {'body': 'Body (normal content)',
-                        'repeat_header': 'Repeat Header (prints on every page)',
-                        'footer': 'Footer (page bottom)'}
-            sec_colors = {'body': BK['card'],
-                          'repeat_header': _SWM.SolidColorBrush(_SWM.Color.FromRgb(0x29, 0x80, 0xB9)),
-                          'footer': _SWM.SolidColorBrush(_SWM.Color.FromRgb(0x8E, 0x44, 0xAD))}
+            # Colour encodes both section type and repeat state:
+            #   body              = card (dark, no colour)
+            #   repeat_header     = dark blue   (first page only)
+            #   repeat_header+rep = light blue  (every page)
+            #   footer            = dark purple (last page only)
+            #   footer+rep        = light purple (every page)
+            section  = row.get('section', 'body')
+            _is_rep  = row.get('repeat_every_page', False)
+            sec_icons = {'body': 'page_layout_body', 'repeat_header': 'page_layout_header', 'footer': 'page_layout_footer'}
+            _COL_HDR      = _SWM.Color.FromRgb(0x29, 0x80, 0xB9)   # dark blue
+            _COL_HDR_REP  = _SWM.Color.FromRgb(0x85, 0xC1, 0xE9)   # light blue
+            _COL_FTR      = _SWM.Color.FromRgb(0x8E, 0x44, 0xAD)   # dark purple
+            _COL_FTR_REP  = _SWM.Color.FromRgb(0xC3, 0x9B, 0xD7)   # light purple
+            if section == 'repeat_header':
+                _sec_col = _COL_HDR_REP if _is_rep else _COL_HDR
+                _sec_tip = 'Header, every page' if _is_rep else 'Header, first page only'
+            elif section == 'footer':
+                _sec_col = _COL_FTR_REP if _is_rep else _COL_FTR
+                _sec_tip = 'Footer, every page' if _is_rep else 'Footer, last page only'
+            else:
+                _sec_col = None
+                _sec_tip = 'Body (normal content)'
             sec_btn = _SWC.Border()
             sec_btn.Width = 18; sec_btn.Height = 18
-            sec_btn.Background = sec_colors.get(section, BK['card'])
+            sec_btn.Background = _SWM.SolidColorBrush(_sec_col) if _sec_col else BK['card']
             sec_btn.BorderBrush = BK['bdr']
             sec_btn.BorderThickness = _SW.Thickness(1)
             sec_btn.CornerRadius = _SW.CornerRadius(2)
             sec_btn.Margin = _SW.Thickness(0, 1, 0, 1)
             sec_btn.Cursor = _SWI.Cursors.Hand
-            sec_btn.ToolTip = sec_tips.get(section, 'Body')
-
-            sec_tb = _SWC.TextBlock()
-            sec_tb.Text = sec_labels.get(section, 'B')
-            sec_tb.Foreground = BK['white']
-            sec_tb.FontSize = 9; sec_tb.FontWeight = _SW.FontWeights.Bold
-            sec_tb.HorizontalAlignment = _SW.HorizontalAlignment.Center
-            sec_tb.VerticalAlignment = _SW.VerticalAlignment.Center
-            sec_btn.Child = sec_tb
+            sec_btn.ToolTip = _sec_tip
+            sec_cc = _SWC.ContentControl()
+            sec_cc.Content = make_icon(sec_icons.get(section, 'page_layout_body'), size=11, color='#FFFFFF')
+            sec_cc.HorizontalAlignment = _SW.HorizontalAlignment.Center
+            sec_cc.VerticalAlignment = _SW.VerticalAlignment.Center
+            sec_btn.Child = sec_cc
             sec_btn.MouseLeftButtonUp += lambda s,e,r=ri: self._cycle_section(r)
             ctrl.Children.Add(sec_btn)
 
@@ -2357,10 +2382,8 @@ class LayoutSettingsWindow(WPFWindow):
         merge_btn.Cursor = _SWI.Cursors.Hand
         merge_btn.ToolTip = 'Unmerge' if is_merged else 'Merge with row below'
 
-        merge_tb = _SWC.TextBlock()
-        merge_tb.Text = '⛓' if is_merged else '🔗'
-        merge_tb.Foreground = BK['white']
-        merge_tb.FontSize = 9
+        merge_tb = _SWC.ContentControl()
+        merge_tb.Content = make_icon('unlink' if is_merged else 'link', size=11, color='#FFFFFF')
         merge_tb.HorizontalAlignment = _SW.HorizontalAlignment.Center
         merge_tb.VerticalAlignment = _SW.VerticalAlignment.Center
         merge_btn.Child = merge_tb
@@ -2560,11 +2583,11 @@ class LayoutSettingsWindow(WPFWindow):
         handle.Background = BK['row']; handle.CornerRadius = _SW.CornerRadius(4,0,0,4)
         handle.BorderBrush = BK['bdr']; handle.BorderThickness = _SW.Thickness(0,0,1,0)
         handle.Cursor = _SWI.Cursors.SizeAll
-        handle_tb = _SWC.TextBlock()
-        handle_tb.Text = '≡'; handle_tb.Foreground = BK['muted']; handle_tb.FontSize = 12
-        handle_tb.HorizontalAlignment = _SW.HorizontalAlignment.Center
-        handle_tb.VerticalAlignment   = _SW.VerticalAlignment.Center
-        handle.Child = handle_tb
+        handle_cc = _SWC.ContentControl()
+        handle_cc.Content = make_icon('drag', size=12, color='#FFFFFF')
+        handle_cc.HorizontalAlignment = _SW.HorizontalAlignment.Center
+        handle_cc.VerticalAlignment   = _SW.VerticalAlignment.Center
+        handle.Child = handle_cc
         handle.MouseMove += lambda s,e,r=ri,c=ci: self._block_drag_start(s,e,r,c)
         _SWC.Grid.SetColumn(handle, 0); ig.Children.Add(handle)
 
@@ -2583,16 +2606,27 @@ class LayoutSettingsWindow(WPFWindow):
         grp_tb.Margin = _SW.Thickness(0, 0, 0, 1)
         content_sp.Children.Add(grp_tb)
 
+        type_sp = _SWC.StackPanel()
+        type_sp.Orientation = _SWC.Orientation.Horizontal
+        _type_icon_key = TYPE_ICONS.get(block['type'], '')
+        _slot_color = SLOT_COLORS[ci]
+        _slot_hex = '#{:02X}{:02X}{:02X}'.format(
+            int(_slot_color.R), int(_slot_color.G), int(_slot_color.B))
+        if _type_icon_key:
+            _ico = make_icon(_type_icon_key, size=10, color=_slot_hex)
+            _ico.Margin = _SW.Thickness(0, 0, 4, 0)
+            _ico.VerticalAlignment = _SW.VerticalAlignment.Center
+            type_sp.Children.Add(_ico)
         type_tb = _SWC.TextBlock()
-        icon = TYPE_ICONS.get(block['type'], '')
-        type_tb.Text = '{} {}'.format(icon, TYPE_NAMES.get(block['type'], block['type']))
-        type_tb.Foreground = _SWM.SolidColorBrush(SLOT_COLORS[ci])
+        type_tb.Text = TYPE_NAMES.get(block['type'], block['type'])
+        type_tb.Foreground = _SWM.SolidColorBrush(_slot_color)
         type_tb.FontSize = 8; type_tb.FontWeight = _SW.FontWeights.Bold
-        content_sp.Children.Add(type_tb)
+        type_tb.VerticalAlignment = _SW.VerticalAlignment.Center
+        type_sp.Children.Add(type_tb)
+        content_sp.Children.Add(type_sp)
 
         is_text  = block['type'] in ('title', 'heading', 'text')
         is_spine = block['type'].startswith('spine_')
-        is_blank = block['type'] == 'blank'
 
         if is_text:
             meta = _SWC.TextBlock()
@@ -2601,28 +2635,12 @@ class LayoutSettingsWindow(WPFWindow):
             meta.FontStyle = _SW.FontStyles.Italic
             meta.TextTrimming = _SW.TextTrimming.CharacterEllipsis
             content_sp.Children.Add(meta)
-        elif is_blank:
-            h_sp = _SWC.StackPanel()
-            h_sp.Orientation = _SWC.Orientation.Horizontal; h_sp.Margin = _SW.Thickness(0,2,0,0)
-            h_lbl = _SWC.TextBlock(); h_lbl.Text = 'Height: '
-            h_lbl.Foreground = BK['muted']; h_lbl.FontSize = 9; h_lbl.VerticalAlignment = _SW.VerticalAlignment.Center
-            h_tb = _SWC.TextBox()
-            h_tb.Text = str(block.get('height_pct') or 100)
-            h_tb.Width = 40; h_tb.Height = 18; h_tb.FontSize = 9
-            h_tb.Background = BK['row']; h_tb.Foreground = BK['text']
-            h_tb.BorderBrush = BK['bdr']; h_tb.BorderThickness = _SW.Thickness(1)
-            h_tb.Padding = _SW.Thickness(2, 1, 2, 1)
-            h_tb.TextChanged += lambda s,e,r=ri,c=ci: self._set_height(r,c,s.Text)
-            h_pct = _SWC.TextBlock(); h_pct.Text = '%'
-            h_pct.Foreground = BK['muted']; h_pct.FontSize = 9; h_pct.Margin = _SW.Thickness(2,0,0,0); h_pct.VerticalAlignment = _SW.VerticalAlignment.Center
-            h_sp.Children.Add(h_lbl); h_sp.Children.Add(h_tb); h_sp.Children.Add(h_pct)
-            content_sp.Children.Add(h_sp)
         elif is_spine:
             rev_tb = _SWC.TextBlock()
             rev_tb.Text = '{} col{}'.format(self._rev_count, 's' if self._rev_count!=1 else '')
             rev_tb.Foreground = BK['muted']; rev_tb.FontSize = 9
             content_sp.Children.Add(rev_tb)
-        else:
+        elif block['type'] != 'blank':
             lbl_tb = _SWC.TextBox()
             lbl_tb.Text = block.get('label','')
             lbl_tb.Background = _SWM.Brushes.Transparent
@@ -2633,114 +2651,8 @@ class LayoutSettingsWindow(WPFWindow):
             lbl_tb.TextChanged += lambda s,e,r=ri,c=ci: self._update_block_label(r,c,s.Text)
             content_sp.Children.Add(lbl_tb)
 
-        # Span stepper
-        span = block.get('span', 1)
-        span_sp = _SWC.StackPanel()
-        span_sp.Orientation = _SWC.Orientation.Horizontal
-        span_sp.Margin = _SW.Thickness(0, 3, 0, 0)
-
-        # Slot colour for this cell (used as hover border colour for span arrows)
+        # Slot colour for this cell (used as hover border colour for action buttons)
         slot_color_brush = SLOT_BRUSHES[ci]
-
-        def make_sb(txt, enabled, fn):
-            # Border-based button (Button template can override foreground colour)
-            b = _SWC.Border()
-            b.Background = BK['row']
-            b.BorderBrush = BK['bdr']
-            b.BorderThickness = _SW.Thickness(1)
-            b.CornerRadius = _SW.CornerRadius(2)
-            b.Width = 15; b.Height = 13
-            b.Cursor = _SWI.Cursors.Hand if enabled else _SWI.Cursors.Arrow
-
-            t_tb = _SWC.TextBlock()
-            t_tb.Text = txt
-            t_tb.Foreground = BK['text']  # always white
-            t_tb.FontSize = 10
-            t_tb.HorizontalAlignment = _SW.HorizontalAlignment.Center
-            t_tb.VerticalAlignment = _SW.VerticalAlignment.Center
-            if not enabled:
-                t_tb.Opacity = 0.35
-            b.Child = t_tb
-
-            # Hover: switch border to slot colour, keep text white
-            def on_enter(s, e, sc=slot_color_brush):
-                if enabled:
-                    s.BorderBrush = sc
-            def on_leave(s, e):
-                s.BorderBrush = BK['bdr']
-            b.MouseEnter += on_enter
-            b.MouseLeave += on_leave
-            if enabled:
-                b.MouseLeftButtonUp += fn
-            return b
-
-        dec_btn = make_sb('←', span > 1, lambda s,e,r=ri,c=ci: self._decrease_span(r,c))
-        span_sp.Children.Add(dec_btn)
-
-        for s in range(span):
-            dot = _SWC.Border()
-            dot.Width = 6; dot.Height = 6; dot.CornerRadius = _SW.CornerRadius(1)
-            dot.Background = SLOT_BRUSHES[min(ci+s, 3)]
-            dot.Margin = _SW.Thickness(2, 0, 1, 0)
-            dot.VerticalAlignment = _SW.VerticalAlignment.Center
-            span_sp.Children.Add(dot)
-
-        span_lbl = _SWC.TextBlock()
-        span_lbl.Text = '{}col{}'.format(span, 's' if span>1 else '')
-        span_lbl.FontSize = 9; span_lbl.Foreground = BK['muted']
-        span_lbl.VerticalAlignment = _SW.VerticalAlignment.Center; span_lbl.Margin = _SW.Thickness(2,0,2,0)
-        span_sp.Children.Add(span_lbl)
-
-        inc_btn = make_sb('→', span < mx, lambda s,e,r=ri,c=ci: self._increase_span(r,c))
-        span_sp.Children.Add(inc_btn)
-        content_sp.Children.Add(span_sp)
-
-        # Row-span arrows (only shown when row is in a merged group)
-        if in_group:
-            rs = block.get('row_span', 1)
-            max_rs = self._max_row_span(ri, ci)
-            rspan_sp = _SWC.StackPanel()
-            rspan_sp.Orientation = _SWC.Orientation.Horizontal
-            rspan_sp.Margin = _SW.Thickness(0, 2, 0, 0)
-
-            def make_rsb(txt, enabled, fn):
-                b = _SWC.Border()
-                b.Background = BK['row']
-                b.BorderBrush = BK['bdr']
-                b.BorderThickness = _SW.Thickness(1)
-                b.CornerRadius = _SW.CornerRadius(2)
-                b.Width = 15; b.Height = 13
-                b.Cursor = _SWI.Cursors.Hand if enabled else _SWI.Cursors.Arrow
-                t_tb = _SWC.TextBlock()
-                t_tb.Text = txt
-                t_tb.Foreground = BK['text']
-                t_tb.FontSize = 10
-                t_tb.HorizontalAlignment = _SW.HorizontalAlignment.Center
-                t_tb.VerticalAlignment = _SW.VerticalAlignment.Center
-                if not enabled: t_tb.Opacity = 0.35
-                b.Child = t_tb
-                def on_enter(s, e, sc=BK['accent']):
-                    if enabled: s.BorderBrush = sc
-                def on_leave(s, e):
-                    s.BorderBrush = BK['bdr']
-                b.MouseEnter += on_enter
-                b.MouseLeave += on_leave
-                if enabled: b.MouseLeftButtonUp += fn
-                return b
-
-            rs_dec = make_rsb('↑', rs > 1, lambda s,e,r=ri,c=ci: self._decrease_row_span(r,c))
-            rspan_sp.Children.Add(rs_dec)
-
-            rs_lbl = _SWC.TextBlock()
-            rs_lbl.Text = '{}row{}'.format(rs, 's' if rs > 1 else '')
-            rs_lbl.Foreground = BK['accent']; rs_lbl.FontSize = 8
-            rs_lbl.VerticalAlignment = _SW.VerticalAlignment.Center
-            rs_lbl.Margin = _SW.Thickness(3, 0, 3, 0)
-            rspan_sp.Children.Add(rs_lbl)
-
-            rs_inc = make_rsb('↓', rs < max_rs, lambda s,e,r=ri,c=ci: self._increase_row_span(r,c))
-            rspan_sp.Children.Add(rs_inc)
-            content_sp.Children.Add(rspan_sp)
 
         _SWC.Grid.SetColumn(content_sp, 1); ig.Children.Add(content_sp)
 
@@ -2749,8 +2661,7 @@ class LayoutSettingsWindow(WPFWindow):
         act_sp.VerticalAlignment = _SW.VerticalAlignment.Center
         act_sp.Margin = _SW.Thickness(2, 0, 3, 0)
 
-        def act_btn(content, fn, tip=''):
-            # Border-based button: white icon, slot-accent hover border
+        def act_btn(icon_key, fn, tip='', color='#FFFFFF'):
             b = _SWC.Border()
             b.Background = _SWM.Brushes.Transparent
             b.BorderBrush = _SWM.Brushes.Transparent
@@ -2760,13 +2671,11 @@ class LayoutSettingsWindow(WPFWindow):
             b.Cursor = _SWI.Cursors.Hand
             b.ToolTip = tip
 
-            tb = _SWC.TextBlock()
-            tb.Text = content
-            tb.Foreground = BK['white']
-            tb.FontSize = 10
-            tb.HorizontalAlignment = _SW.HorizontalAlignment.Center
-            tb.VerticalAlignment = _SW.VerticalAlignment.Center
-            b.Child = tb
+            cc = _SWC.ContentControl()
+            cc.Content = make_icon(icon_key, size=10, color=color)
+            cc.HorizontalAlignment = _SW.HorizontalAlignment.Center
+            cc.VerticalAlignment = _SW.VerticalAlignment.Center
+            b.Child = cc
 
             def on_enter(s, e, sc=slot_color_brush):
                 s.BorderBrush = sc
@@ -2777,14 +2686,12 @@ class LayoutSettingsWindow(WPFWindow):
             b.MouseLeftButtonUp += fn
             return b
 
-        tog = act_btn('●' if block.get('enabled',True) else '○',
-                      lambda s,e,r=ri,c=ci: self._toggle_block(r,c), 'Show/hide')
-        # Tog (enable/disable) uses accent green when enabled to indicate state
-        try:
-            tog.Child.Foreground = BK['accent'] if block.get('enabled',True) else BK['white']
-        except Exception: pass
+        _enabled = block.get('enabled', True)
+        _tog_color = '#208A3C' if _enabled else '#FFFFFF'
+        _tog_key   = 'toggle_on' if _enabled else 'toggle_off'
+        tog = act_btn(_tog_key, lambda s,e,r=ri,c=ci: self._toggle_block(r,c), 'Show/hide', color=_tog_color)
         act_sp.Children.Add(tog)
-        act_sp.Children.Add(act_btn('✕', lambda s,e,r=ri,c=ci: self._remove_block(r,c), 'Remove'))
+        act_sp.Children.Add(act_btn('close', lambda s,e,r=ri,c=ci: self._remove_block(r,c), 'Remove'))
 
         _SWC.Grid.SetColumn(act_sp, 2); ig.Children.Add(act_sp)
         cell.Child = ig
@@ -2794,20 +2701,7 @@ class LayoutSettingsWindow(WPFWindow):
 
         return wrapper
 
-    def _open_inspector(self, ri, ci, cell_sp):
-        block = self._rows[ri]['blocks'][ci]
-        self._show_inspector(ri, ci, block)
-        # Also toggle inline panel
-        self._toggle_block_settings(ri, ci, cell_sp)
-
-    def _toggle_block_settings(self, ri, ci, cell_sp):
-        for child in cell_sp.Children:
-            if hasattr(child, 'Tag') and str(child.Tag or '') == 'settings_panel':
-                V = _SW.Visibility
-                child.Visibility = V.Collapsed if child.Visibility == V.Visible else V.Visible
-                break
-
-    def _make_settings_panel(self, ri, ci, block):
+    def _make_settings_panel(self, ri, ci, block, mx=4, in_group=False):
         panel = _SWC.Border()
         panel.Background = BK['deep']
         panel.BorderBrush = BK['bdr']; panel.BorderThickness = _SW.Thickness(0,1,0,0)
@@ -2827,26 +2721,104 @@ class LayoutSettingsWindow(WPFWindow):
             s = _SWC.StackPanel(); s.Orientation = _SWC.Orientation.Horizontal
             s.Margin = _SW.Thickness(0,0,0,4); sp.Children.Add(s); return s
 
+        # ── Height (blank blocks only) ────────────────────────────
+        if block.get('type') == 'blank':
+            sec('HEIGHT')
+            h_row = row_sp()
+            h_tb = _SWC.TextBox()
+            h_tb.Text = str(block.get('height_pct') or 100)
+            h_tb.Width = 48; h_tb.Height = 22; h_tb.FontSize = 10
+            h_tb.Background = BK['row']; h_tb.Foreground = BK['text']
+            h_tb.BorderBrush = BK['bdr']; h_tb.BorderThickness = _SW.Thickness(1)
+            h_tb.Padding = _SW.Thickness(4, 2, 4, 2)
+            h_tb.TextChanged += lambda s,e,r=ri,c=ci: self._set_height(r,c,s.Text)
+            h_pct = _SWC.TextBlock(); h_pct.Text = '%'
+            h_pct.Foreground = BK['muted']; h_pct.FontSize = 10
+            h_pct.Margin = _SW.Thickness(4,0,0,0)
+            h_pct.VerticalAlignment = _SW.VerticalAlignment.Center
+            h_row.Children.Add(h_tb); h_row.Children.Add(h_pct)
+
+        # ── Col Span ──────────────────────────────────────────────
+        sec('COL SPAN')
+        span = block.get('span', 1)
+        span_row = row_sp()
+
+        def make_span_btn(icon_key, enabled, fn):
+            b = _SWC.Border()
+            b.Background = BK['row']; b.BorderBrush = BK['bdr']
+            b.BorderThickness = _SW.Thickness(1); b.CornerRadius = _SW.CornerRadius(2)
+            b.Width = 22; b.Height = 22
+            b.Cursor = _SWI.Cursors.Hand if enabled else _SWI.Cursors.Arrow
+            cc = _SWC.ContentControl()
+            cc.Content = make_icon(icon_key, size=10, color='#FFFFFF' if enabled else '#555555')
+            cc.HorizontalAlignment = _SW.HorizontalAlignment.Center
+            cc.VerticalAlignment = _SW.VerticalAlignment.Center
+            b.Child = cc
+            def on_enter(s, e):
+                if enabled: s.BorderBrush = BK['accent']
+            def on_leave(s, e):
+                s.BorderBrush = BK['bdr']
+            b.MouseEnter += on_enter; b.MouseLeave += on_leave
+            if enabled: b.MouseLeftButtonUp += fn
+            return b
+
+        span_row.Children.Add(make_span_btn('arrow_left', span > 1, lambda s,e,r=ri,c=ci: self._decrease_span(r,c)))
+        for _s in range(span):
+            dot = _SWC.Border()
+            dot.Width = 8; dot.Height = 8; dot.CornerRadius = _SW.CornerRadius(1)
+            dot.Background = SLOT_BRUSHES[min(ci+_s, 3)]
+            dot.Margin = _SW.Thickness(3, 0, 2, 0)
+            dot.VerticalAlignment = _SW.VerticalAlignment.Center
+            span_row.Children.Add(dot)
+        span_lbl = _SWC.TextBlock()
+        span_lbl.Text = '{}col{}'.format(span, 's' if span > 1 else '')
+        span_lbl.FontSize = 10; span_lbl.Foreground = BK['muted']
+        span_lbl.VerticalAlignment = _SW.VerticalAlignment.Center
+        span_lbl.Margin = _SW.Thickness(2, 0, 4, 0)
+        span_row.Children.Add(span_lbl)
+        span_row.Children.Add(make_span_btn('arrow_right', span < mx, lambda s,e,r=ri,c=ci: self._increase_span(r,c)))
+
+        # ── Row Span (merged groups only) ─────────────────────────
+        if in_group:
+            rs = block.get('row_span', 1)
+            max_rs = self._max_row_span(ri, ci)
+            sec('ROW SPAN')
+            rs_row = row_sp()
+
+            def make_rs_btn(icon_key, enabled, fn):
+                b = _SWC.Border()
+                b.Background = BK['row']; b.BorderBrush = BK['bdr']
+                b.BorderThickness = _SW.Thickness(1); b.CornerRadius = _SW.CornerRadius(2)
+                b.Width = 22; b.Height = 22
+                b.Cursor = _SWI.Cursors.Hand if enabled else _SWI.Cursors.Arrow
+                cc = _SWC.ContentControl()
+                cc.Content = make_icon(icon_key, size=10, color='#FFFFFF' if enabled else '#555555')
+                cc.HorizontalAlignment = _SW.HorizontalAlignment.Center
+                cc.VerticalAlignment = _SW.VerticalAlignment.Center
+                b.Child = cc
+                def on_enter(s, e):
+                    if enabled: s.BorderBrush = BK['accent']
+                def on_leave(s, e):
+                    s.BorderBrush = BK['bdr']
+                b.MouseEnter += on_enter; b.MouseLeave += on_leave
+                if enabled: b.MouseLeftButtonUp += fn
+                return b
+
+            rs_row.Children.Add(make_rs_btn('arrow_up', rs > 1, lambda s,e,r=ri,c=ci: self._decrease_row_span(r,c)))
+            rs_lbl = _SWC.TextBlock()
+            rs_lbl.Text = '{}row{}'.format(rs, 's' if rs > 1 else '')
+            rs_lbl.Foreground = BK['accent']; rs_lbl.FontSize = 10
+            rs_lbl.VerticalAlignment = _SW.VerticalAlignment.Center
+            rs_lbl.Margin = _SW.Thickness(6, 0, 6, 0)
+            rs_row.Children.Add(rs_lbl)
+            rs_row.Children.Add(make_rs_btn('arrow_down', rs < max_rs, lambda s,e,r=ri,c=ci: self._increase_row_span(r,c)))
+
         # ── Horizontal Justification ──────────────────────────────
         sec('JUSTIFY (Horizontal)')
         just_row = row_sp()
 
         def just_svg(jtype, active):
-            c = _SWC.Canvas(); c.Width = 18; c.Height = 18
-            configs = {
-                'left':   [(2,4,14,4),(2,7,10,7),(2,10,14,10),(2,13,8,13)],
-                'center': [(2,4,14,4),(4,7,12,7),(2,10,14,10),(5,13,11,13)],
-                'right':  [(2,4,14,4),(6,7,14,7),(2,10,14,10),(8,13,14,13)],
-            }
-            for x1,y1,x2,y2 in configs[jtype]:
-                line = _SWS.Line()
-                line.X1=x1;line.Y1=y1;line.X2=x2;line.Y2=y2
-                line.StrokeThickness = 1.5
-                line.StrokeStartLineCap = _SWM.PenLineCap.Round
-                line.StrokeEndLineCap   = _SWM.PenLineCap.Round
-                line.Stroke = BK['white']
-                c.Children.Add(line)
-            return c
+            return make_icon('h_align_' + jtype, size=16, color='#FFFFFF')
 
         just_btns = {}
         for jval in ('left', 'center', 'right'):
@@ -2867,28 +2839,8 @@ class LayoutSettingsWindow(WPFWindow):
         vj_row = row_sp()
 
         def vj_svg(vtype, active):
-            """Draw vertical justify icon: frame + 3 horizontal bars stacked top/middle/bottom."""
-            c = _SWC.Canvas(); c.Width = 18; c.Height = 18
-            stroke = BK['white']
-            # Outer frame
-            frame = _SWS.Rectangle()
-            frame.Width = 14; frame.Height = 14
-            frame.Stroke = stroke; frame.StrokeThickness = 1.2
-            frame.Fill = BK['transp']
-            _SWC.Canvas.SetLeft(frame, 2); _SWC.Canvas.SetTop(frame, 2)
-            c.Children.Add(frame)
-            # Three bars positioned by vtype
-            y_map = {'top': [4, 6.5, 9], 'middle': [6, 8.5, 11], 'bottom': [8, 10.5, 13]}
-            widths = [8, 6, 8]  # slight variance like the icon
-            ys = y_map[vtype]
-            for i, y in enumerate(ys):
-                bar = _SWS.Line()
-                bar.X1 = 5; bar.Y1 = y; bar.X2 = 5 + widths[i]; bar.Y2 = y
-                bar.Stroke = stroke; bar.StrokeThickness = 1.2
-                bar.StrokeStartLineCap = _SWM.PenLineCap.Round
-                bar.StrokeEndLineCap   = _SWM.PenLineCap.Round
-                c.Children.Add(bar)
-            return c
+            _vkey = 'v_align_center' if vtype == 'middle' else 'v_align_' + vtype
+            return make_icon(_vkey, size=16, color='#FFFFFF')
 
         vj_btns = {}
         for vval in ('top', 'middle', 'bottom'):
@@ -2919,7 +2871,8 @@ class LayoutSettingsWindow(WPFWindow):
         bg_row.Children.Add(swatch)
 
         clear_btn = _SWC.Button()
-        clear_btn.Content = '✕'; clear_btn.Width = 24; clear_btn.Height = 24
+        clear_btn.Content = make_icon('remove', size=10, color='#888888')
+        clear_btn.Width = 24; clear_btn.Height = 24
         clear_btn.FontSize = 10; clear_btn.Cursor = _SWI.Cursors.Hand
         clear_btn.Background = BK['row']; clear_btn.Foreground = BK['muted']
         clear_btn.BorderBrush = BK['bdr']; clear_btn.BorderThickness = _SW.Thickness(1)
@@ -2990,12 +2943,8 @@ class LayoutSettingsWindow(WPFWindow):
                 h_btn.BorderBrush = BK['bdr']; h_btn.BorderThickness = _SW.Thickness(1)
                 h_btn.ToolTip = 'Horizontal grid lines'
                 h_btn.Tag = 'h'
-                # ≡ icon drawn as three stacked lines via TextBlock
-                h_tb = _SWC.TextBlock()
-                h_tb.Text = u'☰'; h_tb.FontSize = 13
-                h_tb.HorizontalAlignment = _SW.HorizontalAlignment.Center
-                h_tb.VerticalAlignment = _SW.VerticalAlignment.Center
-                h_btn.Content = h_tb
+                # ≡ icon drawn as horizontal lines icon
+                h_btn.Content = make_icon('h_align_left', size=14, color='#FFFFFF')
                 h_btn.Click += lambda s,e,r=ri,c=ci: self._toggle_data_border(r,c,'h',s)
                 db_row.Children.Add(h_btn)
             # V icon: vertical lines |||
@@ -3009,11 +2958,7 @@ class LayoutSettingsWindow(WPFWindow):
                 v_btn2.BorderBrush = BK['bdr']; v_btn2.BorderThickness = _SW.Thickness(1)
                 v_btn2.ToolTip = 'Vertical grid lines'
                 v_btn2.Tag = 'v'
-                v_tb = _SWC.TextBlock()
-                v_tb.Text = u'‖'; v_tb.FontSize = 13
-                v_tb.HorizontalAlignment = _SW.HorizontalAlignment.Center
-                v_tb.VerticalAlignment = _SW.VerticalAlignment.Center
-                v_btn2.Content = v_tb
+                v_btn2.Content = make_icon('column_mapping', size=14, color='#FFFFFF')
                 v_btn2.Click += lambda s,e,r=ri,c=ci: self._toggle_data_border(r,c,'v',s)
                 db_row.Children.Add(v_btn2)
 
@@ -3419,7 +3364,7 @@ class LayoutSettingsWindow(WPFWindow):
         hdr = _SWC.Grid()
         h_tb = _SWC.TextBlock(); h_tb.Text = name; h_tb.Foreground = BK['accent']
         h_tb.FontSize = 11; h_tb.FontWeight = _SW.FontWeights.SemiBold
-        del_btn = _SWC.Button(); del_btn.Content = '✕'; del_btn.FontSize = 10
+        del_btn = _SWC.Button(); del_btn.Content = make_icon('delete', size=11, color='#888888')
         del_btn.Background = _SWM.Brushes.Transparent; del_btn.BorderThickness = _SW.Thickness(0)
         del_btn.Foreground = BK['muted']; del_btn.Cursor = _SWI.Cursors.Hand
         del_btn.HorizontalAlignment = _SW.HorizontalAlignment.Right
@@ -3484,16 +3429,10 @@ class LayoutSettingsWindow(WPFWindow):
 
         # Style toggles
         tog_sp = _SWC.StackPanel(); tog_sp.Orientation=_SWC.Orientation.Horizontal
+        _fmt_icons = {'bold': 'format_bold', 'italic': 'format_italic', 'underline': 'format_underline'}
         for prop, lbl in [('bold','B'),('italic','I'),('underline','U')]:
             tb = _SWC.Button()
-            # Use TextBlock as content so we can apply TextDecorations (buttons don't support it)
-            lbl_tb = _SWC.TextBlock(); lbl_tb.Text = lbl
-            lbl_tb.HorizontalAlignment = _SW.HorizontalAlignment.Center
-            lbl_tb.VerticalAlignment = _SW.VerticalAlignment.Center
-            if prop == 'bold': lbl_tb.FontWeight = _SW.FontWeights.Bold
-            if prop == 'italic': lbl_tb.FontStyle = _SW.FontStyles.Italic
-            if prop == 'underline': lbl_tb.TextDecorations = _SW.TextDecorations.Underline
-            tb.Content = lbl_tb
+            tb.Content = make_icon(_fmt_icons[prop], size=14, color='#FFFFFF')
             tb.Width = 26; tb.Height = 24; tb.FontSize = 10
             tb.Cursor = _SWI.Cursors.Hand; tb.Margin = _SW.Thickness(0,0,3,0)
             tb.Background = BK['accent'] if st.get(prop) else BK['row']

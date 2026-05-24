@@ -1,36 +1,5 @@
 # -*- coding: utf-8 -*-
-__title__     = "pyTransmit - Legend"
-__author__    = "Nagel Consultants"
-__doc__       = """
-VERSION 250507
-_____________________________________________________________________
-Description:
-Creates or updates a Revit Legend view containing the full
-transmittal document layout. It does this by first drawing the
-layout into a temporary Drafting View, then copying all the lines
-and text across into a Legend view, and finally deleting the
-temporary view.
-
-_____________________________________________________________________
-How-to:
-This script is run automatically by pyTransmit when you click
-Publish. You do not need to run it directly. Once complete,
-find the view in the Project Browser under Legends.
-
-_____________________________________________________________________
-Notes:
-At least one Legend view must already exist in the model before
-running. If none exists, go to the View tab, click New, then
-Legend, and create a blank one. The script will then use it.
-
-If a legend called "pyTransmit Document" already exists it will
-be cleared and redrawn rather than creating a duplicate.
-
-_____________________________________________________________________
-Last update:
-250507 - Applied coding standards. No logic changes.
-_____________________________________________________________________
-"""
+# script_create_legend.py
 
 # ── IMPORTS ───────────────────────────────────────────────────────────────────
 
@@ -39,7 +8,7 @@ _p = globals().get('PYTRANSMIT_PAYLOAD', {})
 from pyrevit.framework import List
 from pyrevit import revit, script, DB, forms
 from Autodesk.Revit.DB import (
-    FilteredElementCollector, Transaction, CurveElement, TextNote,
+    FilteredElementCollector, CurveElement, TextNote,
     ImageInstance, FilledRegion, ViewFamilyType, ViewFamily,
     ElementTransformUtils, CopyPasteOptions,
     ViewType, ViewDuplicateOption, ViewDrafting,
@@ -47,6 +16,19 @@ from Autodesk.Revit.DB import (
 import os
 
 output = script.get_output()
+output.hide()
+
+
+# ── Log capture via payload ───────────────────────────────────────────
+_log_lines = PYTRANSMIT_PAYLOAD.get('_log_lines', [])
+def _log(msg):
+    try: _log_lines.append(str(msg))
+    except Exception: pass
+
+class _SilentOutput(object):
+    def print_md(self, msg, *a, **kw): _log(msg)
+    def hide(self): pass
+output = _SilentOutput()
 doc    = revit.doc
 
 # ── VARIABLES ─────────────────────────────────────────────────────────────────
@@ -58,6 +40,12 @@ LEGEND_VIEW_NAME = "pyTransmit Document"
 
 _script_dir    = os.path.dirname(os.path.abspath(__file__))
 _drafting_path = os.path.join(_script_dir, 'script_create_drafting_view.py')
+
+import sys as _sys
+_settings_dir = os.path.join(os.path.dirname(_script_dir), 'Settings')
+if _settings_dir not in _sys.path:
+    _sys.path.insert(0, _settings_dir)
+from Dialogs import Dialogs
 
 if not os.path.exists(_drafting_path):
     forms.alert(
@@ -88,7 +76,7 @@ except Exception as _e:
 # ── STEP 2, FIND TEMP DRAFTING VIEW ──────────────────────────────────────────
 
 temp_view = None
-for v in FilteredElementCollector(doc).OfClass(ViewDrafting).ToElements():
+for v in revit.query.get_elements_by_class(ViewDrafting, doc=doc):
     try:
         if v.Name == TEMP_VIEW_NAME:
             temp_view = v
@@ -106,7 +94,7 @@ if not temp_view:
 
 existing_legend = None
 base_legend     = None
-for v in FilteredElementCollector(doc).OfClass(DB.View).ToElements():
+for v in revit.query.get_elements_by_class(DB.View, doc=doc):
     try:
         if v.ViewType == ViewType.Legend and not v.IsTemplate:
             if v.Name in (LEGEND_VIEW_NAME, LEGEND_VIEW_NAME + " (Transmittal)"):
@@ -117,11 +105,11 @@ for v in FilteredElementCollector(doc).OfClass(DB.View).ToElements():
         pass
 
 if not base_legend:
-    forms.alert(
-        "No Legend view exists in the model.\n\n"
-        "Create any Legend view first (View tab > New > Legend), then re-run.",
-        exitscript=True
+    Dialogs.alert(
+        "No Legend View Found",
+        "This model does not have a Legend view. Create one first: View tab > New > Legend, then re-run pyTransmit."
     )
+    import sys; sys.exit(0)
 
 # ── STEP 4, COLLECT ELEMENTS FROM TEMP VIEW ──────────────────────────────────
 
@@ -142,8 +130,7 @@ class _CopyUseDestination(DB.IDuplicateTypeNamesHandler):
     def OnDuplicateTypeNamesFound(self, args):
         return DB.DuplicateTypeAction.UseDestinationTypes
 
-with Transaction(doc, "pyTransmit - Create Legend") as _t:
-    _t.Start()
+with revit.Transaction("pyTransmit - Create Legend") as _t:
 
     if existing_legend:
         dest_legend = existing_legend
@@ -188,14 +175,11 @@ with Transaction(doc, "pyTransmit - Create Legend") as _t:
         except Exception:
             pass
 
-    _t.Commit()
 
 # Delete temp view in a separate transaction after the copy is fully committed
-with Transaction(doc, "pyTransmit - Delete Temp View") as _td:
-    _td.Start()
+with revit.Transaction("pyTransmit - Delete Temp View") as _td:
     try:
         doc.Delete(temp_view.Id)
-        _td.Commit()
     except Exception as _del_err:
         _td.RollBack()
         output.print_md("Could not delete temp view: {}".format(_del_err))

@@ -12,23 +12,27 @@ clr.AddReference("WindowsBase")
 clr.AddReference("System")
 clr.AddReference("System.Net")
 
-import System
 from System.Windows.Markup import XamlReader
 from System.Windows import (
-    MessageBox, MessageBoxButton, MessageBoxImage, Visibility, Thickness, Duration
+    MessageBox, MessageBoxButton, MessageBoxImage, Visibility, Thickness,
+    Duration, Point, CornerRadius, GridLength, GridUnitType,
+    FrameworkElement, HorizontalAlignment, VerticalAlignment,
+    DragDrop, DragDropEffects, DataObject
 )
-from System.Windows.Controls import StackPanel, Border, TextBlock, DockPanel
-from System.Windows.Media import SolidColorBrush, ColorConverter
+from System.Windows.Controls import (
+    StackPanel, Border, TextBlock, DockPanel, Grid,
+    ColumnDefinition, Dock
+)
+from System.Windows.Input import Cursors, MouseButtonState
+from System.Windows.Media import SolidColorBrush, ColorConverter, Brushes
 from System.Windows.Media.Animation import (
     ThicknessAnimation, ColorAnimation, CubicEase, EasingMode
 )
-import System.Net
-import System.IO
 from System.Net import WebClient
-from System.IO import File, Directory, Path, StreamReader
+from System.IO import File, StreamReader
 from System.Threading import Thread, ThreadStart
 from System.Windows.Media.Imaging import BitmapImage
-from System import Uri, UriKind
+from System import Uri, UriKind, Action, TimeSpan
 from threading import Lock
 
 # ── VARIABLES ─────────────────────────────────────────────────────────────────
@@ -132,7 +136,7 @@ def version_tuple(version_str):
         return (0, 0, 0)
 
 def dispatch(window, fn):
-    window.Dispatcher.Invoke(System.Action(fn))
+    window.Dispatcher.Invoke(Action(fn))
 
 # ── Tool scanner helpers ───────────────────────────────────────────────────────
 
@@ -298,14 +302,14 @@ class FolderHandler(object):
         self.renamer = renamer
 
     def animate(self, turn_on):
-        duration            = Duration(System.TimeSpan.FromMilliseconds(140))
+        duration            = Duration(TimeSpan.FromMilliseconds(140))
         ease                = CubicEase()
         ease.EasingMode     = EasingMode.EaseOut
         knob_anim               = ThicknessAnimation()
         knob_anim.Duration      = duration
         knob_anim.To            = Thickness(22, 2, 0, 2) if turn_on else Thickness(2, 2, 0, 2)
         knob_anim.EasingFunction = ease
-        self.knob.BeginAnimation(System.Windows.FrameworkElement.MarginProperty, knob_anim)
+        self.knob.BeginAnimation(FrameworkElement.MarginProperty, knob_anim)
         color_anim          = ColorAnimation()
         color_anim.Duration = duration
         color_anim.To       = ColorConverter.ConvertFromString(self.ON_COLOR if turn_on else self.OFF_COLOR)
@@ -574,9 +578,9 @@ class ToolManager(object):
 
         def on_drag_over(sender, e):
             if e.Data.GetDataPresent(self.DRAG_FORMAT):
-                e.Effects = System.Windows.DragDropEffects.Move
+                e.Effects = DragDropEffects.Move
             else:
-                e.Effects = System.Windows.DragDropEffects.None
+                e.Effects = DragDropEffects.None
             e.Handled = True
 
         def on_drop(sender, e):
@@ -589,7 +593,7 @@ class ToolManager(object):
             children = list(self.container.Children)
             target   = None
             for child in children:
-                pt  = child.TranslatePoint(System.Windows.Point(0, 0), self.container)
+                pt  = child.TranslatePoint(Point(0, 0), self.container)
                 if pos.Y < pt.Y + child.ActualHeight:
                     target = child
                     break
@@ -642,14 +646,14 @@ class ToolManager(object):
         body.Visibility   = Visibility.Collapsed
         header            = Border()
         header.Padding    = Thickness(6, 6, 10, 6)
-        header.Background = System.Windows.Media.Brushes.Transparent
-        header.Cursor     = System.Windows.Input.Cursors.Hand
+        header.Background = Brushes.Transparent
+        header.Cursor     = Cursors.Hand
 
         dock = DockPanel()
 
         # Grip handle on the far left (only for panel-level headers)
         if grip is not None:
-            DockPanel.SetDock(grip, System.Windows.Controls.Dock.Left)
+            DockPanel.SetDock(grip, Dock.Left)
             dock.Children.Add(grip)
 
         title       = TextBlock()
@@ -662,9 +666,9 @@ class ToolManager(object):
         if arrow_style_key:
             arrow.Style = self.window.FindResource(arrow_style_key)
         else:
-            arrow.Foreground = System.Windows.Media.Brushes.Gray
+            arrow.Foreground = Brushes.Gray
 
-        DockPanel.SetDock(arrow, System.Windows.Controls.Dock.Right)
+        DockPanel.SetDock(arrow, Dock.Right)
         dock.Children.Add(arrow)
         dock.Children.Add(title)
         header.Child = dock
@@ -686,10 +690,10 @@ class ToolManager(object):
         """Build the ⠿ drag handle TextBlock."""
         grip                   = TextBlock()
         grip.Text              = u"\u22EE\u22EE"   # ⋮⋮
-        grip.Foreground        = System.Windows.Media.Brushes.Gray
+        grip.Foreground        = Brushes.Gray
         grip.FontSize          = 11
-        grip.Cursor            = System.Windows.Input.Cursors.SizeAll
-        grip.VerticalAlignment = System.Windows.VerticalAlignment.Center
+        grip.Cursor            = Cursors.SizeAll
+        grip.VerticalAlignment = VerticalAlignment.Center
         grip.Margin            = Thickness(2, 0, 6, 0)
         grip.ToolTip           = "Drag to reorder"
         return grip
@@ -713,9 +717,9 @@ class ToolManager(object):
         # Drop target for reordering items within the panel
         def on_drag_over(sender, e):
             if e.Data.GetDataPresent(PANEL_CHILD_FORMAT):
-                e.Effects = System.Windows.DragDropEffects.Move
+                e.Effects = DragDropEffects.Move
             else:
-                e.Effects = System.Windows.DragDropEffects.None
+                e.Effects = DragDropEffects.None
             e.Handled = True
 
         def on_drop(sender, e):
@@ -725,7 +729,7 @@ class ToolManager(object):
             pos     = e.GetPosition(body)
             target  = None
             for child in list(body.Children):
-                pt = child.TranslatePoint(System.Windows.Point(0, 0), body)
+                pt = child.TranslatePoint(Point(0, 0), body)
                 if pos.Y < pt.Y + child.ActualHeight:
                     target = child
                     break
@@ -762,12 +766,12 @@ class ToolManager(object):
         mgr = self
 
         def on_grip_mouse_move(sender, e):
-            if e.LeftButton == System.Windows.Input.MouseButtonState.Pressed:
+            if e.LeftButton == MouseButtonState.Pressed:
                 mgr._drag_source = card
-                System.Windows.DragDrop.DoDragDrop(
+                DragDrop.DoDragDrop(
                     card,
-                    System.Windows.DataObject(mgr.DRAG_FORMAT, card),
-                    System.Windows.DragDropEffects.Move
+                    DataObject(mgr.DRAG_FORMAT, card),
+                    DragDropEffects.Move
                 )
                 mgr._drag_source = None
 
@@ -795,11 +799,11 @@ class ToolManager(object):
         grip                   = TextBlock()
         grip.Text              = u"\u22EE\u22EE"
         grip.FontSize          = 9
-        grip.Foreground        = System.Windows.Media.Brushes.White
+        grip.Foreground        = Brushes.White
         grip.Opacity           = 0.6
-        grip.Cursor            = System.Windows.Input.Cursors.SizeAll
-        grip.VerticalAlignment = System.Windows.VerticalAlignment.Center
-        grip.HorizontalAlignment = System.Windows.HorizontalAlignment.Center
+        grip.Cursor            = Cursors.SizeAll
+        grip.VerticalAlignment = VerticalAlignment.Center
+        grip.HorizontalAlignment = HorizontalAlignment.Center
         grip.ToolTip           = "Drag to reorder"
         return grip
 
@@ -818,33 +822,33 @@ class ToolManager(object):
         bar.Child                = grip
 
         # Grid: col0 = bar, col1 = content
-        grid = System.Windows.Controls.Grid()
-        col0                   = System.Windows.Controls.ColumnDefinition()
-        col0.Width             = System.Windows.GridLength(18)
-        col1                   = System.Windows.Controls.ColumnDefinition()
-        col1.Width             = System.Windows.GridLength(1, System.Windows.GridUnitType.Star)
+        grid = Grid()
+        col0                   = ColumnDefinition()
+        col0.Width             = GridLength(18)
+        col1                   = ColumnDefinition()
+        col1.Width             = GridLength(1, GridUnitType.Star)
         grid.ColumnDefinitions.Add(col0)
         grid.ColumnDefinitions.Add(col1)
 
-        System.Windows.Controls.Grid.SetColumn(bar,   0)
-        System.Windows.Controls.Grid.SetColumn(inner, 1)
+        Grid.SetColumn(bar,   0)
+        Grid.SetColumn(inner, 1)
         grid.Children.Add(bar)
         grid.Children.Add(inner)
 
         wrapper                  = Border()
         wrapper.Tag              = item_name
-        wrapper.CornerRadius     = System.Windows.CornerRadius(0, 4, 4, 0)
+        wrapper.CornerRadius     = CornerRadius(0, 4, 4, 0)
         wrapper.Margin           = Thickness(0, 3, 4, 3)
         wrapper.ClipToBounds     = True
         wrapper.Child            = grid
 
         fmt = drag_format
         def on_mouse_move(sender, e):
-            if e.LeftButton == System.Windows.Input.MouseButtonState.Pressed:
-                System.Windows.DragDrop.DoDragDrop(
+            if e.LeftButton == MouseButtonState.Pressed:
+                DragDrop.DoDragDrop(
                     wrapper,
-                    System.Windows.DataObject(fmt, wrapper),
-                    System.Windows.DragDropEffects.Move
+                    DataObject(fmt, wrapper),
+                    DragDropEffects.Move
                 )
         grip.MouseMove += on_mouse_move
 
@@ -898,9 +902,9 @@ class ToolManager(object):
 
         def on_drag_over(sender, e):
             if e.Data.GetDataPresent(CHILD_FORMAT):
-                e.Effects = System.Windows.DragDropEffects.Move
+                e.Effects = DragDropEffects.Move
             else:
-                e.Effects = System.Windows.DragDropEffects.None
+                e.Effects = DragDropEffects.None
             e.Handled = True
 
         def on_drop(sender, e):
@@ -910,7 +914,7 @@ class ToolManager(object):
             pos     = e.GetPosition(sp)
             target  = None
             for child in list(sp.Children):
-                pt = child.TranslatePoint(System.Windows.Point(0, 0), sp)
+                pt = child.TranslatePoint(Point(0, 0), sp)
                 if pos.Y < pt.Y + child.ActualHeight:
                     target = child
                     break
@@ -944,13 +948,13 @@ class ToolManager(object):
         label                   = TextBlock()
         label.Text              = name
         label.Style             = self.window.FindResource("ToolText")
-        label.VerticalAlignment = System.Windows.VerticalAlignment.Center
+        label.VerticalAlignment = VerticalAlignment.Center
 
         switch              = Border()
         switch.Width        = 40
         switch.Height       = 20
-        switch.CornerRadius = System.Windows.CornerRadius(10)
-        switch.Cursor       = System.Windows.Input.Cursors.Hand
+        switch.CornerRadius = CornerRadius(10)
+        switch.Cursor       = Cursors.Hand
         switch.Background   = SolidColorBrush(
             ColorConverter.ConvertFromString(
                 FolderHandler.ON_COLOR if is_on else FolderHandler.OFF_COLOR))
@@ -958,9 +962,9 @@ class ToolManager(object):
         knob                     = Border()
         knob.Width               = 16
         knob.Height              = 16
-        knob.CornerRadius        = System.Windows.CornerRadius(8)
-        knob.Background          = System.Windows.Media.Brushes.White
-        knob.HorizontalAlignment = System.Windows.HorizontalAlignment.Left
+        knob.CornerRadius        = CornerRadius(8)
+        knob.Background          = Brushes.White
+        knob.HorizontalAlignment = HorizontalAlignment.Left
         knob.Margin              = Thickness(22, 2, 0, 2) if is_on else Thickness(2, 2, 0, 2)
         switch.Child             = knob
 
@@ -972,7 +976,7 @@ class ToolManager(object):
 
         content        = DockPanel()
         content.Margin = Thickness(6, 4, 6, 4)
-        DockPanel.SetDock(switch, System.Windows.Controls.Dock.Right)
+        DockPanel.SetDock(switch, Dock.Right)
         content.Children.Add(switch)
         content.Children.Add(label)
 
@@ -985,32 +989,32 @@ class ToolManager(object):
             ColorConverter.ConvertFromString("#4A5568"))
         bar.Child      = grip
 
-        grid = System.Windows.Controls.Grid()
-        col0       = System.Windows.Controls.ColumnDefinition()
-        col0.Width = System.Windows.GridLength(18)
-        col1       = System.Windows.Controls.ColumnDefinition()
-        col1.Width = System.Windows.GridLength(1, System.Windows.GridUnitType.Star)
+        grid = Grid()
+        col0       = ColumnDefinition()
+        col0.Width = GridLength(18)
+        col1       = ColumnDefinition()
+        col1.Width = GridLength(1, GridUnitType.Star)
         grid.ColumnDefinitions.Add(col0)
         grid.ColumnDefinitions.Add(col1)
-        System.Windows.Controls.Grid.SetColumn(bar,     0)
-        System.Windows.Controls.Grid.SetColumn(content, 1)
+        Grid.SetColumn(bar,     0)
+        Grid.SetColumn(content, 1)
         grid.Children.Add(bar)
         grid.Children.Add(content)
 
         row              = Border()
         row.Tag          = name
-        row.CornerRadius = System.Windows.CornerRadius(0, 4, 4, 0)
+        row.CornerRadius = CornerRadius(0, 4, 4, 0)
         row.Margin       = Thickness(0, 2, 4, 2)
         row.ClipToBounds = True
         row.Child        = grid
 
         fmt = drag_format
         def on_mouse_move(sender, e):
-            if e.LeftButton == System.Windows.Input.MouseButtonState.Pressed:
-                System.Windows.DragDrop.DoDragDrop(
+            if e.LeftButton == MouseButtonState.Pressed:
+                DragDrop.DoDragDrop(
                     row,
-                    System.Windows.DataObject(fmt, row),
-                    System.Windows.DragDropEffects.Move
+                    DataObject(fmt, row),
+                    DragDropEffects.Move
                 )
         grip.MouseMove += on_mouse_move
 
@@ -1043,9 +1047,9 @@ class ToolManager(object):
         tag_lbl             = TextBlock()
         tag_lbl.Text        = u"SPLIT"
         tag_lbl.FontSize    = 9
-        tag_lbl.Foreground  = System.Windows.Media.Brushes.Gray
+        tag_lbl.Foreground  = Brushes.Gray
         tag_lbl.Margin      = Thickness(8, 0, 0, 0)
-        tag_lbl.VerticalAlignment = System.Windows.VerticalAlignment.Center
+        tag_lbl.VerticalAlignment = VerticalAlignment.Center
         try:
             dock = header.Child
             dock.Children.Add(tag_lbl)
@@ -1087,9 +1091,9 @@ class ToolManager(object):
 
         def on_drag_over(sender, e):
             if e.Data.GetDataPresent(STACK_FORMAT):
-                e.Effects = System.Windows.DragDropEffects.Move
+                e.Effects = DragDropEffects.Move
             else:
-                e.Effects = System.Windows.DragDropEffects.None
+                e.Effects = DragDropEffects.None
             e.Handled = True
 
         def on_drop(sender, e):
@@ -1099,7 +1103,7 @@ class ToolManager(object):
             pos     = e.GetPosition(body)
             target  = None
             for child in list(body.Children):
-                pt = child.TranslatePoint(System.Windows.Point(0, 0), body)
+                pt = child.TranslatePoint(Point(0, 0), body)
                 if pos.Y < pt.Y + child.ActualHeight:
                     target = child
                     break
@@ -1128,9 +1132,9 @@ class ToolManager(object):
         tag_lbl                   = TextBlock()
         tag_lbl.Text              = u"STACK"
         tag_lbl.FontSize          = 9
-        tag_lbl.Foreground        = System.Windows.Media.Brushes.Gray
+        tag_lbl.Foreground        = Brushes.Gray
         tag_lbl.Margin            = Thickness(8, 0, 0, 0)
-        tag_lbl.VerticalAlignment = System.Windows.VerticalAlignment.Center
+        tag_lbl.VerticalAlignment = VerticalAlignment.Center
         try:
             header.Child.Children.Add(tag_lbl)
         except Exception:
@@ -1146,7 +1150,7 @@ class ToolManager(object):
         card.BorderBrush     = SolidColorBrush(
             ColorConverter.ConvertFromString("#2E7D52"))
         card.BorderThickness = Thickness(2, 0, 0, 0)
-        card.CornerRadius    = System.Windows.CornerRadius(0, 4, 4, 0)
+        card.CornerRadius    = CornerRadius(0, 4, 4, 0)
         card.Margin          = Thickness(12, 3, 4, 3)
         card.Child           = inner_sp
         return card
@@ -1161,13 +1165,13 @@ class ToolManager(object):
         label                   = TextBlock()
         label.Text              = name
         label.Style             = self.window.FindResource("ToolText")
-        label.VerticalAlignment = System.Windows.VerticalAlignment.Center
+        label.VerticalAlignment = VerticalAlignment.Center
 
         switch              = Border()
         switch.Width        = 40
         switch.Height       = 20
-        switch.CornerRadius = System.Windows.CornerRadius(10)
-        switch.Cursor       = System.Windows.Input.Cursors.Hand
+        switch.CornerRadius = CornerRadius(10)
+        switch.Cursor       = Cursors.Hand
         switch.Background   = SolidColorBrush(
             ColorConverter.ConvertFromString(
                 FolderHandler.ON_COLOR if is_on else FolderHandler.OFF_COLOR))
@@ -1175,9 +1179,9 @@ class ToolManager(object):
         knob                     = Border()
         knob.Width               = 16
         knob.Height              = 16
-        knob.CornerRadius        = System.Windows.CornerRadius(8)
-        knob.Background          = System.Windows.Media.Brushes.White
-        knob.HorizontalAlignment = System.Windows.HorizontalAlignment.Left
+        knob.CornerRadius        = CornerRadius(8)
+        knob.Background          = Brushes.White
+        knob.HorizontalAlignment = HorizontalAlignment.Left
         knob.Margin              = Thickness(22, 2, 0, 2) if is_on else Thickness(2, 2, 0, 2)
         switch.Child             = knob
 
@@ -1189,7 +1193,7 @@ class ToolManager(object):
 
         row        = DockPanel()
         row.Margin = Thickness(6, 4, 6, 4)
-        DockPanel.SetDock(switch, System.Windows.Controls.Dock.Right)
+        DockPanel.SetDock(switch, Dock.Right)
         row.Children.Add(switch)
         row.Children.Add(label)
 

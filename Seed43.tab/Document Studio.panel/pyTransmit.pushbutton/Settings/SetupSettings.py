@@ -1,24 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-SetupSettings.py  —  pyTransmit Setup panel controller
-=======================================================
-Manages the Setup panel embedded in the main pyTransmit window.
-
-Controls:
-  - Project Settings: which optional fields appear in the main window
-    (Reason for Issue, Method of Issue, Document Type, Print Size)
-  - Recipient mode: Distribution List (fixed rows) vs Client List (cascading dropdowns)
-
-Config is persisted to pytransmit_setup.json next to the main script.
-
-Place this file in the  Settings  subfolder next to script.py.
-
-Usage in script.py:
-    from SetupSettings import SetupSettingsController
-    self.setup_ctrl = SetupSettingsController(script_dir)
-    self.setup_ctrl.attach(self)          # pass the WPFWindow (self)
-    self.setup_ctrl.load_and_apply()      # call after window is fully initialised
-"""
+# SetupSettings.py
 
 import os
 import json
@@ -124,13 +105,10 @@ class SetupSettingsController(object):
             # ── Try GP: tag from last issued revision first ────────────────
             saved = []
             try:
-                import clr as _clr
-                _clr.AddReference('RevitAPI')
-                from Autodesk.Revit.DB import FilteredElementCollector, Revision
                 from pyrevit import revit as _rv
                 import re as _re2
                 _all = sorted(
-                    FilteredElementCollector(_rv.doc).OfClass(Revision).ToElements(),
+                    revit.query.get_elements_by_class(DB.Revision, doc=_rv.doc),
                     key=lambda r: r.SequenceNumber)
                 _issued = [r for r in _all if r.Issued]
                 if _issued:

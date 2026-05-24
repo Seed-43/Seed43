@@ -6,12 +6,14 @@ clr.AddReference("PresentationFramework")
 clr.AddReference("PresentationCore")
 clr.AddReference("WindowsBase")
 
-from System.Windows import Window
+from pyrevit import revit, DB, forms, script
+
 from System.Windows.Controls import CheckBox, ListBoxItem
 from System.Windows.Markup import XamlReader
+from System.Windows import Visibility
+from System.Windows.Media.Imaging import BitmapImage
+from System import Uri, UriKind
 from System.IO import File
-
-from pyrevit import revit, DB, forms, script
 
 # ── [LIB] Snippets/_selection.py ─────────────────────────────────────────────
 from Snippets._selection import resolve_cad_instance
@@ -21,6 +23,7 @@ uidoc       = revit.uidoc
 active_view = revit.active_view
 
 XAML_PATH = os.path.join(os.path.dirname(__file__), "LayerManager.xaml")
+ICON_PATH = os.path.join(os.path.dirname(__file__), "icon.png")
 
 # ── RESOLVE TARGET VIEW ───────────────────────────────────────────────────────
 
@@ -85,7 +88,6 @@ class LayerManagerWindow(object):
         self.show_all_btn       = self.window.FindName("show_all_btn")
         self.hide_all_btn       = self.window.FindName("hide_all_btn")
         self.apply_btn          = self.window.FindName("apply_btn")
-        self.cancel_btn         = self.window.FindName("cancel_btn")
         self.header_close_btn   = self.window.FindName("header_close_btn")
         self.modal_overlay      = self.window.FindName("modal_overlay")
         self.alert_popup        = self.window.FindName("alert_popup")
@@ -97,6 +99,15 @@ class LayerManagerWindow(object):
         self.confirm_no_btn     = self.window.FindName("confirm_no_btn")
 
         self._result = None
+
+        if os.path.exists(ICON_PATH):
+            img       = self.window.FindName("header_icon")
+            bmp       = BitmapImage()
+            bmp.BeginInit()
+            bmp.UriSource = Uri(ICON_PATH, UriKind.Absolute)
+            bmp.EndInit()
+            img.Source = bmp
+
         self._bind_events()
         self._populate(layer_items)
 
@@ -111,7 +122,6 @@ class LayerManagerWindow(object):
 
     def _bind_events(self):
         self.apply_btn.Click        += self._on_apply
-        self.cancel_btn.Click       += self._on_cancel_request
         self.header_close_btn.Click += self._on_cancel_request
         self.window.Closing         += self._on_window_closing
         self.show_all_btn.Click     += self._on_show_all
@@ -142,7 +152,7 @@ class LayerManagerWindow(object):
                 return
             visible        = bool(sender.IsChecked)
             _layer.visible = visible
-            with revit.Transaction("Live CAD Layer Visibility", swallow_errors=True):
+            with revit.Transaction("CAD Layer Manager - Live Update"):
                 try:
                     target_view.SetCategoryHidden(_layer.subcat.Id, not visible)
                 except Exception:
@@ -181,14 +191,13 @@ class LayerManagerWindow(object):
         self._populate(filtered)
 
     def _set_placeholder(self, show):
-        from System.Windows import Visibility
         self.search_placeholder.Visibility = (
             Visibility.Visible if show else Visibility.Collapsed)
 
     # ── Show and hide all ─────────────────────────────────────────────────────
 
     def _set_all(self, visible):
-        with revit.Transaction("CAD Layer Visibility - Bulk", swallow_errors=True):
+        with revit.Transaction("CAD Layer Manager - Bulk Visibility"):
             for layer in layer_items:
                 if not layer.can_hide:
                     continue
@@ -223,7 +232,7 @@ class LayerManagerWindow(object):
             self._do_revert()
 
     def _do_revert(self):
-        with revit.Transaction("Revert CAD Layer Visibility"):
+        with revit.Transaction("CAD Layer Manager - Revert"):
             for sc_id, was_hidden in original_visibility.items():
                 try:
                     target_view.SetCategoryHidden(sc_id, was_hidden)
@@ -233,12 +242,10 @@ class LayerManagerWindow(object):
     # ── Confirm popup ─────────────────────────────────────────────────────────
 
     def _show_confirm(self):
-        from System.Windows import Visibility
         self.modal_overlay.Visibility = Visibility.Visible
         self.confirm_popup.Visibility = Visibility.Visible
 
     def _close_confirm(self, sender=None, e=None):
-        from System.Windows import Visibility
         self.modal_overlay.Visibility = Visibility.Collapsed
         self.confirm_popup.Visibility = Visibility.Collapsed
 
@@ -251,14 +258,12 @@ class LayerManagerWindow(object):
     # ── Alert popup ───────────────────────────────────────────────────────────
 
     def show_alert(self, message, title="Layer Manager"):
-        from System.Windows import Visibility
         self.alert_title_lbl.Text     = title
         self.alert_msg_lbl.Text       = message
         self.modal_overlay.Visibility = Visibility.Visible
         self.alert_popup.Visibility   = Visibility.Visible
 
     def _close_alert(self, sender=None, e=None):
-        from System.Windows import Visibility
         self.modal_overlay.Visibility = Visibility.Collapsed
         self.alert_popup.Visibility   = Visibility.Collapsed
 

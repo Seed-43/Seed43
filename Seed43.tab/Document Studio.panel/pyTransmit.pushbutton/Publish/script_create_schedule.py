@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-pyTransmit — Schedule Creator (Full Layout v3)
-"""
+# script_create_schedule.py
 
 # Must be first — reads the payload injected by pyTransmit via exec()
 _p = globals().get('PYTRANSMIT_PAYLOAD', {})
@@ -15,9 +13,21 @@ from Autodesk.Revit.DB import (
 import re
 from datetime import datetime as _dt
 import clr
-clr.AddReference('RevitAPI')
+import System
 
 output = script.get_output()
+output.hide()
+
+# ── Log capture via payload ───────────────────────────────────────────
+_log_lines = PYTRANSMIT_PAYLOAD.get('_log_lines', [])
+def _log(msg):
+    try: _log_lines.append(str(msg))
+    except Exception: pass
+
+class _SilentOutput(object):
+    def print_md(self, msg, *a, **kw): _log(msg)
+    def hide(self): pass
+output = _SilentOutput()
 doc    = revit.doc
 
 #  Config 
@@ -40,9 +50,9 @@ def _load_schedule_layout():
         except Exception: pass
     _script_dir = (_p.get('script_dir') or _os.path.dirname(_os.path.abspath(__file__)))
     for _candidate in [
-        _os.path.join(_script_dir, 'Layout', 'Layouts', 'Revit_Schedule.json'),
-        _os.path.join(_os.path.dirname(_script_dir), 'Layout', 'Layouts', 'Revit_Schedule.json'),
-        _os.path.join(_script_dir, 'Revit_Schedule.json'),
+        _os.path.join(_script_dir, 'Layout', 'Layouts', 'Revit Schedule.json'),
+        _os.path.join(_os.path.dirname(_script_dir), 'Layout', 'Layouts', 'Revit Schedule.json'),
+        _os.path.join(_script_dir, 'Revit Schedule.json'),
     ]:
         if _os.path.isfile(_candidate):
             try:
@@ -59,9 +69,10 @@ if LAYOUT:
     _TEXT_STYLES= LAYOUT.get('text_styles', {})
     PAGE_W_MM   = LAYOUT.get('page_w_mm', 210)
     PAGE_H_MM   = LAYOUT.get('page_h_mm', 297)
+    _HLINES     = {int(k): v for k,v in LAYOUT.get('hlines', {}).items()}
 else:
     _ROWS = []; _COL_PCT = [20, 35, 17]; MAX_REVS = 10; _TEXT_STYLES = {}
-    PAGE_W_MM = 210; PAGE_H_MM = 297
+    PAGE_W_MM = 210; PAGE_H_MM = 297; _HLINES = {}
 
 # ── Derive sizes from JSON ────────────────────────────────────────────────────
 
@@ -72,7 +83,7 @@ def _style_bold(name):
     return bool(_TEXT_STYLES.get(name, {}).get('bold', False))
 
 # Page / usable area
-_MARGIN_MM   = 5.0
+_MARGIN_MM   = 0.0
 _PAGE_MODE   = _p.get('page_height_mode') or 'a4'
 _SPLIT       = _PAGE_MODE != 'none'
 A4_USABLE    = float(_p.get('page_height_mm') or PAGE_H_MM - 2 * _MARGIN_MM)
@@ -100,7 +111,7 @@ _HDR_MM    = _style_mm('Header', 2.5)
 _TITLE_MM  = _style_mm('Title',  4.5)
 
 ROW_TITLE  = max(10.0, _TITLE_MM  * 4.0) * MM
-ROW_NORMAL = max(4.0,  _DATA_MM   * 2.5) * MM
+ROW_NORMAL = max(4.0,  _DATA_MM   * 2.2) * MM
 ROW_LEGEND = 34 * MM
 ROW_DATE_H = 18 * MM
 ROW_SPACER =  2 * MM
@@ -270,16 +281,6 @@ def format_revit_date(rev):
             except Exception: pass
         return s
     except Exception: return ''
-
-def rev_letter(seq):
-    n = seq - 1
-    if n < 0: return '?'
-    result = ''
-    while True:
-        result = chr(65 + (n % 26)) + result
-        n = n // 26 - 1
-        if n < 0: break
-    return result
 
 def get_param(element, name):
     try:
@@ -461,7 +462,7 @@ def clear_schedule_header(h):
 
 def get_or_create_schedule(doc, name):
     """Return existing schedule by name, or create a new one."""
-    for v in FilteredElementCollector(doc).OfClass(ViewSchedule).ToElements():
+    for v in revit.query.get_elements_by_class(ViewSchedule, doc=doc):
         if v.Name == name:
             return v, True   # (schedule, existed)
     vs = ViewSchedule.CreateSchedule(doc, ElementId.InvalidElementId)
@@ -496,13 +497,26 @@ title_text = "Transmittal Document"
 
 output.print_md("# pyTransmit — Schedule Creator")
 
-all_revisions = list(FilteredElementCollector(doc).OfClass(DB.Revision).ToElements())
-issued_revisions = sorted(
+all_revisions = list(revit.query.get_elements_by_class(DB.Revision, doc=doc))
+all_issued_revisions = sorted(
     [r for r in all_revisions if r.Issued], key=lambda r: r.SequenceNumber)
-if not issued_revisions:
+if not all_issued_revisions:
     forms.alert("No issued revisions found.", exitscript=True)
-if len(issued_revisions) > MAX_REVS:
-    issued_revisions = issued_revisions[-MAX_REVS:]
+# Filter to selected numbering type if payload specifies one
+_rev_type_filter = _p.get('rev_numbering_type', '')
+if _rev_type_filter:
+    def _get_num_type(rev):
+        try:
+            _se = doc.GetElement(rev.RevisionNumberingSequenceId)
+            return str(_se.NumberType).split('.')[-1] if _se else 'None'
+        except Exception: return 'Unknown'
+    all_issued_revisions = [r for r in all_issued_revisions
+                            if _get_num_type(r) == _rev_type_filter]
+    if not all_issued_revisions:
+        forms.alert("No issued revisions found for type '{}'.".format(_rev_type_filter), exitscript=True)
+# all_issued_revisions = full history used for sheet collection
+# issued_revisions     = visible columns only (capped at MAX_REVS)
+issued_revisions = all_issued_revisions[-MAX_REVS:]
 
 n_revs     = len(issued_revisions)
 rev_start  = 3
@@ -518,10 +532,21 @@ def parse_reason(s):
     """Parse reason code from IssuedTo string."""
     return _tag(s, "R")
 
+
+# ── REVISION UTILITIES ───────────────────────────────────────────────────────
+import os as _ru_os, imp as _ru_imp
+_ru_dir  = _ru_os.path.dirname(_ru_os.path.abspath(__file__))
+_ru_path = _ru_os.path.join(_ru_dir, 'revision_utils.py')
+_ru      = _ru_imp.load_source('revision_utils', _ru_path)
+get_rev_mark         = _ru.get_rev_mark
+build_rev_sheet_lookup = _ru.build_rev_sheet_lookup
+
+_rev_sheet_lookup = build_rev_sheet_lookup(doc)
 rev_meta = []
 for rev in issued_revisions:
+    _rep_sheet = _rev_sheet_lookup.get(rev.Id)
     rev_meta.append({
-        'letter':     rev_letter(rev.SequenceNumber),
+        'letter':     get_rev_mark(rev, sheet=_rep_sheet),
         'date':       format_revit_date(rev),
         'initials':   (rev.IssuedBy or "").strip() or "XX",
         'reason':     parse_reason(rev.IssuedTo or ""),
@@ -534,7 +559,8 @@ output.print_md("**Revisions:** {}  |  **Title:** {}".format(n_revs, title_text)
 
 #  Collect transmittal sheets 
 
-issued_id_set = set(r.Id for r in issued_revisions)
+# Use full revision history so sheets issued on older revisions are still included
+issued_id_set = set(r.Id for r in all_issued_revisions)
 all_sheets = list(FilteredElementCollector(doc)
     .OfCategory(BuiltInCategory.OST_Sheets)
     .WhereElementIsNotElementType().ToElements())
@@ -633,8 +659,7 @@ def get_or_create_text_style(name, font, size_mm, bold=False, italic=False):
             if tt.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString() == name:
                 existing = tt; break
         except Exception: pass
-    with Transaction(doc, "pyTransmit text style: {}".format(name)) as _tts:
-        _tts.Start()
+    with revit.Transaction("pyTransmit text style: {}".format(name)) as _tts:
         new_tt = existing if existing else all_types[0].Duplicate(name)
         for bip, val in [
             (DB.BuiltInParameter.TEXT_SIZE,        size_ft),
@@ -648,7 +673,6 @@ def get_or_create_text_style(name, font, size_mm, bold=False, italic=False):
                 p = new_tt.get_Parameter(bip)
                 if p and not p.IsReadOnly: p.Set(val)
             except Exception: pass
-        _tts.Commit()
     return new_tt
 
 # Create/update text types from JSON text_styles
@@ -667,11 +691,9 @@ for _tsn, _tsd in _ts_data.items():
     except Exception as _e:
         output.print_md("  text style {}: {}".format(_tsn, _e))
 
-with Transaction(doc, "pyTransmit — Line Styles") as _tls:
-    _tls.Start()
+with revit.Transaction("pyTransmit — Line Styles") as _tls:
     _ON_ID  = _get_or_create_line_style('pyT On',  (0,   0,   0  ))
     _OFF_ID = _get_or_create_line_style('pyT Off', (255, 255, 255))
-    _tls.Commit()
 
 #  Pre-calculate page count to clean up stale overflow schedules 
 # This runs BEFORE the main transaction so we can safely delete in its own transaction.
@@ -719,17 +741,15 @@ _pre_total_pages = _pre_calc_pages()
 
 # Delete any pyTransmit Schedule XX-YY schedules where XX > _pre_total_pages
 _stale_ids = []
-for _vs in FilteredElementCollector(doc).OfClass(ViewSchedule).ToElements():
+for _vs in revit.query.get_elements_by_class(ViewSchedule, doc=doc):
     _m = _re_pre.match(r'^pyTransmit Schedule (\d+)-\d+$', _vs.Name)
     if _m and int(_m.group(1)) > _pre_total_pages:
         _stale_ids.append(_vs.Id)
 if _stale_ids:
-    with Transaction(doc, "pyTransmit — Remove stale schedules") as _tds:
-        _tds.Start()
+    with revit.Transaction("pyTransmit — Remove stale schedules") as _tds:
         for _sid in _stale_ids:
             try: doc.Delete(_sid)
             except Exception: pass
-        _tds.Commit()
     output.print_md("  Removed {} stale schedule(s)".format(len(_stale_ids)))
 
 #  Get or create main schedule 
@@ -802,12 +822,12 @@ def _apply_block_cell_borders(hdr, ri, ec_s, ec_e, brd):
             # Top and bottom apply to every cell in the range
             _set_border(_sty, _opts, 'BorderTopLineStyle',    brd.get('t', False))
             _set_border(_sty, _opts, 'BorderBottomLineStyle', brd.get('b', False))
-            # Left only on the first cell; interior cells left to ShowGridLines
-            if _ci == ec_s:
-                _set_border(_sty, _opts, 'BorderLeftLineStyle', brd.get('l', False))
-            # Right only on the last cell; interior cells left to ShowGridLines
-            if _ci == ec_e:
-                _set_border(_sty, _opts, 'BorderRightLineStyle', brd.get('r', False))
+            # Left: outer border on first cell, hide on interior cells
+            _set_border(_sty, _opts, 'BorderLeftLineStyle',
+                        brd.get('l', False) if _ci == ec_s else False)
+            # Right: outer border on last cell, hide on interior cells
+            _set_border(_sty, _opts, 'BorderRightLineStyle',
+                        brd.get('r', False) if _ci == ec_e else False)
             _sty.SetCellStyleOverrideOptions(_opts)
             hdr.SetCellStyle(ri, _ci, _sty)
         except Exception: pass
@@ -898,9 +918,16 @@ for grp_label, grp_sheets in grouped_sheets:
         _sheet_render_rows.append(('sheet', s))
     _first_grp_done = True
 
+footer_plan = []
 for _lri, row in enumerate(_ROWS):
     sec = row.get('section', 'body')
     if sec == 'footer':
+        _ftypes = [b.get('type','') for b in row.get('blocks',[]) if b]
+        if any(t in ('sent_to','attn_to','spine_copies') for t in _ftypes):
+            footer_plan.append({'kind': 'recip', 'row': row, 'height': ROW_NORMAL,
+                                'items': list(range(len(RECIPIENTS))), 'layout_ri': _lri})
+        else:
+            footer_plan.append({'kind': 'fixed', 'row': row, 'height': ROW_NORMAL, 'layout_ri': _lri})
         continue
     blocks = row.get('blocks', [])
     # Determine if this row expands
@@ -943,7 +970,7 @@ output.print_md("**Pages:** {}  |  Page1 rows: {}  |  Page2+ rows: {}".format(
 
 # ── Helper: render one page of the schedule into hdr section ─────────────────
 
-def _render_page(hdr, page_sheet_items, is_first_page):
+def _render_page(hdr, page_sheet_items, is_first_page, is_last_page=False):
     """
     Build all rows/merges/text/styles for one schedule page.
     Returns list of group row indices (for border cleanup).
@@ -966,28 +993,10 @@ def _render_page(hdr, page_sheet_items, is_first_page):
     if is_first_page:
         _plan = render_plan
     else:
-        # Overflow page: only show doc-list header, col-header, sheets, footer
-        _sheet_row = next((p for p in render_plan if p['kind'] == 'sheets'), None)
-        _sheet_fixed = [p for p in render_plan
-                        if any(b and b.get('type','') in ('text',) for b in p['row'].get('blocks',[]))
-                        and p['kind'] == 'fixed'
-                        and any(b and b.get('content','') in ('Documentation List','Sheet','Description','Revision')
-                                or b and b.get('label','') in ('Documentation List','Sheet','Description','Revision')
-                                for b in p['row'].get('blocks',[]) if b)]
-        # Simpler: just emit doc-list row + col-header row + sheets
-        _plan_overflow = []
-        _in_doc = False
-        for p in render_plan:
-            _blk_types = [b.get('type','') for b in p['row'].get('blocks',[]) if b]
-            _blk_labels = [b.get('label','') or b.get('content','') for b in p['row'].get('blocks',[]) if b]
-            if 'Documentation List' in _blk_labels or any(t == 'text' and 'Documentation' in str(p['row']) for t in _blk_types):
-                _plan_overflow.append(p); _in_doc = True
-            elif _in_doc and any(t == 'text' for t in _blk_types) and any(
-                    l in ('Sheet','Description','Revision') for l in _blk_labels):
-                _plan_overflow.append(p)
-            elif p['kind'] == 'sheets':
-                _plan_overflow.append(p)
-        _plan = _plan_overflow if _plan_overflow else [p for p in render_plan if p['kind'] == 'sheets']
+        # Overflow pages: include only rows marked repeat_every_page in the JSON, plus the sheet data row
+        _plan = [p for p in render_plan
+                 if p['kind'] == 'sheets'
+                 or p['row'].get('repeat_every_page', False)]
 
     for plan_item in _plan:
         kind = plan_item['kind']
@@ -1022,6 +1031,19 @@ def _render_page(hdr, page_sheet_items, is_first_page):
                                   'item': sr, 'is_last': _is_last_s, 'layout_ri': _plan_lri})
                 ri += 1
 
+    if is_last_page:
+        for fp in footer_plan:
+            if fp['kind'] == 'recip':
+                for idx, _ in enumerate(RECIPIENTS):
+                    page_rows.append({'ri': ri, 'kind': 'recip', 'row': fp['row'],
+                                      'item': idx, 'is_last': idx == len(RECIPIENTS)-1,
+                                      'layout_ri': fp['layout_ri']})
+                    ri += 1
+            else:
+                page_rows.append({'ri': ri, 'kind': 'fixed', 'row': fp['row'],
+                                  'item': None, 'layout_ri': fp['layout_ri']})
+                ri += 1
+
     total_rows = ri
     footer_ri  = -1  # no hardcoded footer
 
@@ -1041,6 +1063,7 @@ def _render_page(hdr, page_sheet_items, is_first_page):
     group_row_indices = []
     blank_row_indices  = []
     border_tasks      = []  # (kind, sched_ri, ec_s, ec_e, brd, extra, layout_ri, layout_ci)
+    footer_bottom_ris = set()  # row indices of footer rows needing bottom border re-assertion
 
     for pr in page_rows:
         ri2   = pr['ri']
@@ -1053,12 +1076,17 @@ def _render_page(hdr, page_sheet_items, is_first_page):
         blocks = row2.get('blocks', [])
         ci     = 0  # canvas column index
 
-        for b in blocks:
+        _skip_to = 0  # tracks next unoccupied canvas col
+        for _bi, b in enumerate(blocks):
             if b is None:
-                ci += 1
+                if _bi >= _skip_to:
+                    ci += 1
+                    _skip_to = ci
                 continue
             t    = b.get('type', '')
             span = int(b.get('span', 1))
+            ci   = _bi if _bi >= _skip_to else ci
+            _skip_to = ci + span
             ec_s, ec_e = _col_range(ci, span, blocks)
             bold = _block_bold(b)
             sz   = _block_size(b)
@@ -1075,14 +1103,18 @@ def _render_page(hdr, page_sheet_items, is_first_page):
                             bg_rgb=_header_bg if bold else None,
                             fg_rgb=_header_fg if bold else None, font=_block_font(b))
                 if bold:
+                    # top/bottom from hlines grid (source of truth), left/right from block borders
+                    _lri2 = pr.get('layout_ri', 0)
+                    _top_row = _HLINES.get(_lri2, [False]*4)
+                    _bot_row = _HLINES.get(_lri2 + 1, [False]*4)
                     for _c in range(ec_s, ec_e + 1):
                         try:
                             _sty = hdr.GetTableCellStyle(ri2, _c)
                             _opt = _sty.GetCellStyleOverrideOptions()
-                            # Apply _ON_ID only on sides JSON requests; hide others
+                            _hli = min(_c, len(_top_row) - 1)
                             for _attr, _side in [
-                                ('BorderTopLineStyle',    brd.get('t', False)),
-                                ('BorderBottomLineStyle', brd.get('b', False)),
+                                ('BorderTopLineStyle',    bool(_top_row[_hli]) if _hli < len(_top_row) else False),
+                                ('BorderBottomLineStyle', bool(_bot_row[_hli]) if _hli < len(_bot_row) else False),
                                 ('BorderLeftLineStyle',   brd.get('l', False) if _c == ec_s else False),
                                 ('BorderRightLineStyle',  brd.get('r', False) if _c == ec_e else False),
                             ]:
@@ -1101,7 +1133,7 @@ def _render_page(hdr, page_sheet_items, is_first_page):
             elif t == 'blank':
                 safe_merge(hdr, ri2, ec_s, ri2, ec_e)
                 remove_row_borders(hdr, ri2, TOTAL_COLS)
-                if ri2 not in blank_row_indices:
+                if ri2 not in blank_row_indices and row2.get('section') != 'footer':
                     blank_row_indices.append(ri2)
 
             # ── spine_dates ───────────────────────────────────────────────────
@@ -1134,6 +1166,9 @@ def _render_page(hdr, page_sheet_items, is_first_page):
                 safe_text(hdr, ri2, ec_s, _leg)
                 apply_style(hdr, ri2, ec_s, bold=False, size_mm=sz, halign=just, valign=_block_valign(b))
                 _apply_block_cell_borders(hdr, ri2, ec_s, ec_e, brd)
+                # Hide all rev columns — ShowGridLines would otherwise draw them
+                _no_border = {'t': False, 'b': False, 'l': False, 'r': False}
+                _apply_block_cell_borders(hdr, ri2, REV_START, LAST_COL, _no_border)
 
             # ── spine_reason / spine_method / spine_initials / etc ────────────
             elif t in ('spine_reason','spine_method','spine_initials',
@@ -1155,6 +1190,7 @@ def _render_page(hdr, page_sheet_items, is_first_page):
                 _attn = (_p['recipients'][idx].get('attn','')
                          if _p.get('recipients') and idx < len(_p['recipients']) else '')
                 if t == 'sent_to':
+                    if ec_s != ec_e: safe_merge(hdr, ri2, ec_s, ri2, ec_e)
                     safe_text(hdr, ri2, ec_s, rec)
                     apply_style(hdr, ri2, ec_s, bold=False, size_mm=sz, halign=just, valign=_block_valign(b), font=_block_font(b))
                 elif t == 'attn_to':
@@ -1201,7 +1237,7 @@ def _render_page(hdr, page_sheet_items, is_first_page):
                             val = ''
                             if j < n_revs:
                                 _rv = issued_revisions[j]
-                                val = rev_letter(_rv.SequenceNumber) if _rv.Id in _srev_ids else ''
+                                val = (get_rev_mark(_rv, sheet=sr_item if sr_kind=="sheet" else _rev_sheet_lookup.get(_rv.Id))) if _rv.Id in _srev_ids else ''
                             safe_text(hdr, ri2, REV_START + j, val)
                             apply_style(hdr, ri2, REV_START + j, bold=False,
                                         size_mm=sz, halign=just, valign=_block_valign(b))
@@ -1214,13 +1250,87 @@ def _render_page(hdr, page_sheet_items, is_first_page):
 
             ci += span
 
-    return group_row_indices, footer_ri, blank_row_indices, border_tasks
+    # ── Footer row borders ────────────────────────────────────────────────────
+    # Style algo skips footer rows, so apply their borders directly here.
+    _REV_TYPES = {'spine_copies', 'spine_reason', 'spine_method',
+                  'spine_initials', 'spine_doc_type', 'spine_print_size'}
+    _HIDE_ALL  = {'t': False, 'b': False, 'l': False, 'r': False}
+    if is_last_page:
+        for pr in page_rows:
+            if pr['row'].get('section') != 'footer':
+                continue
+            _fblocks = pr['row'].get('blocks', [])
+            _row_has_rev_block = any(
+                b and b.get('type', '') in _REV_TYPES for b in _fblocks if b)
+            _is_last_r = pr.get('is_last', False)
+            _fskip_to = 0
+            _fci = 0
+            for _fbi, _fb in enumerate(_fblocks):
+                if _fb is None:
+                    if _fbi >= _fskip_to:
+                        _fci += 1
+                        _fskip_to = _fci
+                    continue
+                _fspan = int(_fb.get('span', 1))
+                _fci   = _fbi if _fbi >= _fskip_to else _fci
+                _fskip_to = _fci + _fspan
+                _fec_s = _fci
+                _fec_e = min(_fci + _fspan - 1, REV_START - 1)
+                _fbrd  = _fb.get('borders', {})
+                _ftype = _fb.get('type', 'text')
+                _fdata = _fb.get('data_borders', {'h': True, 'v': True})
+                if _ftype == 'blank':
+                    remove_row_borders(hdr, pr['ri'], TOTAL_COLS)
+                    # Re-assert bottom border on the row above — Revit adjacency
+                    # last-write-wins means remove_row_borders would erase it
+                    _above_ri = pr['ri'] - 1
+                    if _above_ri >= 0:
+                        _above_pr = next((p for p in page_rows if p['ri'] == _above_ri), None)
+                        if _above_pr and _above_pr['row'].get('section') == 'footer':
+                            _above_blocks = [b for b in _above_pr['row'].get('blocks',[]) if b]
+                            _above_has_bottom = any(b.get('borders',{}).get('b', False)
+                                                    for b in _above_blocks)
+                            if _above_has_bottom:
+                                for _ci in range(TOTAL_COLS):
+                                    try:
+                                        _sty  = hdr.GetTableCellStyle(_above_ri, _ci)
+                                        _opts = _sty.GetCellStyleOverrideOptions()
+                                        _opts.BorderBottomLineStyle = True
+                                        _sty.BorderBottomLineStyle  = _ON_ID if _ON_ID else ElementId.InvalidElementId
+                                        _sty.SetCellStyleOverrideOptions(_opts)
+                                        hdr.SetCellStyle(_above_ri, _ci, _sty)
+                                    except Exception: pass
+                    # Footer blank rows are NOT added to blank_row_indices — the cleanup
+                    # transaction's blank row handler triggers adjacency and erases the
+                    # bottom border on the last recip row above it.
+                elif _ftype in _REV_TYPES:
+                    # Rev-column block: per-column borders with is_last for outer bottom
+                    _apply_data_row_borders(hdr, pr['ri'], REV_START, LAST_COL,
+                                            _is_last_r, _fbrd, _fdata, rev_cols=True)
+                    if _fbrd.get('b', False):
+                        footer_bottom_ris.add(pr['ri'])
+                elif _ftype in ('sent_to', 'attn_to'):
+                    # Fixed data block: use data_borders for intermediate rows,
+                    # outer border only on last recipient row
+                    _apply_data_row_borders(hdr, pr['ri'], _fec_s, _fec_e,
+                                            _is_last_r, _fbrd, _fdata, rev_cols=False)
+                    if _fbrd.get('b', False):
+                        footer_bottom_ris.add(pr['ri'])
+                else:
+                    # Static text/reason_list block
+                    _apply_block_cell_borders(hdr, pr['ri'], _fec_s, _fec_e, _fbrd)
+                    if not _row_has_rev_block:
+                        _apply_block_cell_borders(hdr, pr['ri'], REV_START, LAST_COL,
+                                                  _HIDE_ALL)
+
+    output.print_md("   footer_bottom_ris={}".format(sorted(footer_bottom_ris)))
+    output.print_md("   blank_row_indices={}".format(sorted(blank_row_indices)))
+    return group_row_indices, footer_ri, blank_row_indices, border_tasks, footer_bottom_ris
 
 
 # ── Main schedule transaction ─────────────────────────────────────────────────
 
-with Transaction(doc, "pyTransmit \u2014 Update Schedule") as t:
-    t.Start()
+with revit.Transaction("pyTransmit \u2014 Update Schedule") as t:
 
     sched, existed = get_or_create_schedule(doc, SCHEDULE_NAME)
     sched_def = sched.Definition
@@ -1276,9 +1386,8 @@ with Transaction(doc, "pyTransmit \u2014 Update Schedule") as t:
     except Exception: pass
 
     # Render page 1
-    _p1_group_ris, _p1_footer_ri, _p1_blank_ris, _p1_border_tasks = _render_page(hdr, pages[0], is_first_page=True)
+    _p1_group_ris, _p1_footer_ri, _p1_blank_ris, _p1_border_tasks, _p1_footer_bot_ris = _render_page(hdr, pages[0], is_first_page=True, is_last_page=(total_pages == 1))
 
-    t.Commit()
 
 # ── Load Style Algorithm for border/colour resolution ────────────────────────
 
@@ -1343,8 +1452,7 @@ def _apply_algo_border(hdr_sec, sched_ri, layout_ri, layout_ci):
 
 # ── Border cleanup transaction — algo-driven ──────────────────────────────────
 
-with Transaction(doc, "pyTransmit footer") as tf:
-    tf.Start()
+with revit.Transaction("pyTransmit footer") as tf:
 
     hdr_f = sched.GetTableData().GetSectionData(SectionType.Header)
 
@@ -1374,9 +1482,14 @@ with Transaction(doc, "pyTransmit footer") as tf:
             _blri  = _btask[6] if len(_btask) >= 8 else 0
             _sched_to_layout[_bri] = _blri
             if _bkind == "data" and _bextra:
-                _sched_is_last[_bri] = _bextra[1]
-                _sched_data_b[_bri]  = _bextra[0] if isinstance(_bextra[0], dict) else {'h':True,'v':True}
+                # Only include non-footer rows so max() correctly finds last sheet row
+                _blri_row = _ROWS[_blri] if _blri < len(_ROWS) else {}
+                if _blri_row.get('section', 'body') != 'footer':
+                    _sched_is_last[_bri] = _bextra[1]
+                    _sched_data_b[_bri]  = _bextra[0] if isinstance(_bextra[0], dict) else {'h':True,'v':True}
 
+        output.print_md("   _sched_is_last keys={} max={}".format(
+            sorted(_sched_is_last.keys()), max(_sched_is_last.keys()) if _sched_is_last else None))
         for _sched_ri, _layout_ri in _sched_to_layout.items():
             _is_last = _sched_is_last.get(_sched_ri, True)
             _data_b  = _sched_data_b.get(_sched_ri, {})
@@ -1422,6 +1535,18 @@ with Transaction(doc, "pyTransmit footer") as tf:
                 _cs_above = _get_sched_style(_above_layout_ri, _lci_above) if _above_layout_ri is not None else {}
                 _above_b = _cs_above.get('b', False)
                 _set_cell_border(hdr_f, _blank_ri, _ci, _above_b, False, False, False)
+            # Re-assert bottom on row above — adjacency last-write-wins
+            _above_ri = _blank_ri - 1
+            if _above_ri >= 0 and _above_ri in _p1_footer_bot_ris:
+                for _ci in range(TOTAL_COLS):
+                    try:
+                        _sty  = hdr_f.GetTableCellStyle(_above_ri, _ci)
+                        _opts = _sty.GetCellStyleOverrideOptions()
+                        _opts.BorderBottomLineStyle = True
+                        _sty.BorderBottomLineStyle  = _ON_ID if _ON_ID else ElementId.InvalidElementId
+                        _sty.SetCellStyleOverrideOptions(_opts)
+                        hdr_f.SetCellStyle(_above_ri, _ci, _sty)
+                    except Exception: pass
 
         # Group header rows, draw top/bottom borders from data_borders.h
         _data_h = True  # data_borders.h default
@@ -1453,14 +1578,47 @@ with Transaction(doc, "pyTransmit footer") as tf:
                         _show_r_a = _cs_a.get('r', False) if _ci == TOTAL_COLS - 1 else _above_v
                     _set_cell_border(hdr_f, _above_ri, _ci, _show_t_a, _above_h, _show_l_a, _show_r_a)
 
-    tf.Commit()
+    # Re-assert footer row bottom borders — runs regardless of style algo
+    # The cleanup transaction's blank-row handler erases them via adjacency
+    for _fbr in _p1_footer_bot_ris:
+        for _ci in range(TOTAL_COLS):
+            try:
+                _sty  = hdr_f.GetTableCellStyle(_fbr, _ci)
+                _opts = _sty.GetCellStyleOverrideOptions()
+                _opts.BorderBottomLineStyle = True
+                _sty.BorderBottomLineStyle  = _ON_ID if _ON_ID else ElementId.InvalidElementId
+                _sty.SetCellStyleOverrideOptions(_opts)
+                hdr_f.SetCellStyle(_fbr, _ci, _sty)
+            except Exception: pass
+
+    # Re-assert bottom on last sheet row by also setting top on the footer blank
+    # row below it — remove_row_borders in the main loop sets it to OFF which
+    # erases the last sheet row bottom via Revit adjacency last-write-wins.
+    if _sched_is_last:
+        _last_sheet_ri = max(_sched_is_last.keys())
+        _footer_blank_ri = _last_sheet_ri + 1
+        if _footer_blank_ri < hdr_f.NumberOfRows:
+            _last_layout_ri = _sched_to_layout.get(_last_sheet_ri)
+            for _ci in range(TOTAL_COLS):
+                _lci_b = _ci if _ci < REV_START else REV_START
+                _cs_b  = _get_sched_style(_last_layout_ri, _lci_b) if _last_layout_ri is not None else {}
+                _show_b_last = _cs_b.get('b', False)
+                try:
+                    # Set top of blank row to mirror last sheet row bottom
+                    _sty  = hdr_f.GetTableCellStyle(_footer_blank_ri, _ci)
+                    _opts = _sty.GetCellStyleOverrideOptions()
+                    _opts.BorderTopLineStyle = True
+                    _sty.BorderTopLineStyle  = (_ON_ID if _ON_ID else ElementId.InvalidElementId) if _show_b_last else _OFF_ID
+                    _sty.SetCellStyleOverrideOptions(_opts)
+                    hdr_f.SetCellStyle(_footer_blank_ri, _ci, _sty)
+                except Exception: pass
+
 # ── Overflow pages ────────────────────────────────────────────────────────────
 
 for page_idx, page_items in enumerate(pages[1:], start=2):
     sched_name = "pyTransmit Schedule {:02d}-{:02d}".format(page_idx, total_pages)
 
-    with Transaction(doc, "pyTransmit page {}".format(page_idx)) as t2:
-        t2.Start()
+    with revit.Transaction("pyTransmit page {}".format(page_idx)) as t2:
 
         vs2, existed2 = get_or_create_schedule(doc, sched_name)
         sd2 = vs2.Definition
@@ -1506,7 +1664,7 @@ for page_idx, page_items in enumerate(pages[1:], start=2):
             body2.SetCellStyle(_bs2)
         except Exception: pass
 
-        _p2_group_ris, _p2_footer_ri, _p2_blank_ris, _p2_border_tasks = _render_page(hdr2, page_items, is_first_page=False)
+        _p2_group_ris, _p2_footer_ri, _p2_blank_ris, _p2_border_tasks, _p2_footer_bot_ris = _render_page(hdr2, page_items, is_first_page=False, is_last_page=(page_idx == total_pages))
 
         # Update footer page number
         hdr2_ref = vs2.GetTableData().GetSectionData(SectionType.Header)
@@ -1515,11 +1673,9 @@ for page_idx, page_items in enumerate(pages[1:], start=2):
                       'Page {} of {}'.format(page_idx, total_pages))
         except Exception: pass
 
-        t2.Commit()
 
         # Border cleanup for overflow page
-        with Transaction(doc, "pyTransmit p{} borders".format(page_idx)) as tb2:
-            tb2.Start()
+        with revit.Transaction("pyTransmit p{} borders".format(page_idx)) as tb2:
             hdr2_f = vs2.GetTableData().GetSectionData(SectionType.Header)
             if _style_algo and _sched_cell_styles:
                 _s2_to_layout = {}; _s2_is_last = {}; _s2_data_b = {}
@@ -1553,6 +1709,18 @@ for page_idx, page_items in enumerate(pages[1:], start=2):
                         _lci_a2 = _ci if _ci < REV_START else REV_START
                         _cs_a2 = _get_sched_style(_above_lr2, _lci_a2) if _above_lr2 is not None else {}
                         _set_cell_border(hdr2_f, _br, _ci, _cs_a2.get('b', False), False, False, False)
+                    # Re-assert bottom on row above — adjacency last-write-wins
+                    _above_ri2 = _br - 1
+                    if _above_ri2 >= 0 and _above_ri2 in _p2_footer_bot_ris:
+                        for _ci in range(TOTAL_COLS):
+                            try:
+                                _sty2  = hdr2_f.GetTableCellStyle(_above_ri2, _ci)
+                                _opts2 = _sty2.GetCellStyleOverrideOptions()
+                                _opts2.BorderBottomLineStyle = True
+                                _sty2.BorderBottomLineStyle  = _ON_ID if _ON_ID else ElementId.InvalidElementId
+                                _sty2.SetCellStyleOverrideOptions(_opts2)
+                                hdr2_f.SetCellStyle(_above_ri2, _ci, _sty2)
+                            except Exception: pass
                 _first_gri2 = min(_p2_group_ris) if _p2_group_ris else None
                 for _gr in _p2_group_ris:
                     for _ci in range(TOTAL_COLS):
@@ -1575,27 +1743,34 @@ for page_idx, page_items in enumerate(pages[1:], start=2):
                                 _show_l_a2 = _cs_a2.get('l', False) if _rci2 == 0 else _above_v2
                                 _show_r_a2 = _cs_a2.get('r', False) if _ci == TOTAL_COLS - 1 else _above_v2
                             _set_cell_border(hdr2_f, _above_ri2, _ci, _show_t_a2, _above_h2, _show_l_a2, _show_r_a2)
-            tb2.Commit()
+
+        # Re-assert footer row bottom borders — unconditional, outside style algo block
+        for _fbr2 in _p2_footer_bot_ris:
+            for _ci in range(TOTAL_COLS):
+                try:
+                    _sty2  = hdr2_f.GetTableCellStyle(_fbr2, _ci)
+                    _opts2 = _sty2.GetCellStyleOverrideOptions()
+                    _opts2.BorderBottomLineStyle = True
+                    _sty2.BorderBottomLineStyle  = _ON_ID if _ON_ID else ElementId.InvalidElementId
+                    _sty2.SetCellStyleOverrideOptions(_opts2)
+                    hdr2_f.SetCellStyle(_fbr2, _ci, _sty2)
+                except Exception: pass
 
         output.print_md("   Created `{}`  ({} rows)".format(sched_name, len(page_items)))
 
 
 #  Logo insertion 
 import os as _os
-logo_path = LOGO_PATH
-if not logo_path:
-    _script_dir_logo = _os.path.dirname(_os.path.abspath(__file__))
-    for _sd in (_os.path.join(_script_dir_logo, 'Settings'), _script_dir_logo):
-        for _fn in ('logo.png','logo.PNG','logo.jpg','logo.JPG','logo.jpeg','logo.JPEG'):
-            _cand = _os.path.join(_sd, _fn)
-            if _os.path.exists(_cand):
-                logo_path = _cand; break
-        if logo_path: break
+_has_logo_block = any(
+    b and b.get('type') == 'logo'
+    for row in (_ROWS or [])
+    for b in row.get('blocks', [])
+)
+logo_path = LOGO_PATH if _has_logo_block else ''
 
 if logo_path and _os.path.exists(logo_path):
     try:
-        with Transaction(doc, "pyTransmit logo") as tl:
-            tl.Start()
+        with revit.Transaction("pyTransmit logo") as tl:
             from Autodesk.Revit.DB import ImageType, ImageTypeOptions, ImageTypeSource
             existing_img = None
             for el in FilteredElementCollector(doc).OfClass(ImageType).ToElements():
@@ -1618,11 +1793,68 @@ if logo_path and _os.path.exists(logo_path):
                 output.print_md("   Logo inserted from: `{}`".format(logo_path))
             except Exception as img_err:
                 output.print_md("   InsertImage error: {}".format(img_err))
-            tl.Commit()
     except Exception as logo_err:
         output.print_md("   Logo insertion failed: {}".format(logo_err))
 
 
+
+
+# ── Footer bottom border final pass ──────────────────────────────────────────
+# Run in its own transaction last so nothing can overwrite it.
+def _reassert_footer_bottoms(vs, footer_bot_ris):
+    if not footer_bot_ris:
+        output.print_md("   footer_bot_ris empty — skipping re-assert")
+        return
+    output.print_md("   Re-asserting footer bottom on rows: {} in schedule `{}`".format(
+        sorted(footer_bot_ris), vs.Name))
+    try:
+        with revit.Transaction("pyTransmit — footer borders") as _tfb:
+            _hdr = vs.GetTableData().GetSectionData(SectionType.Header)
+            _n_rows = _hdr.NumberOfRows
+            output.print_md("   hdr rows={}".format(_n_rows))
+            for _ri in sorted(footer_bot_ris):
+                _ok_b = 0; _ok_t = 0
+                _next_ri = _ri + 1
+                for _ci in range(TOTAL_COLS):
+                    try:
+                        # Set bottom on target row
+                        _s = _hdr.GetTableCellStyle(_ri, _ci)
+                        _o = _s.GetCellStyleOverrideOptions()
+                        _o.BorderBottomLineStyle = True
+                        _s.BorderBottomLineStyle = _ON_ID if _ON_ID else ElementId.InvalidElementId
+                        _s.SetCellStyleOverrideOptions(_o)
+                        _hdr.SetCellStyle(_ri, _ci, _s)
+                        _ok_b += 1
+                    except Exception as _e:
+                        output.print_md("     bottom cell ({},{}) err: {}".format(_ri, _ci, _e))
+                    # Also set top on the row below (adjacency last-write-wins)
+                    if _next_ri < _n_rows:
+                        try:
+                            _s2 = _hdr.GetTableCellStyle(_next_ri, _ci)
+                            _o2 = _s2.GetCellStyleOverrideOptions()
+                            _o2.BorderTopLineStyle = True
+                            _s2.BorderTopLineStyle = _ON_ID if _ON_ID else ElementId.InvalidElementId
+                            _s2.SetCellStyleOverrideOptions(_o2)
+                            _hdr.SetCellStyle(_next_ri, _ci, _s2)
+                            _ok_t += 1
+                        except Exception as _e:
+                            output.print_md("     top cell ({},{}) err: {}".format(_next_ri, _ci, _e))
+                output.print_md("   row {} — {}b {}t cells written".format(_ri, _ok_b, _ok_t))
+            output.print_md("   footer bottom re-assert done")
+    except Exception as _e:
+        output.print_md("   footer re-assert FAILED: {}".format(_e))
+
+output.print_md("   _ON_ID={} _OFF_ID={}".format(_ON_ID, _OFF_ID))
+_reassert_footer_bottoms(sched, _p1_footer_bot_ris)
+for _pfi, _pf_items in enumerate(pages[1:], start=2):
+    _pf_sched_name = "pyTransmit Schedule {:02d}-{:02d}".format(_pfi, total_pages)
+    for _vs_pf in revit.query.get_elements_by_class(ViewSchedule, doc=doc):
+        if _vs_pf.Name == _pf_sched_name:
+            _reassert_footer_bottoms(_vs_pf, _p2_footer_bot_ris)
+            break
+
 output.print_md("\n##  Complete — `{}`".format(SCHEDULE_NAME))
 output.print_md("Sheets written: {}  |  Revisions: {}  |  Pages: {}".format(
     len(tx_sheets), n_revs, total_pages))
+try: _log_f.close()
+except Exception: pass

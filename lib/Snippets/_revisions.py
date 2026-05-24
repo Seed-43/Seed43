@@ -1,42 +1,4 @@
 # -*- coding: utf-8 -*-
-__title__  = "_revisions"
-__author__  = "Seed43"
-__doc__     = """
-VERSION 260507
-_____________________________________________________________________
-Description:
-Shared helper functions for working with Revit Revisions and the
-filter backup system.
-
-Used by Persistent Revisions, Revision Status Colour, Filter Delete
-and Backup, and Filters Restore. Import the functions you need.
-
-Example:
-    from Snippets._revisions import get_revision_description
-    from Snippets._revisions import safe_str, get_backup_path, load_backup, save_backup
-_____________________________________________________________________
-Functions:
-get_revision_description(rev)
-    Return the user-visible description of a revision.
-
-safe_str(net_string)
-    Convert a .NET string to a safe Python string.
-
-get_backup_path(doc)
-    Return the path for the filter backup JSON file next to the model.
-
-load_backup(path)
-    Load a backup JSON file and return it as a dict.
-
-save_backup(path, data, logger)
-    Write a dict to disk as a JSON backup file.
-_____________________________________________________________________
-Last update:
-- Initial release, extracted from Persistent Revisions, Revision
-  Status Colour, Filter Delete and Backup, and Filters Restore
-_____________________________________________________________________
-"""
-
 import json
 from Autodesk.Revit.DB import BuiltInParameter
 from System.IO import File, Directory, Path

@@ -1,31 +1,30 @@
 # -*- coding: utf-8 -*-
-"""
-pyTransmit — Excel Creator  (Layout JSON-driven)
-=================================================
-Driven by PYTRANSMIT_PAYLOAD injected from script.py via exec().
-Layout structure is read from Layout/Layouts/Excel.json.
-
-The layout JSON defines:
-  - Row structure (block types, spans, row_span, section, merge_down)
-  - Text styles (font, size_mm, bold, italic, colour, bg_color)
-  - Column percentages (col_pct)
-  - Logo path
-  - Revision count
-
-The payload provides runtime data:
-  - Recipients (labels, attn, copies)
-  - Reason / Method legend text
-  - Meta row values per revision (from Revit)
-  - Branding (bg colours etc.)
-"""
+# script_create_excel.py
 
 _p = globals().get('PYTRANSMIT_PAYLOAD', {})
 
+# ── Log capture via payload ───────────────────────────────────────────
+_log_lines = PYTRANSMIT_PAYLOAD.get('_log_lines', [])
+def _log(msg):
+    try: _log_lines.append(str(msg))
+    except Exception: pass
+
+def _log(msg):
+    try: _log_lines.append(str(msg))
+    except Exception: pass
+
+
+
 from pyrevit import revit, script, DB, forms
-from Autodesk.Revit.DB import FilteredElementCollector
 import re, os, json, copy
 
 output = script.get_output()
+output.hide()
+
+class _SilentOutput(object):
+    def print_md(self, *a, **kw): pass
+    def hide(self): pass
+output = _SilentOutput()
 doc    = revit.doc
 
 # ── Constants ────────────────────────────────────────────────────────────────
@@ -127,16 +126,6 @@ def natural_sort_key(s):
     parts = re.split(r'(\d+)', str(s))
     return [int(p) if p.isdigit() else p.lower() for p in parts]
 
-def rev_letter(seq):
-    n = seq - 1
-    if n < 0: return '?'
-    result = ''
-    while True:
-        result = chr(65 + (n % 26)) + result
-        n = n // 26 - 1
-        if n < 0: break
-    return result
-
 def parse_date(raw, fmt='dd/MM/yyyy'):
     if not raw: return ""
     m = re.search(r'(\d{1,2})\D(\d{1,2})\D(\d{2,4})', str(raw).strip())
@@ -204,8 +193,20 @@ proj_name   = get_param(proj_info, "Project Name")      or doc.Title or ""
 safe_base = re.sub(r'[\\/*?:"<>|]', '_',
                    "Document_Transmittal_{}_{}".format(proj_number, proj_name))[:60]
 
-all_revs    = list(FilteredElementCollector(doc).OfClass(DB.Revision).ToElements())
-issued_revs = sorted([r for r in all_revs if r.Issued], key=lambda r: r.SequenceNumber)
+all_revs    = list(revit.query.get_elements_by_class(DB.Revision, doc=doc))
+all_issued_revs = sorted([r for r in all_revs if r.Issued], key=lambda r: r.SequenceNumber)
+# Filter to selected numbering type if payload specifies one
+_rev_type_filter = _p.get('rev_numbering_type', '')
+if _rev_type_filter:
+    def _get_num_type(rev):
+        try:
+            _se = doc.GetElement(rev.RevisionNumberingSequenceId)
+            return str(_se.NumberType).split('.')[-1] if _se else 'None'
+        except Exception: return 'Unknown'
+    all_issued_revs = [r for r in all_issued_revs
+                       if _get_num_type(r) == _rev_type_filter]
+# all_issued_revs = full history for sheet collection, issued_revs = visible columns only
+issued_revs = all_issued_revs[-MAX_REVS:]
 n_revs      = min(len(issued_revs), MAX_REVS)
 
 _meta_vals = {}
@@ -216,6 +217,15 @@ if _p.get('meta_rows'):
     for _lbl, _val in _p['meta_rows']:
         _k = _LABEL_TO_KEY.get(_lbl.lower().strip())
         if _k: _meta_vals[_k] = _val
+
+# ── REVISION UTILITIES ───────────────────────────────────────────────────────
+import os as _ru_os, imp as _ru_imp
+_ru_dir  = _ru_os.path.dirname(_ru_os.path.abspath(__file__))
+_ru_path = _ru_os.path.join(_ru_dir, 'revision_utils.py')
+_ru      = _ru_imp.load_source('revision_utils', _ru_path)
+get_rev_mark           = _ru.get_rev_mark
+build_rev_sheet_lookup = _ru.build_rev_sheet_lookup
+_rev_sheet_lookup      = build_rev_sheet_lookup(doc)
 
 rev_meta = []
 for i in range(MAX_REVS):
@@ -233,7 +243,7 @@ for i in range(MAX_REVS):
             'method':     _meta_vals.get('method')   or _f('M'),
             'doc_format': _meta_vals.get('doc_format') or _f('F'),
             'paper_size': _meta_vals.get('paper_size') or _f('P'),
-            'letter':     rev_letter(rev.SequenceNumber),
+            'letter':     get_rev_mark(rev, sheet=_rev_sheet_lookup.get(rev.Id)),
         })
     else:
         rev_meta.append({k: "" for k in
@@ -242,8 +252,8 @@ for i in range(MAX_REVS):
 issued_date_long = parse_date_long(rev_meta[n_revs-1]['date']) if n_revs > 0 else ""
 
 tx_sheets = sorted(
-    [s for s in FilteredElementCollector(doc).OfClass(DB.ViewSheet).ToElements()
-     if any(r.Id in set(s.GetAllRevisionIds()) for r in issued_revs)],
+    [s for s in revit.query.get_elements_by_class(DB.ViewSheet, doc=doc)
+     if any(r.Id in set(s.GetAllRevisionIds()) for r in all_issued_revs)],
     key=lambda s: natural_sort_key(s.SheetNumber)
 )
 
@@ -297,6 +307,11 @@ default_fn = "{}.xlsx".format(safe_base)
 _pdf_temp_path = _p.get('_pdf_temp_xlsx_path')
 if _pdf_temp_path:
     save_path = _pdf_temp_path
+elif '_excel_save_path' in _p:
+    save_path = _p['_excel_save_path']
+    if save_path is None:
+        output.print_md('Excel export skipped.')
+        import sys as _sys; _sys.exit(0)
 else:
     try:
         from System.Windows.Forms import SaveFileDialog, DialogResult
@@ -1244,5 +1259,9 @@ if saved:
     output.print_md("Sheets: {} | Revisions: {} | Layout rows: {}".format(
         len(tx_sheets), n_revs, len(ROWS)))
     if not _pdf_temp_path:
-        if forms.alert("Excel saved!\n\nOpen the file?", yes=True, no=True):
+        _open_dlg = _p.get('_open_file_dialog')
+        if _open_dlg:
+            if _open_dlg(u'Excel Saved', u'Open the file?'):
+                os.startfile(save_path)
+        elif forms.alert("Excel saved!\n\nOpen the file?", yes=True, no=True):
             os.startfile(save_path)

@@ -2,15 +2,9 @@
 # filter_delete_backup.py
 # pylint: disable=import-error,invalid-name,broad-except
 
-import clr
-clr.AddReference("RevitAPI")
-clr.AddReference("RevitAPIUI")
-clr.AddReference("System")
-
 import datetime
 
-from Autodesk.Revit.DB import FilteredElementCollector, ParameterFilterElement
-from pyrevit import revit, forms, script
+from pyrevit import revit, DB, forms, script
 
 # ── [LIB] Snippets/_revisions.py ─────────────────────────────────────────────
 from Snippets._revisions import (
@@ -78,7 +72,8 @@ def sync_backup(backup, live_filters):
 
 def get_all_filters():
     """Return all ParameterFilterElement objects in the project."""
-    return list(FilteredElementCollector(doc).OfClass(ParameterFilterElement))
+    return list(
+        DB.FilteredElementCollector(doc).OfClass(DB.ParameterFilterElement))
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
@@ -86,7 +81,8 @@ def main():
     filters = get_all_filters()
 
     if not filters:
-        forms.alert("No View Filters found in this project.", title="Manage Filters")
+        forms.alert("No View Filters found in this project.",
+                    title="Manage Filters")
         return
 
     filter_map  = {f.Name: f for f in sorted(filters, key=lambda x: x.Name)}

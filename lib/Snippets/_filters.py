@@ -1,49 +1,4 @@
 # -*- coding: utf-8 -*-
-__title__  = "_filters"
-__author__  = "Seed43"
-__doc__     = """
-VERSION 260507
-_____________________________________________________________________
-Description:
-Shared helper functions for creating and applying Revit View Filters.
-
-Used by all Filter Manager tools. Import the functions you need
-rather than importing the whole module.
-
-Example:
-    from Snippets._filters import (
-        find_existing_filter,
-        get_unique_filter_name,
-        view_template_controls_filters,
-        apply_filter_to_target,
-        create_parameter_filter,
-    )
-_____________________________________________________________________
-Functions:
-find_existing_filter(filter_name)
-    Search the project for a filter by name.
-
-get_unique_filter_name(base_name)
-    Return a unique filter name, appending a counter if needed.
-
-view_template_controls_filters(view)
-    Check if the view template controls the filter setting.
-
-apply_filter_to_target(param_filter, doc, revit)
-    Add and hide a filter on the active view or its template.
-
-create_parameter_filter(filter_name, category, param_id,
-                        filter_value, doc)
-    Create a string-equals ParameterFilterElement.
-
-create_category_filter(filter_name, category, doc)
-    Create a category-only filter that matches every element.
-_____________________________________________________________________
-Last update:
-- Initial release, extracted from Filter Manager scripts
-_____________________________________________________________________
-"""
-
 from System.Collections.Generic import List
 from Autodesk.Revit.DB import (
     FilteredElementCollector,

@@ -407,7 +407,7 @@ Header: rev count, page size, template, tabs, save/close
                     <!-- Template -->
                     <ComboBox x:Name="template_cb" Style="{StaticResource MCB}" Width="130" Margin="0,0,4,0" SelectionChanged="template_changed"/>
                     <Button Content="+ New" Style="{StaticResource GBtn}" Padding="8,4" Margin="0,0,3,0" Click="add_template_click"/>
-                    <Button Content="✕" Margin="0,0,10,0" ToolTip="Delete template" Click="del_template_click"
+                    <Button x:Name="del_template_btn" Content="" Margin="0,0,10,0" ToolTip="Delete template" Click="del_template_click"
                             Width="22" Height="22" FontSize="10" FontWeight="Bold" Cursor="Hand"
                             Foreground="White" Background="{StaticResource Danger}" BorderThickness="0" Padding="0">
                         <Button.Template>
@@ -566,7 +566,7 @@ Header: rev count, page size, template, tabs, save/close
                                     <TextBlock Text="%" Foreground="{StaticResource TextMain}" FontSize="10" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
-                            <Button x:Name="col_settings_btn" Content="⚙" Style="{StaticResource IBtn}" Width="24" Height="22" FontSize="11" ToolTip="Set column widths in %" Click="col_settings_click"/>
+                            <Button x:Name="col_settings_btn" Content="" Style="{StaticResource IBtn}" Width="24" Height="22" FontSize="11" ToolTip="Set column widths in %" Click="col_settings_click"/>
                         </StackPanel>
                         <Button Grid.Column="2" Content="+ Add Row" Style="{StaticResource GBtn}" Padding="8,3" FontSize="10" Click="add_row_click"/>
                     </Grid>

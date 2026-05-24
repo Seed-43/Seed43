@@ -1,44 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-layout_Style_Algoruthum.py
-===========================
-General border and cell colour resolution algorithm for pyTransmit exporters.
-
-Used by: script_create_excel.py, script_create_schedule.py, and future exporters.
-
-Resolves:
-  - On-beats-off shared edge logic for borders (t/b/l/r)
-  - Cell background colour from block bg_color
-  - Cell foreground colour from text_style
-  - Interior border suppression for merged cells (l/r hidden on interior cols)
-
-The algorithm produces a flat dict keyed by (layout_row_index, canvas_col_index)
-with resolved border and colour values. Exporters map these to their own cell API.
-
-Usage
------
-    from layout_Style_Algoruthum import compute_cell_styles
-
-    styles = compute_cell_styles(
-        rows         = ROWS,           # list of layout row dicts
-        groups       = GROUPS,         # list of (start_ri, end_ri) tuples
-        text_styles  = TEXT_STYLES,    # dict of text style name -> {color, bg, ...}
-        max_rev_col  = 3,              # canvas col index of rev columns (D=3)
-        n_revs       = MAX_REVS,       # number of revision columns
-    )
-
-    # styles[(ri, ci)] = {
-    #     't': bool,   # top border on
-    #     'b': bool,   # bottom border on
-    #     'l': bool,   # left border on
-    #     'r': bool,   # right border on
-    #     'bg': str or None,   # background hex colour e.g. '#2B3340'
-    #     'fg': str or None,   # foreground/text hex colour
-    #     'interior_l': bool,  # suppress left (interior of merged span)
-    #     'interior_r': bool,  # suppress right (interior of merged span)
-    # }
-"""
-
+# layout_Style_Algoruthum.py
 
 def compute_cell_styles_from_grid(rows, groups, hlines, vlines,
                                    text_styles=None, max_rev_col=3, n_revs=10):

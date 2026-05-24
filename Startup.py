@@ -1,36 +1,4 @@
 # -*- coding: utf-8 -*-
-__title__  = "Check for Updates"
-__author__  = "Seed43"
-__doc__     = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
-_____________________________________________________________________
-Description:
-Checks whether a newer version of Seed43 is available on GitHub and
-offers to download and apply the update automatically.
-
-The version is read from a version.txt file stored on GitHub. If a
-newer version is found, a window appears showing your current version
-and the available version. Clicking Update Now downloads the latest
-Seed43.tab folder from GitHub and replaces the one on your machine.
-Your settings and config files are not affected.
-_____________________________________________________________________
-How-to:
--> Run the tool from the Seed43 tab
--> If an update is available, a window will appear
--> Click Update Now to apply it, or Not Now to skip
--> If already up to date, a brief message confirms this
-_____________________________________________________________________
-Notes:
-- An internet connection is required
-- The update replaces only the Seed43.tab folder
-- Your settings and config files are not affected
-- Revit must be restarted after updating for changes to take effect
-_____________________________________________________________________
-Last update:
-- Initial release
-_____________________________________________________________________
-"""
-
 import os
 import clr
 import shutil

@@ -1,25 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-ExportSettings.py  —  pyTransmit Export Settings panel controller
-=================================================================
-Manages the Export Settings panel embedded in the main pyTransmit window.
-
-Handles:
-  - Export folder selection
-  - Per-item checkboxes (Recipients, Reason, Method, Document, Print Size)
-  - Auto-update toggle (silently re-exports on every Save)
-  - Execute export (copies selected JSON files to <folder>/pyTransmit Settings/)
-
-Config is persisted in pytransmit_sync.json alongside the main script.
-
-Place this file in the  Settings  subfolder next to script.py.
-
-Usage in script.py:
-    from ExportSettings import ExportSettingsController
-    self.export_ctrl = ExportSettingsController(script_dir)
-    self.export_ctrl.attach(self)
-    self.export_ctrl.load_config()
-"""
+# ExportSettings.py
 
 import os
 import json

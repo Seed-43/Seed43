@@ -11,3 +11,7 @@ settings.json
 __pycache__/
 *.pyc
 *.pyo
+
+# Exclude temp and BreakTime
+Seed43.tab/temp/
+Seed43.tab/Seed43.panel/BreakTime.pushbutton/

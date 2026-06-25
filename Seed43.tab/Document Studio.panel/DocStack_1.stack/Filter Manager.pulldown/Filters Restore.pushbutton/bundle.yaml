@@ -1,0 +1,44 @@
+title: "Filter Restore"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  _____________________________________________________________________
+  Description:
+  Restores View Filters from the backup file created by Filter Delete
+  and Backup.
+  
+  - Displays all filters stored in the backup file
+  - Identifies:
+      - Missing filters, which can be restored
+      - Existing filters, which can optionally be overwritten
+  - Recreates filters using the stored category data
+  
+  Important limitation:
+  - Filter rules are NOT fully restored
+  - Restored filters will match the original categories only
+  - Rules must be manually reconfigured if needed
+  _____________________________________________________________________
+  How-to:
+  -> Run the tool
+  -> Select filters to restore
+  -> Choose whether to overwrite existing filters
+  -> Click Restore Selected
+  
+  -> The tool will:
+      - Recreate missing filters
+      - Optionally overwrite existing ones
+  _____________________________________________________________________
+  Notes:
+  - The backup file must exist (created by Filter Delete and Backup)
+  - The file is stored next to the Revit model
+  
+  - Restore behaviour:
+      - Categories are restored
+      - Rules are NOT reconstructed (this is a current limitation)
+  
+  - Overwrite:
+      - Deletes the existing filter before recreating it
+  _____________________________________________________________________
+  Last update:
+  - Initial release
+  _____________________________________________________________________

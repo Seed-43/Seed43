@@ -1,0 +1,31 @@
+title: "Set Rebar to Workset"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  _____________________________________________________________________
+  Description:
+  Assigns every rebar element in the model to a chosen workset.
+  
+  The tool is smart about finding the right workset:
+  - If exactly one workset with "rebar" in its name exists, it is used
+    automatically with no prompt
+  - If several rebar worksets exist, you are shown a list of them plus
+    an Other option to pick from all worksets
+  - If no rebar worksets exist, all worksets are listed with an option
+    to create a new one on the spot
+  _____________________________________________________________________
+  How-to:
+  -> Run the tool in a workshared Revit model
+  -> Choose the target workset (auto-detected if only one rebar workset
+     is found)
+  -> All rebar elements are moved to the selected workset
+  -> A message confirms how many elements were updated
+  _____________________________________________________________________
+  Notes:
+  - The model must be workshared (using Worksets) for this tool to work
+  - Creating a new workset requires a valid name
+  - If no rebar is found in the model, the tool will notify you and stop
+  _____________________________________________________________________
+  Last update:
+  - Initial release
+  _____________________________________________________________________

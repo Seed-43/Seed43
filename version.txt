@@ -1,0 +1,10 @@
+2.0.0
+
+_____________________________________________________________________
+Last update:
+- updated pyTransmit
+- General updates to use pyrevitlib
+- Extra text tools added
+- PyTables added but still under development 
+- Updated some icons to be more concise
+_____________________________________________________________________

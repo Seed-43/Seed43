@@ -1,0 +1,549 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Layer Manager"
+    Width="500"
+    SizeToContent="Height"
+    ResizeMode="CanResizeWithGrip"
+    WindowStartupLocation="CenterScreen"
+    Background="#3B4553"
+    TextElement.FontFamily="Segoe UI">
+
+    <Window.Resources>
+
+        <!-- ── Drop Shadows ───────────────────────────────────────── -->
+        <DropShadowEffect x:Key="CardShadow"
+                          Color="Black" Opacity="0.2"
+                          ShadowDepth="2" BlurRadius="4"/>
+
+        <DropShadowEffect x:Key="HeaderShadow"
+                          Color="Black" Opacity="0.3"
+                          ShadowDepth="2" BlurRadius="6"/>
+
+        <DropShadowEffect x:Key="PopupShadow"
+                          Color="Black" Opacity="0.4"
+                          ShadowDepth="3" BlurRadius="8"/>
+
+        <!-- ── CardStyle ──────────────────────────────────────────── -->
+        <Style x:Key="CardStyle" TargetType="Border">
+            <Setter Property="Background"    Value="#2B3340"/>
+            <Setter Property="CornerRadius"  Value="8"/>
+            <Setter Property="Padding"       Value="16"/>
+            <Setter Property="Margin"        Value="0,0,0,12"/>
+            <Setter Property="Effect"        Value="{StaticResource CardShadow}"/>
+        </Style>
+
+        <!-- ── SectionLabelStyle ─────────────────────────────────── -->
+        <Style x:Key="SectionLabelStyle" TargetType="TextBlock">
+            <Setter Property="Foreground"  Value="#208A3C"/>
+            <Setter Property="FontWeight"  Value="SemiBold"/>
+            <Setter Property="FontSize"    Value="14"/>
+            <Setter Property="Margin"      Value="0,0,0,8"/>
+        </Style>
+
+        <!-- ── FieldLabelStyle ───────────────────────────────────── -->
+        <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+            <Setter Property="Foreground"  Value="#F4FAFF"/>
+            <Setter Property="FontWeight"  Value="Medium"/>
+            <Setter Property="FontSize"    Value="12"/>
+            <Setter Property="Margin"      Value="0,0,0,4"/>
+            <Setter Property="Opacity"     Value="0.9"/>
+        </Style>
+
+        <!-- ── ModernTextBoxStyle ────────────────────────────────── -->
+        <Style x:Key="ModernTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Background"                Value="#F4FAFF"/>
+            <Setter Property="Foreground"                Value="#2B3340"/>
+            <Setter Property="BorderBrush"               Value="#208A3C"/>
+            <Setter Property="BorderThickness"           Value="1"/>
+            <Setter Property="Padding"                   Value="8,4"/>
+            <Setter Property="FontSize"                  Value="12"/>
+            <Setter Property="Height"                    Value="28"/>
+            <Setter Property="VerticalContentAlignment"  Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="MainBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Focusable="False"
+                                          HorizontalScrollBarVisibility="Hidden"
+                                          VerticalScrollBarVisibility="Hidden"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="MainBorder" Property="BorderBrush" Value="#2B933F"/>
+                            </Trigger>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter TargetName="MainBorder" Property="BorderBrush"     Value="#2B933F"/>
+                                <Setter TargetName="MainBorder" Property="BorderThickness" Value="2"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── SmallButtonStyle ──────────────────────────────────── -->
+        <Style x:Key="SmallButtonStyle" TargetType="Button">
+            <Setter Property="Background"      Value="#208A3C"/>
+            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"         Value="12,4"/>
+            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Height"          Value="24"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#2B933F"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#1A6E2E"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── SecondaryButtonStyle ──────────────────────────────── -->
+        <Style x:Key="SecondaryButtonStyle" TargetType="Button">
+            <Setter Property="Background"      Value="#404553"/>
+            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"         Value="16,8"/>
+            <Setter Property="FontSize"        Value="12"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#4E5566"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#333B48"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Background" Value="#555555"/>
+                                <Setter Property="Foreground"                  Value="#888888"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── CloseButtonStyle ──────────────────────────────────── -->
+        <Style x:Key="CloseButtonStyle" TargetType="Button">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize"        Value="14"/>
+            <Setter Property="Width"           Value="30"/>
+            <Setter Property="Height"          Value="30"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="MainBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="15">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="MainBorder" Property="Background" Value="#FF5555"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="MainBorder" Property="Background" Value="#CC4444"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── MacScrollBarThumb ─────────────────────────────────── -->
+        <Style x:Key="MacScrollBarThumb" TargetType="Thumb">
+            <Setter Property="Background" Value="#208A3C"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border x:Name="thumb"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="3"
+                                Margin="2,2,2,2"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="thumb" Property="Background" Value="#27AE60"/>
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter TargetName="thumb" Property="Background" Value="#2ECC71"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── MacScrollBar ──────────────────────────────────────── -->
+        <Style x:Key="MacScrollBar" TargetType="ScrollBar">
+            <Setter Property="Orientation" Value="Vertical"/>
+            <Setter Property="Width"       Value="8"/>
+            <Setter Property="MinWidth"    Value="8"/>
+            <Setter Property="Background"  Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid x:Name="GridRoot" Width="8">
+                            <Track x:Name="PART_Track"
+                                   Orientation="Vertical"
+                                   IsDirectionReversed="True">
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource MacScrollBarThumb}"/>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="GridRoot" Property="Width" Value="10"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── MacScrollViewer ───────────────────────────────────── -->
+        <Style x:Key="MacScrollViewer" TargetType="ScrollViewer">
+            <Setter Property="VerticalScrollBarVisibility"   Value="Auto"/>
+            <Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollViewer">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <ScrollContentPresenter Grid.Column="0"
+                                                    CanContentScroll="{TemplateBinding CanContentScroll}"/>
+                            <ScrollBar x:Name="PART_VerticalScrollBar"
+                                       Grid.Column="1"
+                                       Orientation="Vertical"
+                                       Style="{StaticResource MacScrollBar}"
+                                       Value="{TemplateBinding VerticalOffset}"
+                                       Maximum="{TemplateBinding ScrollableHeight}"
+                                       ViewportSize="{TemplateBinding ViewportHeight}"
+                                       Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Layer Row CheckBox ────────────────────────────────── -->
+        <Style x:Key="LayerCheckBoxStyle" TargetType="CheckBox">
+            <Setter Property="Foreground"  Value="#F4FAFF"/>
+            <Setter Property="FontSize"    Value="12"/>
+            <Setter Property="Padding"     Value="6,0,0,0"/>
+            <Setter Property="Cursor"      Value="Hand"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <!-- ── Layer list row container ─────────────────────────── -->
+        <Style x:Key="LayerRowStyle" TargetType="ListBoxItem">
+            <Setter Property="Background"  Value="Transparent"/>
+            <Setter Property="Padding"     Value="8,5"/>
+            <Setter Property="Cursor"      Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="RowBorder"
+                                Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}"
+                                CornerRadius="4">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="RowBorder"
+                                        Property="Background" Value="#313D4D"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="RowBorder"
+                                        Property="Background" Value="#1A3D28"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── ListBox (layer list) ──────────────────────────────── -->
+        <Style x:Key="LayerListStyle" TargetType="ListBox">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"         Value="0"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility"   Value="Auto"/>
+        </Style>
+
+    </Window.Resources>
+
+    <!-- ══════════════════════════════════════════════════════════
+         ROOT GRID
+    ═══════════════════════════════════════════════════════════ -->
+    <Grid>
+
+        <!-- ── Header ─────────────────────────────────────────── -->
+        <Border Height="70"
+                VerticalAlignment="Top"
+                Background="#232933"
+                CornerRadius="0,0,12,12"
+                Effect="{StaticResource HeaderShadow}"
+                Panel.ZIndex="10">
+            <Grid Margin="24,0,24,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Wordmark -->
+                <StackPanel Grid.Column="0"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <Image x:Name="header_icon"
+                           Width="28" Height="28"
+                           VerticalAlignment="Center"
+                           Margin="0,0,10,0"/>
+                    <TextBlock FontSize="32" FontWeight="Bold"
+                               Foreground="#208A3C" Text="CAD"/>
+                    <TextBlock FontSize="32" FontWeight="SemiBold"
+                               Foreground="#F4FAFF" Text=" Layer Manager"/>
+                </StackPanel>
+
+                <!-- Header close button -->
+                <Button x:Name="header_close_btn"
+                        Grid.Column="1"
+                        Style="{StaticResource CloseButtonStyle}"
+                        Content="&#x2716;"
+                        VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+
+        <!-- ── Main scroll content ───────────────────────────── -->
+        <ScrollViewer Margin="24,90,24,24"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <ScrollViewer.Resources>
+                <Style TargetType="ScrollBar" BasedOn="{StaticResource MacScrollBar}"/>
+            </ScrollViewer.Resources>
+            <StackPanel>
+
+                <!-- CAD file info card -->
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionLabelStyle}"
+                                   Text="CAD File"/>
+                        <TextBlock x:Name="cad_name_lbl"
+                                   Style="{StaticResource FieldLabelStyle}"
+                                   Text="No file selected"
+                                   FontSize="12"
+                                   Opacity="0.75"
+                                   TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Search + bulk actions card -->
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionLabelStyle}"
+                                   Text="Layers"/>
+
+                        <!-- Search row with placeholder -->
+                        <Grid Margin="0,0,0,10">
+                            <TextBox x:Name="search_tb"
+                                     Style="{StaticResource ModernTextBoxStyle}"/>
+                            <TextBlock x:Name="search_placeholder_lbl"
+                                       Text="Search layers…"
+                                       Foreground="#2B3340"
+                                       FontSize="12"
+                                       Opacity="0.45"
+                                       Margin="10,0,0,0"
+                                       VerticalAlignment="Center"
+                                       IsHitTestVisible="False"/>
+                        </Grid>
+
+                        <!-- Show all / Hide all -->
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,0,0,10">
+                            <Button x:Name="show_all_btn"
+                                    Content="Show All"
+                                    Style="{StaticResource SmallButtonStyle}"
+                                    Width="80"
+                                    Margin="0,0,8,0"/>
+                            <Button x:Name="hide_all_btn"
+                                    Content="Hide All"
+                                    Style="{StaticResource SmallButtonStyle}"
+                                    Background="#C53030"
+                                    Width="80"/>
+                        </StackPanel>
+
+                        <!-- Layer count summary -->
+                        <TextBlock x:Name="layer_count_lbl"
+                                   Foreground="#F4FAFF"
+                                   FontSize="11"
+                                   Opacity="0.6"
+                                   Margin="0,0,0,8"
+                                   Text="0 layers"/>
+
+                        <!-- Layer list -->
+                        <Border Background="#232933"
+                                CornerRadius="6"
+                                Padding="4"
+                                MaxHeight="320">
+                            <ListBox x:Name="layer_list"
+                                     Style="{StaticResource LayerListStyle}"
+                                     ItemContainerStyle="{StaticResource LayerRowStyle}"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                <ListBox.Resources>
+                                    <Style TargetType="ScrollBar" BasedOn="{StaticResource MacScrollBar}"/>
+                                </ListBox.Resources>
+                            </ListBox>
+                        </Border>
+
+                    </StackPanel>
+                </Border>
+
+                <!-- Apply button -->
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right">
+                    <Button x:Name="apply_btn"
+                            Content="Apply Changes"
+                            Style="{StaticResource SmallButtonStyle}"
+                            Height="Auto"
+                            Padding="16,8"
+                            FontSize="12"
+                            Width="130"/>
+                </StackPanel>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- ══════════════════════════════════════════════════════
+             OVERLAY
+        ═══════════════════════════════════════════════════════ -->
+        <Border x:Name="modal_overlay"
+                Background="#000000"
+                Opacity="0.6"
+                Visibility="Collapsed"
+                Panel.ZIndex="999"/>
+
+        <!-- ══════════════════════════════════════════════════════
+             ALERT POPUP
+        ═══════════════════════════════════════════════════════ -->
+        <Border x:Name="alert_popup"
+                Background="#2B3340"
+                BorderBrush="#208A3C"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="24"
+                Effect="{StaticResource PopupShadow}"
+                Width="360"
+                MaxHeight="250"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Visibility="Collapsed"
+                Panel.ZIndex="1000">
+            <StackPanel>
+                <TextBlock x:Name="alert_title_lbl"
+                           Text="Alert"
+                           Foreground="#208A3C"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,8"/>
+                <TextBlock x:Name="alert_msg_lbl"
+                           Text=""
+                           Foreground="#F4FAFF"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,20"/>
+                <Button x:Name="alert_ok_btn"
+                        Content="OK"
+                        Style="{StaticResource SmallButtonStyle}"
+                        HorizontalAlignment="Right"
+                        Width="80"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ══════════════════════════════════════════════════════
+             CONFIRM POPUP
+        ═══════════════════════════════════════════════════════ -->
+        <Border x:Name="confirm_popup"
+                Background="#2B3340"
+                BorderBrush="#208A3C"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="24"
+                Effect="{StaticResource PopupShadow}"
+                Width="360"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Visibility="Collapsed"
+                Panel.ZIndex="1000">
+            <StackPanel>
+                <TextBlock Text="Revert Changes?"
+                           Foreground="#208A3C"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,8"/>
+                <TextBlock Text="All layer visibility changes will be undone and restored to how they were when you opened this window."
+                           Foreground="#F4FAFF"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,20"/>
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right">
+                    <Button x:Name="confirm_no_btn"
+                            Content="Keep Changes"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Padding="12,4"
+                            Height="24"
+                            FontSize="11"
+                            Margin="0,0,8,0"/>
+                    <Button x:Name="confirm_yes_btn"
+                            Content="Yes, Revert"
+                            Style="{StaticResource SmallButtonStyle}"
+                            Background="#C53030"
+                            Width="90"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+    </Grid>
+</Window>

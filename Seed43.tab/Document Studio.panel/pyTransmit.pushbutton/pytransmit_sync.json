@@ -1,0 +1,22 @@
+{
+  "imp_printsize": true, 
+  "exp_method": true, 
+  "export_path": "", 
+  "layout_assign_layout_drafting_cb": "Revit Drafting View", 
+  "exp_recipients": true, 
+  "exp_format": true, 
+  "imp_method": true, 
+  "layout_assign_layout_excel_cb": "Excel", 
+  "export_auto": false, 
+  "exp_printsize": true, 
+  "group_label_on": false, 
+  "import_path": "", 
+  "imp_reason": true, 
+  "import_auto": false, 
+  "imp_format": true, 
+  "layout_assign_layout_pdf_cb": "PDF", 
+  "imp_recipients": true, 
+  "layout_assign_layout_schedule_cb": "Revit Schedule", 
+  "exp_reason": true, 
+  "layout_assign_layout_legend_cb": "Revit Legend"
+}

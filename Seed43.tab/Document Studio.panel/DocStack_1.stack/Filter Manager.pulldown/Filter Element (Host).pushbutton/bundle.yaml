@@ -1,0 +1,54 @@
+title: "Filter Element (Host)"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  _____________________________________________________________________
+  Description:
+  Creates View Filters for host model elements based on the selected
+  element type.
+  
+  - Select any host model element (walls, doors, furniture, etc.)
+  - Automatically detects:
+      - Category
+      - Type Name
+  - Creates a filter matching:
+      - Category and Type Name
+  - Applies the filter to the active view or its template
+  - Automatically hides matching elements
+  
+  Designed for fast isolation and control of model elements by type.
+  _____________________________________________________________________
+  How-to:
+  -> Run the tool
+  -> Select a host model element
+  
+  -> Tool will:
+      - Detect element type
+      - Create a filter based on type name
+      - Apply filter to view (or template)
+  
+  -> If filter already exists:
+      - Use Existing, applies it
+      - Create New, duplicates with unique name
+      - Skip, does nothing
+  
+  -> Result:
+      - All matching elements are hidden in the view
+  
+  -> Press ESC to exit the tool
+  _____________________________________________________________________
+  Notes:
+  - Works on host model elements only, NOT annotation elements
+  - Linked elements are ignored
+  - Requires a valid element type and category
+  
+  - View Template support:
+      - If a template is assigned, the filter is applied to the template
+  
+  - Filter logic:
+      - Uses the Type Name parameter
+      - Matches all instances of that type within the category
+  _____________________________________________________________________
+  Last update:
+  - Initial release
+  _____________________________________________________________________

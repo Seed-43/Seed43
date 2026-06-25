@@ -1,0 +1,16 @@
+﻿title: "Match Text Width"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 260521
+  _____________________________________________________________________
+  Description:
+  Copies the text box width from a reference Text Note and applies it
+  to one or more target Text Notes, ensuring a consistent annotation
+  layout across views.
+  
+  Only the physical width of the text box is changed. Text content
+  and formatting are not affected.
+  _____________________________________________________________________
+  Last update:
+  - Updated to use pyrevitlib
+  _____________________________________________________________________

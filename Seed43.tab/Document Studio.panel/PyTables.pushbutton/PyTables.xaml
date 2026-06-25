@@ -1,0 +1,1066 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="pyTable"
+    Width="500"
+    Height="720"
+    MinHeight="400"
+    MaxHeight="900"
+    ResizeMode="CanResizeWithGrip"
+    WindowStartupLocation="CenterScreen"
+    Background="#232933"
+    TextElement.FontFamily="Segoe UI"
+    AllowDrop="True">
+
+    <Window.Resources>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!--  SEED43 V1.3 STYLES — EMBEDDED (no external reference)     -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+
+        <!-- ─── CardStyle ───────────────────────────────────────────── -->
+        <Style x:Key="CardStyle" TargetType="Border">
+            <Setter Property="Background"   Value="#2B3340"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding"      Value="16"/>
+            <Setter Property="Margin"       Value="0,0,0,12"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="Black" BlurRadius="4" ShadowDepth="2" Opacity="0.2"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ─── SectionLabelStyle ───────────────────────────────────── -->
+        <Style x:Key="SectionLabelStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#208A3C"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize"   Value="14"/>
+            <Setter Property="Margin"     Value="0,0,0,8"/>
+        </Style>
+
+        <!-- ─── FieldLabelStyle ─────────────────────────────────────── -->
+        <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#F4FAFF"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="FontSize"   Value="12"/>
+            <Setter Property="Margin"     Value="0,0,0,4"/>
+            <Setter Property="Opacity"    Value="0.9"/>
+        </Style>
+
+        <!-- ─── ModernTextBoxStyle ──────────────────────────────────── -->
+        <Style x:Key="ModernTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Background"               Value="#F4FAFF"/>
+            <Setter Property="Foreground"               Value="#2B3340"/>
+            <Setter Property="BorderBrush"              Value="#208A3C"/>
+            <Setter Property="BorderThickness"          Value="1"/>
+            <Setter Property="Padding"                  Value="8,4"/>
+            <Setter Property="FontSize"                 Value="12"/>
+            <Setter Property="Height"                   Value="28"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Focusable="False"
+                                          HorizontalScrollBarVisibility="Hidden"
+                                          VerticalScrollBarVisibility="Hidden"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#2B933F"/>
+                            </Trigger>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush"     Value="#2B933F"/>
+                                <Setter TargetName="Bd" Property="BorderThickness" Value="2"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ─── GridCellStyle ───────────────────────────────────────── -->
+        <Style x:Key="GridCellStyle" TargetType="TextBox">
+            <Setter Property="Background"               Value="#F4FAFF"/>
+            <Setter Property="Foreground"               Value="#2B3340"/>
+            <Setter Property="BorderBrush"              Value="#208A3C"/>
+            <Setter Property="BorderThickness"          Value="1"/>
+            <Setter Property="Padding"                  Value="6,3"/>
+            <Setter Property="FontSize"                 Value="11"/>
+            <Setter Property="Height"                   Value="26"/>
+            <Setter Property="Margin"                   Value="0,0,6,6"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Focusable="False"
+                                          HorizontalScrollBarVisibility="Hidden"
+                                          VerticalScrollBarVisibility="Hidden"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#2B933F"/>
+                            </Trigger>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush"     Value="#2B933F"/>
+                                <Setter TargetName="Bd" Property="BorderThickness" Value="2"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ─── ModernComboBoxStyle ─────────────────────────────────── -->
+        <Style x:Key="ModernComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="Background"               Value="#F4FAFF"/>
+            <Setter Property="Foreground"               Value="#2B3340"/>
+            <Setter Property="BorderBrush"              Value="#208A3C"/>
+            <Setter Property="BorderThickness"          Value="1"/>
+            <Setter Property="Padding"                  Value="8,4"/>
+            <Setter Property="FontSize"                 Value="12"/>
+            <Setter Property="Height"                   Value="28"/>
+            <Setter Property="Margin"                   Value="0,0,0,10"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6">
+                                <Grid Margin="{TemplateBinding Padding}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="20"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ContentPresenter x:Name="ContentSite"
+                                                      Content="{TemplateBinding SelectionBoxItem}"
+                                                      ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                      VerticalAlignment="Center"
+                                                      HorizontalAlignment="Left"
+                                                      Grid.Column="0"/>
+                                    <Path Grid.Column="1" Fill="#2B3340"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Data="M0,0 L4,4 L8,0 Z"/>
+                                </Grid>
+                            </Border>
+                            <Popup x:Name="Popup"
+                                   Placement="Bottom"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   PopupAnimation="Slide">
+                                <Border Background="#F4FAFF"
+                                        BorderBrush="#208A3C"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                    <Border.Effect>
+                                        <DropShadowEffect Color="Black" BlurRadius="8" ShadowDepth="2" Opacity="0.3"/>
+                                    </Border.Effect>
+                                    <ScrollViewer>
+                                        <ItemsPresenter/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#2B933F"/>
+                            </Trigger>
+                            <Trigger Property="IsDropDownOpen" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush"     Value="#2B933F"/>
+                                <Setter TargetName="Bd" Property="BorderThickness" Value="2"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Resources>
+                <Style TargetType="ComboBoxItem">
+                    <Setter Property="Foreground" Value="#2B3340"/>
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="FontSize"   Value="12"/>
+                    <Setter Property="Padding"    Value="8,5"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ComboBoxItem">
+                                <Border x:Name="ItemBd"
+                                        Background="{TemplateBinding Background}"
+                                        Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="ItemBd" Property="Background" Value="#208A3C"/>
+                                        <Setter Property="Foreground" Value="#F4FAFF"/>
+                                    </Trigger>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter TargetName="ItemBd" Property="Background" Value="#1A6E2E"/>
+                                        <Setter Property="Foreground" Value="#F4FAFF"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Style.Resources>
+        </Style>
+
+        <!-- ─── ModernButtonStyle ───────────────────────────────────── -->
+        <Style x:Key="ModernButtonStyle" TargetType="Button">
+            <Setter Property="Background"      Value="#208A3C"/>
+            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"         Value="24,8"/>
+            <Setter Property="FontSize"        Value="14"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#2B933F"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#1A6E2E"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.55"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ─── SecondaryButtonStyle ────────────────────────────────── -->
+        <Style x:Key="SecondaryButtonStyle" TargetType="Button">
+            <Setter Property="Background"      Value="#404553"/>
+            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"         Value="16,8"/>
+            <Setter Property="FontSize"        Value="12"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#4E5566"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#333B48"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Background" Value="#555555"/>
+                                <Setter Property="Foreground" Value="#888888"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ─── SmallButtonStyle ────────────────────────────────────── -->
+        <Style x:Key="SmallButtonStyle" TargetType="Button">
+            <Setter Property="Background"      Value="#208A3C"/>
+            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"         Value="12,4"/>
+            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Height"          Value="24"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#2B933F"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#1A6E2E"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ─── OptionsToggleButtonStyle ────────────────────────────── -->
+        <Style x:Key="OptionsToggleButtonStyle" TargetType="Button">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize"        Value="18"/>
+            <Setter Property="Width"           Value="40"/>
+            <Setter Property="Height"          Value="40"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#208A3C"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#1A6B2F"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ─── CloseButtonStyle ────────────────────────────────────── -->
+        <Style x:Key="CloseButtonStyle" TargetType="Button">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize"        Value="14"/>
+            <Setter Property="Width"           Value="30"/>
+            <Setter Property="Height"          Value="30"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="15">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#FF5555"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#CC4444"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ─── MenuItemButtonStyle ─────────────────────────────────── -->
+        <Style x:Key="MenuItemButtonStyle" TargetType="Button">
+            <Setter Property="Background"                 Value="Transparent"/>
+            <Setter Property="Foreground"                 Value="#F4FAFF"/>
+            <Setter Property="BorderThickness"            Value="0"/>
+            <Setter Property="Padding"                    Value="12,8"/>
+            <Setter Property="FontSize"                   Value="12"/>
+            <Setter Property="HorizontalAlignment"        Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Cursor"                     Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#208A3C"/>
+                                <Setter Property="Foreground" Value="#F4FAFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#1A6B2F"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ─── DataGrid styles ─────────────────────────────────────── -->
+        <Style x:Key="ModernDataGridStyle" TargetType="DataGrid">
+            <Setter Property="Background"          Value="#2B3340"/>
+            <Setter Property="Foreground"          Value="#F4FAFF"/>
+            <Setter Property="BorderThickness"     Value="0"/>
+            <Setter Property="GridLinesVisibility" Value="None"/>
+            <Setter Property="HeadersVisibility"   Value="Column"/>
+            <Setter Property="SelectionMode"       Value="Extended"/>
+            <Setter Property="SelectionUnit"       Value="FullRow"/>
+            <Setter Property="RowHeight"           Value="28"/>
+            <Setter Property="ColumnHeaderHeight"  Value="36"/>
+            <Setter Property="FontSize"            Value="12"/>
+            <Setter Property="AutoGenerateColumns" Value="False"/>
+        </Style>
+
+        <Style x:Key="DataGridColumnHeaderStyle" TargetType="DataGridColumnHeader">
+            <Setter Property="Background"                 Value="#232933"/>
+            <Setter Property="Foreground"                 Value="#F4FAFF"/>
+            <Setter Property="FontWeight"                 Value="SemiBold"/>
+            <Setter Property="FontSize"                   Value="12"/>
+            <Setter Property="Padding"                    Value="12,8"/>
+            <Setter Property="BorderThickness"            Value="0,0,1,0"/>
+            <Setter Property="BorderBrush"                Value="#404553"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        </Style>
+
+        <Style x:Key="DataGridCellStyle" TargetType="DataGridCell">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"         Value="10,4"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridCell">
+                        <Border x:Name="CellBd"
+                                Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="CellBd" Property="Background" Value="#208A3C"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DataGridRowStyle" TargetType="DataGridRow">
+            <Setter Property="Background" Value="#2B3340"/>
+        </Style>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!--  PYTABLE-SPECIFIC LOCAL STYLES                             -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+
+        <Style x:Key="FooterStatStyle" TargetType="TextBlock">
+            <Setter Property="FontSize"          Value="11"/>
+            <Setter Property="Foreground"        Value="#F4FAFF"/>
+            <Setter Property="Opacity"           Value="0.65"/>
+            <Setter Property="FontFamily"        Value="Consolas"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="FormatChipStyle" TargetType="Border">
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush"     Value="#404553"/>
+            <Setter Property="CornerRadius"    Value="999"/>
+            <Setter Property="Padding"         Value="8,3"/>
+            <Setter Property="Margin"          Value="4,0"/>
+        </Style>
+
+        <Style x:Key="SwitchTrackStyle" TargetType="Border">
+            <Setter Property="Width"           Value="32"/>
+            <Setter Property="Height"          Value="18"/>
+            <Setter Property="CornerRadius"    Value="999"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush"     Value="#404553"/>
+            <Setter Property="Background"      Value="#1f242c"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+        </Style>
+
+    </Window.Resources>
+
+    <Grid>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- HEADER                                                      -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <Border Height="70"
+                Background="#232933"
+                CornerRadius="0,0,12,12"
+                VerticalAlignment="Top"
+                Panel.ZIndex="10">
+            <Border.Effect>
+                <DropShadowEffect Color="Black" BlurRadius="6" ShadowDepth="2" Opacity="0.30"/>
+            </Border.Effect>
+            <Grid Margin="24,0,24,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Grid.Column="0">
+                    <TextBlock FontSize="32" FontWeight="Bold"     Foreground="#208A3C">py</TextBlock>
+                    <TextBlock FontSize="32" FontWeight="SemiBold" Foreground="#F4FAFF">Table</TextBlock>
+                    <TextBlock x:Name="hdr_sub_settings"
+                               Text="  |  Settings"
+                               FontSize="20" FontWeight="SemiBold"
+                               Foreground="#F4FAFF" Opacity="0.75"
+                               VerticalAlignment="Bottom" Margin="0,0,0,5"
+                               Visibility="Collapsed"/>
+                    <TextBlock x:Name="hdr_sub_conflicts"
+                               Text="  |  Conflicts"
+                               FontSize="20" FontWeight="SemiBold"
+                               Foreground="#F4FAFF" Opacity="0.75"
+                               VerticalAlignment="Bottom" Margin="0,0,0,5"
+                               Visibility="Collapsed"/>
+                </StackPanel>
+
+                <StackPanel x:Name="hdr_normal_btns"
+                            Orientation="Horizontal" VerticalAlignment="Center"
+                            Grid.Column="1">
+                    <Button x:Name="apply_btn"
+                            Content="Apply to Revit"
+                            Style="{StaticResource ModernButtonStyle}"
+                            Padding="20,7"
+                            FontSize="12"
+                            IsEnabled="False"
+                            Click="on_apply_click"/>
+                    <Button Content="&#x2630;"
+                            Style="{StaticResource OptionsToggleButtonStyle}"
+                            Margin="8,0,0,0"
+                            Click="on_menu_click"/>
+                </StackPanel>
+
+                <StackPanel x:Name="hdr_close_btns"
+                            Orientation="Horizontal" VerticalAlignment="Center"
+                            Grid.Column="1" Visibility="Collapsed">
+                    <Button Content="&#x2716;"
+                            Style="{StaticResource CloseButtonStyle}"
+                            Click="on_panel_close_click"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- MAIN BODY                                                   -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <Grid Margin="0,70,0,44">
+
+            <!-- ─── NORMAL VIEW ─────────────────────────────────────── -->
+            <Grid x:Name="main_panel">
+
+                <!-- Empty / drop zone state -->
+                <Grid x:Name="empty_panel" Margin="16,12,16,0">
+                    <Border x:Name="drop_zone_border"
+                            BorderThickness="1.5" BorderBrush="#8C208A3C"
+                            CornerRadius="10" Background="#05208A3C" Padding="24,28">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+
+                            <Border Width="64" Height="64" CornerRadius="14"
+                                    BorderThickness="1" BorderBrush="#73208A3C"
+                                    HorizontalAlignment="Center" Margin="0,0,0,16">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="#2E208A3C" Offset="0"/>
+                                        <GradientStop Color="#0F208A3C" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <Canvas Width="28" Height="28"
+                                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Path Stroke="#208A3C" StrokeThickness="1.8"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                          StrokeLineJoin="Round" Fill="Transparent"
+                                          Data="M14,3 L14,18 M7,10 L14,3 L21,10"/>
+                                    <Path Stroke="#208A3C" StrokeThickness="1.8"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                          Data="M4,20 L4,23 A1,1 0 0 0 5,24 L23,24 A1,1 0 0 0 24,23 L24,20"/>
+                                </Canvas>
+                            </Border>
+
+                            <TextBlock Text="Link documents to Revit"
+                                       FontSize="15" FontWeight="SemiBold" Foreground="#F4FAFF"
+                                       HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                            <TextBlock TextWrapping="Wrap" MaxWidth="300" TextAlignment="Center"
+                                       FontSize="12" Foreground="#F4FAFF" Opacity="0.70"
+                                       LineHeight="18" HorizontalAlignment="Center"
+                                       Margin="0,0,0,20">
+                                Drop Excel or Word files here and pyTable will turn each
+                                one into a Legend, Schedule, or Drafting view inside your project.
+                            </TextBlock>
+
+                            <StackPanel Orientation="Horizontal"
+                                        HorizontalAlignment="Center" Margin="0,0,0,20">
+                                <Button x:Name="browse_btn"
+                                        Content="Browse files"
+                                        Style="{StaticResource ModernButtonStyle}"
+                                        Margin="0,0,8,0"
+                                        Click="on_browse_click"/>
+                                <Button Content="Import folder"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Click="on_folder_click"/>
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <Border Style="{StaticResource FormatChipStyle}">
+                                    <TextBlock Text=".xlsx" FontSize="10.5" FontWeight="SemiBold"
+                                               Foreground="#F4FAFF" Opacity="0.55"/>
+                                </Border>
+                                <Border Style="{StaticResource FormatChipStyle}">
+                                    <TextBlock Text=".xls" FontSize="10.5" FontWeight="SemiBold"
+                                               Foreground="#F4FAFF" Opacity="0.55"/>
+                                </Border>
+                                <Border Style="{StaticResource FormatChipStyle}">
+                                    <TextBlock Text=".docx" FontSize="10.5" FontWeight="SemiBold"
+                                               Foreground="#F4FAFF" Opacity="0.55"/>
+                                </Border>
+                                <Border Style="{StaticResource FormatChipStyle}" Opacity="0.4">
+                                    <TextBlock Text=".ods · soon" FontSize="10.5"
+                                               Foreground="#F4FAFF" Opacity="0.55"/>
+                                </Border>
+                            </StackPanel>
+
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <!-- Populated list state -->
+                <Grid x:Name="list_panel" Visibility="Collapsed" Margin="16,8,16,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Style="{StaticResource CardStyle}"
+                            Padding="12" Margin="0,4,0,8" Grid.Row="0">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid Grid.Column="0">
+                                    <TextBox x:Name="search_tb"
+                                             Style="{StaticResource ModernTextBoxStyle}"
+                                             TextChanged="on_search_changed"/>
+                                    <TextBlock IsHitTestVisible="False"
+                                               Text="Search documents, view names…"
+                                               Foreground="#8a91a0" FontSize="12"
+                                               VerticalAlignment="Center" Margin="10,0,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Text, ElementName=search_tb}" Value="">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                                <Button x:Name="add_btn"
+                                        Content="+ Add"
+                                        Style="{StaticResource SmallButtonStyle}"
+                                        Margin="8,0,0,0" Grid.Column="1"
+                                        Click="on_browse_click"/>
+                                <Button x:Name="remove_btn"
+                                        Content="&#x2715; Remove"
+                                        Style="{StaticResource SmallButtonStyle}"
+                                        Background="#C53030"
+                                        Margin="6,0,0,0" Grid.Column="2"
+                                        IsEnabled="False"
+                                        Click="on_batch_remove_click"/>
+                            </Grid>
+
+                            <Grid x:Name="batch_strip" Visibility="Collapsed" Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center" FontSize="11"
+                                           Foreground="#F4FAFF" Opacity="0.85"
+                                           Margin="0,0,8,0" Grid.Column="0">
+                                    <Run x:Name="batch_count_run" Text="0"
+                                         Foreground="#208A3C" FontWeight="SemiBold"/>
+                                    <Run Text=" selected · batch:"/>
+                                </TextBlock>
+                                <Button Content="Sync now"
+                                        Style="{StaticResource SmallButtonStyle}"
+                                        Margin="0,0,6,0" Grid.Column="1"
+                                        Click="on_batch_sync_click"/>
+                                <Button Content="Auto-sync on"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Padding="10,2" Height="24"
+                                        Margin="0,0,4,0" Grid.Column="2"
+                                        Click="on_batch_autosync_on_click"/>
+                                <Button Content="off"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Padding="10,2" Height="24"
+                                        Grid.Column="3"
+                                        Click="on_batch_autosync_off_click"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <ScrollViewer Grid.Row="1"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  x:Name="rows_scroll">
+                        <StackPanel x:Name="rows_panel"/>
+                    </ScrollViewer>
+                </Grid>
+            </Grid>
+
+            <!-- ─── SETTINGS PANEL ───────────────────────────────────── -->
+            <Grid x:Name="settings_panel" Visibility="Collapsed" Margin="16,12,16,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
+
+                        <Border Style="{StaticResource CardStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Default sync behaviour"
+                                           Style="{StaticResource SectionLabelStyle}"/>
+                                <TextBlock Text="Auto-sync new documents by default"
+                                           Style="{StaticResource FieldLabelStyle}"
+                                           Margin="0,6,0,4"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                                    <Border x:Name="settings_autosync_track"
+                                            Style="{StaticResource SwitchTrackStyle}"
+                                            MouseLeftButtonUp="on_settings_autosync_toggle">
+                                        <Ellipse x:Name="settings_autosync_thumb"
+                                                 Width="12" Height="12" Fill="#9aa2b1"
+                                                 HorizontalAlignment="Left" Margin="2,0,0,0"/>
+                                    </Border>
+                                    <TextBlock x:Name="settings_autosync_lbl"
+                                               Text="Off — files added are kept in sync manually"
+                                               FontSize="11.5" Foreground="#F4FAFF" Opacity="0.85"
+                                               VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                </StackPanel>
+                                <TextBlock Text="Polling interval"
+                                           Style="{StaticResource FieldLabelStyle}"/>
+                                <ComboBox x:Name="settings_poll_cb"
+                                          Style="{StaticResource ModernComboBoxStyle}">
+                                    <ComboBoxItem Content="Real-time (file watcher)" IsSelected="True"/>
+                                    <ComboBoxItem Content="Every 30 seconds"/>
+                                    <ComboBoxItem Content="Every 5 minutes"/>
+                                    <ComboBoxItem Content="Manual only"/>
+                                </ComboBox>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource CardStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Defaults for new documents"
+                                           Style="{StaticResource SectionLabelStyle}"/>
+                                <Grid Margin="0,6,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="10"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <StackPanel Grid.Row="0" Grid.Column="0">
+                                        <TextBlock Text="View type" Style="{StaticResource FieldLabelStyle}"/>
+                                        <ComboBox x:Name="settings_viewtype_cb"
+                                                  Style="{StaticResource ModernComboBoxStyle}">
+                                            <ComboBoxItem Content="Legend View" IsSelected="True"/>
+                                            <ComboBoxItem Content="Drafting View"/>
+                                            <ComboBoxItem Content="Schedule View"/>
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="0" Grid.Column="2">
+                                        <TextBlock Text="DPI" Style="{StaticResource FieldLabelStyle}"/>
+                                        <ComboBox x:Name="settings_dpi_cb"
+                                                  Style="{StaticResource ModernComboBoxStyle}">
+                                            <ComboBoxItem Content="150"/>
+                                            <ComboBoxItem Content="200"/>
+                                            <ComboBoxItem Content="300" IsSelected="True"/>
+                                            <ComboBoxItem Content="400"/>
+                                            <ComboBoxItem Content="600"/>
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="1" Grid.Column="0">
+                                        <TextBlock Text="View scale" Style="{StaticResource FieldLabelStyle}"/>
+                                        <TextBox x:Name="settings_scale_tb"
+                                                 Style="{StaticResource ModernTextBoxStyle}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="1" Grid.Column="2">
+                                        <TextBlock Text="Conflict policy" Style="{StaticResource FieldLabelStyle}"/>
+                                        <ComboBox x:Name="settings_conflict_cb"
+                                                  Style="{StaticResource ModernComboBoxStyle}">
+                                            <ComboBoxItem Content="Overwrite"/>
+                                            <ComboBoxItem Content="Keep both"/>
+                                            <ComboBoxItem Content="Ask each time" IsSelected="True"/>
+                                            <ComboBoxItem Content="Skip"/>
+                                        </ComboBox>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource CardStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Image rendering"
+                                           Style="{StaticResource SectionLabelStyle}"/>
+                                <TextBlock TextWrapping="Wrap" FontSize="11.5"
+                                           Foreground="#F4FAFF" Opacity="0.70"
+                                           LineHeight="17" Margin="0,0,0,12">
+                                    Black-and-white rendering forces all imported tables into
+                                    greyscale, producing smaller files and consistent printing.
+                                    Per-row overrides take precedence.
+                                </TextBlock>
+                                <StackPanel Orientation="Horizontal">
+                                    <Border x:Name="settings_bw_track"
+                                            Style="{StaticResource SwitchTrackStyle}"
+                                            MouseLeftButtonUp="on_settings_bw_toggle">
+                                        <Ellipse x:Name="settings_bw_thumb"
+                                                 Width="12" Height="12" Fill="#9aa2b1"
+                                                 HorizontalAlignment="Left" Margin="2,0,0,0"/>
+                                    </Border>
+                                    <TextBlock x:Name="settings_bw_lbl"
+                                               Text="Render as black and white by default"
+                                               FontSize="11.5" Foreground="#F4FAFF" Opacity="0.85"
+                                               VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+
+            <!-- ─── CONFLICTS PANEL ──────────────────────────────────── -->
+            <Grid x:Name="conflicts_panel" Visibility="Collapsed" Margin="16,12,16,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <Border Style="{StaticResource CardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="When a source file changes"
+                                       Style="{StaticResource SectionLabelStyle}"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="11.5"
+                                       Foreground="#F4FAFF" Opacity="0.70"
+                                       LineHeight="17" Margin="0,0,0,12">
+                                Choose how pyTable should resolve differences between
+                                the linked source and the Revit view.
+                            </TextBlock>
+                            <StackPanel x:Name="conflict_options_panel"/>
+                        </StackPanel>
+                    </Border>
+                </ScrollViewer>
+            </Grid>
+
+        </Grid>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- FOOTER                                                      -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <Border Height="44" VerticalAlignment="Bottom"
+                Background="#1A1F26"
+                BorderThickness="0,1,0,0" BorderBrush="#1A2030">
+            <Grid Margin="16,0,16,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Grid.Column="0">
+                    <TextBlock Style="{StaticResource FooterStatStyle}">
+                        <Run Text="Total "/>
+                        <Run x:Name="ft_total_n" Text="0" FontWeight="SemiBold" Foreground="#F4FAFF"/>
+                    </TextBlock>
+                    <TextBlock Text=" · " Style="{StaticResource FooterStatStyle}" Opacity="0.35" Margin="4,0"/>
+                    <TextBlock Style="{StaticResource FooterStatStyle}" Foreground="#208A3C">
+                        <Run x:Name="ft_live_n" Text="0" FontWeight="SemiBold"/>
+                        <Run Text=" live"/>
+                    </TextBlock>
+                    <TextBlock Text=" · " Style="{StaticResource FooterStatStyle}" Opacity="0.35" Margin="4,0"/>
+                    <TextBlock Style="{StaticResource FooterStatStyle}" Foreground="#D69E2E">
+                        <Run x:Name="ft_stale_n" Text="0" FontWeight="SemiBold"/>
+                        <Run Text=" stale"/>
+                    </TextBlock>
+                    <TextBlock Text=" · " Style="{StaticResource FooterStatStyle}" Opacity="0.35" Margin="4,0"/>
+                    <TextBlock Style="{StaticResource FooterStatStyle}" Foreground="#FF8888">
+                        <Run x:Name="ft_error_n" Text="0" FontWeight="SemiBold"/>
+                        <Run Text=" error"/>
+                    </TextBlock>
+                </StackPanel>
+                <TextBlock x:Name="ft_hint" Text="Drop a file to begin"
+                           Style="{StaticResource FooterStatStyle}"
+                           Grid.Column="1" Opacity="0.45"
+                           HorizontalAlignment="Right"/>
+            </Grid>
+        </Border>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- POPUP MENU                                                  -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <Border x:Name="popup_menu"
+                Visibility="Collapsed"
+                Background="#2B3340"
+                BorderBrush="#208A3C" BorderThickness="1"
+                CornerRadius="6" MinWidth="220"
+                HorizontalAlignment="Right" VerticalAlignment="Top"
+                Margin="0,60,18,0" Panel.ZIndex="100">
+            <Border.Effect>
+                <DropShadowEffect Color="Black" BlurRadius="8" ShadowDepth="3" Opacity="0.4"/>
+            </Border.Effect>
+            <StackPanel Margin="6">
+                <TextBlock Text="VIEW" FontSize="10" FontWeight="SemiBold"
+                           Foreground="#208A3C" Margin="12,6,12,4"/>
+                <Button Content="Settings"
+                        Style="{StaticResource MenuItemButtonStyle}"
+                        Click="on_menu_settings_click"/>
+                <Button Content="Conflict defaults"
+                        Style="{StaticResource MenuItemButtonStyle}"
+                        Click="on_menu_conflicts_click"/>
+                <Rectangle Fill="#404553" Height="1" Margin="0,4"/>
+                <TextBlock Text="DOCUMENTS" FontSize="10" FontWeight="SemiBold"
+                           Foreground="#208A3C" Margin="12,4,12,4"/>
+                <Button Content="Import folder…"
+                        Style="{StaticResource MenuItemButtonStyle}"
+                        Click="on_folder_click"/>
+                <Button Content="Sync all now"
+                        Style="{StaticResource MenuItemButtonStyle}"
+                        Click="on_sync_all_click"/>
+                <Button Content="Clear all"
+                        Style="{StaticResource MenuItemButtonStyle}"
+                        Foreground="#FFB4B4"
+                        Click="on_clear_all_click"/>
+                <Rectangle Fill="#404553" Height="1" Margin="0,4"/>
+                <TextBlock Text="HELP" FontSize="10" FontWeight="SemiBold"
+                           Foreground="#208A3C" Margin="12,4,12,4"/>
+                <Button Content="About pyTable"
+                        Style="{StaticResource MenuItemButtonStyle}"
+                        Click="on_menu_about_click"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- ABOUT MODAL                                                 -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <Border x:Name="overlay"
+                Background="#99000000"
+                Visibility="Collapsed"
+                Panel.ZIndex="200"/>
+
+        <Border x:Name="about_modal"
+                Width="400" MaxHeight="480"
+                Background="#2B3340" CornerRadius="8" Padding="20"
+                HorizontalAlignment="Center" VerticalAlignment="Center"
+                Visibility="Collapsed" Panel.ZIndex="201">
+            <Border.Effect>
+                <DropShadowEffect Color="Black" BlurRadius="30" ShadowDepth="8" Opacity="0.60"/>
+            </Border.Effect>
+            <StackPanel>
+                <Grid Margin="0,0,0,14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock FontSize="24" FontWeight="Bold"     Foreground="#208A3C">py</TextBlock>
+                            <TextBlock FontSize="24" FontWeight="SemiBold" Foreground="#F4FAFF">Table</TextBlock>
+                        </StackPanel>
+                        <TextBlock Text="Version 1.0.0 · part of the Seed43 toolset"
+                                   FontSize="11" Foreground="#F4FAFF" Opacity="0.55" Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <Button Content="&#x2716;"
+                            Style="{StaticResource CloseButtonStyle}"
+                            Grid.Column="1" VerticalAlignment="Top"
+                            Click="on_about_close_click"/>
+                </Grid>
+                <TextBlock TextWrapping="Wrap" FontSize="11.5"
+                           Foreground="#F4FAFF" Opacity="0.70"
+                           LineHeight="18" Margin="0,0,0,14">
+                    pyTable links Excel and Word documents to Revit views so the
+                    views stay in sync with the source files. Drop a workbook in,
+                    pick a destination view type, and changes flow through on sync.
+                </TextBlock>
+                <Rectangle Fill="#404553" Height="1" Margin="0,0,0,8"/>
+                <Grid Margin="0,4,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Linked documents" FontSize="12"
+                               Foreground="#F4FAFF" Opacity="0.55"/>
+                    <TextBlock x:Name="about_count" FontSize="12"
+                               FontFamily="Consolas" Foreground="#F4FAFF" Grid.Column="1"/>
+                </Grid>
+                <Rectangle Fill="#404553" Height="1" Margin="0,0,0,8"/>
+                <Grid Margin="0,4,0,14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Revit API" FontSize="12"
+                               Foreground="#F4FAFF" Opacity="0.55"/>
+                    <TextBlock Text="2020 +" FontSize="11"
+                               FontFamily="Consolas" Foreground="#F4FAFF" Grid.Column="1"/>
+                </Grid>
+                <Button Content="OK"
+                        Style="{StaticResource ModernButtonStyle}"
+                        HorizontalAlignment="Right"
+                        Click="on_about_close_click"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- TOAST                                                       -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <Border x:Name="toast_border"
+                Background="#E6232933"
+                BorderBrush="#208A3C" BorderThickness="1"
+                CornerRadius="6" Padding="14,7"
+                HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                Margin="0,0,0,52"
+                Visibility="Collapsed" Panel.ZIndex="300"
+                IsHitTestVisible="False">
+            <Border.Effect>
+                <DropShadowEffect Color="Black" BlurRadius="14" ShadowDepth="4" Opacity="0.5"/>
+            </Border.Effect>
+            <TextBlock x:Name="toast_text" FontSize="11.5" Foreground="#F4FAFF"/>
+        </Border>
+
+    </Grid>
+</Window>

@@ -1,0 +1,73 @@
+{
+  "groups": {
+    "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\Document Studio.panel": [
+      "CAD Layer Manager", 
+      "DocStack_1", 
+      "PyTables", 
+      "pyTransmit"
+    ], 
+    "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\3D Tools.panel": [
+      "3DStack_1", 
+      "Rebar"
+    ], 
+    "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\3D Tools.panel\\3DStack_1.stack": [
+      "Isolate Levels", 
+      "Sheet Scale"
+    ], 
+    "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\3D Tools.panel\\Rebar.pulldown": [
+      "Set Workset", 
+      "Toggle Concealment", 
+      "Update Tag Value To All Elements"
+    ], 
+    "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\Document Studio.panel\\DocStack_1.stack\\Text Formating.pulldown": [
+      "Change Type Format", 
+      "Find Replace", 
+      "Find Type", 
+      "Fix Page Brake", 
+      "Format Selected", 
+      "MText", 
+      "Match Alignment", 
+      "Match Properties", 
+      "Match Width", 
+      "Xplode"
+    ], 
+    "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\Document Studio.panel\\DocStack_1.stack": [
+      "Filter Manager", 
+      "Text Formating", 
+      "Views Manager"
+    ], 
+    "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\Document Studio.panel\\DocStack_1.stack\\Views Manager.pulldown": [
+      "Organiser Reset", 
+      "View Mover", 
+      "View Organiser", 
+      "pyViewPlacer"
+    ], 
+    "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\Revision.panel\\RevStack_1.stack": [
+      "Persistent Revisions", 
+      "Revision Status Colour", 
+      "Wright Cloud Parameter"
+    ], 
+    "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\Document Studio.panel\\DocStack_1.stack\\Filter Manager.pulldown": [
+      "Filter Annotations", 
+      "Filter Delete & Backup", 
+      "Filter Element (Host)", 
+      "Filter Element (Linked)", 
+      "Filter Family (Host)", 
+      "Filter Family (Linked)", 
+      "Filters Restore"
+    ], 
+    "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\Revision.panel": [
+      "RevStack_1"
+    ], 
+    "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\Dev Tools.panel": [
+      "Inspector", 
+      "Parameter Manager"
+    ]
+  }, 
+  "panels": [
+    "Document Studio", 
+    "Revision", 
+    "Dev Tools", 
+    "3D Tools"
+  ]
+}

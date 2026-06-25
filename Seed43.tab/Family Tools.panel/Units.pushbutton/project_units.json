@@ -1,0 +1,1602 @@
+{
+  "autodesk.spec.aec.piping:temperature-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:fahrenheit-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:warpingConstant-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.099999999999999992, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:millimetersToTheSixthPower-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.piping:volume-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.10000000000000001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:usGallons-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:displacement-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:centimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:viscosity-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:centipoises-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:airFlow-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:cubicFeetPerMinute-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:powerDensity-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:wattsPerSquareFoot-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:factor-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:percentage-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:acceleration-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.10000000000000001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:metersPerSecondSquared-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:efficacy-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:lumensPerWatt-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:ductLiningThickness-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:millimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:distance-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:centimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:heatingLoadDividedByVolume-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:wattsPerCubicMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:illuminance-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:lux-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:airFlowDividedByCoolingLoad-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:litersPerSecondKilowatt-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:slope-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:percentage-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:reinforcementVolume-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:cubicCentimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.piping:pressure-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:poundsForcePerSquareInch-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:areaSpringCoefficient-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.10000000000000001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilonewtonsPerCubicMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:apparentPowerDensity-1.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:voltAmperesPerSquareMeter-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:temperatureDifference-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:fahrenheitInterval-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:reinforcementAreaPerUnitLength-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:squareCentimetersPerMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:powerPerFlow-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:wattsPerCubicMeterPerSecond-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:powerDensity-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:wattsPerSquareFoot-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.piping:pipeMassPerUnitLength-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilogramsPerMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:conduitSize-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:millimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:areaDividedByCoolingLoad-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:squareMetersPerKilowatt-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:wattage-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:watts-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:pressure-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:bars-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:concentration-1.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:partsPerBillion-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.energy:thermalConductivity-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.0001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:wattsPerMeterKelvin-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:roughness-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.0001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:feet-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:forceScale-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.10000000000000001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:metersPerKilonewton-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.energy:energy-2.0.2": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:britishThermalUnits-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:ductSize-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:fractionalInches-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:sectionDimension-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.099999999999999992, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:millimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:volume-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:cubicMeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.piping:velocity-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:feetPerSecond-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:decimalSheetLength-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 9.9999999999999991e-05, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:millimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:linearForce-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilonewtonsPerMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:potential-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:volts-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.energy:heatCapacityPerArea-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilojoulesPerSquareMeterKelvin-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:coolingLoad-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:watts-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:areaForce-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilonewtonsPerSquareMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.piping:pipeSize-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:fractionalInches-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:coolingLoadDividedByArea-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:wattsPerSquareMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:power-2.0.1": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:voltAmperes-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.energy:thermalMass-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilojoulesPerKelvin-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:angle-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:degrees-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.energy:specificHeat-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.0001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:joulesPerGramDegreeCelsius-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:crossSection-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:squareInches-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:sectionArea-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.099999999999999992, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:squareMillimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:temperature-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:fahrenheit-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:heatingLoad-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:watts-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.piping:pipeInsulationThickness-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:millimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.piping:density-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.0001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:poundsMassPerCubicFoot-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.piping:pipeDimension-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:millimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:linearMomentScale-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.099999999999999992, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:metersPerKilonewton-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:pointSpringCoefficient-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.10000000000000001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilonewtonsPerMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:ductInsulationThickness-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:millimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:density-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.0001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:poundsMassPerCubicFoot-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:frequency-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.10000000000000001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:hertz-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.piping:roughness-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0000000000000001e-05, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:feet-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:velocity-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.10000000000000001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:metersPerSecond-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:wireDiameter-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:millimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.piping:viscosity-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:centipoises-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:period-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.10000000000000001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:seconds-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:rotationalPointSpringCoefficient-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.10000000000000001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilonewtonMetersPerDegree-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:temperature-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:celsius-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:slope-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:slopeDegrees-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:powerPerLength-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:wattsPerMeter-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:flowPerPower-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:cubicMetersPerWattSecond-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:moment-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilonewtonMeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:sheetLength-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 9.9999999999999991e-05, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:millimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:reinforcementArea-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:squareCentimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:heatGain-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.10000000000000001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:britishThermalUnitsPerHour-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:relativeHumidity-1.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:percentage-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.piping:temperatureDifference-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:fahrenheitInterval-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:sectionProperty-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.099999999999999992, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:millimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:reinforcementCover-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:millimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:lineSpringCoefficient-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.10000000000000001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilonewtonsPerSquareMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:areaDividedByHeatingLoad-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.0001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:squareMetersPerKilowatt-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.piping:slope-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:percentage-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.energy:permeability-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.0001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:nanogramsPerPascalSecondSquareMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:mass-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilograms-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:frequency-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:hertz-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:weight-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilonewtons-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:frequency-1.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:cyclesPerSecond-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:friction-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:inchesOfWater60DegreesFahrenheitPer100Feet-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:stress-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.10000000000000001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:megapascals-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:massDensity-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilogramsPerCubicMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:massPerUnitArea-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilogramsPerSquareMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:reinforcementLength-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:millimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:velocity-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:centimetersPerMinute-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:costPerArea-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:currencyPerSquareMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.infrastructure:stationingInterval-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:meters-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:areaForceScale-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.10000000000000001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:cubicMetersPerKilonewton-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:crackWidth-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:millimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:speed-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.099999999999999992, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilometersPerHour-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.measurabLe:currency-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:currency-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:linearMoment-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilonewtonMetersPerMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:luminousIntensity-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:candelas-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:reinforcementSpacing-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:millimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:momentScale-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.10000000000000001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:inverseKilonewtons-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:surfaceAreaPerUnitLength-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:squareMetersPerMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:airFlowDividedByVolume-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:litersPerSecondCubicMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:costRateEnergy-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:currencyPerWattHour-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:force-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilonewtons-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.energy:specificHeatOfVaporization-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.0001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:joulesPerGram-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.energy:thermalGradientCoefficientForMoistureCapacity-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilogramsPerKilogramKelvin-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:area-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:squareMillimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.piping:flow-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:usGallonsPerMinute-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:rotation-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:radians-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:sectionModulus-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.099999999999999992, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:cubicMillimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:massPerTime-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilogramsPerHour-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:airQualityIndex-1.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 9.9999999999999995e-07, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:general-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.energy:thermalResistance-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.0001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:squareMeterKelvinsPerWatt-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.piping:mass-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilograms-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:colorTemperature-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kelvin-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:diffusivity-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:squareMetersPerSecond-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:velocity-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:feetPerMinute-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:weightPerUnitLength-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilogramsForcePerMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:demandFactor-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:percentage-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:rotationAngle-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:degrees-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:temperatureDifference-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:celsiusInterval-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:coolingLoadDividedByVolume-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:wattsPerCubicMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.energy:isothermalMoistureCapacity-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:cubicMetersPerKilogram-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:power-2.0.1": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:britishThermalUnitsPerHour-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:resistivity-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.0001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:ohmMeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:costRatePower-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:currencyPerWatt-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.piping:massPerTime-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilogramsPerHour-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.energy:heatTransferCoefficient-3.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.0001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:wattsPerSquareMeterKelvin-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:temperature-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:celsius-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:unitWeight-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.10000000000000001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilonewtonsPerCubicMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:energy-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.10000000000000001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilojoules-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:barDiameter-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:millimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:luminousFlux-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:lumens-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:current-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:amperes-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:momentOfInertia-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:millimetersToTheFourthPower-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:time-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.099999999999999992, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:seconds-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:luminance-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:candelasPerSquareMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:mass-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilograms-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:apparentPower-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:voltAmperes-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:siteAngle-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.00027777777777777778, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:degreesMinutes-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:pulsation-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.10000000000000001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:radiansPerSecond-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:number-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 9.9999999999999995e-07, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:general-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:heatingLoadDividedByArea-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:wattsPerSquareMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.infrastructure:stationing-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:stationingMeters-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:linearForceScale-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.10000000000000001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:squareMetersPerKilonewton-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:rotationalLineSpringCoefficient-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.10000000000000001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilonewtonMetersPerDegreePerMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.piping:friction-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:feetOfWater39.2DegreesFahrenheitPer100Feet-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:airFlowDensity-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:litersPerSecondSquareMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:pressure-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:inchesOfWater60DegreesFahrenheit-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:soundPressureLevel-1.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:decibels-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:thermalExpansionCoefficient-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0000000000000001e-05, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:inverseDegreesCelsius-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.hvac:angularSpeed-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.001, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:revolutionsPerMinute-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.structural:massPerUnitLength-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:kilogramsPerMeter-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.measurable:currency-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:currency-1.0.0", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec:length-2.0.1": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 0.01, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:millimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }, 
+  "autodesk.spec.aec.electrical:cableTraySize-2.0.0": {
+    "suppress_leading_zeros": false, 
+    "suppress_trailing_zeros": false, 
+    "suffix": "", 
+    "accuracy": 1.0, 
+    "show_measurement_line_below": false, 
+    "unit_type_id": "autodesk.unit.unit:millimeters-1.0.1", 
+    "use_grouping": false, 
+    "prefix": ""
+  }
+}

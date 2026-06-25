@@ -1,0 +1,30 @@
+title: "Toggle Rebar Visibility"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  _____________________________________________________________________
+  Description:
+  Toggles rebar visibility between obscured and unobscured in the
+  current view.
+  
+  The tool detects the current state of all visible rebar and decides
+  what to do:
+  - If some are obscured and some are not, all are made unobscured
+  - If all are already unobscured, all are made obscured
+  - If all are already obscured, all are made unobscured
+  _____________________________________________________________________
+  How-to:
+  -> Open a view that contains rebar
+  -> Run the tool
+  -> Rebar visibility switches automatically based on current state
+  -> A confirmation message shows what action was applied
+  _____________________________________________________________________
+  Notes:
+  - Works on the active view only
+  - Only rebar visible in the current view is affected
+  - Obscured means the rebar is shown as hidden behind concrete
+    (dashed lines), unobscured means it is shown as solid lines
+  _____________________________________________________________________
+  Last update:
+  - Initial release
+  _____________________________________________________________________

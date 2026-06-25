@@ -1,0 +1,13 @@
+﻿# Zip backups
+*.zip
+
+# Log files
+*.log
+
+# Local settings
+settings.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo

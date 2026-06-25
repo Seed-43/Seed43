@@ -1,0 +1,56 @@
+title: "Filter Element (Linked)"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  _____________________________________________________________________
+  Description:
+  Creates View Filters for elements selected from linked models, based
+  on element type.
+  
+  - Select a linked model, then pick elements inside it
+  - Automatically detects:
+      - Category
+      - Element Type Name
+  - Creates a filter matching:
+      - Category and Type Name
+  - Applies the filter to the active view or its template
+  - Automatically hides matching elements
+  
+  Persistent workflow:
+  - Remembers the selected linked model
+  - Allows repeated element selection without re-picking the link
+  _____________________________________________________________________
+  How-to:
+  -> Run the tool
+  -> Select a linked model
+  -> Select an element inside the linked model (use TAB if needed)
+  
+  -> Tool will:
+      - Detect category and type
+      - Create a filter based on type name
+      - Apply filter to view (or template)
+  
+  -> If filter already exists:
+      - Use Existing, applies it
+      - Create New, duplicates with unique name
+      - Skip, does nothing
+  
+  -> Continue selecting elements from the same link
+  -> Press ESC to exit the tool
+  _____________________________________________________________________
+  Notes:
+  - Works on linked model elements only, NOT host elements
+  - The linked model must be loaded
+  - Ensures the selected element belongs to the chosen link
+  
+  - View Template support:
+      - If a template controls filters, the filter is applied to the
+        template instead
+  
+  - Filter logic:
+      - Uses the Type Name parameter
+      - Matches all instances of that type within the category
+  _____________________________________________________________________
+  Last update:
+  - Initial release
+  _____________________________________________________________________

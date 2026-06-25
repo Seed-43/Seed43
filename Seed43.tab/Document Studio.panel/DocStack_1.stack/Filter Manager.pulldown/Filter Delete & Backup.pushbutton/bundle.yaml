@@ -1,0 +1,47 @@
+title: "Filter Delete and Backup"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  _____________________________________________________________________
+  Description:
+  Manages Revit View Filters with built-in automatic backup and version
+  tracking.
+  
+  - Displays all Parameter Filters in a searchable list
+  - Allows multi-select deletion of filters
+  - Automatically creates a backup file next to the Revit model
+  - Tracks changes to filters over time (categories and rules)
+  - Archives previous versions when filters are modified
+  
+  Designed to safely clean up filters without losing data.
+  _____________________________________________________________________
+  How-to:
+  -> Run the tool
+  -> Select one or more filters from the list
+  -> Click Delete Selected
+  
+  -> Confirm deletion:
+      - Shows selected filters
+      - Indicates if a backup will be created
+  
+  -> The tool will:
+      - Delete selected filters
+      - Update the backup file automatically
+  
+  -> Backup file location:
+      Same folder as Revit model:
+      [ModelName]_filters_backup.json
+  _____________________________________________________________________
+  Notes:
+  - Backup only works if the Revit model has been saved
+  - Unsaved models will not generate a backup file
+  - The backup updates automatically on every run
+  - Modified filters are versioned, not overwritten
+  
+  - This tool deletes filters only:
+      - It does NOT remove them from views first
+      - Revit may block deletion if the filter is still in use
+  _____________________________________________________________________
+  Last update:
+  - Initial release
+  _____________________________________________________________________

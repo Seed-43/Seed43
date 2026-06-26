@@ -75,22 +75,35 @@ def pick_folder_params(all_sheets, all_views):
         CASE_OPTIONS[1]: "title",
         CASE_OPTIONS[2]: "ignore",
     }
-    case_choice = forms.ask_for_one_item(
+    title_case_choice = forms.ask_for_one_item(
         CASE_OPTIONS,
         default=CASE_OPTIONS[0],
         prompt="How should 'Title on Sheet' values be cased?\n\n"
                "ALL CAPS   - forces every title to uppercase\n"
                "Title Case - capitalises the first letter of each word\n"
                "Ignore     - no case changes applied",
-        title="View Organiser Config - Title Casing"
+        title="View Organiser Config - Title on Sheet Casing"
     )
-    if case_choice is None:
+    if title_case_choice is None:
+        script.exit()
+
+    sheet_name_case_choice = forms.ask_for_one_item(
+        CASE_OPTIONS,
+        default=CASE_OPTIONS[0],
+        prompt="How should Sheet Name values be cased?\n\n"
+               "ALL CAPS   - forces every sheet name to uppercase\n"
+               "Title Case - capitalises the first letter of each word\n"
+               "Ignore     - no case changes applied",
+        title="View Organiser Config - Sheet Name Casing"
+    )
+    if sheet_name_case_choice is None:
         script.exit()
 
     return (
         None if sheet_choice == NONE_LABEL else sheet_choice,
         None if view_choice  == NONE_LABEL else view_choice,
-        CASE_MAP[case_choice],
+        CASE_MAP[title_case_choice],
+        CASE_MAP[sheet_name_case_choice],
     )
 
 # ── READ CURRENT CONFIG ───────────────────────────────────────────────────────
@@ -106,18 +119,19 @@ if os.path.isfile(CONFIG_PATH):
 # ── CHOOSE ACTION ─────────────────────────────────────────────────────────────
 
 if current:
-    sheet_p  = current.get("sheet_folder_param") or "None"
-    view_p   = current.get("view_folder_param")  or "None"
-    case_val = current.get("sheet_name_case", "upper")
-    CASE_LABELS = {"upper": "ALL CAPS", "title": "Title Case", "ignore": "Ignore"}
-    case_label = CASE_LABELS.get(case_val, case_val)
+    sheet_p       = current.get("sheet_folder_param") or "None"
+    view_p        = current.get("view_folder_param")  or "None"
+    title_case    = current.get("title_on_sheet_case", "upper")
+    sname_case    = current.get("sheet_name_case", "upper")
+    CASE_LABELS   = {"upper": "ALL CAPS", "title": "Title Case", "ignore": "Ignore"}
     summary = (
         "Current config:\n"
-        "  Sheet param:  {}\n"
-        "  View param:   {}\n"
-        "  Title casing: {}\n\n"
+        "  Sheet param:        {}\n"
+        "  View param:         {}\n"
+        "  Title on Sheet:     {}\n"
+        "  Sheet name casing:  {}\n\n"
         "What would you like to do?"
-    ).format(sheet_p, view_p, case_label)
+    ).format(sheet_p, view_p, CASE_LABELS.get(title_case, title_case), CASE_LABELS.get(sname_case, sname_case))
 else:
     summary = "No config file found.\n\nWhat would you like to do?"
 
@@ -166,12 +180,13 @@ all_sheets = list(
     .ToElements()
 )
 
-sheet_param, view_param, sheet_name_case = pick_folder_params(all_sheets, all_views)
+sheet_param, view_param, title_on_sheet_case, sheet_name_case = pick_folder_params(all_sheets, all_views)
 
 data = {
-    "sheet_folder_param": sheet_param,
-    "view_folder_param":  view_param,
-    "sheet_name_case":    sheet_name_case,
+    "sheet_folder_param":  sheet_param,
+    "view_folder_param":   view_param,
+    "title_on_sheet_case": title_on_sheet_case,
+    "sheet_name_case":     sheet_name_case,
 }
 
 CASE_LABELS = {"upper": "ALL CAPS", "title": "Title Case", "ignore": "Ignore"}
@@ -181,11 +196,13 @@ try:
         json.dump(data, f, indent=2)
     forms.alert(
         "Config saved.\n\n"
-        "  Sheet param:  {}\n"
-        "  View param:   {}\n"
-        "  Title casing: {}".format(
+        "  Sheet param:        {}\n"
+        "  View param:         {}\n"
+        "  Title on Sheet:     {}\n"
+        "  Sheet name casing:  {}".format(
             sheet_param or "None",
             view_param  or "None",
+            CASE_LABELS.get(title_on_sheet_case, title_on_sheet_case),
             CASE_LABELS.get(sheet_name_case, sheet_name_case)),
         title="View Organiser Config")
 except Exception as e:

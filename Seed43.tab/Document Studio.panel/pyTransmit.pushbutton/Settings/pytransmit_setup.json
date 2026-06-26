@@ -1,7 +1,7 @@
 {
-  "log_zip_path": "C:\\Users\\Fred\\Desktop\\pyTransmit_log_260522_145434.zip", 
+  "output_path_template": "{projects_root}\\#JOB-{bucket_min}-{bucket_max}\\{job_number}\\DRAWINGS", 
+  "transmittal_naming_template": "{proj_number}-TRA-{current_date}.pdf", 
   "projects_older_root": "", 
   "projects_root": "N:\\(N) NAGEL CONSULTANTS LTD\\#JOB", 
-  "transmittal_naming_template": "{proj_number}-TRA-{current_date}.pdf", 
-  "output_path_template": "{projects_root}\\#JOB-{bucket_min}-{bucket_max}\\{job_number}\\DRAWINGS"
+  "log_zip_path": "C:\\Users\\Fred\\Desktop\\pyTransmit_log_260522_145434.zip"
 }

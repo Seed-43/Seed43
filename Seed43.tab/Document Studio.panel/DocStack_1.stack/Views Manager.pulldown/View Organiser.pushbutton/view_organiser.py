@@ -101,22 +101,35 @@ def pick_folder_params(all_sheets, all_views):
         CASE_OPTIONS[1]: "title",
         CASE_OPTIONS[2]: "ignore",
     }
-    case_choice = forms.ask_for_one_item(
+    title_case_choice = forms.ask_for_one_item(
         CASE_OPTIONS,
         default=CASE_OPTIONS[0],
         prompt="How should 'Title on Sheet' values be cased?\n\n"
                "ALL CAPS   - forces every title to uppercase\n"
                "Title Case - capitalises the first letter of each word\n"
                "Ignore     - no case changes applied",
-        title="View Organiser - Title Casing"
+        title="View Organiser - Title on Sheet Casing"
     )
-    if case_choice is None:
+    if title_case_choice is None:
+        script.exit()
+
+    sheet_name_case_choice = forms.ask_for_one_item(
+        CASE_OPTIONS,
+        default=CASE_OPTIONS[0],
+        prompt="How should Sheet Name values be cased?\n\n"
+               "ALL CAPS   - forces every sheet name to uppercase\n"
+               "Title Case - capitalises the first letter of each word\n"
+               "Ignore     - no case changes applied",
+        title="View Organiser - Sheet Name Casing"
+    )
+    if sheet_name_case_choice is None:
         script.exit()
 
     return (
         None if sheet_choice == NONE_LABEL else sheet_choice,
         None if view_choice  == NONE_LABEL else view_choice,
-        CASE_MAP[case_choice],
+        CASE_MAP[title_case_choice],
+        CASE_MAP[sheet_name_case_choice],
     )
 
 def load_config():
@@ -129,12 +142,13 @@ def load_config():
             return None
     return None
 
-def save_config(sheet_param, view_param, sheet_name_case="upper"):
-    """Persist the chosen parameter names and casing mode to JSON."""
+def save_config(sheet_param, view_param, title_on_sheet_case="upper", sheet_name_case="upper"):
+    """Persist the chosen parameter names and casing modes to JSON."""
     data = {
-        "sheet_folder_param": sheet_param,
-        "view_folder_param":  view_param,
-        "sheet_name_case":    sheet_name_case,
+        "sheet_folder_param":   sheet_param,
+        "view_folder_param":    view_param,
+        "title_on_sheet_case":  title_on_sheet_case,
+        "sheet_name_case":      sheet_name_case,
     }
     try:
         with open(CONFIG_PATH, "w") as f:
@@ -195,6 +209,13 @@ def print_dim(text):
     output.print_html("<div class='rev'>-> {}</div>".format(text))
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def apply_case(text, mode):
+    if mode == "upper":
+        return text.upper()
+    if mode == "title":
+        return text.title()
+    return text
 
 def clean_title(title):
     if title:
@@ -278,24 +299,27 @@ all_sheets = list(
 config = load_config()
 if config is None:
     print_info("First run - picking folder parameters...")
-    sheet_folder_param_name, view_folder_param_name, sheet_name_case = pick_folder_params(
+    sheet_folder_param_name, view_folder_param_name, title_on_sheet_case, sheet_name_case = pick_folder_params(
         all_sheets, all_views)
-    save_config(sheet_folder_param_name, view_folder_param_name, sheet_name_case)
+    save_config(sheet_folder_param_name, view_folder_param_name, title_on_sheet_case, sheet_name_case)
     if sheet_folder_param_name or view_folder_param_name:
         print_success("Config saved -> {}".format(CONFIG_PATH))
-        print_dim("  Sheet param: {}".format(sheet_folder_param_name or "None"))
-        print_dim("  View param:  {}".format(view_folder_param_name  or "None"))
-        print_dim("  Title case:  {}".format(sheet_name_case))
+        print_dim("  Sheet param:       {}".format(sheet_folder_param_name or "None"))
+        print_dim("  View param:        {}".format(view_folder_param_name  or "None"))
+        print_dim("  Title on Sheet:    {}".format(title_on_sheet_case))
+        print_dim("  Sheet name case:   {}".format(sheet_name_case))
     else:
         print_warning("Both folder params set to None - folder syncing will be skipped")
 else:
     sheet_folder_param_name = config.get("sheet_folder_param")
     view_folder_param_name  = config.get("view_folder_param")
+    title_on_sheet_case     = config.get("title_on_sheet_case", "upper")
     sheet_name_case         = config.get("sheet_name_case", "upper")
     print_success("Config loaded:")
-    print_dim("  Sheet param: {}".format(sheet_folder_param_name or "None"))
-    print_dim("  View param:  {}".format(view_folder_param_name  or "None"))
-    print_dim("  Title case:  {}".format(sheet_name_case))
+    print_dim("  Sheet param:       {}".format(sheet_folder_param_name or "None"))
+    print_dim("  View param:        {}".format(view_folder_param_name  or "None"))
+    print_dim("  Title on Sheet:    {}".format(title_on_sheet_case))
+    print_dim("  Sheet name case:   {}".format(sheet_name_case))
 
 SYNC_FOLDERS = bool(sheet_folder_param_name and view_folder_param_name)
 print_separator()
@@ -437,7 +461,7 @@ else:
                         if not (title_param.AsString() or ""):
                             original = original_names.get(eid_int(view.Id), "")
                             if original:
-                                title_param.Set(original.upper())
+                                title_param.Set(apply_case(original, title_on_sheet_case))
                                 title_preserved_count += 1
                                 print_dim("Preserved: '{}' -> Title on Sheet".format(
                                     original))
@@ -492,8 +516,15 @@ else:
                     title_param = get_parameter_by_name(view, "Title on Sheet")
                     name_title  = ""
                     if title_param:
-                        name_title = clean_title(
-                            title_param.AsString() or "").upper()
+                        name_title = apply_case(
+                            clean_title(title_param.AsString() or ""), title_on_sheet_case)
+                        if name_title and not title_param.IsReadOnly:
+                            try:
+                                if title_param.AsString() != name_title:
+                                    title_param.Set(name_title)
+                            except Exception as e:
+                                print_warning("Could not set Title on Sheet for view {}: {}".format(
+                                    eid_int(view.Id), str(e)))
                     if not name_title:
                         name_title = "UNTITLED"
 
@@ -634,13 +665,6 @@ else:
     sheet_updated_count = 0
     sheet_skipped_count = 0
     sheet_error_count   = 0
-
-    def apply_case(text, mode):
-        if mode == "upper":
-            return text.upper()
-        if mode == "title":
-            return text.title()
-        return text
 
     try:
         with revit.Transaction("View Organiser - casing sheet names"):

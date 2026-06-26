@@ -1,0 +1,27 @@
+﻿title: "Check Temp Overrides"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟔𝟐𝟔
+  _____________________________________________________________________
+  Description:
+Scans all views placed on sheets and reports any that have active  temporary graphic overrides. Results are grouped by sheet with  clickable links to navigate directly to the sheet or view.
+  Detects:
+- Hide/Isolate (temporary hide or isolate active)
+- Reveal Hidden Elements mode
+- Worksharing Display mode
+
+  Output:
+- Sheet number and name with a clickable link to open the sheet
+- View name with a clickable link and override type shown in amber
+- ALL CLEAR message if no overrides are found
+  _____________________________________________________________________
+  How-to:
+-> Run the tool from any context
+-> Review the output report
+-> Click a sheet link to navigate to that sheet
+-> Click a view link to select the view directly
+-> Clear the override in the view and re-run to confirm
+  _____________________________________________________________________
+  Last update:
+260626 - Initial release
+  _____________________________________________________________________

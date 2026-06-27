@@ -31,7 +31,7 @@ from System.Windows.Media.Imaging import BitmapImage
 from System import Uri, UriKind, Action, TimeSpan
 from threading import Lock
 
-# \u2500\u2500 VARIABLES \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+# ── VARIABLES ─────────────────────────────────────────────────────────────────
 GITHUB_ORG    = "Seed-43"
 MAIN_REPO     = "Seed43"
 BRANCH        = "main"
@@ -44,7 +44,7 @@ VERSION_URL   = "https://raw.githubusercontent.com/{}/{}/{}/version.txt".format(
 REPO_ZIP_URL  = "https://github.com/{}/{}/archive/refs/heads/{}.zip".format(
     GITHUB_ORG, MAIN_REPO, BRANCH)
 
-# \u2500\u2500 Load XAML \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+# ── Load XAML ─────────────────────────────────────────────────────────────────
 SCRIPT_DIR = os.path.dirname(__file__)
 XAML_PATH  = os.path.join(SCRIPT_DIR, "About.xaml")
 ICON_PATH  = os.path.join(SCRIPT_DIR, "icon.png")
@@ -61,7 +61,7 @@ for _ in range(10):
         break
     _current = _parent
 
-# \u2500\u2500 Helpers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def load_xaml(path):
     reader = StreamReader(path)
@@ -131,10 +131,134 @@ def version_tuple(version_str):
 def dispatch(window, fn):
     window.Dispatcher.Invoke(Action(fn))
 
+# ── Migration helpers ─────────────────────────────────────────────────────────
+
+def read_migrations(extracted_root):
+    """
+    Parse seed43_migrations.yaml from the extracted repo root.
+    Returns a list of migration dicts:
+      [{'from': 'rel/path', 'to': 'rel/path',
+        'subfolders': [{'from': 'x', 'to': 'y'}, ...]}, ...]
+    Paths are relative to Seed43.tab.
+    Returns [] if file not found or parse fails.
+    """
+    yaml_path = os.path.join(extracted_root, "seed43_migrations.yaml")
+    if not os.path.exists(yaml_path):
+        return []
+    migrations = []
+    current    = None
+    try:
+        with open(yaml_path, "r") as f:
+            lines = f.readlines()
+        for line in lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            # Top-level migration entry
+            if stripped.startswith("- from:"):
+                if current:
+                    migrations.append(current)
+                current = {
+                    'from':       stripped[len("- from:"):].strip(),
+                    'to':         None,
+                    'subfolders': []
+                }
+            elif stripped.startswith("to:") and current and current['to'] is None:
+                current['to'] = stripped[len("to:"):].strip()
+            elif stripped.startswith("subfolders:"):
+                pass  # section marker, nothing to capture
+            # Subfolder entry (indented with - from:)
+            elif stripped.startswith("- from:") and current:
+                # Already handled above as new top-level entry check
+                # but subfolders use same syntax indented
+                pass
+            # Handle subfolder entries: lines like "  - from: x"
+        # Subfolder lines have extra indent — re-parse properly
+        current    = None
+        migrations = []
+        in_sub     = False
+        sub_from   = None
+        for line in lines:
+            stripped = line.strip()
+            indent   = len(line) - len(line.lstrip())
+            if not stripped or stripped.startswith("#"):
+                continue
+            if stripped.startswith("migrations:"):
+                continue
+            # Top-level migration (indent 2, starts with "- from:")
+            if indent <= 4 and stripped.startswith("- from:"):
+                if current:
+                    migrations.append(current)
+                current  = {'from': stripped[len("- from:"):].strip(),
+                            'to': None, 'subfolders': []}
+                in_sub   = False
+                sub_from = None
+            elif indent <= 4 and stripped.startswith("to:") and current and current['to'] is None:
+                current['to'] = stripped[len("to:"):].strip()
+            elif stripped == "subfolders:":
+                in_sub = True
+            elif in_sub and stripped.startswith("- from:"):
+                sub_from = stripped[len("- from:"):].strip()
+            elif in_sub and stripped.startswith("to:") and sub_from:
+                current['subfolders'].append({
+                    'from': sub_from,
+                    'to':   stripped[len("to:"):].strip()
+                })
+                sub_from = None
+        if current:
+            migrations.append(current)
+    except Exception:
+        return []
+    return [m for m in migrations if m.get('from') and m.get('to')]
+
+
+def apply_migrations(migrations, tab_dst):
+    """
+    For each migration entry, copy .json files from the old folder path
+    to the new folder path inside tab_dst, then for each subfolder do the same.
+    Paths in the migration are relative to Seed43.tab.
+    Old folders are left in place for sync_tree to clean up.
+    """
+    for m in migrations:
+        old_dir = os.path.join(tab_dst, m['from'])
+        new_dir = os.path.join(tab_dst, m['to'])
+
+        if not os.path.isdir(old_dir):
+            continue  # nothing to migrate
+
+        # Ensure destination exists
+        if not os.path.isdir(new_dir):
+            os.makedirs(new_dir)
+
+        # Copy json files from old root to new root
+        for fname in os.listdir(old_dir):
+            if fname.lower().endswith(".json"):
+                src = os.path.join(old_dir, fname)
+                dst = os.path.join(new_dir, fname)
+                if not os.path.exists(dst):
+                    shutil.copy2(src, dst)
+
+        # Handle subfolders
+        for sub in m.get('subfolders', []):
+            old_sub = os.path.join(old_dir, sub['from'])
+            new_sub = os.path.join(new_dir, sub['to'])
+            if not os.path.isdir(old_sub):
+                continue
+            if not os.path.isdir(new_sub):
+                os.makedirs(new_sub)
+            for fname in os.listdir(old_sub):
+                if fname.lower().endswith(".json"):
+                    src = os.path.join(old_sub, fname)
+                    dst = os.path.join(new_sub, fname)
+                    if not os.path.exists(dst):
+                        shutil.copy2(src, dst)
+
+# ── Sync helper ───────────────────────────────────────────────────────────────
+
 def sync_tree(src, dst):
     """Sync src into dst file by file.
-    Copies all files from src except .json.
-    Deletes dst files not in src except .json.
+    Copies all files from src except .json and .png.
+    Deletes dst files not in src except .json and .png.
     Removes dst dirs not in src only if they contain no .json files."""
     if not os.path.isdir(dst):
         os.makedirs(dst)
@@ -162,7 +286,7 @@ def sync_tree(src, dst):
                 if not has_json:
                     shutil.rmtree(d)
 
-# \u2500\u2500 YAML order helpers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+# ── YAML order helpers ────────────────────────────────────────────────────────
 
 def read_yaml_layout(folder_path):
     yaml_path = os.path.join(folder_path, "bundle.yaml")
@@ -197,7 +321,7 @@ def apply_yaml_order(items, folder_path):
     known.sort(key=lambda it: index[it['name']])
     return known + unknown
 
-# \u2500\u2500 Tool scanner helpers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+# ── Tool scanner helpers ───────────────────────────────────────────────────────
 
 def folder_ext(name):
     base = name[:-4] if name.lower().endswith('.off') else name
@@ -294,7 +418,7 @@ def scan_panel(folder_path):
                               'children': stack_items})
     return items
 
-# \u2500\u2500 Folder toggle logic \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+# ── Folder toggle logic ────────────────────────────────────────────────────────
 
 class FolderRenamer(object):
     def __init__(self, folder_path, parent=None):
@@ -382,7 +506,7 @@ class FolderHandler(object):
                 dispatch(self.window, fail)
         Thread(ThreadStart(worker)).Start()
 
-# \u2500\u2500 Tool UI builder \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+# ── Tool UI builder ───────────────────────────────────────────────────────────
 
 class ToolManager(object):
 
@@ -520,7 +644,7 @@ class ToolManager(object):
         row.Children.Add(label)
         return row
 
-# \u2500\u2500 Main dialog \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+# ── Main dialog ───────────────────────────────────────────────────────────────
 
 class Seed43Dialog(object):
 
@@ -581,24 +705,22 @@ class Seed43Dialog(object):
         container.Children.Clear()
         for note in notes:
             stripped = note.strip()
-            # Use a Grid for bullet lines so wrapped text indents under the text
-            # not under the dash, giving a clean hanging indent effect
             if stripped.startswith("-"):
                 from System.Windows.Controls import Grid, ColumnDefinition
                 from System.Windows import GridLength, GridUnitType
-                g   = Grid()
-                c0  = ColumnDefinition()
+                g    = Grid()
+                c0   = ColumnDefinition()
                 c0.Width = GridLength(16)
-                c1  = ColumnDefinition()
+                c1   = ColumnDefinition()
                 c1.Width = GridLength(1, GridUnitType.Star)
                 g.ColumnDefinitions.Add(c0)
                 g.ColumnDefinitions.Add(c1)
                 g.Margin = Thickness(8, 1, 0, 1)
                 dash = TextBlock()
-                dash.Text      = u"-"
-                dash.FontSize  = 12
+                dash.Text       = u"-"
+                dash.FontSize   = 12
                 dash.Foreground = SolidColorBrush(ColorConverter.ConvertFromString("#F4FAFF"))
-                dash.Opacity   = 0.9
+                dash.Opacity    = 0.9
                 Grid.SetColumn(dash, 0)
                 g.Children.Add(dash)
                 body = TextBlock()
@@ -621,9 +743,7 @@ class Seed43Dialog(object):
 
     def _update_s43_ui(self, local, notes, remote):
         self.window.FindName("s43_title").Text = u"\u25CF  Installed  v{}".format(local) if local else "Version unknown"
-
         self._render_changelog(notes)
-
         if remote and version_tuple(remote) > version_tuple(local):
             self._remote_s43_version = remote
             self.window.FindName("update_ribbon_version").Text = \
@@ -634,7 +754,6 @@ class Seed43Dialog(object):
             self._render_changelog(notes + extra)
 
     def _show_card(self, name):
-        """Show one of card_normal / card_confirm / card_done, hide the others."""
         for panel in ("card_normal", "card_confirm", "card_done"):
             p = self.window.FindName(panel)
             if p:
@@ -654,10 +773,10 @@ class Seed43Dialog(object):
                 container.Children.Clear()
                 from System.Windows import Thickness
                 tb = TextBlock()
-                tb.Text      = u"Updating" + dots
-                tb.FontSize  = 12
+                tb.Text       = u"Updating" + dots
+                tb.FontSize   = 12
                 tb.Foreground = SolidColorBrush(ColorConverter.ConvertFromString("#208A3C"))
-                tb.Margin    = Thickness(0, 2, 0, 2)
+                tb.Margin     = Thickness(0, 2, 0, 2)
                 container.Children.Add(tb)
         self._spinner_timer.Tick += tick
         self._spinner_timer.Start()
@@ -680,7 +799,6 @@ class Seed43Dialog(object):
 
         cancel_btn = self.window.FindName("confirm_cancel_btn")
         yes_btn    = self.window.FindName("confirm_yes_btn")
-        # Remove existing handlers to avoid stacking on repeated clicks
         try:
             cancel_btn.Click -= on_cancel
             yes_btn.Click    -= on_yes
@@ -727,11 +845,17 @@ class Seed43Dialog(object):
                 if not extracted_root:
                     raise Exception("Could not find extracted folder.")
 
-                log("Installing...")
                 new_tab = os.path.join(extracted_root, "Seed43.tab")
                 if not os.path.exists(new_tab):
                     raise Exception("Seed43.tab not found in download.")
 
+                # ── Apply migrations before syncing ───────────────────────────
+                log("Checking migrations...")
+                migrations = read_migrations(extracted_root)
+                if migrations:
+                    apply_migrations(migrations, TAB_DIR_DEST)
+
+                log("Installing...")
                 sync_tree(new_tab, TAB_DIR_DEST)
 
                 new_version_file = os.path.join(extracted_root, "version.txt")
@@ -797,6 +921,6 @@ class Seed43Dialog(object):
     def show(self):
         self.window.ShowDialog()
 
-# \u2500\u2500 Entry point \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+# ── Entry point ───────────────────────────────────────────────────────────────
 dialog = Seed43Dialog()
 dialog.show()

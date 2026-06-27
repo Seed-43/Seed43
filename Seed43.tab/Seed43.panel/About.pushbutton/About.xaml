@@ -313,12 +313,11 @@
 
                 <!-- Done overlay (shown when update complete) -->
                 <StackPanel x:Name="card_done" Visibility="Collapsed">
-                    <TextBlock Text="Seed43 Updated"
+                    <TextBlock x:Name="card_done_title"
+                               Text="Seed43 Updated"
                                FontSize="13" FontWeight="SemiBold"
                                Foreground="#208A3C" Margin="0,0,0,8"/>
-                    <TextBlock x:Name="card_done_msg" Text=""
-                               FontSize="12" Foreground="#F4FAFF" Opacity="0.9"
-                               TextWrapping="Wrap" Margin="0,0,0,16"/>
+                    <StackPanel x:Name="card_done_panel" Margin="0,0,0,16"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button x:Name="done_ok_btn" Content="OK"
                                 Style="{StaticResource ReloadBtn}"

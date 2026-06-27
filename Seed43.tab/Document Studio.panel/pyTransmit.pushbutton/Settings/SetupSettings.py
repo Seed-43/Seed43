@@ -106,10 +106,9 @@ class SetupSettingsController(object):
             saved = []
             try:
                 from pyrevit import revit as _rv
-                from pyrevit import DB as _DB
                 import re as _re2
                 _all = sorted(
-                    _rv.query.get_elements_by_class(_DB.Revision, doc=_rv.doc),
+                    revit.query.get_elements_by_class(DB.Revision, doc=_rv.doc),
                     key=lambda r: r.SequenceNumber)
                 _issued = [r for r in _all if r.Issued]
                 if _issued:

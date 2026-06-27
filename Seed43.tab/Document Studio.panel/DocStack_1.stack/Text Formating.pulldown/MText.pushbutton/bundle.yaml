@@ -8,6 +8,20 @@ tooltip: |
 
   Notes that are touching or overlapping are joined as one continuous paragraph. Notes with a visible gap between them become separate paragraphs in the merged result.
   _____________________________________________________________________
+  How-to:
+  -> Run the tool
+  -> Select the Text Notes you want to merge
+  -> Press FINISH when done selecting
+  -> The merged note is created and selected, ready to move
+  -> Delete the original notes manually when happy with the result
+  _____________________________________________________________________
+  Notes:
+  - Only Text Notes are merged, other element types are ignored
+  - The merged note uses the type and position of the topmost note
+  - Notes are sorted top to bottom, then left to right automatically
+  - Original notes are not deleted, move and clean up manually
+  - Works in the active view only
+  _____________________________________________________________________
   Last update:
   - Initial release
   _____________________________________________________________________

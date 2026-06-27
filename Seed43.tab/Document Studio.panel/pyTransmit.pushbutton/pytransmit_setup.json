@@ -1,22 +1,22 @@
 {
-  "show_projname": false, 
-  "out_schedule": true, 
-  "show_format": false, 
-  "show_method": false, 
-  "out_excel": false, 
-  "show_initials": false, 
   "show_projno": false, 
-  "page_height_mode": "a4", 
+  "show_projname": false, 
+  "show_initials": false, 
+  "out_pdf": false, 
   "out_legend": false, 
+  "page_height_mode": "a4", 
   "page_height_mm": 287, 
   "show_reason": true, 
-  "out_pdf": false, 
+  "show_method": false, 
   "group_params": [
     "Folder"
   ], 
-  "show_from": false, 
   "out_drafting": false, 
-  "recipient_mode": "dist", 
+  "show_printsize": false, 
+  "out_schedule": true, 
+  "out_excel": false, 
   "show_client": false, 
-  "show_printsize": false
+  "show_format": false, 
+  "recipient_mode": "dist", 
+  "show_from": false
 }

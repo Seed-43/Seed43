@@ -1,0 +1,7 @@
+name: BreakTime
+bundle_type: pushbutton
+tooltip: Take a 2 minute break! A random classic DOS game will launch and close itself when time is up.
+title: BreakTime
+author: Seed43
+version: 1.0.0
+

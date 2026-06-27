@@ -16,6 +16,20 @@ tooltip: |
   Does NOT modify text content or leaders themselves, only alignment
   settings.
   _____________________________________________________________________
+  How-to:
+  -> Run the tool
+  -> Select a REFERENCE Text Note (the one with the alignment to copy)
+  -> Select TARGET Text Notes to update
+  -> Repeat selection as needed (ESC to finish)
+  
+  -> Alignment updates instantly on each selection
+  _____________________________________________________________________
+  Notes:
+  - Only works on Text Notes
+  - Multiple targets can be selected in one run
+  - No changes are made to text content or leader geometry
+  - Press ESC at any time to exit safely
+  _____________________________________________________________________
   Last update:
   - Updated to use pyrevitlib
   _____________________________________________________________________

@@ -1,11 +1,8 @@
+title:
+  en_us: Views Manager
 
 layout:
   - pyViewPlacer
   - View Mover
-  - ----
   - View Organiser
-  - Duplicate Sheets
-  - Check Temp Overrides
-  - ----
   - Organiser Reset
-

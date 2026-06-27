@@ -1,2517 +1,1854 @@
 # -*- coding: utf-8 -*-
-# v2-fillfix
 """
-pyTable - Import Excel named ranges into Revit as native views.
-
-Schedule View -> Key Schedule using the same pattern as pyRevit's
-                 CSV importer. Excel named range data is read directly
-                 from the xlsx zip, no COM, no temp files for the user.
-
-Legend View   -> Legend view with data as native TextNote elements.
-Drafting View -> Drafting view with data as native TextNote elements.
+PyTables - Link Excel / Word documents to Revit views
+Part of the Seed43 extension
+IronPython 2 / pyRevit / Revit API
 """
-from pyrevit import revit, DB
-from pyrevit import forms
-from pyrevit import script
+import clr
 
-import os
-import zipfile as _zipfile
-import re
+# PresentationFramework / Core / WindowsBase are not pre-loaded by pyRevit
+clr.AddReference('PresentationFramework')
+clr.AddReference('PresentationCore')
+clr.AddReference('WindowsBase')
+# System.Windows.Forms (file/folder dialogs) is also not a standard pyRevit ref
+clr.AddReference('System.Windows.Forms')
+
+from pyrevit import revit, DB, script
+import System
+from System.IO import File, Directory, Path
+from System.Windows import Window, Visibility, MessageBox, MessageBoxButton, MessageBoxResult
+from System.Windows.Controls import Border, TextBlock, StackPanel, CheckBox, ComboBoxItem
+from System.Windows.Media import SolidColorBrush, Color, Colors
+from System.Windows.Threading import DispatcherTimer
+from System.Windows.Forms import OpenFileDialog, FolderBrowserDialog, DialogResult
+
+import wpf
+
+# Snippets._icons is the shared pyRevit/Seed43 icon library.
+# make_icon(key, size, color) returns a WPF UIElement (Canvas with Path shapes).
+# Same dependency pattern as LayoutSettings.py in pyTransmit.
+try:
+    from Snippets._icons import make_icon
+    _ICONS_OK = True
+except Exception:
+    _ICONS_OK = False
+    def make_icon(key, size=12, color='#FFFFFF'):
+        """Fallback: plain TextBlock when Snippets._icons is unavailable."""
+        lbl = TextBlock()
+        lbl.Text     = key[:1].upper()
+        lbl.FontSize = size
+        lbl.Foreground = SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF))
+        return lbl
 
 logger = script.get_logger()
-doc = revit.doc
-uidoc = revit.uidoc
-
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
-VIEW_TYPE_LEGEND   = 'Legend View'
-VIEW_TYPE_SCHEDULE = 'Schedule View'
-VIEW_TYPE_DRAFTING = 'Drafting View'
+doc    = revit.doc
+uidoc  = revit.uidoc
 
 
 # ---------------------------------------------------------------------------
-# Data class
+# Helpers
 # ---------------------------------------------------------------------------
+def safe_str(net_string):
+    """Convert a .NET string to a Python 2 str via UTF-8 to avoid codec errors."""
+    if net_string is None:
+        return ''
+    return System.Text.Encoding.UTF8.GetString(
+        System.Text.Encoding.UTF8.GetBytes(net_string)
+    )
 
-class TableRow(object):
-    """Configuration for one import row from the UI."""
 
+def elem_id_int(eid):
+    """Revit 2024+ uses .Value; older uses .IntegerValue."""
+    return getattr(eid, 'Value', None) or getattr(eid, 'IntegerValue', None)
+
+
+def color_from_hex(hex_str):
+    """'#208A3C' -> System.Windows.Media.Color"""
+    hex_str = hex_str.lstrip('#')
+    r = int(hex_str[0:2], 16)
+    g = int(hex_str[2:4], 16)
+    b = int(hex_str[4:6], 16)
+    return Color.FromRgb(r, g, b)
+
+
+def brush(hex_str):
+    return SolidColorBrush(color_from_hex(hex_str))
+
+
+SCRIPT_DIR = safe_str(Path.GetDirectoryName(__file__))
+
+# Status colours matching the prototype
+STATUS_BORDER = {
+    'new':   '#6B7280',
+    'live':  '#208A3C',
+    'stale': '#D69E2E',
+    'error': '#C53030',
+}
+STATUS_LABEL = {
+    'new':   'New',
+    'live':  'Live',
+    'stale': 'Stale',
+    'error': 'Error',
+}
+
+# Import type keys
+IMP_TABLE = 'Table'
+IMP_IMAGE = 'Image'
+
+# View type keys
+VT_LEGEND   = 'Legend View'
+VT_DRAFTING = 'Drafting View'
+VT_SCHEDULE = 'Schedule View'
+
+# Conflict policy keys
+CP_OVERWRITE = 'Overwrite'
+CP_KEEP_BOTH = 'Keep both'
+CP_ASK       = 'Ask each time'
+CP_SKIP      = 'Skip'
+
+
+# ---------------------------------------------------------------------------
+# Data model: one entry per linked document
+# ---------------------------------------------------------------------------
+class TableEntry(object):
     def __init__(self):
-        self.view_name   = ''
-        self.named_range = ''
-        self.sheet_name  = ''
-        self.view_type   = VIEW_TYPE_SCHEDULE
-        self.view_scale  = 1
-        self.file_path   = ''
-        self.auto_sync   = False
-        self.font        = 'Arial'    # used for pyTable text type lookup
-        self.size_hdr_mm = 2.5        # header row font size in mm
-        self.size_dat_mm = 2.3        # data row font size in mm
+        self.uid          = safe_str(System.Guid.NewGuid().ToString())
+        self.file_path    = ''          # absolute path on disk
+        self.sheet_name   = ''          # Excel worksheet name (empty for docx)
+        self.range_name   = ''          # named range / '<Used Range>' / '<Print Area>'
+        self.view_name    = ''          # target Revit view name
+        self.view_type    = VT_LEGEND
+        self.import_type  = IMP_TABLE   # Table or Image (set in step 2)
+        self.dpi          = 300
+        self.scale        = '1:1'
+        self.auto_sync    = True
+        self.conflict     = CP_ASK
+        self.status       = 'new'       # new | live | stale | error
+        self.revit_view_id = -1         # ElementId.IntegerValue of created view
+        self.last_synced  = ''          # ISO date string
 
+    @property
+    def filename(self):
+        return safe_str(Path.GetFileName(self.file_path)) if self.file_path else ''
 
-# ---------------------------------------------------------------------------
-# Read xlsx metadata (named ranges + sheet names)
-# ---------------------------------------------------------------------------
+    @property
+    def ext(self):
+        return safe_str(Path.GetExtension(self.file_path)).lower()
 
-def get_named_ranges_from_workbook(file_path):
-    """
-    Read named ranges and sheet names from an xlsx file.
+    @property
+    def is_excel(self):
+        return self.ext in ('.xlsx', '.xls', '.csv')
 
-    Returns:
-        {
-          'named_ranges': [str, ...],           # all range names
-          'sheets':       [str, ...],           # all sheet names
-          'sheet_ranges': {sheet: [name, ...]}, # ranges per sheet
+    @property
+    def is_word(self):
+        return self.ext in ('.docx', '.doc')
+
+    @property
+    def chip_label(self):
+        if self.is_excel:
+            return 'XLSX'
+        if self.is_word:
+            return 'DOCX'
+        return 'FILE'
+
+    @property
+    def chip_color(self):
+        if self.is_excel:
+            return '#1F7A45'
+        if self.is_word:
+            return '#2A5DBE'
+        return '#555555'
+
+    @property
+    def meta_text(self):
+        parts = [self.view_type]
+        r = self.range_name or '<Used Range>'
+        parts.append(r)
+        parts.append('{} dpi'.format(self.dpi))
+        return u' \u00b7 '.join(parts)
+
+    def to_dict(self):
+        return {
+            'uid':           self.uid,
+            'file_path':     self.file_path,
+            'sheet_name':    self.sheet_name,
+            'range_name':    self.range_name,
+            'view_name':     self.view_name,
+            'view_type':     self.view_type,
+            'import_type':   self.import_type,
+            'dpi':           self.dpi,
+            'scale':         self.scale,
+            'auto_sync':     self.auto_sync,
+            'conflict':      self.conflict,
+            'status':        self.status,
+            'revit_view_id': self.revit_view_id,
+            'last_synced':   self.last_synced,
         }
 
-    Sheet assignment logic:
-      1. If definedName has localSheetId attribute, it belongs to that
-         sheet (0-based index into the sheets list).
-      2. Otherwise parse the sheet name from the range reference formula,
-         e.g. "Sheet1!$A$1" -> Sheet1.
-      3. If neither applies (bare reference like "A1"), the range is
-         treated as global and added to ALL sheets.
-    """
-    result = {'named_ranges': [], 'sheets': [], 'sheet_ranges': {}}
+    @classmethod
+    def from_dict(cls, d):
+        e = cls()
+        for k, v in d.items():
+            if hasattr(e, k):
+                setattr(e, k, v)
+        return e
+
+
+# ---------------------------------------------------------------------------
+# ExtensibleStorage (tracks entries inside the .rvt file)
+# ---------------------------------------------------------------------------
+SCHEMA_GUID = System.Guid('A3F7C2B1-4D56-4E89-B021-9C8E1F234567')
+SCHEMA_NAME = 'PyTablesData'
+FIELD_NAME  = 'entries_json'
+
+
+def _get_or_create_schema():
+    from Autodesk.Revit.DB.ExtensibleStorage import Schema, SchemaBuilder, AccessLevel
+    existing = Schema.Lookup(SCHEMA_GUID)
+    if existing:
+        return existing
+    sb = SchemaBuilder(SCHEMA_GUID)
+    sb.SetSchemaName(SCHEMA_NAME)
+    sb.SetReadAccessLevel(AccessLevel.Public)
+    sb.SetWriteAccessLevel(AccessLevel.Public)
+    sb.AddSimpleField(FIELD_NAME, System.String)
+    return sb.Finish()
+
+
+def load_entries_from_model():
+    """Read TableEntry list from ExtensibleStorage. Returns []."""
     try:
-        import clr
-        clr.AddReference('System.Xml')
-        from System.Xml import XmlDocument
-
-        with _zipfile.ZipFile(file_path, 'r') as z:
-            xml_bytes = z.read('xl/workbook.xml')
-
-        xml_doc = XmlDocument()
-        xml_doc.LoadXml(xml_bytes.decode('utf-8'))
-        ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
-
-        # ── Sheets ───────────────────────────────────────────────────
-        sheets = []
-        sheet_nodes = xml_doc.GetElementsByTagName('sheet', ns)
-        if sheet_nodes.Count == 0:
-            sheet_nodes = xml_doc.GetElementsByTagName('sheet')
-        for i in range(sheet_nodes.Count):
-            a = sheet_nodes[i].Attributes.GetNamedItem('name')
-            if a:
-                sheets.append(a.Value)
-        result['sheets'] = sheets
-
-        # ── Named ranges ─────────────────────────────────────────────
-        sheet_ranges = {s: [] for s in sheets}
-        named_ranges = []
-
-        dn_nodes = xml_doc.GetElementsByTagName('definedName', ns)
-        if dn_nodes.Count == 0:
-            dn_nodes = xml_doc.GetElementsByTagName('definedName')
-
-        for i in range(dn_nodes.Count):
-            node = dn_nodes[i]
-            name_attr = node.Attributes.GetNamedItem('name')
-            if not name_attr or name_attr.Value.startswith('_xlnm'):
+        from Autodesk.Revit.DB.ExtensibleStorage import Schema
+        schema = Schema.Lookup(SCHEMA_GUID)
+        if not schema:
+            return []
+        data_stores = revit.query.get_elements_by_class(
+            DB.DataStorage, doc=doc
+        )
+        for ds in data_stores:
+            entity = ds.GetEntity(schema)
+            if not entity.IsValid():
                 continue
-            name = name_attr.Value
-            named_ranges.append(name)
+            raw = safe_str(entity.Get[System.String](FIELD_NAME))
+            if not raw:
+                return []
+            import json
+            data = json.loads(raw)
+            return [TableEntry.from_dict(d) for d in data]
+    except Exception as ex:
+        logger.warning('PyTables: could not load entries: {}'.format(ex))
+    return []
 
-            # Determine which sheet this range belongs to
-            target_sheet = None
 
-            # 1. localSheetId (sheet-scoped named range)
-            local_attr = node.Attributes.GetNamedItem('localSheetId')
-            if local_attr is not None:
-                try:
-                    idx = int(local_attr.Value)
-                    if 0 <= idx < len(sheets):
-                        target_sheet = sheets[idx]
-                except Exception:
-                    pass
+def save_entries_to_model(entries):
+    """Write TableEntry list to ExtensibleStorage in a transaction."""
+    try:
+        from Autodesk.Revit.DB.ExtensibleStorage import Schema, Entity as ESEntity
+        import json
+        schema = _get_or_create_schema()
+        json_str = json.dumps([e.to_dict() for e in entries])
 
-            # 2. Parse sheet name from reference formula content
-            #    e.g. "Sheet1!$A$1:$B$2" or "'My Sheet'!$A$1"
-            if target_sheet is None:
-                ref = (node.InnerText or '').strip()
-                if '!' in ref:
-                    sheet_part = ref.split('!')[0].strip("'").strip('"')
-                    if sheet_part in sheets:
-                        target_sheet = sheet_part
-
-            # 3. Global range -> add to all sheets
-            if target_sheet is None:
-                for s in sheets:
-                    sheet_ranges[s].append(name)
-            else:
-                sheet_ranges[target_sheet].append(name)
-
-        result['named_ranges'] = named_ranges
-        result['sheet_ranges'] = sheet_ranges
-
-    except Exception as e:
-        logger.error(
-            'get_named_ranges_from_workbook failed for "{}": {}'.format(
-                os.path.basename(file_path), e
-            )
+        data_stores = revit.query.get_elements_by_class(
+            DB.DataStorage, doc=doc
         )
+        target_ds = None
+        for ds in data_stores:
+            entity = ds.GetEntity(schema)
+            if entity.IsValid():
+                target_ds = ds
+                break
 
-    return result
+        with revit.Transaction('PyTables: save links'):
+            if target_ds is None:
+                target_ds = DB.DataStorage.Create(doc)
+            ent = ESEntity(schema)
+            ent.Set[System.String](FIELD_NAME, json_str)
+            target_ds.SetEntity(ent)
+    except Exception as ex:
+        logger.warning('PyTables: could not save entries: {}'.format(ex))
 
 
 # ---------------------------------------------------------------------------
-# Read cell data from xlsx named range
+# Excel reading (openpyxl via IronPython — ships with some pyRevit builds)
 # ---------------------------------------------------------------------------
+def _try_import_openpyxl():
+    try:
+        import openpyxl
+        return openpyxl
+    except ImportError:
+        return None
 
-def read_named_range_data(file_path, named_range, sheet_name):
+
+def _get_workbook_info_xml(file_path):
     """
-    Read rows from an Excel named range directly from the xlsx zip.
-    Returns list of lists: [[header1, header2, ...], [val, val, ...], ...]
-    First row is column headers.
+    Openpyxl-free fallback: read sheet names and named ranges directly
+    from the xlsx zip using stdlib zipfile + xml.etree.
+    Works in any IronPython 2 environment regardless of pyRevit build.
+    Returns {'sheets': [str], 'named_ranges': {sheet_name: [str]}} or None.
     """
     try:
-        import clr
-        clr.AddReference('System.Xml')
-        from System.Xml import XmlDocument
+        import zipfile
+        import xml.etree.ElementTree as ET
+        fp = safe_str(file_path)
+        with zipfile.ZipFile(fp) as z:
+            wb_xml = z.read('xl/workbook.xml')
+        root = ET.fromstring(wb_xml)
+        ns = {'ns': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
+        sheets = [s.get('name') for s in root.findall('.//ns:sheet', ns)]
+        named = {}
+        for dn in root.findall('.//ns:definedName', ns):
+            rng_name = dn.get('name', '')
+            ref = dn.text or ''
+            # Skip internal Excel names (_xlnm.*, _FilterDatabase, etc.)
+            if rng_name.startswith('_'):
+                continue
+            if '!' in ref:
+                sheet_part = ref.split('!')[0].strip("'").strip('"')
+            else:
+                sheet_part = sheets[0] if sheets else ''
+            if sheet_part:
+                named.setdefault(sheet_part, []).append(rng_name)
+        return {'sheets': sheets, 'named_ranges': named}
+    except Exception as ex:
+        logger.warning('PyTables: xml workbook info failed: {}'.format(ex))
+        return None
 
-        with _zipfile.ZipFile(file_path, 'r') as z:
-            names_in_zip = z.namelist()
 
-            # Shared strings table
-            shared_strings = _read_shared_strings(z, XmlDocument)
-
-            # Workbook xml - resolve named range address
-            wb_xml = XmlDocument()
-            wb_xml.LoadXml(z.read('xl/workbook.xml').decode('utf-8'))
-
-            range_ref = _resolve_named_range(wb_xml, named_range)
-
-            # Determine target sheet
-            target_sheet = sheet_name
-            if range_ref and '!' in range_ref:
-                target_sheet = range_ref.split('!')[0].strip("'")
-
-            # Find worksheet file
-            sheet_file = _find_sheet_file(z, wb_xml, target_sheet, XmlDocument)
-            if not sheet_file or sheet_file not in names_in_zip:
-                logger.error(
-                    'Sheet file not found for: {}'.format(target_sheet)
-                )
-                return []
-
-            ws_xml = XmlDocument()
-            ws_xml.LoadXml(z.read(sheet_file).decode('utf-8'))
-
-        # Parse cell bounds from range reference
-        min_col, min_row, max_col, max_row = _parse_range_bounds(range_ref)
-
-        # Extract and return rows
-        return _extract_rows(
-            ws_xml, shared_strings,
-            min_col, min_row, max_col, max_row
-        )
-
-    except Exception as e:
-        logger.error(
-            'read_named_range_data failed for "{}": {}'.format(
-                named_range, e
+def get_workbook_info(file_path):
+    """
+    Returns {'sheets': [str], 'named_ranges': {sheet_name: [str]}}.
+    Tries openpyxl first (richer data), falls back to zipfile XML parser
+    which works in any IronPython 2 environment without third-party libs.
+    """
+    openpyxl = _try_import_openpyxl()
+    if openpyxl:
+        try:
+            fp = safe_str(file_path)
+            wb = openpyxl.load_workbook(fp, read_only=True, data_only=True)
+            sheets = list(wb.sheetnames)
+            named = {}
+            for name, defn in wb.defined_names.items():
+                if name.startswith('_'):
+                    continue
+                dests = list(defn.destinations)
+                for sheet_title, _ in dests:
+                    named.setdefault(sheet_title, []).append(name)
+            wb.close()
+            return {'sheets': sheets, 'named_ranges': named}
+        except Exception as ex:
+            logger.warning(
+                'PyTables: openpyxl workbook info failed, '
+                'trying xml fallback: {}'.format(ex)
             )
-        )
+    return _get_workbook_info_xml(file_path)
+
+
+
+def read_range_data(file_path, sheet_name, range_ref):
+    """
+    Read cell data from an Excel named range or address.
+    Returns list of rows, each row a list of dicts:
+        {'value': val, 'bold': bool, 'merge_start': bool}
+    range_ref: named range string or '<Used Range>'
+    """
+    openpyxl = _try_import_openpyxl()
+    if not openpyxl:
+        return []
+    try:
+        fp = safe_str(file_path)
+        wb = openpyxl.load_workbook(fp, data_only=True)
+        ws = wb[sheet_name]
+
+        if range_ref and range_ref not in ('<Used Range>', '<Print Area>'):
+            # Named range
+            if range_ref in wb.defined_names:
+                attr = wb.defined_names[range_ref].attr_text
+                # parse 'Sheet1!$G$13:$J$21'
+                if '!' in attr:
+                    _, cell_range = attr.split('!', 1)
+                else:
+                    cell_range = attr
+                cell_range = cell_range.replace('$', '')
+            else:
+                cell_range = range_ref
+            cells = ws[cell_range]
+        else:
+            # Used range: iterate all used cells
+            cells = list(ws.iter_rows(
+                min_row=ws.min_row, max_row=ws.max_row,
+                min_col=ws.min_column, max_col=ws.max_column
+            ))
+
+        # Collect merged cell ranges for merge detection
+        merged = set()
+        for mr in ws.merged_cells.ranges:
+            for row in mr.cells:
+                for cell in row:
+                    merged.add(cell.coordinate)
+
+        rows_out = []
+        for row in cells:
+            row_out = []
+            for cell in row:
+                row_out.append({
+                    'value':       cell.value,
+                    'bold':        bool(cell.font and cell.font.bold),
+                    'merge_start': cell.coordinate not in merged or cell.value is not None,
+                    'col':         cell.column,
+                    'row':         cell.row,
+                })
+            rows_out.append(row_out)
+        wb.close()
+        return rows_out
+    except Exception as ex:
+        logger.warning('PyTables: read_range_data failed: {}'.format(ex))
         return []
 
 
-def _read_shared_strings(z, XmlDocument):
-    shared_strings = []
-    if 'xl/sharedStrings.xml' not in z.namelist():
-        return shared_strings
-    ss_xml = XmlDocument()
-    ss_xml.LoadXml(z.read('xl/sharedStrings.xml').decode('utf-8'))
-    si_nodes = ss_xml.GetElementsByTagName('si')
-    if si_nodes.Count == 0:
-        si_nodes = ss_xml.GetElementsByTagName(
-            'si',
-            'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
-        )
-    for i in range(si_nodes.Count):
-        t_nodes = si_nodes[i].GetElementsByTagName('t')
-        if t_nodes.Count == 0:
-            t_nodes = si_nodes[i].GetElementsByTagName(
-                't',
-                'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
-            )
-        text = ''.join(
-            t_nodes[j].InnerText for j in range(t_nodes.Count)
-        )
-        shared_strings.append(text)
-    return shared_strings
-
-
-def _resolve_named_range(wb_xml, named_range):
-    dn_nodes = wb_xml.GetElementsByTagName('definedName')
-    if dn_nodes.Count == 0:
-        dn_nodes = wb_xml.GetElementsByTagName(
-            'definedName',
-            'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
-        )
-    for i in range(dn_nodes.Count):
-        attr = dn_nodes[i].Attributes.GetNamedItem('name')
-        if attr and attr.Value == named_range:
-            return dn_nodes[i].InnerText
+# ---------------------------------------------------------------------------
+# Revit view creation
+# ---------------------------------------------------------------------------
+def _get_legend_view_type():
+    for vft in revit.query.get_elements_by_class(DB.ViewFamilyType, doc=doc):
+        if vft.ViewFamily == DB.ViewFamily.Legend:
+            return vft.Id
     return None
 
 
-def _find_sheet_file(z, wb_xml, sheet_name, XmlDocument):
-    sheet_nodes = wb_xml.GetElementsByTagName('sheet')
-    if sheet_nodes.Count == 0:
-        sheet_nodes = wb_xml.GetElementsByTagName(
-            'sheet',
-            'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
-        )
-
-    r_id = None
-    for i in range(sheet_nodes.Count):
-        name_attr = sheet_nodes[i].Attributes.GetNamedItem('name')
-        if name_attr and name_attr.Value == sheet_name:
-            id_attr = (
-                sheet_nodes[i].Attributes.GetNamedItem('r:id') or
-                sheet_nodes[i].Attributes.GetNamedItem('id')
-            )
-            if id_attr:
-                r_id = id_attr.Value
-            break
-
-    if not r_id:
-        return None
-
-    rels_path = 'xl/_rels/workbook.xml.rels'
-    if rels_path not in z.namelist():
-        return None
-
-    rels_xml = XmlDocument()
-    rels_xml.LoadXml(z.read(rels_path).decode('utf-8'))
-    rel_nodes = rels_xml.GetElementsByTagName('Relationship')
-    for i in range(rel_nodes.Count):
-        id_attr = rel_nodes[i].Attributes.GetNamedItem('Id')
-        if id_attr and id_attr.Value == r_id:
-            target = rel_nodes[i].Attributes.GetNamedItem('Target').Value
-            if not target.startswith('xl/'):
-                target = 'xl/' + target
-            return target
+def _get_drafting_view_type():
+    for vft in revit.query.get_elements_by_class(DB.ViewFamilyType, doc=doc):
+        if vft.ViewFamily == DB.ViewFamily.Drafting:
+            return vft.Id
     return None
 
 
-def _col_letter_to_index(col_str):
-    result = 0
-    for ch in col_str.upper():
-        result = result * 26 + (ord(ch) - ord('A') + 1)
-    return result - 1
+def _get_default_text_note_type():
+    types = revit.query.get_elements_by_class(DB.TextNoteType, doc=doc)
+    types = list(types)
+    return types[0].Id if types else None
 
 
-def _parse_range_bounds(range_ref):
-    try:
-        if not range_ref:
-            return 0, 0, None, None
-        ref = range_ref.split('!')[-1].replace('$', '')
-        start, end = (ref.split(':') + [ref])[:2]
-        m1 = re.match(r'([A-Za-z]+)(\d+)', start)
-        m2 = re.match(r'([A-Za-z]+)(\d+)', end)
-        return (
-            _col_letter_to_index(m1.group(1)), int(m1.group(2)) - 1,
-            _col_letter_to_index(m2.group(1)), int(m2.group(2)) - 1
-        )
-    except Exception:
-        return 0, 0, None, None
+def create_legend_view(view_name):
+    vft_id = _get_legend_view_type()
+    if not vft_id:
+        raise RuntimeError('No Legend ViewFamilyType found in project')
+    with revit.Transaction('PyTables: create legend view'):
+        view = doc.CreateLegend(vft_id)
+        view.Name = view_name
+    return elem_id_int(view.Id)
 
 
-def read_range_formatting(file_path, named_range, sheet_name):
+def create_drafting_view(view_name):
+    vft_id = _get_drafting_view_type()
+    if not vft_id:
+        raise RuntimeError('No Drafting ViewFamilyType found in project')
+    with revit.Transaction('PyTables: create drafting view'):
+        view = DB.ViewDrafting.Create(doc, vft_id)
+        view.Name = view_name
+    return elem_id_int(view.Id)
+
+
+def create_schedule_view(view_name):
+    """Create an empty schedule used as a header-only display."""
+    cat_id = DB.ElementId(DB.BuiltInCategory.OST_Walls)
+    with revit.Transaction('PyTables: create schedule view'):
+        view = DB.ViewSchedule.CreateSchedule(doc, cat_id)
+        view.Name = view_name
+    return elem_id_int(view.Id)
+
+
+def populate_view_with_table(view_id_int, rows_data, black_white=False):
     """
-    Read cell formatting from an xlsx named range.
-    Returns a dict:
-    {
-        'cell_styles': {(row_idx, col_idx): {
-            'font_name': str,
-            'font_size': float,  # in points
-            'bold': bool,
-            'italic': bool,
-            'halign': str,       # 'Left', 'Center', 'Right'
-            'fill_rgb': tuple or None,  # (r, g, b)
-            'border_top': str,
-            'border_bottom': str,
-            'border_left': str,
-            'border_right': str,
-        }},
-        'merges': [(row_start, col_start, row_end, col_end), ...],
-        'row_heights': {row_idx: float},  # in points
-        'col_widths': {col_idx: float},   # in mm
-    }
-    Row/col indices are relative to the named range (0-based).
+    Write cell data from rows_data into a Legend or Drafting view
+    as TextNote elements arranged in a grid.
+    rows_data: list of rows from read_range_data()
     """
-    result = {
-        'cell_styles': {},
-        'merges':      [],
-        'row_heights': {},
-        'col_widths':  {},
-    }
+    view_id = DB.ElementId(view_id_int)
+    view = doc.GetElement(view_id)
+    if not view:
+        raise RuntimeError('View not found: {}'.format(view_id_int))
 
-    try:
-        import clr
-        clr.AddReference('System.Xml')
-        from System.Xml import XmlDocument
+    tn_type_id = _get_default_text_note_type()
+    if not tn_type_id:
+        raise RuntimeError('No TextNoteType found in project')
 
-        with _zipfile.ZipFile(file_path, 'r') as z:
-            names = z.namelist()
+    # Cell size in Revit internal units (decimal feet)
+    cell_w = mm_to_feet(40.0)
+    cell_h = mm_to_feet(7.0)
+    origin_x = 0.0
+    origin_y = 0.0
 
-            # --- theme colours ---
-            # Read xl/theme/theme1.xml and build cache before parsing fonts/fills
-            theme_colours = {}
-            theme_files = [n for n in names if 'theme' in n and n.endswith('.xml')]
-            if theme_files:
-                try:
-                    theme_xml = XmlDocument()
-                    theme_xml.LoadXml(z.read(theme_files[0]).decode('utf-8'))
-                    # Theme XML uses a: namespace prefix throughout:
-                    # <a:dk1>, <a:srgbClr>, <a:sysClr> etc.
-                    # Must use the drawingml namespace URI for lookups.
-                    THEME_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main'
-
-                    def _theme_tag(tag):
-                        # Try with namespace first, fallback without
-                        n = theme_xml.GetElementsByTagName(tag, THEME_NS)
-                        if n.Count == 0:
-                            n = theme_xml.GetElementsByTagName(tag)
-                        return n
-
-                    def _child_tag(node, tag):
-                        n = node.GetElementsByTagName(tag, THEME_NS)
-                        if n.Count == 0:
-                            n = node.GetElementsByTagName(tag)
-                        return n
-
-                    # Build ordered list matching Excel theme index.
-                    # NOTE: ECMA-376 quirk — styles.xml theme indices swap
-                    # the first two pairs relative to clrScheme element order:
-                    # 0=lt1, 1=dk1, 2=lt2, 3=dk2, 4=accent1 ... 9=accent6
-                    all_colour_els = []
-                    for tag in ['lt1','dk1','lt2','dk2',
-                                'accent1','accent2','accent3',
-                                'accent4','accent5','accent6',
-                                'hlink','folHlink']:
-                        tag_nodes = _theme_tag(tag)
-                        if tag_nodes.Count > 0:
-                            child = tag_nodes[0]
-                            srgb = _child_tag(child, 'srgbClr')
-                            sys  = _child_tag(child, 'sysClr')
-                            if srgb.Count > 0:
-                                attr = srgb[0].Attributes.GetNamedItem('val')
-                                if attr and len(attr.Value) == 6:
-                                    h = attr.Value
-                                    all_colour_els.append((
-                                        int(h[0:2],16),
-                                        int(h[2:4],16),
-                                        int(h[4:6],16)
-                                    ))
-                                else:
-                                    all_colour_els.append(None)
-                            elif sys.Count > 0:
-                                attr = sys[0].Attributes.GetNamedItem('lastClr')
-                                if attr and len(attr.Value) == 6:
-                                    h = attr.Value
-                                    all_colour_els.append((
-                                        int(h[0:2],16),
-                                        int(h[2:4],16),
-                                        int(h[4:6],16)
-                                    ))
-                                else:
-                                    all_colour_els.append(None)
-                            else:
-                                all_colour_els.append(None)
-
-                    theme_colours = {
-                        i: c for i, c in enumerate(all_colour_els)
-                        if c is not None
-                    }
-                    _set_theme_cache(theme_colours)
-                except Exception as te:
-                    logger.debug('Theme parse failed: {}'.format(te))
-
-            # --- styles ---
-            fonts, fills, borders, xfs = [], [], [], []
-            if 'xl/styles.xml' in names:
-                styles_xml = XmlDocument()
-                styles_xml.LoadXml(z.read('xl/styles.xml').decode('utf-8'))
-                fonts  = _parse_fonts(styles_xml)
-                fills  = _parse_fills(styles_xml)
-                borders= _parse_borders(styles_xml)
-                xfs    = _parse_xfs(styles_xml)
-            # --- workbook for range ref ---
-            wb_xml = XmlDocument()
-            wb_xml.LoadXml(z.read('xl/workbook.xml').decode('utf-8'))
-            range_ref = _resolve_named_range(wb_xml, named_range)
-
-            target_sheet = sheet_name
-            if range_ref and '!' in range_ref:
-                target_sheet = range_ref.split('!')[0].strip("'")
-
-            sheet_file = _find_sheet_file(z, wb_xml, target_sheet, XmlDocument)
-            if not sheet_file or sheet_file not in names:
-                return result
-
-            ws_xml = XmlDocument()
-            ws_xml.LoadXml(z.read(sheet_file).decode('utf-8'))
-
-        min_col, min_row, max_col, max_row = _parse_range_bounds(range_ref)
-
-        # --- parse merges ---
-        merge_nodes = ws_xml.GetElementsByTagName('mergeCell')
-        for i in range(merge_nodes.Count):
-            ref = merge_nodes[i].Attributes.GetNamedItem('ref')
-            if not ref:
-                continue
-            parts = ref.Value.replace('$','').split(':')
-            if len(parts) != 2:
-                continue
-            m1 = re.match(r'([A-Za-z]+)(\d+)', parts[0])
-            m2 = re.match(r'([A-Za-z]+)(\d+)', parts[1])
-            if not m1 or not m2:
-                continue
-            r1 = int(m1.group(2)) - 1 - min_row
-            c1 = _col_letter_to_index(m1.group(1)) - min_col
-            r2 = int(m2.group(2)) - 1 - min_row
-            c2 = _col_letter_to_index(m2.group(1)) - min_col
-            if r1 >= 0 and c1 >= 0:
-                result['merges'].append((r1, c1, r2, c2))
-
-        # --- parse row heights ---
-        row_nodes = ws_xml.GetElementsByTagName('row')
-        for i in range(row_nodes.Count):
-            r_attr = row_nodes[i].Attributes.GetNamedItem('r')
-            ht_attr = row_nodes[i].Attributes.GetNamedItem('ht')
-            if not r_attr:
-                continue
-            row_idx = int(r_attr.Value) - 1
-            if row_idx < min_row:
-                continue
-            if max_row is not None and row_idx > max_row:
-                break
-            rel_row = row_idx - min_row
-            if ht_attr and ht_attr.Value:
-                try:
-                    result['row_heights'][rel_row] = float(ht_attr.Value)
-                except Exception:
-                    pass
-
-        # --- parse cell styles ---
-        row_nodes2 = ws_xml.GetElementsByTagName('row')
-        for i in range(row_nodes2.Count):
-            r_attr = row_nodes2[i].Attributes.GetNamedItem('r')
-            if not r_attr:
-                continue
-            row_idx = int(r_attr.Value) - 1
-            if row_idx < min_row:
-                continue
-            if max_row is not None and row_idx > max_row:
-                break
-            rel_row = row_idx - min_row
-
-            c_nodes = row_nodes2[i].GetElementsByTagName('c')
-            for j in range(c_nodes.Count):
-                ref = c_nodes[j].Attributes.GetNamedItem('r')
-                s_attr = c_nodes[j].Attributes.GetNamedItem('s')
-                if not ref:
+    with revit.Transaction('PyTables: populate view'):
+        for r_idx, row in enumerate(rows_data):
+            for c_idx, cell in enumerate(row):
+                val = cell.get('value')
+                if val is None:
                     continue
-                m = re.match(r'([A-Za-z]+)(\d+)', ref.Value)
-                if not m:
-                    continue
-                col_idx = _col_letter_to_index(m.group(1))
-                if col_idx < min_col:
-                    continue
-                if max_col is not None and col_idx > max_col:
-                    continue
-                rel_col = col_idx - min_col
-
-                xf_idx = int(s_attr.Value) if s_attr else 0
-                xf = xfs[xf_idx] if xf_idx < len(xfs) else {}
-
-                font_idx   = xf.get('fontId',   0)
-                fill_idx   = xf.get('fillId',   0)
-                border_idx = xf.get('borderId', 0)
-                halign     = xf.get('align', '') or 'Left'
-                halign     = halign.capitalize() if halign else 'Left'
-
-                font   = fonts[font_idx]     if font_idx   < len(fonts)   else {}
-                fill   = fills[fill_idx]     if fill_idx   < len(fills)   else None
-                border = borders[border_idx] if border_idx < len(borders) else {}
-
-                result['cell_styles'][(rel_row, rel_col)] = {
-                    'font_name':          font.get('name', 'Arial'),
-                    'font_size':          float(font.get('size', 11)),
-                    'bold':               font.get('bold', False),
-                    'italic':             font.get('italic', False),
-                    'underline':          font.get('underline', False),
-                    'color_rgb':          font.get('color_rgb', None),
-                    'halign':             halign,
-                    'fill_rgb':           fill if fill else None,
-                    'border_top':         border.get('top', ''),
-                    'border_top_color':   border.get('top_color', None),
-                    'border_bottom':      border.get('bottom', ''),
-                    'border_bottom_color':border.get('bottom_color', None),
-                    'border_left':        border.get('left', ''),
-                    'border_left_color':  border.get('left_color', None),
-                    'border_right':       border.get('right', ''),
-                    'border_right_color': border.get('right_color', None),
-                }
-
-        # --- parse column widths ---
-        # Read default column width from sheetFormatPr
-        default_col_w_ch = 8.0  # Excel character units
-        fmt_nodes = ws_xml.GetElementsByTagName('sheetFormatPr')
-        if fmt_nodes.Count > 0:
-            dcw = fmt_nodes[0].Attributes.GetNamedItem('defaultColWidth')
-            drh = fmt_nodes[0].Attributes.GetNamedItem('defaultRowHeight')
-            if dcw:
-                try:
-                    default_col_w_ch = float(dcw.Value)
-                except Exception:
-                    pass
-            if drh:
-                try:
-                    result['default_row_height'] = float(drh.Value)
-                except Exception:
-                    pass
-
-        # Max Digit Width depends on the workbook default font:
-        # Aptos Narrow (Excel 2024+): 7.41px
-        # Calibri Light: 6.8px
-        # Calibri / Arial / most others: 7.0px
-        _default_font_name = (fonts[0].get('name', '') if fonts else '').lower()
-        # MDW calibrated from physical measurement:
-        # Excel 10 char units -> 22.93mm measured in Revit -> MDW=8.17
-        # This accounts for Aptos Narrow metrics + Revit's internal padding
-        if 'aptos' in _default_font_name:
-            _col_mdw = 8.17
-        elif 'calibri light' in _default_font_name:
-            _col_mdw = 7.4
-        else:
-            _col_mdw = 7.6   # Calibri, Arial and others (approx)
-
-        # Read explicit column widths for cols in range
-        col_nodes = ws_xml.GetElementsByTagName('col')
-        for i in range(col_nodes.Count):
-            mn_attr = col_nodes[i].Attributes.GetNamedItem('min')
-            mx_attr = col_nodes[i].Attributes.GetNamedItem('max')
-            w_attr  = col_nodes[i].Attributes.GetNamedItem('width')
-            if not mn_attr or not w_attr:
-                continue
-            try:
-                mn = int(mn_attr.Value) - 1  # 0-based
-                mx = int(mx_attr.Value) - 1 if mx_attr else mn
-                w_ch = float(w_attr.Value)
-                for ci in range(mn, mx + 1):
-                    rel_ci = ci - min_col
-                    if 0 <= rel_ci <= (max_col - min_col if max_col is not None else 999):
-                        # OOXML formula: px = int((chars*MDW+5)/MDW*256)/256*MDW
-                        # MDW=7.41 for Aptos Narrow, 7.0 for Calibri/Arial
-                        _px = int((w_ch * _col_mdw + 5) / _col_mdw * 256) / 256.0 * _col_mdw
-                        result['col_widths'][rel_ci] = _px * 25.4 / 96.0
-            except Exception:
-                pass
-
-        # Fill any missing col widths with default
-        n_range_cols = (max_col - min_col + 1) if max_col is not None else 0
-        for ci in range(n_range_cols):
-            if ci not in result['col_widths']:
-                _px = int((default_col_w_ch * _col_mdw + 5) / _col_mdw * 256) / 256.0 * _col_mdw
-                result['col_widths'][ci] = _px * 25.4 / 96.0
-
-    except Exception as e:
-        logger.error('read_range_formatting failed: {}'.format(e))
-
-    return result
+                x = origin_x + c_idx * cell_w
+                y = origin_y - r_idx * cell_h
+                pt = DB.XYZ(x, y, 0)
+                opts = DB.TextNoteOptions(tn_type_id)
+                opts.HorizontalAlignment = (
+                    System.Enum.Parse(
+                        System.Type.GetType(
+                            'Autodesk.Revit.DB.HorizontalTextAlignment, RevitAPI'
+                        ),
+                        'Left'
+                    )
+                )
+                text = unicode(val) if val is not None else u''
+                DB.TextNote.Create(doc, view_id, pt, text, opts)
 
 
-def _resolve_colour(xml_doc, color_node, skip_white=True):
+def mm_to_feet(mm):
+    return mm / 304.8
+
+
+def populate_schedule_header(view_id_int, rows_data):
     """
-    Resolve an Excel colour node to an (r, g, b) tuple or None.
-
-    Priority:
-    1. Explicit rgb attribute (ARGB hex, e.g. FFFF0000)
-    2. theme attribute → look up in theme cache
-    3. indexed attribute → standard Excel 56-colour palette
-    4. auto / missing → None (use Revit default)
-
-    skip_white: if True, returns None for white/near-white colours.
-    White text is only valid on dark backgrounds — without a matching
-    dark fill it would be invisible in Revit.
+    Populate a schedule's header section with row data using
+    the same approach as pyTransmit's schedule header population.
+    Each row of data becomes a text row in the schedule header.
     """
-    if color_node is None:
-        return None
+    view_id = DB.ElementId(view_id_int)
+    view = doc.GetElement(view_id)
+    if not view:
+        raise RuntimeError('View not found: {}'.format(view_id_int))
 
-    auto = color_node.Attributes.GetNamedItem('auto')
-    if auto and auto.Value == '1':
-        return None
-
-    rgb = None
-
-    # --- explicit RGB ---
-    rgb_attr = color_node.Attributes.GetNamedItem('rgb')
-    if rgb_attr and rgb_attr.Value and len(rgb_attr.Value) == 8:
-        hex_c = rgb_attr.Value[2:]
-        try:
-            rgb = (
-                int(hex_c[0:2], 16),
-                int(hex_c[2:4], 16),
-                int(hex_c[4:6], 16)
+    with revit.Transaction('PyTables: populate schedule header'):
+        tbl_data = view.GetTableData()
+        header_data = tbl_data.GetSectionData(
+            System.Enum.Parse(
+                System.Type.GetType(
+                    'Autodesk.Revit.DB.SectionType, RevitAPI'
+                ),
+                'Header'
             )
-        except Exception:
-            pass
-
-    # --- theme colour ---
-    if rgb is None:
-        theme_attr = color_node.Attributes.GetNamedItem('theme')
-        if theme_attr:
-            try:
-                base = _get_theme_colour(xml_doc, int(theme_attr.Value))
-                if base:
-                    rgb = base
-            except Exception:
-                pass
-
-    # --- indexed colour ---
-    if rgb is None:
-        indexed_attr = color_node.Attributes.GetNamedItem('indexed')
-        if indexed_attr:
-            try:
-                base = _EXCEL_INDEXED_COLOURS.get(int(indexed_attr.Value))
-                if base:
-                    rgb = base
-            except Exception:
-                pass
-
-    if rgb is None:
-        return None
-
-    # Apply tint
-    rgb = _apply_tint(rgb, color_node)
-
-    # Skip white/near-white — invisible without a dark background fill
-    if skip_white and rgb[0] > 230 and rgb[1] > 230 and rgb[2] > 230:
-        return None
-
-    return rgb
-
-
-def _apply_tint(rgb, color_node):
-    """Apply Excel tint (-1 to 1) to an RGB tuple. Returns modified RGB."""
-    if color_node is None:
-        return rgb
-    tint_attr = color_node.Attributes.GetNamedItem('tint')
-    if not tint_attr:
-        return rgb
-    try:
-        tint = float(tint_attr.Value)
-        if tint == 0.0:
-            return rgb
-        r, g, b = rgb
-        if tint > 0:
-            # lighten toward white
-            r = int(r + (255 - r) * tint)
-            g = int(g + (255 - g) * tint)
-            b = int(b + (255 - b) * tint)
-        else:
-            # darken toward black
-            r = int(r * (1 + tint))
-            g = int(g * (1 + tint))
-            b = int(b * (1 + tint))
-        return (
-            max(0, min(255, r)),
-            max(0, min(255, g)),
-            max(0, min(255, b))
         )
-    except Exception:
-        return rgb
+        num_rows = len(rows_data)
+        num_cols = max(len(r) for r in rows_data) if rows_data else 0
+        while header_data.NumberOfRows < num_rows:
+            header_data.InsertRow(header_data.NumberOfRows)
+        while header_data.NumberOfColumns < num_cols:
+            header_data.InsertColumn(header_data.NumberOfColumns)
+        for r_idx, row in enumerate(rows_data):
+            for c_idx, cell in enumerate(row):
+                val = cell.get('value')
+                if val is not None:
+                    header_data.SetCellText(r_idx, c_idx, unicode(val))
 
 
-# Cache for theme colours so we only parse once per workbook read
-_theme_colour_cache = {}
-
-
-def _get_theme_colour(xml_doc, idx):
+def insert_image_into_view(view_id_int, image_path, entry):
     """
-    Return (r, g, b) for a theme colour index.
-    Uses the cache populated by _set_theme_cache during read_range_formatting.
+    Insert an image file into a Legend or Drafting view.
+    Uses ImageType.Create (available Revit 2020+).
     """
-    global _theme_colour_cache
-    return _theme_colour_cache.get(idx)
+    view_id = DB.ElementId(view_id_int)
+    view = doc.GetElement(view_id)
+    if not view:
+        raise RuntimeError('View not found: {}'.format(view_id_int))
 
-
-def _set_theme_cache(colours):
-    """Called from read_range_formatting with resolved theme colours."""
-    global _theme_colour_cache
-    _theme_colour_cache = colours
-
-
-# Standard Excel 56-colour indexed palette (indices 0-55)
-_EXCEL_INDEXED_COLOURS = {
-    0:  (0,   0,   0),    # black
-    1:  (255, 255, 255),  # white
-    2:  (255, 0,   0),    # red
-    3:  (0,   255, 0),    # green
-    4:  (0,   0,   255),  # blue
-    5:  (255, 255, 0),    # yellow
-    6:  (255, 0,   255),  # magenta
-    7:  (0,   255, 255),  # cyan
-    8:  (0,   0,   0),
-    9:  (255, 255, 255),
-    10: (255, 0,   0),
-    11: (0,   255, 0),
-    12: (0,   0,   255),
-    13: (255, 255, 0),
-    14: (255, 0,   255),
-    15: (0,   255, 255),
-    16: (128, 0,   0),
-    17: (0,   128, 0),
-    18: (0,   0,   128),
-    19: (128, 128, 0),
-    20: (128, 0,   128),
-    21: (0,   128, 128),
-    22: (192, 192, 192),
-    23: (128, 128, 128),
-    24: (153, 153, 255),
-    25: (153, 51,  102),
-    26: (255, 255, 204),
-    27: (204, 255, 255),
-    28: (102, 0,   102),
-    29: (255, 128, 128),
-    30: (0,   102, 204),
-    31: (204, 204, 255),
-    32: (0,   0,   128),
-    33: (255, 0,   255),
-    34: (255, 255, 0),
-    35: (0,   255, 255),
-    36: (128, 0,   128),
-    37: (128, 0,   0),
-    38: (0,   128, 128),
-    39: (0,   0,   255),
-    40: (0,   204, 255),
-    41: (204, 255, 255),
-    42: (204, 255, 204),
-    43: (255, 255, 153),
-    44: (153, 204, 255),
-    45: (255, 153, 204),
-    46: (204, 153, 255),
-    47: (255, 204, 153),
-    48: (51,  102, 255),
-    49: (51,  204, 204),
-    50: (153, 204, 0),
-    51: (255, 204, 0),
-    52: (255, 153, 0),
-    53: (255, 102, 0),
-    54: (102, 102, 153),
-    55: (150, 150, 150),
-    64: (0,   0,   0),    # system foreground
-    65: (255, 255, 255),  # system background
-}
-
-
-def _parse_fonts(xml_doc):
-    """
-    Parse font definitions from styles XmlDocument.
-    Resolves theme and indexed colours using _resolve_colour.
-
-    Namespace handling: styles.xml always carries the spreadsheetml default
-    namespace.  System.Xml GetElementsByTagName without a namespace URI only
-    matches elements that have NO namespace, so it returns nothing on a
-    real xlsx file.  We try without namespace first (covers edge cases) then
-    fall back to the full URI so at least one call succeeds.
-
-    Bold detection: <b/> means bold=True.  <b val="1"/> also means bold=True.
-    <b val="0"/> explicitly means bold=False (override inheritance).
-    Checking Count > 0 alone would misread <b val="0"/> as bold.
-    """
-    NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
-    fonts = []
-    nodes = xml_doc.GetElementsByTagName('font')
-    if nodes.Count == 0:
-        nodes = xml_doc.GetElementsByTagName('font', NS)
-    for i in range(nodes.Count):
-        node = nodes[i]
-        f = {}
-
-        def _child(tag):
-            n = node.GetElementsByTagName(tag)
-            if n.Count == 0:
-                n = node.GetElementsByTagName(tag, NS)
-            return n
-
-        b     = _child('b')
-        it    = _child('i')
-        sz    = _child('sz')
-        name  = _child('name')
-        color = _child('color')
-
-        # <b/> or <b val="1"/> = bold.  <b val="0"/> = explicitly NOT bold.
-        if b.Count > 0:
-            val_attr = b[0].Attributes.GetNamedItem('val')
-            f['bold'] = (val_attr is None or val_attr.Value not in ('0', 'false'))
-        else:
-            f['bold'] = False
-
-        # Same pattern for italic
-        if it.Count > 0:
-            val_attr = it[0].Attributes.GetNamedItem('val')
-            f['italic'] = (val_attr is None or val_attr.Value not in ('0', 'false'))
-        else:
-            f['italic'] = False
-
-        f['size']   = (float(sz[0].Attributes.GetNamedItem('val').Value)
-                       if sz.Count > 0 else 11.0)
-        f['name']   = (name[0].Attributes.GetNamedItem('val').Value
-                       if name.Count > 0 else 'Arial')
-        # skip_white=False: white text is valid on dark/coloured fills
-        # (e.g. white text on grey cell, white text on Accent1 blue)
-        f['color_rgb'] = _resolve_colour(
-            xml_doc,
-            color[0] if color.Count > 0 else None,
-            skip_white=False
-        )
-        # Underline: <u/> or <u val="single"/> = underline on
-        #            <u val="none"/> = underline off (explicit)
-        u = _child('u')
-        if u.Count > 0:
-            val_attr = u[0].Attributes.GetNamedItem('val')
-            f['underline'] = (val_attr is None or
-                              val_attr.Value not in ('none', 'false'))
-        else:
-            f['underline'] = False
-        fonts.append(f)
-    return fonts
-
-
-def _parse_fills(xml_doc):
-    """
-    Parse fill definitions from styles XmlDocument.
-    Does not skip white fills — white can be an explicit background.
-
-    Namespace handling: same fallback pattern as _parse_fonts.
-    The first two fill entries in OOXML are always the system 'none' and
-    'gray125' fills — we preserve their index positions as None so that
-    fillId references from xf records remain correctly indexed.
-    """
-    NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
-    fills = []
-    nodes = xml_doc.GetElementsByTagName('fill')
-    if nodes.Count == 0:
-        nodes = xml_doc.GetElementsByTagName('fill', NS)
-    for i in range(nodes.Count):
-        node = nodes[i]
-
-        def _child_f(tag):
-            n = node.GetElementsByTagName(tag)
-            if n.Count == 0:
-                n = node.GetElementsByTagName(tag, NS)
-            return n
-
-        pf_nodes = _child_f('patternFill')
-        pattern = ''
-        if pf_nodes.Count > 0:
-            pt = pf_nodes[0].Attributes.GetNamedItem('patternType')
-            pattern = pt.Value if pt else ''
-
-        # 'none' and 'gray125' are the two reserved system fills
-        if pattern in ('none', 'gray125', ''):
-            fills.append(None)
-            continue
-
-        fg = _child_f('fgColor')
-        rgb = _resolve_colour(
-            xml_doc,
-            fg[0] if fg.Count > 0 else None,
-            skip_white=False  # fills can legitimately be white
-        )
-        fills.append(rgb)
-    return fills
-
-
-def _parse_borders(xml_doc):
-    """
-    Parse border definitions from styles XmlDocument.
-    Returns list of dicts with style and colour per side.
-    Border colours use skip_white=False since dark borders on
-    white backgrounds are common.
-
-    Namespace handling: same fallback pattern as _parse_fonts.
-    """
-    NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
-    borders = []
-    nodes = xml_doc.GetElementsByTagName('border')
-    if nodes.Count == 0:
-        nodes = xml_doc.GetElementsByTagName('border', NS)
-    for i in range(nodes.Count):
-        node = nodes[i]
-        b = {}
-        for side in ('left', 'right', 'top', 'bottom'):
-            side_nodes = node.GetElementsByTagName(side)
-            if side_nodes.Count == 0:
-                side_nodes = node.GetElementsByTagName(side, NS)
-            if side_nodes.Count > 0:
-                style_attr = side_nodes[0].Attributes.GetNamedItem('style')
-                b[side] = style_attr.Value if style_attr else ''
-                color_node = side_nodes[0].GetElementsByTagName('color')
-                if color_node.Count == 0:
-                    color_node = side_nodes[0].GetElementsByTagName('color', NS)
-                b[side + '_color'] = _resolve_colour(
-                    xml_doc,
-                    color_node[0] if color_node.Count > 0 else None,
-                    skip_white=False
-                )
-            else:
-                b[side] = ''
-                b[side + '_color'] = None
-        borders.append(b)
-    return borders
-
-
-def _parse_xfs(xml_doc):
-    """
-    Parse cellXfs (per-cell format table) from styles XmlDocument.
-
-    OOXML has two xf tables:
-      <cellStyleXfs>  named styles (Normal, Heading 1 ...) — fills live here
-      <cellXfs>       per-cell overrides — each entry has an xfId pointing
-                      back to its parent style in cellStyleXfs
-
-    Excel stores fill, font and border on the PARENT style in cellStyleXfs
-    and only writes the override in cellXfs when the cell explicitly changes
-    that property.  So to get the real fillId for a cell we must:
-      1. Read the xfId from the cellXfs entry
-      2. Look up that index in cellStyleXfs
-      3. Use the parent fillId when the cellXfs fillId is 0 (unset)
-
-    The applyFill / applyFont flags tell us which properties the cellXfs
-    entry is actually overriding vs inheriting from the parent style.
-    When applyFill is absent or 0, the fill comes from the parent style.
-    """
-    NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
-
-    def _get_xf_nodes(tag):
-        nodes = xml_doc.GetElementsByTagName(tag)
-        if nodes.Count == 0:
-            nodes = xml_doc.GetElementsByTagName(tag, NS)
-        return nodes
-
-    def _int_attr_node(node, name, default=0):
-        a = node.Attributes.GetNamedItem(name)
-        try:
-            return int(a.Value) if a else default
-        except Exception:
-            return default
-
-    def _bool_attr(node, name):
-        """Return True when attribute is '1' or absent (absent = inherit)."""
-        a = node.Attributes.GetNamedItem(name)
-        if a is None:
-            return None   # absent = not set by this record, inherit from parent
-        return a.Value not in ('0', 'false')
-
-    # --- parse cellStyleXfs (parent / named styles) ---
-    style_xfs = []
-    sxfs_nodes = _get_xf_nodes('cellStyleXfs')
-    if sxfs_nodes.Count > 0:
-        for i in range(sxfs_nodes[0].ChildNodes.Count):
-            node = sxfs_nodes[0].ChildNodes[i]
-            try:
-                if node.Attributes is None:
-                    continue
-            except Exception:
-                continue
-            style_xfs.append({
-                'fontId':   _int_attr_node(node, 'fontId'),
-                'fillId':   _int_attr_node(node, 'fillId'),
-                'borderId': _int_attr_node(node, 'borderId'),
-            })
-
-    # --- parse cellXfs (per-cell formats) ---
-    # IMPORTANT: use ChildNodes not GetElementsByTagName.
-    # GetElementsByTagName('xf') on the cellXfs node also matches <xf>
-    # elements nested inside cellStyleXfs when namespace handling is
-    # inconsistent, returning fewer entries than actually exist.
-    # ChildNodes iterates only the direct children of cellXfs, which
-    # are exactly the 26 (or N) <xf> elements we want.
-    xfs = []
-    xfs_nodes = _get_xf_nodes('cellXfs')
-    if xfs_nodes.Count == 0:
-        return xfs
-    xf_nodes = xfs_nodes[0].ChildNodes
-
-    for i in range(xf_nodes.Count):
-        node = xf_nodes[i]
-        # ChildNodes includes text/whitespace nodes — skip non-element nodes.
-        # In IronPython, NodeType is an enum so comparing to int 1 always fails.
-        # Use Attributes as a proxy: only element nodes have an Attributes collection.
-        try:
-            if node.Attributes is None:
-                continue
-        except Exception:
-            continue
-
-        # xfId points to the parent style in cellStyleXfs
-        xf_id = _int_attr_node(node, 'xfId', 0)
-        parent = style_xfs[xf_id] if xf_id < len(style_xfs) else {}
-
-        # applyFill/applyFont/applyBorder:
-        #   None (absent) = inherit from parent style
-        #   True ('1')    = this cellXfs entry overrides
-        #   False ('0')   = explicitly NOT overriding (use parent)
-        apply_fill   = _bool_attr(node, 'applyFill')
-        apply_font   = _bool_attr(node, 'applyFont')
-        apply_border = _bool_attr(node, 'applyBorder')
-
-        cell_fill_id   = _int_attr_node(node, 'fillId')
-        cell_font_id   = _int_attr_node(node, 'fontId')
-        cell_border_id = _int_attr_node(node, 'borderId')
-
-        # Use parent value when cell is not overriding that property
-        if apply_fill is False or (apply_fill is None and cell_fill_id == 0):
-            fill_id = parent.get('fillId', 0)
-        else:
-            fill_id = cell_fill_id
-
-        if apply_font is False or (apply_font is None and cell_font_id == 0):
-            font_id = parent.get('fontId', 0)
-        else:
-            font_id = cell_font_id
-
-        if apply_border is False or (apply_border is None and cell_border_id == 0):
-            border_id = parent.get('borderId', 0)
-        else:
-            border_id = cell_border_id
-
-        xf = {
-            'fontId':   font_id,
-            'fillId':   fill_id,
-            'borderId': border_id,
-            'align':    '',
-        }
-
-        align_nodes = node.GetElementsByTagName('alignment')
-        if align_nodes.Count == 0:
-            align_nodes = node.GetElementsByTagName('alignment', NS)
-        if align_nodes.Count > 0:
-            h = align_nodes[0].Attributes.GetNamedItem('horizontal')
-            xf['align'] = h.Value if h else ''
-
-        xfs.append(xf)
-    return xfs
-
-
-
-
-def _extract_rows(ws_xml, shared_strings,
-                  min_col, min_row, max_col, max_row):
-    row_nodes = ws_xml.GetElementsByTagName('row')
-    if row_nodes.Count == 0:
-        row_nodes = ws_xml.GetElementsByTagName(
-            'row',
-            'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
-        )
-    result = []
-    for ri in range(row_nodes.Count):
-        row_node = row_nodes[ri]
-        r_attr = row_node.Attributes.GetNamedItem('r')
-        if not r_attr:
-            continue
-        row_idx = int(r_attr.Value) - 1
-        if row_idx < min_row:
-            continue
-        if max_row is not None and row_idx > max_row:
-            break
-
-        cell_nodes = row_node.GetElementsByTagName('c')
-        if cell_nodes.Count == 0:
-            cell_nodes = row_node.GetElementsByTagName(
-                'c',
-                'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+    img_path = safe_str(image_path)
+    with revit.Transaction('PyTables: insert image'):
+        opts = DB.ImageTypeOptions(img_path, False, DB.ImageTypeSource.Import)
+        img_type = DB.ImageType.Create(doc, opts)
+        place_opts = DB.ImagePlacementOptions()
+        place_opts.PlacementPoint = (
+            System.Enum.Parse(
+                System.Type.GetType(
+                    'Autodesk.Revit.DB.BoxPlacement, RevitAPI'
+                ),
+                'TopLeft'
             )
-
-        col_vals = {}
-        for ci in range(cell_nodes.Count):
-            cell = cell_nodes[ci]
-            ref = cell.Attributes.GetNamedItem('r')
-            if not ref:
-                continue
-            m = re.match(r'([A-Za-z]+)(\d+)', ref.Value)
-            if not m:
-                continue
-            col_idx = _col_letter_to_index(m.group(1))
-            if col_idx < min_col:
-                continue
-            if max_col is not None and col_idx > max_col:
-                continue
-
-            t_attr = cell.Attributes.GetNamedItem('t')
-            v_nodes = cell.GetElementsByTagName('v')
-            if v_nodes.Count == 0:
-                v_nodes = cell.GetElementsByTagName(
-                    'v',
-                    'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
-                )
-            if v_nodes.Count == 0:
-                col_vals[col_idx] = ''
-                continue
-
-            raw = v_nodes[0].InnerText
-            if t_attr and t_attr.Value == 's':
-                idx = int(raw)
-                col_vals[col_idx] = (
-                    shared_strings[idx]
-                    if idx < len(shared_strings) else ''
-                )
-            else:
-                col_vals[col_idx] = raw
-
-        if not col_vals:
-            continue
-
-        end_col = (
-            max_col if max_col is not None
-            else max(col_vals.keys())
         )
-        result.append([
-            col_vals.get(c, '')
-            for c in range(min_col, end_col + 1)
-        ])
-
-    return result
+        DB.ImageInstance.Create(doc, view, img_type.Id, place_opts)
 
 
-# ---------------------------------------------------------------------------
-# Schedule creation - pyTransmit pattern
-# Uses ViewSchedule.CreateSchedule with ElementId.InvalidElementId (no
-# category) and builds the entire table in the Header section.
-# No Key Schedule, no project parameters required.
-# ---------------------------------------------------------------------------
-
-MM = 1.0 / 304.8   # millimetres to Revit internal feet
-
-# ---------------------------------------------------------------------------
-# pyTable text type manager
-# Text types are named "pyTable Table XX" and matched by font/size/bold.
-# If an existing type matches the fingerprint it is reused.
-# If not, a new one is created with the next available number.
-# ---------------------------------------------------------------------------
-
-PREFIX = 'pyTable Table '
-
-
-def _text_type_fingerprint(font, size_mm, bold):
+def render_range_to_image(file_path, sheet_name, range_name, dpi, bw=False):
     """
-    Canonical string key for a text style.
-    Used to match existing types without creating duplicates.
-    """
-    return '{}__{:.4f}__{}'.format(
-        font.lower().strip(), size_mm, 'bold' if bold else 'regular'
-    )
-
-
-def _read_fingerprint(tt):
-    """
-    Read font, size and bold from an existing TextNoteType and return
-    its fingerprint string. Returns None if the type cannot be read.
+    Render an Excel range to a PNG using System.Drawing (no Pillow needed).
+    Returns the temp PNG path, or None on failure.
     """
     try:
-        font_p = tt.get_Parameter(DB.BuiltInParameter.TEXT_FONT)
-        size_p = tt.get_Parameter(DB.BuiltInParameter.TEXT_SIZE)
-        bold_p = tt.get_Parameter(DB.BuiltInParameter.TEXT_STYLE_BOLD)
+        clr.AddReference('System.Drawing')
+        from System.Drawing import (
+            Bitmap, Graphics, Font, FontStyle, Brush, Brushes,
+            Pen, Color as DColor, SolidBrush, RectangleF, StringFormat,
+            StringAlignment, Image as DImage
+        )
+        from System.Drawing.Imaging import ImageFormat
 
-        if not font_p or not size_p:
+        rows_data = read_range_data(file_path, sheet_name, range_name)
+        if not rows_data:
             return None
 
-        font    = font_p.AsString() or 'Arial'
-        size_ft = size_p.AsDouble()
-        size_mm = size_ft / MM  # convert feet back to mm
-        bold    = bool(bold_p.AsInteger()) if bold_p else False
+        cell_px_w = int(dpi * 1.5)   # ~1.5 inch per cell
+        cell_px_h = int(dpi * 0.25)  # ~0.25 inch row height
+        num_cols  = max(len(r) for r in rows_data)
+        num_rows  = len(rows_data)
+        img_w     = cell_px_w * num_cols
+        img_h     = cell_px_h * num_rows
 
-        return _text_type_fingerprint(font, size_mm, bold)
-    except Exception:
+        bmp = Bitmap(img_w, img_h)
+        g   = Graphics.FromImage(bmp)
+        bg  = DColor.White if bw else DColor.FromArgb(43, 51, 64)
+        g.Clear(bg)
+
+        font_size = max(8, int(dpi * 0.09))
+        font_normal = Font('Segoe UI', font_size, FontStyle.Regular)
+        font_bold   = Font('Segoe UI', font_size, FontStyle.Bold)
+        fg_color    = DColor.Black if bw else DColor.FromArgb(244, 250, 255)
+        fg_brush    = SolidBrush(fg_color)
+        fmt = StringFormat()
+        fmt.Alignment = StringAlignment.Near
+        fmt.LineAlignment = StringAlignment.Center
+
+        for r_idx, row in enumerate(rows_data):
+            for c_idx, cell in enumerate(row):
+                x = c_idx * cell_px_w
+                y = r_idx * cell_px_h
+                rect = RectangleF(x + 4, y, cell_px_w - 8, cell_px_h)
+                val = cell.get('value')
+                if val is None:
+                    continue
+                text = unicode(val)
+                fnt  = font_bold if cell.get('bold') else font_normal
+                g.DrawString(text, fnt, fg_brush, rect, fmt)
+
+        g.Dispose()
+        tmp_path = safe_str(Path.Combine(
+            Path.GetTempPath(),
+            'pytables_{}_{}.png'.format(sheet_name, range_name)
+        ))
+        bmp.Save(tmp_path, ImageFormat.Png)
+        bmp.Dispose()
+        return tmp_path
+    except Exception as ex:
+        logger.warning('PyTables: render_range_to_image failed: {}'.format(ex))
         return None
 
 
-def get_or_create_text_type(font='Arial', size_mm=2.3, bold=False):
+# ---------------------------------------------------------------------------
+# Apply entry to Revit
+# ---------------------------------------------------------------------------
+def apply_entry(entry):
     """
-    Return a TextNoteType matching font/size/bold.
-    Searches existing 'pyTable Table XX' types first.
-    Creates a new one if none match.
-
-    All pyTable types are named 'pyTable Table 01', '02', etc.
-    so they stay grouped in the Type Selector and are easy to manage.
-    """
-    target_fp = _text_type_fingerprint(font, size_mm, bold)
-
-    all_tt = list(
-        DB.FilteredElementCollector(doc)
-        .OfClass(DB.TextNoteType)
-        .ToElements()
-    )
-
-    # Collect all existing pyTable types and check for a match
-    pytable_types = []
-    for tt in all_tt:
-        try:
-            name = tt.get_Parameter(
-                DB.BuiltInParameter.SYMBOL_NAME_PARAM
-            ).AsString()
-        except Exception:
-            continue
-
-        if name and name.startswith(PREFIX):
-            pytable_types.append((name, tt))
-            fp = _read_fingerprint(tt)
-            if fp == target_fp:
-                logger.debug(
-                    'Reusing text type "{}": {}'.format(name, target_fp)
-                )
-                return tt
-
-    # No match — create a new one
-    next_num = len(pytable_types) + 1
-    new_name = '{}{:02d}'.format(PREFIX, next_num)
-
-    # Duplicate from any existing TextNoteType as a base
-    base = all_tt[0] if all_tt else None
-    if not base:
-        logger.error('No TextNoteType found to duplicate')
-        return None
-
-    size_ft = size_mm * MM
-
-    with revit.Transaction(
-        'pyTable - Create text type: {}'.format(new_name)
-    ):
-        new_tt = base.Duplicate(new_name)
-        for bip, val in [
-            (DB.BuiltInParameter.TEXT_FONT,         font),
-            (DB.BuiltInParameter.TEXT_SIZE,          size_ft),
-            (DB.BuiltInParameter.TEXT_STYLE_BOLD,    1 if bold else 0),
-            (DB.BuiltInParameter.TEXT_STYLE_ITALIC,  0),
-            (DB.BuiltInParameter.TEXT_BACKGROUND,    1),  # opaque
-        ]:
-            try:
-                p = new_tt.get_Parameter(bip)
-                if p and not p.IsReadOnly:
-                    p.Set(val)
-            except Exception as ex:
-                logger.debug(
-                    'Set param {} on {}: {}'.format(bip, new_name, ex)
-                )
-
-    logger.debug(
-        'Created text type "{}": {}'.format(new_name, target_fp)
-    )
-    return new_tt
-
-
-
-    """Return existing schedule by name or create a new blank one."""
-    for v in revit.query.get_elements_by_class(DB.ViewSchedule, doc=doc):
-        if v.Name == view_name:
-            return v, True
-    vs = DB.ViewSchedule.CreateSchedule(
-        doc, DB.ElementId.InvalidElementId
-    )
-    vs.Name = view_name
-    return vs, False
-
-
-def _clear_header(hdr):
-    """Strip header back to a single 1x1 cell."""
-    while hdr.NumberOfRows > 1:
-        try:
-            hdr.RemoveRow(hdr.NumberOfRows - 1)
-        except Exception:
-            break
-    while hdr.NumberOfColumns > 1:
-        try:
-            hdr.RemoveColumn(hdr.NumberOfColumns - 1)
-        except Exception:
-            break
-
-
-def _safe_text(hdr, r, c, text):
-    try:
-        hdr.SetCellText(r, c, str(text))
-    except Exception as ex:
-        logger.debug('SetCellText({},{}) {}'.format(r, c, ex))
-
-
-def _apply_style(hdr, r, c, bold=False, size_mm=2.5,
-                 bg_rgb=None, halign='Left',
-                 font='Arial', tt_id=None):
-    """
-    Apply font and background style to a header cell.
-    Uses a pre-resolved pyTable TextNoteType ID (tt_id) when provided
-    so no transaction is opened inside the schedule transaction.
-    Falls back to raw font/size if no type ID is given.
+    Create or update the Revit view for a single TableEntry.
+    Sets entry.status and entry.revit_view_id on success.
+    Returns (True, '') or (False, error_message).
     """
     try:
-        from Autodesk.Revit.DB import (
-            Color, HorizontalAlignmentStyle,
-            VerticalAlignmentStyle, TableCellStyle
+        file_path = safe_str(entry.file_path)
+        if not File.Exists(file_path):
+            return False, 'Source file not found: {}'.format(file_path)
+
+        view_name = entry.view_name or safe_str(
+            Path.GetFileNameWithoutExtension(file_path)
         )
 
-        style = TableCellStyle()
-        style.IsFontBold   = bold
-        style.IsFontItalic = False
+        # --- Step 1: create the view if it doesn't already exist ---
+        if entry.revit_view_id < 0:
+            if entry.view_type == VT_LEGEND:
+                entry.revit_view_id = create_legend_view(view_name)
+            elif entry.view_type == VT_DRAFTING:
+                entry.revit_view_id = create_drafting_view(view_name)
+            elif entry.view_type == VT_SCHEDULE:
+                entry.revit_view_id = create_schedule_view(view_name)
 
-        # Resolve font name from the pre-created pyTable type
-        resolved_font = font
-        if tt_id and tt_id != DB.ElementId.InvalidElementId:
-            try:
-                tt = doc.GetElement(tt_id)
-                if tt:
-                    fp = tt.get_Parameter(DB.BuiltInParameter.TEXT_FONT)
-                    if fp:
-                        resolved_font = fp.AsString()
-            except Exception:
-                pass
-
-        style.FontName = resolved_font
-        style.TextSize = (size_mm / 0.75) * (72.0 / 25.4)
-
-        if bg_rgb:
-            style.BackgroundColor = Color(
-                bg_rgb[0], bg_rgb[1], bg_rgb[2]
+        # --- Step 2: populate content based on import_type ---
+        if entry.import_type == IMP_IMAGE:
+            img_path = render_range_to_image(
+                file_path,
+                entry.sheet_name or (
+                    get_workbook_info(file_path) or {'sheets': ['Sheet1']}
+                )['sheets'][0],
+                entry.range_name,
+                entry.dpi
             )
-
-        style.FontHorizontalAlignment = getattr(
-            HorizontalAlignmentStyle, halign,
-            HorizontalAlignmentStyle.Left
-        )
-        style.FontVerticalAlignment = VerticalAlignmentStyle.Middle
-
-        opts = style.GetCellStyleOverrideOptions()
-        opts.Bold                = True
-        opts.Italics             = True
-        opts.FontSize            = True
-        # opts.FontName does not exist in Revit 2026 API
-        opts.BackgroundColor     = bg_rgb is not None
-        opts.HorizontalAlignment = True
-        opts.VerticalAlignment   = True
-        style.SetCellStyleOverrideOptions(opts)
-
-        hdr.SetCellStyle(r, c, style)
-
-    except Exception as ex:
-        logger.debug('apply_style({},{}) {}'.format(r, c, ex))
-
-
-def _safe_merge(hdr, r1, c1, r2, c2):
-    try:
-        from Autodesk.Revit.DB import TableMergedCell
-        mc = TableMergedCell()
-        mc.Top = r1;    mc.Bottom = r2
-        mc.Left = c1;   mc.Right = c2
-        hdr.MergeCells(mc)
-    except Exception as ex:
-        logger.debug(
-            'MergeCells({},{},{},{}) {}'.format(r1, c1, r2, c2, ex)
-        )
-
-
-def create_schedule_from_data(view_name, fields, records,
-                              font='Arial',
-                              size_hdr_mm=2.5,
-                              size_dat_mm=2.3,
-                              hdr_tt_id=None,
-                              dat_tt_id=None):
-    """
-    Create a dumb ViewSchedule with Excel data in the Header section.
-    Exactly matches pyTransmit's approach:
-    - CreateSchedule with InvalidElementId (multiple categories)
-    - Assembly Code field with two impossible filters = body always empty
-    - body.SetColumnWidth collapses the empty body row
-    - All data goes into the Header section
-    - Uses while loops to insert rows/cols matching pyTransmit's pattern
-
-    Returns (ViewSchedule, status_string) or (None, error_string).
-    """
-    from Autodesk.Revit.DB import (
-        ScheduleFilter, ScheduleFilterType, TableCellStyle,
-        HorizontalAlignmentStyle, VerticalAlignmentStyle, Color
-    )
-
-    # Check for existing
-    for v in revit.query.get_elements_by_class(DB.ViewSchedule, doc=doc):
-        if v.Name == view_name:
-            action = forms.alert(
-                'A schedule named "{}" already exists.\n'
-                'Overwrite or skip?'.format(view_name),
-                options=['Overwrite', 'Skip']
-            )
-            if action != 'Overwrite':
-                return None, 'skipped'
-            doc.Delete(v.Id)
-            break
-
-    n_cols = len(fields)
-    n_rows = len(records)
-
-    if n_cols == 0:
-        return None, 'No columns in data'
-
-    col_w_mm   = max(20.0, 190.0 / n_cols)
-    col_w      = col_w_mm * MM
-    row_h_hdr  = max(6.0, size_hdr_mm * 3.0) * MM
-    row_h_data = max(5.0, size_dat_mm * 2.5) * MM
-    total_cols = n_cols
-    total_rows = 1 + n_rows  # 1 header + data rows
-
-    # Create schedule - no category
-    vs = DB.ViewSchedule.CreateSchedule(
-        doc, DB.ElementId.InvalidElementId
-    )
-    vs.Name = view_name
-    sched_def = vs.Definition
-
-    # Add Assembly Code as hidden field with impossible filters
-    # so body section always has zero rows (pyTransmit pattern)
-    FIELD_ID_ASM_CODE = -1002500
-    asm_sf = None
-    for sf in sched_def.GetSchedulableFields():
-        try:
-            pid = None
-            try:
-                pid = sf.ParameterId.IntegerValue
-            except Exception:
+            if img_path:
+                insert_image_into_view(entry.revit_view_id, img_path)
                 try:
-                    pid = int(sf.ParameterId.Value)
+                    File.Delete(img_path)
                 except Exception:
                     pass
-            if pid == FIELD_ID_ASM_CODE:
-                asm_sf = sf
-                break
-        except Exception:
-            pass
+        else:
+            # Table mode
+            sheet = entry.sheet_name
+            if not sheet and entry.is_excel:
+                info = get_workbook_info(file_path)
+                sheet = info['sheets'][0] if info else 'Sheet1'
 
-    # Fallback to first available field
-    if asm_sf is None:
-        for sf in sched_def.GetSchedulableFields():
+            rows_data = read_range_data(file_path, sheet, entry.range_name)
+            if entry.view_type == VT_SCHEDULE:
+                populate_schedule_header(entry.revit_view_id, rows_data)
+            else:
+                populate_view_with_table(entry.revit_view_id, rows_data)
+
+        import datetime
+        entry.last_synced = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
+        entry.status = 'live'
+        return True, ''
+
+    except Exception as ex:
+        entry.status = 'error'
+        return False, unicode(ex)
+
+
+# ---------------------------------------------------------------------------
+# Row card builder
+# ---------------------------------------------------------------------------
+class RowCardController(object):
+    """
+    Builds and owns the WPF Border that represents one TableEntry row.
+    Expand/collapse is toggled manually via Python (no XAML triggers).
+    """
+
+    def __init__(self, entry, window_ctrl):
+        self.entry   = entry
+        self.win     = window_ctrl
+        self.is_open = False
+        self._wb_info   = None
+        self._build()
+
+    def _build(self):
+        # ── Outer card ───────────────────────────────────────────────
+        self.card = Border()
+        self.card.Background      = brush('#323A48')
+        self.card.CornerRadius    = System.Windows.CornerRadius(8)
+        self.card.Margin          = System.Windows.Thickness(0, 0, 0, 8)
+        self.card.BorderThickness = System.Windows.Thickness(3, 0, 0, 0)
+        self.card.BorderBrush     = brush(STATUS_BORDER.get(self.entry.status, '#6B7280'))
+
+        outer = StackPanel()
+        self.card.Child = outer
+
+        # ── Summary row ──────────────────────────────────────────────
+        # Layout: [checkbox] [chip] [name+meta *] [dot] [badge Auto] [caret Auto]
+        summary = Border()
+        summary.Padding = System.Windows.Thickness(12, 8, 12, 8)
+        summary.Cursor  = System.Windows.Input.Cursors.Hand
+        summary.MouseLeftButtonUp += self._on_header_click
+
+        SW = System.Windows
+        SWC = System.Windows.Controls
+        SWS = System.Windows.Shapes
+
+        row_grid = SWC.Grid()
+
+        def _auto_col():
+            c = SWC.ColumnDefinition()
+            c.Width = SW.GridLength.Auto
+            return c
+
+        def _star_col():
+            c = SWC.ColumnDefinition()
+            c.Width = SW.GridLength(1, SW.GridUnitType.Star)
+            return c
+
+        def _px_col(px):
+            c = SWC.ColumnDefinition()
+            c.Width = SW.GridLength(px, SW.GridUnitType.Pixel)
+            return c
+
+        # col 0: checkbox  col 1: spacer  col 2: chip  col 3: spacer
+        # col 4: name+meta (star)  col 5: spacer  col 6: dot  col 7: badge  col 8: caret
+        for col in [_auto_col(), _px_col(6), _auto_col(), _px_col(8),
+                    _star_col(), _px_col(6), _auto_col(), _auto_col(), _auto_col()]:
+            row_grid.ColumnDefinitions.Add(col)
+
+        def _set_col(ctrl, idx):
+            SWC.Grid.SetColumn(ctrl, idx)
+            row_grid.Children.Add(ctrl)
+
+        # Checkbox
+        self.check = SWC.CheckBox()
+        self.check.VerticalAlignment = SW.VerticalAlignment.Center
+        self.check.Checked   += self._on_check_changed
+        self.check.Unchecked += self._on_check_changed
+        _set_col(self.check, 0)
+
+        # File type chip
+        chip = Border()
+        chip.Background   = brush(self.entry.chip_color)
+        chip.CornerRadius = SW.CornerRadius(4)
+        chip.Width  = 36
+        chip.Height = 20
+        chip.VerticalAlignment = SW.VerticalAlignment.Center
+        chip_lbl = TextBlock()
+        chip_lbl.Text = self.entry.chip_label
+        chip_lbl.FontSize   = 9
+        chip_lbl.FontWeight = SW.FontWeights.Bold
+        chip_lbl.Foreground = brush('#F4FAFF')
+        chip_lbl.HorizontalAlignment = SW.HorizontalAlignment.Center
+        chip_lbl.VerticalAlignment   = SW.VerticalAlignment.Center
+        chip.Child = chip_lbl
+        _set_col(chip, 2)
+
+        # Name + meta (star column — stretches)
+        name_stack = SWC.StackPanel()
+        name_stack.VerticalAlignment = SW.VerticalAlignment.Center
+        self.name_lbl = TextBlock()
+        self.name_lbl.Text = self.entry.view_name or safe_str(
+            Path.GetFileNameWithoutExtension(self.entry.file_path))
+        self.name_lbl.FontSize     = 12.5
+        self.name_lbl.FontWeight   = SW.FontWeights.Medium
+        self.name_lbl.Foreground   = brush('#F4FAFF')
+        self.name_lbl.TextTrimming = SW.TextTrimming.CharacterEllipsis
+        self.meta_lbl = TextBlock()
+        self.meta_lbl.Text       = self.entry.meta_text
+        self.meta_lbl.FontSize   = 10.5
+        self.meta_lbl.Foreground = brush('#F4FAFF')
+        self.meta_lbl.Opacity    = 0.55
+        self.meta_lbl.FontFamily = System.Windows.Media.FontFamily('Consolas')
+        self.meta_lbl.Margin     = SW.Thickness(0, 2, 0, 0)
+        name_stack.Children.Add(self.name_lbl)
+        name_stack.Children.Add(self.meta_lbl)
+        _set_col(name_stack, 4)
+
+        # Status dot
+        self.dot = SWS.Ellipse()
+        self.dot.Width  = 8
+        self.dot.Height = 8
+        self.dot.Fill   = brush(STATUS_BORDER.get(self.entry.status, '#6B7280'))
+        self.dot.VerticalAlignment   = SW.VerticalAlignment.Center
+        self.dot.HorizontalAlignment = SW.HorizontalAlignment.Center
+        _set_col(self.dot, 6)
+
+        # Status badge
+        badge_border = Border()
+        badge_border.Background      = brush('#232933')
+        badge_border.BorderBrush     = brush('#404553')
+        badge_border.BorderThickness = SW.Thickness(1)
+        badge_border.CornerRadius    = SW.CornerRadius(999)
+        badge_border.Padding         = SW.Thickness(7, 3, 7, 3)
+        badge_border.VerticalAlignment = SW.VerticalAlignment.Center
+        badge_border.Margin = SW.Thickness(6, 0, 0, 0)
+        self.badge_lbl = TextBlock()
+        self.badge_lbl.Text      = STATUS_LABEL.get(self.entry.status, 'New')
+        self.badge_lbl.FontSize  = 10.5
+        self.badge_lbl.Foreground = brush('#F4FAFF')
+        self.badge_lbl.Opacity    = 0.85
+        badge_border.Child = self.badge_lbl
+        _set_col(badge_border, 7)
+
+        # Caret
+        self.caret_lbl = TextBlock()
+        self.caret_lbl.Text = u'\u25bc'
+        self.caret_lbl.FontSize  = 9
+        self.caret_lbl.Foreground = brush('#F4FAFF')
+        self.caret_lbl.Opacity    = 0.6
+        self.caret_lbl.VerticalAlignment   = SW.VerticalAlignment.Center
+        self.caret_lbl.HorizontalAlignment = SW.HorizontalAlignment.Center
+        self.caret_lbl.Margin = SW.Thickness(8, 0, 0, 0)
+        _set_col(self.caret_lbl, 8)
+
+        summary.Child = row_grid
+        outer.Children.Add(summary)
+
+        # ── Separator ────────────────────────────────────────────────
+        self.sep = System.Windows.Shapes.Rectangle()
+        self.sep.Height = 1
+        self.sep.Fill = brush('#28303D')
+        self.sep.Visibility = Visibility.Collapsed
+        outer.Children.Add(self.sep)
+
+        # ── Detail section ───────────────────────────────────────────
+        self.detail = Border()
+        self.detail.Padding    = System.Windows.Thickness(12, 10, 12, 12)
+        self.detail.Visibility = Visibility.Collapsed
+        try:
+            self._build_detail(self.detail)
+        except Exception as ex:
+            logger.warning(
+                'PyTables: detail build failed for {}: {}'.format(
+                    self.entry.filename, ex
+                )
+            )
+            # Provide minimal stubs so update_status does not crash
+            self.hint_stale = System.Windows.Controls.TextBlock()
+            self.hint_error = System.Windows.Controls.TextBlock()
+            self.autosync_track = Border()
+            self.autosync_thumb = System.Windows.Shapes.Ellipse()
+        outer.Children.Add(self.detail)
+
+    def _build_detail(self, parent):
+        """Build the expanded detail form inside the row card."""
+        outer = StackPanel()
+        parent.Child = outer
+
+        # ── Row 0: View name / View type ─────────────────────────────
+        g1 = self._two_col_grid()
+        outer.Children.Add(g1)
+
+        self.vname_tb = self._field_box(
+            g1, 0, 0, 'View name',
+            self.entry.view_name or
+            safe_str(Path.GetFileNameWithoutExtension(self.entry.file_path))
+        )
+        self.vname_tb.TextChanged += self._on_vname_changed
+
+        self.vtype_cb = self._field_combo(
+            g1, 0, 1, 'View type',
+            [VT_LEGEND, VT_DRAFTING, VT_SCHEDULE],
+            self.entry.view_type
+        )
+        self.vtype_cb.SelectionChanged += self._on_vtype_changed
+
+        # ── Row 1: Region / range / View scale ───────────────────────
+        g2 = self._two_col_grid()
+        outer.Children.Add(g2)
+
+        self.range_cb = self._combo(['<Used Range>', '<Print Area>'])
+        self.range_cb.SelectionChanged += self._on_range_changed
+        self._field_add_widget(g2, 0, 0, 'Region / range', self.range_cb)
+
+        self.scale_tb = self._field_box(g2, 0, 1, 'View scale', self.entry.scale)
+        self.scale_tb.TextChanged += self._on_scale_changed
+
+        # ── Row 2: DPI / Conflict policy ─────────────────────────────
+        g3 = self._two_col_grid()
+        outer.Children.Add(g3)
+
+        self.dpi_cb = self._field_combo(
+            g3, 0, 0, 'DPI',
+            ['150', '200', '300', '400', '600'],
+            str(self.entry.dpi)
+        )
+        self.dpi_cb.SelectionChanged += self._on_dpi_changed
+
+        self.conflict_cb = self._field_combo(
+            g3, 0, 1, 'Conflict policy',
+            [CP_OVERWRITE, CP_KEEP_BOTH, CP_ASK, CP_SKIP],
+            self.entry.conflict
+        )
+        self.conflict_cb.SelectionChanged += self._on_conflict_changed
+
+        # Sheet selector: hidden, used only for range population
+        self.sheet_cb = self._combo([])
+        self.sheet_cb.Visibility = System.Windows.Visibility.Collapsed
+        self.sheet_cb.SelectionChanged += self._on_sheet_changed
+        outer.Children.Add(self.sheet_cb)
+        self._populate_sheets()
+        # _populate_ranges called inside _populate_sheets when wb_info is available
+
+        # ── Source path (full width) ──────────────────────────────────
+        path_section = StackPanel()
+        path_section.Margin = System.Windows.Thickness(0, 4, 0, 0)
+        path_section.Children.Add(self._label('Source path', '#F4FAFF'))
+        self.path_tb = self._textbox(safe_str(self.entry.file_path))
+        self.path_tb.IsReadOnly = True
+        self.path_tb.FontFamily = System.Windows.Media.FontFamily('Consolas')
+        self.path_tb.FontSize   = 10.5
+        path_section.Children.Add(self.path_tb)
+        outer.Children.Add(path_section)
+
+        # ── Separator ─────────────────────────────────────────────────
+        sep = System.Windows.Shapes.Rectangle()
+        sep.Height = 1
+        sep.Fill   = brush('#28303D')
+        sep.Margin = System.Windows.Thickness(0, 12, 0, 10)
+        outer.Children.Add(sep)
+
+        # ── Auto-sync + Sync + Remove ─────────────────────────────────
+        action_row = System.Windows.Controls.Grid()
+        ac1 = System.Windows.Controls.ColumnDefinition()
+        ac2 = System.Windows.Controls.ColumnDefinition()
+        ac2.Width = System.Windows.GridLength.Auto
+        action_row.ColumnDefinitions.Add(ac1)
+        action_row.ColumnDefinitions.Add(ac2)
+
+        # Toggle + label
+        sync_stack = StackPanel()
+        sync_stack.Orientation = System.Windows.Controls.Orientation.Horizontal
+        sync_stack.VerticalAlignment = System.Windows.VerticalAlignment.Center
+
+        self.autosync_track = Border()
+        self.autosync_track.Width  = 32
+        self.autosync_track.Height = 18
+        self.autosync_track.CornerRadius    = System.Windows.CornerRadius(999)
+        self.autosync_track.BorderThickness = System.Windows.Thickness(1)
+        self.autosync_track.Cursor = System.Windows.Input.Cursors.Hand
+        self.autosync_track.MouseLeftButtonUp += self._on_autosync_toggle
+        self.autosync_thumb = System.Windows.Shapes.Ellipse()
+        self.autosync_thumb.Width  = 12
+        self.autosync_thumb.Height = 12
+        self.autosync_thumb.HorizontalAlignment = (
+            System.Windows.HorizontalAlignment.Left
+        )
+        self.autosync_thumb.Margin = System.Windows.Thickness(2, 0, 0, 0)
+        self.autosync_track.Child = self.autosync_thumb
+        self._update_autosync_ui()
+        sync_stack.Children.Add(self.autosync_track)
+
+        sync_lbl = TextBlock()
+        sync_lbl.Text       = 'Auto-sync when file changes'
+        sync_lbl.FontSize   = 11.5
+        sync_lbl.Foreground = brush('#F4FAFF')
+        sync_lbl.Opacity    = 0.85
+        sync_lbl.VerticalAlignment = System.Windows.VerticalAlignment.Center
+        sync_lbl.Margin = System.Windows.Thickness(8, 0, 0, 0)
+        sync_stack.Children.Add(sync_lbl)
+
+        System.Windows.Controls.Grid.SetColumn(sync_stack, 0)
+        action_row.Children.Add(sync_stack)
+
+        # Sync + Remove buttons
+        btn_stack = StackPanel()
+        btn_stack.Orientation = System.Windows.Controls.Orientation.Horizontal
+        btn_stack.VerticalAlignment = System.Windows.VerticalAlignment.Center
+
+        sync_btn = self._small_btn(u'\u27f3  Sync', '#208A3C')
+        sync_btn.ToolTip = 'Sync now'
+        sync_btn.Margin  = System.Windows.Thickness(0, 0, 6, 0)
+        sync_btn.Click  += self._on_sync_click
+        btn_stack.Children.Add(sync_btn)
+
+        remove_btn = self._small_btn(u'\u2715  Remove', '#C53030')
+        remove_btn.ToolTip = 'Remove this link'
+        remove_btn.Click  += self._on_remove_click
+        btn_stack.Children.Add(remove_btn)
+
+        System.Windows.Controls.Grid.SetColumn(btn_stack, 1)
+        action_row.Children.Add(btn_stack)
+        outer.Children.Add(action_row)
+
+        # ── Stale / error hints ───────────────────────────────────────
+        self.hint_stale = TextBlock()
+        self.hint_stale.Text = (
+            'Source modified since last sync. '
+            'Click Sync to refresh the Revit view.'
+        )
+        self.hint_stale.FontSize     = 11.5
+        self.hint_stale.Foreground   = brush('#D69E2E')
+        self.hint_stale.TextWrapping = System.Windows.TextWrapping.Wrap
+        self.hint_stale.Margin       = System.Windows.Thickness(0, 10, 0, 0)
+        self.hint_stale.Visibility   = (
+            Visibility.Visible if self.entry.status == 'stale'
+            else Visibility.Collapsed
+        )
+        outer.Children.Add(self.hint_stale)
+
+        self.hint_error = TextBlock()
+        self.hint_error.Text = (
+            'View target not found. Re-sync or remove this link.'
+        )
+        self.hint_error.FontSize     = 11.5
+        self.hint_error.Foreground   = brush('#FF8888')
+        self.hint_error.TextWrapping = System.Windows.TextWrapping.Wrap
+        self.hint_error.Margin       = System.Windows.Thickness(0, 10, 0, 0)
+        self.hint_error.Visibility   = (
+            Visibility.Visible if self.entry.status == 'error'
+            else Visibility.Collapsed
+        )
+        outer.Children.Add(self.hint_error)
+
+    # ---- UI factory helpers ----
+    def _section_label(self, text):
+        lbl = TextBlock()
+        lbl.Text     = text
+        lbl.FontSize = 11
+        lbl.FontWeight = System.Windows.FontWeights.SemiBold
+        lbl.Foreground = brush('#208A3C')
+        lbl.Margin = System.Windows.Thickness(0, 0, 0, 8)
+        return lbl
+
+    def _label(self, text, color='#F4FAFF'):
+        lbl = TextBlock()
+        lbl.Text     = text
+        lbl.FontSize = 12
+        lbl.FontWeight = System.Windows.FontWeights.Medium
+        lbl.Foreground = brush(color)
+        lbl.Opacity  = 0.9
+        lbl.Margin   = System.Windows.Thickness(0, 0, 0, 4)
+        return lbl
+
+    def _textbox(self, text=''):
+        tb = System.Windows.Controls.TextBox()
+        tb.Text = text
+        tb.Background = brush('#F4FAFF')
+        tb.Foreground = brush('#2B3340')
+        tb.BorderBrush = brush('#208A3C')
+        tb.BorderThickness = System.Windows.Thickness(1)
+        tb.Padding = System.Windows.Thickness(8, 4, 8, 4)
+        tb.FontSize = 12
+        tb.Height = 28
+        tb.VerticalContentAlignment = System.Windows.VerticalAlignment.Center
+        return tb
+
+    def _combo(self, items, selected=None):
+        cb = System.Windows.Controls.ComboBox()
+        cb.Background = brush('#F4FAFF')
+        cb.Foreground = brush('#2B3340')
+        cb.BorderBrush = brush('#208A3C')
+        cb.BorderThickness = System.Windows.Thickness(1)
+        cb.Padding = System.Windows.Thickness(8, 4, 8, 4)
+        cb.FontSize = 12
+        cb.Height = 28
+        cb.Margin = System.Windows.Thickness(0, 0, 0, 0)
+        for item in items:
+            ci = ComboBoxItem()
+            ci.Content = item
+            if selected and item == selected:
+                ci.IsSelected = True
+            cb.Items.Add(ci)
+        return cb
+
+    def _small_btn(self, text, bg_color):
+        btn = System.Windows.Controls.Button()
+        btn.Content  = text
+        btn.FontSize = 11
+        btn.FontWeight = System.Windows.FontWeights.SemiBold
+        btn.Foreground = brush('#F4FAFF')
+        btn.Background = brush(bg_color)
+        btn.BorderThickness = System.Windows.Thickness(0)
+        btn.Padding = System.Windows.Thickness(12, 4, 12, 4)
+        btn.Height  = 24
+        btn.Cursor  = System.Windows.Input.Cursors.Hand
+        btn.Template = self.win._get_rounded_button_template(4)
+        return btn
+
+    def _import_radio(self, label, value, parent):
+        rb = System.Windows.Controls.RadioButton()
+        rb.Content  = label
+        rb.Tag      = value
+        rb.GroupName = 'import_type_{}'.format(self.entry.uid)
+        rb.FontSize = 11
+        rb.FontWeight = System.Windows.FontWeights.SemiBold
+        rb.Foreground = brush('#F4FAFF')
+        rb.Margin = System.Windows.Thickness(0, 0, 6, 0)
+        rb.Template = self.win._get_radio_button_template()
+        parent.Children.Add(rb)
+        return rb
+
+    def _field_add_widget(self, grid, row_idx, col_idx, label_text, widget):
+        """Wrap an arbitrary widget with a label and place it in a _two_col_grid."""
+        self._ensure_grid_rows(grid, row_idx + 1)
+        sp = StackPanel()
+        sp.Margin = System.Windows.Thickness(0, 0, 0, 10)
+        sp.Children.Add(self._label(label_text))
+        sp.Children.Add(widget)
+        grid_col = 0 if col_idx == 0 else 2
+        System.Windows.Controls.Grid.SetRow(sp, row_idx)
+        System.Windows.Controls.Grid.SetColumn(sp, grid_col)
+        grid.Children.Add(sp)
+
+    def _two_col_grid(self):
+        """Two equal star columns separated by an 8px spacer. Columns 0 and 2 are content."""
+        g = System.Windows.Controls.Grid()
+        for width, unit in [
+            (1,  System.Windows.GridUnitType.Star),
+            (8,  System.Windows.GridUnitType.Pixel),
+            (1,  System.Windows.GridUnitType.Star),
+        ]:
+            cd = System.Windows.Controls.ColumnDefinition()
+            cd.Width = System.Windows.GridLength(width, unit)
+            g.ColumnDefinitions.Add(cd)
+        return g
+
+    def _field_box(self, grid, row_idx, col_idx, label_text, value=''):
+        """Add label + textbox to a _two_col_grid. col_idx 0 or 1 (maps to grid col 0 or 2)."""
+        self._ensure_grid_rows(grid, row_idx + 1)
+        sp = StackPanel()
+        sp.Margin = System.Windows.Thickness(0, 0, 0, 10)
+        sp.Children.Add(self._label(label_text))
+        tb = self._textbox(value)
+        sp.Children.Add(tb)
+        grid_col = 0 if col_idx == 0 else 2
+        System.Windows.Controls.Grid.SetRow(sp, row_idx)
+        System.Windows.Controls.Grid.SetColumn(sp, grid_col)
+        grid.Children.Add(sp)
+        return tb
+
+    def _field_combo(self, grid, row_idx, col_idx, label_text, items, selected=None):
+        """Add label + combobox to a _two_col_grid. col_idx 0 or 1 (maps to grid col 0 or 2)."""
+        self._ensure_grid_rows(grid, row_idx + 1)
+        sp = StackPanel()
+        sp.Margin = System.Windows.Thickness(0, 0, 0, 10)
+        sp.Children.Add(self._label(label_text))
+        cb = self._combo(items, selected)
+        sp.Children.Add(cb)
+        grid_col = 0 if col_idx == 0 else 2
+        System.Windows.Controls.Grid.SetRow(sp, row_idx)
+        System.Windows.Controls.Grid.SetColumn(sp, grid_col)
+        grid.Children.Add(sp)
+        return cb
+
+    def _grid_add(self, grid, ctrl, row_idx, col_idx, **kwargs):
+        """Place a control in a _two_col_grid. col_idx 0 or 1 (maps to grid col 0 or 2)."""
+        self._ensure_grid_rows(grid, row_idx + 1)
+        grid_col = 0 if col_idx == 0 else 2
+        System.Windows.Controls.Grid.SetRow(ctrl, row_idx)
+        System.Windows.Controls.Grid.SetColumn(ctrl, grid_col)
+        grid.Children.Add(ctrl)
+
+    @staticmethod
+    def _ensure_grid_rows(grid, count):
+        while grid.RowDefinitions.Count < count:
+            rd = System.Windows.Controls.RowDefinition()
+            rd.Height = System.Windows.GridLength.Auto
+            grid.RowDefinitions.Add(rd)
+
+    def _populate_sheets(self):
+        """Fill the sheet ComboBox with worksheet names from the workbook."""
+        self.sheet_cb.Items.Clear()
+        if not self.entry.is_excel:
+            self.sheet_cb.IsEnabled = False
+            self._populate_ranges(None)
+            return
+        self._wb_info = get_workbook_info(self.entry.file_path)
+        info = self._wb_info
+        if not info:
+            ci = ComboBoxItem()
+            ci.Content = 'Sheet1'
+            ci.IsSelected = True
+            self.sheet_cb.Items.Add(ci)
+            self._populate_ranges(None)
+            return
+        # Ensure entry.sheet_name is set to first sheet if blank
+        if not self.entry.sheet_name and info['sheets']:
+            self.entry.sheet_name = info['sheets'][0]
+        for s in info['sheets']:
+            ci = ComboBoxItem()
+            ci.Content = s
+            if s == self.entry.sheet_name:
+                ci.IsSelected = True
+            self.sheet_cb.Items.Add(ci)
+        # Always call _populate_ranges with full wb_info so named ranges appear
+        self._populate_ranges(info)
+
+    def _populate_ranges(self, wb_info=None):
+        """Fill the range ComboBox with '<Used Range>' plus any named ranges."""
+        self.range_cb.Items.Clear()
+        items = ['<Used Range>', '<Print Area>']
+        if wb_info:
+            nr = wb_info.get('named_ranges', {})
+            # Use sheet_name if set, else fall back to all ranges across sheets
+            sheet = self.entry.sheet_name
+            if sheet and sheet in nr:
+                items += nr[sheet]
+            elif not sheet:
+                seen = set()
+                for ranges in nr.values():
+                    for r in ranges:
+                        if r not in seen:
+                            seen.add(r)
+                            items.append(r)
+        for item in items:
+            ci = ComboBoxItem()
+            ci.Content = item
+            if item == self.entry.range_name or (
+                not self.entry.range_name and item == '<Used Range>'
+            ):
+                ci.IsSelected = True
+            self.range_cb.Items.Add(ci)
+
+    # ---- Status update ----
+    def update_status(self, status):
+        self.entry.status = status
+        clr_hex = STATUS_BORDER.get(status, '#6B7280')
+        self.card.BorderBrush = brush(clr_hex)
+        self.dot.Fill = brush(clr_hex)
+        self.badge_lbl.Text = STATUS_LABEL.get(status, status.capitalize())
+        self.hint_stale.Visibility = (
+            Visibility.Visible if status == 'stale' else Visibility.Collapsed
+        )
+        self.hint_error.Visibility = (
+            Visibility.Visible if status == 'error' else Visibility.Collapsed
+        )
+
+    def _update_autosync_ui(self):
+        if self.entry.auto_sync:
+            self.autosync_track.Background = brush('#3F208A3C')
+            self.autosync_track.BorderBrush = brush('#208A3C')
+            self.autosync_thumb.Fill = brush('#208A3C')
+            self.autosync_thumb.Margin = System.Windows.Thickness(15, 0, 0, 0)
+        else:
+            self.autosync_track.Background = brush('#1f242c')
+            self.autosync_track.BorderBrush = brush('#404553')
+            self.autosync_thumb.Fill = brush('#9aa2b1')
+            self.autosync_thumb.Margin = System.Windows.Thickness(2, 0, 0, 0)
+
+    # ---- Toggle open/close ----
+    def toggle(self):
+        self.is_open = not self.is_open
+        vis = Visibility.Visible if self.is_open else Visibility.Collapsed
+        self.detail.Visibility = vis
+        self.sep.Visibility    = vis
+        self.caret_lbl.Text = u'\u25b2' if self.is_open else u'\u25bc'
+
+    # ---- Event handlers ----
+    def _on_header_click(self, sender, e):
+        self.toggle()
+
+    def _on_check_changed(self, sender, e):
+        self.win._on_row_check_changed()
+
+    def _on_vname_changed(self, sender, e):
+        self.entry.view_name = safe_str(self.vname_tb.Text)
+        self.name_lbl.Text   = self.entry.view_name or self.entry.filename
+
+    def _on_vtype_changed(self, sender, e):
+        sel = self.vtype_cb.SelectedItem
+        if sel:
+            self.entry.view_type = safe_str(sel.Content)
+
+    def _on_sheet_changed(self, sender, e):
+        sel = self.sheet_cb.SelectedItem
+        if sel:
+            self.entry.sheet_name = safe_str(sel.Content)
+            # Re-use cached wb_info; only re-read if cache is missing
+            info = getattr(self, '_wb_info', None) or get_workbook_info(
+                self.entry.file_path
+            )
+            self._populate_ranges(info)
+
+    def _on_range_changed(self, sender, e):
+        sel = self.range_cb.SelectedItem
+        if sel:
+            self.entry.range_name = safe_str(sel.Content)
+            self.meta_lbl.Text    = self.entry.meta_text
+
+    def _on_import_type_changed(self, sender, e):
+        self.entry.import_type = safe_str(sender.Tag)
+        self._rebuild_import_detail()
+
+    def _on_dpi_changed(self, sender, e):
+        sel = self.dpi_cb.SelectedItem
+        if sel:
             try:
-                asm_sf = sf
-                break
-            except Exception:
+                self.entry.dpi = int(safe_str(sel.Content))
+                self.meta_lbl.Text = self.entry.meta_text
+            except ValueError:
                 pass
 
-    if asm_sf:
-        try:
-            f = sched_def.AddField(asm_sf)
-            f.ColumnHeading = ''
-            f.IsHidden = True
-            sched_def.AddFilter(ScheduleFilter(
-                f.FieldId, ScheduleFilterType.Equal, 'NO VALUES FOUND'
-            ))
-            sched_def.AddFilter(ScheduleFilter(
-                f.FieldId, ScheduleFilterType.Equal, 'ALL VALUES FOUND'
-            ))
-            logger.debug('Hidden field: {}'.format(asm_sf.GetName(doc)))
-        except Exception as ex:
-            logger.debug('Hidden field failed: {}'.format(ex))
+    def _on_scale_changed(self, sender, e):
+        self.entry.scale = safe_str(self.scale_tb.Text)
 
-    try:
-        sched_def.ShowGridLines = True
-    except Exception:
-        pass
+    def _on_conflict_changed(self, sender, e):
+        sel = self.conflict_cb.SelectedItem
+        if sel:
+            self.entry.conflict = safe_str(sel.Content)
 
-    table_data = vs.GetTableData()
-    hdr  = table_data.GetSectionData(DB.SectionType.Header)
-    body = table_data.GetSectionData(DB.SectionType.Body)
+    def _on_autosync_toggle(self, sender, e):
+        self.entry.auto_sync = not self.entry.auto_sync
+        self._update_autosync_ui()
 
-    # Collapse body - pyTransmit sets body col to full width
-    total_w = col_w * n_cols
-    try:
-        body.SetColumnWidth(0, total_w)
-    except Exception:
-        pass
-
-    # Hide body borders
-    try:
-        _bs = TableCellStyle()
-        _bo = _bs.GetCellStyleOverrideOptions()
-        _bo.BorderTopLineStyle    = False
-        _bo.BorderBottomLineStyle = False
-        _bo.BorderLeftLineStyle   = False
-        _bo.BorderRightLineStyle  = False
-        _bs.SetCellStyleOverrideOptions(_bo)
-        body.SetCellStyle(_bs)
-    except Exception:
-        pass
-
-    # Insert columns - header starts at 1 col, use while loop like pyTransmit
-    while hdr.NumberOfColumns < total_cols:
-        hdr.InsertColumn(hdr.NumberOfColumns)
-    for ci in range(total_cols):
-        try:
-            hdr.SetColumnWidth(ci, col_w)
-        except Exception:
-            pass
-
-    # Insert rows - header starts at 1 row, use while loop like pyTransmit
-    while hdr.NumberOfRows < total_rows:
-        hdr.InsertRow(hdr.NumberOfRows)
-
-    # Set row heights
-    try:
-        hdr.SetRowHeight(0, row_h_hdr)
-    except Exception:
-        pass
-    for ri in range(1, total_rows):
-        try:
-            hdr.SetRowHeight(ri, row_h_data)
-        except Exception:
-            pass
-
-    # Fill header row
-    for ci, field in enumerate(fields):
-        _safe_text(hdr, 0, ci, field)
-        _apply_style(
-            hdr, 0, ci,
-            bold=True,
-            size_mm=size_hdr_mm,
-            bg_rgb=(220, 220, 220),
-            halign='Center',
-            font=font,
-            tt_id=hdr_tt_id
-        )
-
-    # Fill data rows
-    for ri, record in enumerate(records):
-        for ci, cell in enumerate(record):
-            if ci >= n_cols:
-                break
-            _safe_text(hdr, ri + 1, ci, cell)
-            _apply_style(
-                hdr, ri + 1, ci,
-                bold=False,
-                size_mm=size_dat_mm,
-                halign='Left',
-                font=font,
-                tt_id=dat_tt_id
-            )
-
-    logger.debug(
-        'Schedule "{}" — {}r x {}c'.format(view_name, total_rows, total_cols)
-    )
-    return vs, 'success'
-
-
-# ---------------------------------------------------------------------------
-# Legend / Drafting view creation
-# ---------------------------------------------------------------------------
-
-def create_drafting_view(view_name, scale):
-    """Create a blank Drafting view."""
-    vft = None
-    for v in DB.FilteredElementCollector(doc)\
-            .OfClass(DB.ViewFamilyType)\
-            .WhereElementIsNotElementType():
-        if v.ViewFamily == DB.ViewFamily.Drafting:
-            vft = v
-            break
-    if not vft:
-        forms.alert(
-            'No Drafting View family type found.',
-            exitscript=True
-        )
-    view = DB.ViewDrafting.Create(doc, vft.Id)
-    view.Name = view_name
-    view.Scale = scale
-    return view
-
-
-def create_legend_view(view_name, scale):
-    """Create a Legend view by duplicating an existing one."""
-    template = None
-    for v in DB.FilteredElementCollector(doc)\
-            .OfClass(DB.View)\
-            .WhereElementIsNotElementType():
-        if v.ViewType == DB.ViewType.Legend:
-            template = v
-            break
-    if not template:
-        forms.alert(
-            'No Legend view found. Create one first.',
-            exitscript=True
-        )
-    new_id = template.Duplicate(DB.ViewDuplicateOption.WithDetailing)
-    view = doc.GetElement(new_id)
-    view.Name = view_name
-    view.Scale = scale
-    return view
-
-
-def place_table_in_view(view, fields, records):
-    """
-    Draw table data as native TextNote elements in a view.
-    Used for Legend and Drafting views.
-    Each cell = one TextNote positioned in a grid.
-    """
-    txt_type_id = DB.FilteredElementCollector(doc)\
-        .OfClass(DB.TextNoteType)\
-        .FirstElementId()
-
-    if txt_type_id == DB.ElementId.InvalidElementId:
-        logger.error('No TextNoteType found')
-        return
-
-    col_width  = 0.5    # feet
-    row_height = 0.15   # feet
-
-    all_rows = [fields] + [r for r in records]
-
-    for r_idx, row in enumerate(all_rows):
-        y = -(r_idx * row_height)
-        for c_idx, cell in enumerate(row):
-            if not str(cell).strip():
-                continue
-            x = c_idx * col_width
-            pt = DB.XYZ(x, y, 0)
-            opts = DB.TextNoteOptions(txt_type_id)
-            opts.HorizontalAlignment = DB.HorizontalTextAlignment.Left
-            DB.TextNote.Create(doc, view.Id, pt, str(cell), opts)
-
-
-# ---------------------------------------------------------------------------
-# Core apply logic
-# ---------------------------------------------------------------------------
-
-def _get_or_create_line_style(name, rgb):
-    """
-    Return the ElementId of a Lines subcategory with the given name/colour.
-    Must be called OUTSIDE any open transaction — creates a subcategory
-    which requires its own transaction context in Revit.
-    """
-    lines_cat = doc.Settings.Categories.get_Item('Lines')
-    existing = None
-    for sub in lines_cat.SubCategories:
-        if sub.Name == name:
-            existing = sub
-            break
-    if existing is None:
-        with revit.Transaction('pyTable - Line style: {}'.format(name)):
-            existing = doc.Settings.Categories.NewSubcategory(lines_cat, name)
-            existing.LineColor = DB.Color(rgb[0], rgb[1], rgb[2])
-    else:
-        # Update colour in case it changed
-        with revit.Transaction('pyTable - Line style colour: {}'.format(name)):
-            existing.LineColor = DB.Color(rgb[0], rgb[1], rgb[2])
-    gs = existing.GetGraphicsStyle(
-        DB.GraphicsStyleType.Projection
-    )
-    return gs.Id
-
-
-def _pre_create_line_styles(cell_styles):
-    """
-    Pre-create all line style subcategories needed for borders in
-    cell_styles, plus the invisible 'pyT Off' style.
-    Returns a dict mapping rgb tuple -> ElementId.
-
-    Must be called before the main schedule transaction.
-    """
-    needed = {(255, 255, 255)}   # always need the off/invisible style
-    for cs in cell_styles.values():
-        for side in ('border_top_color', 'border_bottom_color',
-                     'border_left_color', 'border_right_color'):
-            c = cs.get(side)
-            if c:
-                needed.add(tuple(c))
-        # Default black border colour when style is set but no colour given
-        for side in ('border_top', 'border_bottom',
-                     'border_left', 'border_right'):
-            if cs.get(side) and cs.get(side) not in ('', 'none'):
-                needed.add((0, 0, 0))
-                break
-
-    line_ids = {}
-    for rgb in needed:
-        if rgb == (255, 255, 255):
-            name = 'pyT Off'
+    def _on_sync_click(self, sender, e):
+        ok, msg = apply_entry(self.entry)
+        if ok:
+            self.update_status('live')
+            save_entries_to_model(self.win.entries)
+            self.win.flash('Synced: {}'.format(self.entry.view_name))
         else:
-            name = 'pyT {:02X}{:02X}{:02X}'.format(rgb[0], rgb[1], rgb[2])
-        try:
-            line_ids[rgb] = _get_or_create_line_style(name, rgb)
-        except Exception as ex:
-            logger.error('Line style {} failed: {}'.format(name, ex))
-    return line_ids
+            self.update_status('error')
+            self.win.flash('Error: {}'.format(msg))
+        self.win._update_footer()
+
+    def _on_remove_click(self, sender, e):
+        self.win.remove_entry(self.entry.uid)
 
 
-def _run_export_script(script_name, payload):
-    """
-    Run one of the Export/ scripts via exec() with PYTABLE_PAYLOAD injected.
-    Wraps execution in a transaction since export scripts modify the document.
-    Legend script manages its own transactions internally so is run without
-    the outer wrapper to avoid nesting.
-    """
-    export_dir  = os.path.join(os.path.dirname(__file__), 'Export')
-    script_path = os.path.join(export_dir, script_name)
+# ---------------------------------------------------------------------------
+# Main window controller
+# ---------------------------------------------------------------------------
+class PyTablesWindow(Window):
 
-    if not os.path.exists(script_path):
-        raise Exception(
-            'Export script not found: {}'.format(script_path)
+    def __init__(self):
+        xaml_path = safe_str(Path.Combine(SCRIPT_DIR, 'PyTables.xaml'))
+        wpf.LoadComponent(self, xaml_path)
+
+        self.entries      = load_entries_from_model()
+        self.row_ctrls    = []   # list of RowCardController in display order
+        self._toast_timer = None
+        self._mode        = 'normal'  # normal | settings | conflicts
+
+        # Wire drag-drop
+        self.DragOver += self._on_drag_over
+        self.Drop     += self._on_drop
+
+        # Initialise settings defaults
+        self._settings_autosync = True
+        self._settings_bw       = False
+
+        # Build conflict radio options
+        self._build_conflict_options()
+
+        # Render initial state
+        self._render_all()
+        self._update_footer()
+
+    # ---- Template helpers (used by RowCardController) ----
+    def _get_rounded_button_template(self, radius=4):
+        """Return a ControlTemplate for a rounded rect button via XamlReader."""
+        from System.Windows.Markup import XamlReader
+        # xmlns:x required for x:Name and TargetName in Triggers
+        xaml = (
+            '<ControlTemplate'
+            ' xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"'
+            ' xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"'
+            ' TargetType="Button">'
+            '<Border x:Name="Bd"'
+            ' Background="{{TemplateBinding Background}}"'
+            ' CornerRadius="{radius}"'
+            ' Padding="{{TemplateBinding Padding}}">'.format(radius=radius) +
+            '<ContentPresenter HorizontalAlignment="Center"'
+            ' VerticalAlignment="Center"/>'
+            '</Border>'
+            '<ControlTemplate.Triggers>'
+            '<Trigger Property="IsMouseOver" Value="True">'
+            '<Setter TargetName="Bd" Property="Opacity" Value="0.85"/>'
+            '</Trigger>'
+            '<Trigger Property="IsPressed" Value="True">'
+            '<Setter TargetName="Bd" Property="Opacity" Value="0.70"/>'
+            '</Trigger>'
+            '</ControlTemplate.Triggers>'
+            '</ControlTemplate>'
+        )
+        return XamlReader.Parse(xaml)
+
+    def _get_radio_button_template(self):
+        """Return a ControlTemplate for the import-type RadioButton."""
+        from System.Windows.Markup import XamlReader
+        # xmlns:x required for x:Name and TargetName in Triggers
+        xaml = (
+            '<ControlTemplate'
+            ' xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"'
+            ' xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"'
+            ' TargetType="RadioButton">'
+            '<Border x:Name="Bd" Background="#404553"'
+            ' CornerRadius="4" Padding="12,5">'
+            '<ContentPresenter HorizontalAlignment="Center"'
+            ' VerticalAlignment="Center"/>'
+            '</Border>'
+            '<ControlTemplate.Triggers>'
+            '<Trigger Property="IsChecked" Value="True">'
+            '<Setter TargetName="Bd" Property="Background" Value="#208A3C"/>'
+            '</Trigger>'
+            '<Trigger Property="IsMouseOver" Value="True">'
+            '<Setter TargetName="Bd" Property="Background" Value="#4E5566"/>'
+            '</Trigger>'
+            '</ControlTemplate.Triggers>'
+            '</ControlTemplate>'
+        )
+        return XamlReader.Parse(xaml)
+
+    # ---- Conflict panel builder ----
+    def _build_conflict_options(self):
+        panel = self.FindName('conflict_options_panel')
+        if not panel:
+            return
+        options = [
+            (CP_OVERWRITE, 'Revit view is replaced with the new source. Keeps things in sync, loses any in-Revit edits.'),
+            (CP_KEEP_BOTH, 'Imports the new source as a copy alongside the existing view. Best when you need to compare.'),
+            (CP_ASK,       'Pause sync and ask you what to do each time a change is detected.'),
+            (CP_SKIP,      'Ignore the change. View stays stale until you sync manually.'),
+        ]
+        for name, desc in options:
+            row = Border()
+            row.Padding     = System.Windows.Thickness(0, 8, 0, 8)
+            row.BorderBrush = brush('#404553')
+            row.BorderThickness = System.Windows.Thickness(0, 0, 0, 1)
+            row_g = System.Windows.Controls.Grid()
+            c1 = System.Windows.Controls.ColumnDefinition()
+            c1.Width = System.Windows.GridLength.Auto
+            c2 = System.Windows.Controls.ColumnDefinition()
+            row_g.ColumnDefinitions.Add(c1)
+            row_g.ColumnDefinitions.Add(c2)
+
+            rb = System.Windows.Controls.RadioButton()
+            rb.GroupName = 'conflict_policy'
+            rb.Tag       = name
+            rb.Margin    = System.Windows.Thickness(0, 2, 10, 0)
+            rb.VerticalAlignment = System.Windows.VerticalAlignment.Top
+            rb.IsChecked = (name == CP_ASK)
+            System.Windows.Controls.Grid.SetColumn(rb, 0)
+            row_g.Children.Add(rb)
+
+            txt_sp = StackPanel()
+            title = TextBlock()
+            title.Text     = name
+            title.FontSize = 12.5
+            title.FontWeight = System.Windows.FontWeights.SemiBold
+            title.Foreground = brush('#F4FAFF')
+            title.Margin = System.Windows.Thickness(0, 0, 0, 2)
+            d_lbl = TextBlock()
+            d_lbl.Text        = desc
+            d_lbl.FontSize    = 11.5
+            d_lbl.Foreground  = brush('#F4FAFF')
+            d_lbl.Opacity     = 0.65
+            d_lbl.TextWrapping = System.Windows.TextWrapping.Wrap
+            txt_sp.Children.Add(title)
+            txt_sp.Children.Add(d_lbl)
+            System.Windows.Controls.Grid.SetColumn(txt_sp, 1)
+            row_g.Children.Add(txt_sp)
+            row.Child = row_g
+            panel.Children.Add(row)
+
+    # ---- Mode switching ----
+    def _set_mode(self, mode):
+        self._mode = mode
+        v_normal  = Visibility.Visible if mode == 'normal'    else Visibility.Collapsed
+        v_close   = Visibility.Visible if mode != 'normal'    else Visibility.Collapsed
+        v_main    = Visibility.Visible if mode == 'normal'    else Visibility.Collapsed
+        v_set     = Visibility.Visible if mode == 'settings'  else Visibility.Collapsed
+        v_con     = Visibility.Visible if mode == 'conflicts' else Visibility.Collapsed
+
+        self.FindName('hdr_normal_btns').Visibility = v_normal
+        self.FindName('hdr_close_btns').Visibility  = v_close
+        self.FindName('main_panel').Visibility      = v_main
+        self.FindName('settings_panel').Visibility  = v_set
+        self.FindName('conflicts_panel').Visibility = v_con
+
+        sub_set = self.FindName('hdr_sub_settings')
+        sub_con = self.FindName('hdr_sub_conflicts')
+        if sub_set:
+            sub_set.Visibility = Visibility.Visible if mode == 'settings'  else Visibility.Collapsed
+        if sub_con:
+            sub_con.Visibility = Visibility.Visible if mode == 'conflicts' else Visibility.Collapsed
+
+    # ---- Entry management ----
+    def add_files(self, file_paths):
+        added = 0
+        for fp in file_paths:
+            fp = safe_str(fp)
+            if not File.Exists(fp):
+                continue
+            e = TableEntry()
+            e.file_path  = fp
+            e.view_name  = safe_str(Path.GetFileNameWithoutExtension(fp))
+            e.status     = 'new'
+            # pre-fill sheet from workbook if Excel
+            ext = safe_str(Path.GetExtension(fp)).lower()
+            if ext in ('.xlsx', '.xls'):
+                info = get_workbook_info(fp)
+                if info and info['sheets']:
+                    e.sheet_name = info['sheets'][0]
+            self.entries.insert(0, e)
+            added += 1
+        if added:
+            self._render_all()
+            self._update_footer()
+            self.flash('Added {} file{}'.format(added, 's' if added != 1 else ''))
+
+    def remove_entry(self, uid):
+        self.entries = [e for e in self.entries if e.uid != uid]
+        save_entries_to_model(self.entries)
+        self._render_all()
+        self._update_footer()
+        self.flash('Removed')
+
+    # ---- Render ----
+    def _render_all(self):
+        """Rebuild the rows_panel from current entries list."""
+        rows_panel = self.FindName('rows_panel')
+        empty_panel = self.FindName('empty_panel')
+        list_panel  = self.FindName('list_panel')
+        apply_btn   = self.FindName('apply_btn')
+
+        rows_panel.Children.Clear()
+        self.row_ctrls = []
+
+        if not self.entries:
+            empty_panel.Visibility = Visibility.Visible
+            list_panel.Visibility  = Visibility.Collapsed
+            if apply_btn:
+                apply_btn.IsEnabled = False
+            return
+
+        empty_panel.Visibility = Visibility.Collapsed
+        list_panel.Visibility  = Visibility.Visible
+        if apply_btn:
+            apply_btn.IsEnabled = True
+
+        search_tb = self.FindName('search_tb')
+        q = safe_str(search_tb.Text).lower().strip() if search_tb else ''
+        for entry in self.entries:
+            if q and q not in (entry.view_name or '').lower() \
+               and q not in entry.filename.lower() \
+               and q not in entry.view_type.lower():
+                continue
+            try:
+                ctrl = RowCardController(entry, self)
+                self.row_ctrls.append(ctrl)
+                rows_panel.Children.Add(ctrl.card)
+            except Exception as ex:
+                logger.warning(
+                    'PyTables: could not build row for {}: {}'.format(
+                        entry.filename, ex
+                    )
+                )
+
+    def _update_footer(self):
+        total = len(self.entries)
+        live  = sum(1 for e in self.entries if e.status == 'live')
+        stale = sum(1 for e in self.entries if e.status == 'stale')
+        error = sum(1 for e in self.entries if e.status == 'error')
+
+        def set_run(name, val):
+            r = self.FindName(name)
+            if r:
+                r.Text = str(val)
+
+        set_run('ft_total_n', total)
+        set_run('ft_live_n',  live)
+        set_run('ft_stale_n', stale)
+        set_run('ft_error_n', error)
+
+        hint = self.FindName('ft_hint')
+        if hint:
+            hint.Text = 'F5 to sync all' if total > 0 else 'Drop a file to begin'
+
+    def _update_batch_strip(self):
+        checked = [c for c in self.row_ctrls if c.check.IsChecked == True]
+        strip   = self.FindName('batch_strip')
+        remove  = self.FindName('remove_btn')
+        if strip:
+            strip.Visibility = Visibility.Visible if checked else Visibility.Collapsed
+        if remove:
+            remove.IsEnabled = bool(checked)
+        run = self.FindName('batch_count_run')
+        if run:
+            run.Text = str(len(checked))
+
+    # ---- Toast ----
+    def flash(self, message):
+        tb = self.FindName('toast_border')
+        tl = self.FindName('toast_text')
+        if not tb or not tl:
+            return
+        tl.Text = message
+        tb.Visibility = Visibility.Visible
+
+        if self._toast_timer:
+            self._toast_timer.Stop()
+        timer = DispatcherTimer()
+        timer.Interval = System.TimeSpan.FromMilliseconds(2200)
+
+        def hide(s, e):
+            tb.Visibility = Visibility.Collapsed
+            timer.Stop()
+
+        timer.Tick += hide
+        timer.Start()
+        self._toast_timer = timer
+
+    # ---- Settings switch helpers ----
+    def _set_switch(self, track_name, thumb_name, lbl_name, on, on_text, off_text):
+        track = self.FindName(track_name)
+        thumb = self.FindName(thumb_name)
+        lbl   = self.FindName(lbl_name)
+        if not track:
+            return
+        if on:
+            track.Background  = brush('#3F208A3C')
+            track.BorderBrush = brush('#208A3C')
+            thumb.Fill        = brush('#208A3C')
+            thumb.Margin      = System.Windows.Thickness(15, 0, 0, 0)
+            if lbl:
+                lbl.Text = on_text
+        else:
+            track.Background  = brush('#1f242c')
+            track.BorderBrush = brush('#404553')
+            thumb.Fill        = brush('#9aa2b1')
+            thumb.Margin      = System.Windows.Thickness(2, 0, 0, 0)
+            if lbl:
+                lbl.Text = off_text
+
+    # ======================================================
+    # XAML event handlers (wired via x:Name + Click= etc.)
+    # ======================================================
+
+    def on_apply_click(self, sender, e):
+        """Apply all new/stale entries to Revit."""
+        self.FindName('popup_menu').Visibility = Visibility.Collapsed
+        to_apply = [en for en in self.entries if en.status in ('new', 'stale')]
+        if not to_apply:
+            self.flash('Nothing to apply')
+            return
+        ok_count = 0
+        for entry in to_apply:
+            ok, msg = apply_entry(entry)
+            ctrl = next((c for c in self.row_ctrls if c.entry.uid == entry.uid), None)
+            if ctrl:
+                ctrl.update_status(entry.status)
+            if ok:
+                ok_count += 1
+        save_entries_to_model(self.entries)
+        self._update_footer()
+        self.flash('Applied {} view{} to Revit'.format(
+            ok_count, 's' if ok_count != 1 else ''))
+
+    def on_menu_click(self, sender, e):
+        pm = self.FindName('popup_menu')
+        pm.Visibility = (
+            Visibility.Visible if pm.Visibility == Visibility.Collapsed
+            else Visibility.Collapsed
         )
 
-    ns = {
-        '__name__':        script_name,
-        '__file__':        script_path,
-        '__builtins__':    __builtins__,
-        'PYTABLE_PAYLOAD': payload,
-    }
+    def on_panel_close_click(self, sender, e):
+        self._set_mode('normal')
 
-    src = open(script_path, 'r').read()
+    def on_browse_click(self, sender, e):
+        self.FindName('popup_menu').Visibility = Visibility.Collapsed
+        dlg = OpenFileDialog()
+        dlg.Title      = 'Select documents to link'
+        dlg.Filter     = 'Supported files|*.xlsx;*.xls;*.csv;*.docx;*.doc|Excel|*.xlsx;*.xls;*.csv|Word|*.docx;*.doc'
+        dlg.Multiselect = True
+        if dlg.ShowDialog() == DialogResult.OK:
+            self.add_files(list(dlg.FileNames))
 
-    # These scripts manage their own transactions internally
-    if script_name in ('create_legend.py', 'create_notes.py'):
-        exec(src, ns)
-    else:
-        with revit.Transaction(
-            'pyTable - {}'.format(
-                payload.get('view_name', script_name)
-            )
-        ):
-            exec(src, ns)
+    def on_folder_click(self, sender, e):
+        self.FindName('popup_menu').Visibility = Visibility.Collapsed
+        dlg = FolderBrowserDialog()
+        dlg.Description = 'Select a folder to import all supported files from'
+        if dlg.ShowDialog() == DialogResult.OK:
+            folder = safe_str(dlg.SelectedPath)
+            files  = []
+            for ext in ('*.xlsx', '*.xls', '*.csv', '*.docx', '*.doc'):
+                files += [
+                    safe_str(f)
+                    for f in Directory.GetFiles(folder, ext)
+                ]
+            if files:
+                self.add_files(files)
+            else:
+                self.flash('No supported files found in that folder')
 
+    def on_search_changed(self, sender, e):
+        self._render_all()
 
-def apply_row(row):
-    """
-    Process one UI row:
-    1. Read data from the Excel named range
-    2. Pre-create pyTable text types (before any transaction)
-    3. Call the appropriate Export/ script via exec()
+    def on_batch_remove_click(self, sender, e):
+        checked_uids = [c.entry.uid for c in self.row_ctrls if c.check.IsChecked == True]
+        if not checked_uids:
+            return
+        self.entries = [en for en in self.entries if en.uid not in checked_uids]
+        save_entries_to_model(self.entries)
+        self._render_all()
+        self._update_footer()
+        self.flash('Removed {} item{}'.format(
+            len(checked_uids), 's' if len(checked_uids) != 1 else ''))
 
-    Returns {'view_name', 'status', 'message'}
-    """
-    from pyrevit import output as _output
-    out = _output.get_output()
+    def on_batch_sync_click(self, sender, e):
+        checked = [c for c in self.row_ctrls if c.check.IsChecked == True]
+        for ctrl in checked:
+            ok, msg = apply_entry(ctrl.entry)
+            ctrl.update_status(ctrl.entry.status)
+        save_entries_to_model(self.entries)
+        self._update_footer()
+        self.flash('Synced {} item{}'.format(
+            len(checked), 's' if len(checked) != 1 else ''))
 
-    result = {
-        'view_name': row.view_name,
-        'status':    'error',
-        'message':   ''
-    }
+    def on_batch_autosync_on_click(self, sender, e):
+        for ctrl in self.row_ctrls:
+            if ctrl.check.IsChecked == True:
+                ctrl.entry.auto_sync = True
+                ctrl._update_autosync_ui()
+        self.flash('Auto-sync on for selected')
 
-    out.print_md('## pyTable: {}'.format(row.view_name))
-    out.print_md('File: `{}`'.format(row.file_path))
-    out.print_md('Range: `{}` | Sheet: `{}`'.format(
-        row.named_range, row.sheet_name
-    ))
+    def on_batch_autosync_off_click(self, sender, e):
+        for ctrl in self.row_ctrls:
+            if ctrl.check.IsChecked == True:
+                ctrl.entry.auto_sync = False
+                ctrl._update_autosync_ui()
+        self.flash('Auto-sync off for selected')
 
-    # Read data from xlsx
-    rows = read_named_range_data(
-        row.file_path,
-        row.named_range,
-        row.sheet_name
-    )
+    def on_menu_settings_click(self, sender, e):
+        self.FindName('popup_menu').Visibility = Visibility.Collapsed
+        self._set_mode('settings')
 
-    out.print_md('Rows read: **{}**'.format(len(rows)))
+    def on_menu_conflicts_click(self, sender, e):
+        self.FindName('popup_menu').Visibility = Visibility.Collapsed
+        self._set_mode('conflicts')
 
-    if not rows:
-        result['message'] = (
-            'No data found in named range "{}". '
-            'Check the range name and sheet.'.format(row.named_range)
+    def on_sync_all_click(self, sender, e):
+        self.FindName('popup_menu').Visibility = Visibility.Collapsed
+        count = 0
+        for entry in self.entries:
+            ok, _ = apply_entry(entry)
+            ctrl = next((c for c in self.row_ctrls if c.entry.uid == entry.uid), None)
+            if ctrl:
+                ctrl.update_status(entry.status)
+            if ok:
+                count += 1
+        save_entries_to_model(self.entries)
+        self._update_footer()
+        self.flash('Synced {} view{}'.format(count, 's' if count != 1 else ''))
+
+    def on_clear_all_click(self, sender, e):
+        self.FindName('popup_menu').Visibility = Visibility.Collapsed
+        res = MessageBox.Show(
+            'Remove all linked documents?',
+            'pyTable',
+            MessageBoxButton.YesNo
         )
-        out.print_md('ERROR: {}'.format(result['message']))
-        return result
+        if res == MessageBoxResult.Yes:
+            self.entries = []
+            save_entries_to_model(self.entries)
+            self._render_all()
+            self._update_footer()
+            self.flash('Cleared all documents')
 
-    fields  = [str(h) for h in rows[0]]
-    records = [[str(c) for c in r] for r in rows[1:]]
+    def on_menu_about_click(self, sender, e):
+        self.FindName('popup_menu').Visibility = Visibility.Collapsed
+        cnt = self.FindName('about_count')
+        if cnt:
+            cnt.Text = str(len(self.entries))
+        self.FindName('overlay').Visibility     = Visibility.Visible
+        self.FindName('about_modal').Visibility = Visibility.Visible
 
-    out.print_md('Fields: `{}`'.format(fields))
-    out.print_md('Data rows: **{}**'.format(len(records)))
+    def on_about_close_click(self, sender, e):
+        self.FindName('overlay').Visibility     = Visibility.Collapsed
+        self.FindName('about_modal').Visibility = Visibility.Collapsed
 
-    if not fields:
-        result['message'] = 'Named range has no header row.'
-        return result
-
-    # Pre-create text types outside any transaction
-    hdr_tt = get_or_create_text_type(
-        font=row.font, size_mm=row.size_hdr_mm, bold=True
-    )
-    dat_tt = get_or_create_text_type(
-        font=row.font, size_mm=row.size_dat_mm, bold=False
-    )
-    hdr_tt_id = hdr_tt.Id if hdr_tt else DB.ElementId.InvalidElementId
-    dat_tt_id = dat_tt.Id if dat_tt else DB.ElementId.InvalidElementId
-
-    out.print_md(
-        'Text types: hdr=`{}` dat=`{}`'.format(
-            hdr_tt.get_Parameter(
-                DB.BuiltInParameter.SYMBOL_NAME_PARAM
-            ).AsString() if hdr_tt else 'none',
-            dat_tt.get_Parameter(
-                DB.BuiltInParameter.SYMBOL_NAME_PARAM
-            ).AsString() if dat_tt else 'none'
+    def on_settings_autosync_toggle(self, sender, e):
+        self._settings_autosync = not self._settings_autosync
+        self._set_switch(
+            'settings_autosync_track', 'settings_autosync_thumb', 'settings_autosync_lbl',
+            self._settings_autosync,
+            'On — files added are kept in sync automatically',
+            'Off — files added are kept in sync manually'
         )
-    )
 
-    # Read cell formatting from xlsx
-    fmt = read_range_formatting(
-        row.file_path,
-        row.named_range,
-        row.sheet_name
-    )
-    out.print_md(
-        'Formatting: {} cell styles, {} merges'.format(
-            len(fmt.get('cell_styles', {})),
-            len(fmt.get('merges', []))
+    def on_settings_bw_toggle(self, sender, e):
+        self._settings_bw = not self._settings_bw
+        self._set_switch(
+            'settings_bw_track', 'settings_bw_thumb', 'settings_bw_lbl',
+            self._settings_bw,
+            'Render as black and white by default',
+            'Render as black and white by default'
         )
-    )
 
-    # Build payload for export script
-    out.print_md('### Data to be written')
-    header_row = ' | '.join(fields)
-    separator  = ' | '.join(['---'] * len(fields))
-    out.print_md('| {} |'.format(header_row))
-    out.print_md('| {} |'.format(separator))
-    for rec in records:
-        out.print_md('| {} |'.format(' | '.join(rec)))
+    def _on_row_check_changed(self):
+        self._update_batch_strip()
 
-    # Pre-create line styles outside any transaction (Revit requirement)
-    line_ids = _pre_create_line_styles(fmt.get('cell_styles', {}))
+    # ---- Drag and drop ----
+    def _on_drag_over(self, sender, e):
+        if e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop):
+            e.Effects = System.Windows.DragDropEffects.Copy
+        else:
+            e.Effects = System.Windows.DragDropEffects.None
+        e.Handled = True
 
-    # Build payload for export script
-    payload = {
-        'view_name':          row.view_name,
-        'fields':             fields,
-        'records':            records,
-        'font':               row.font,
-        'size_hdr_mm':        row.size_hdr_mm,
-        'size_dat_mm':        row.size_dat_mm,
-        'hdr_tt_id':          hdr_tt_id,
-        'dat_tt_id':          dat_tt_id,
-        'view_scale':         row.view_scale,
-        'cell_styles':        fmt.get('cell_styles', {}),
-        'merges':             fmt.get('merges', []),
-        'row_heights':        fmt.get('row_heights', {}),
-        'col_widths':         fmt.get('col_widths', {}),
-        'default_row_height': fmt.get('default_row_height', 14.0),
-        'line_ids':           line_ids,
-    }
+    def _on_drop(self, sender, e):
+        if e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop):
+            files = list(e.Data.GetData(System.Windows.DataFormats.FileDrop))
+            supported = [
+                safe_str(f) for f in files
+                if safe_str(Path.GetExtension(f)).lower()
+                in ('.xlsx', '.xls', '.csv', '.docx', '.doc')
+            ]
+            if supported:
+                self.add_files(supported)
+            else:
+                self.flash('No supported files in drop')
 
-    # Map view type to export script
-    script_map = {
-        VIEW_TYPE_SCHEDULE: 'create_schedule.py',
-        VIEW_TYPE_DRAFTING: 'create_drafting.py',
-        VIEW_TYPE_LEGEND:   'create_legend.py',
-    }
-
-    export_script = script_map.get(row.view_type)
-    if not export_script:
-        result['message'] = 'Unknown view type: {}'.format(row.view_type)
-        return result
-
-    out.print_md(
-        'Running: `{}` for view type `{}`'.format(
-            export_script, row.view_type
-        )
-    )
-
-    try:
-        _run_export_script(export_script, payload)
-        result['status']  = 'success'
-        result['message'] = 'Created'
-        out.print_md('**Done:** {}'.format(row.view_name))
-    except Exception as e:
-        import traceback
-        result['message'] = str(e)
-        out.print_md('**ERROR:** {}'.format(e))
-        logger.error(traceback.format_exc())
-
-    return result
+    # ---- Show ----
+    def show(self):
+        self.ShowDialog()
 
 
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
-
-
-
-# ---------------------------------------------------------------------------
-# Word document reading
-# ---------------------------------------------------------------------------
-
-def read_word_sections(file_path):
-    """
-    Parse a .docx file and extract sections as a list of dicts:
-        [{'heading': str, 'paragraphs': [{'text': str, 'bold': bool,
-          'italic': bool, 'underline': bool}]}, ...]
-
-    A section starts when a paragraph is detected as a heading:
-    - Word heading styles (Heading1, Heading2, etc.)
-    - Bold-only paragraphs with all-caps or short text (<= 60 chars)
-
-    Uses zipfile + XmlDocument — no COM, no third-party libraries.
-    """
-    import zipfile
-    clr_ref = False
-    try:
-        import clr as _clr
-        _clr.AddReference('System.Xml')
-        clr_ref = True
-    except Exception:
-        pass
-
-    from System.Xml import XmlDocument
-
-    def _load_xml(text):
-        xd = XmlDocument()
-        xd.LoadXml(text)
-        return xd
-
-    NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
-
-    def _attr(node, local):
-        """Get a w: attribute value by local name."""
-        try:
-            return node.GetAttribute(local, NS) or node.GetAttribute(local)
-        except Exception:
-            return ''
-
-    def _text_of(para_node):
-        """
-        Concatenate all w:t and w:tab content inside a paragraph node,
-        preserving tab characters in document order.
-        w:tab elements are emitted as \t — this is essential for
-        alignment tables where Word uses tab stops to align columns.
-        """
-        parts = []
-        # Walk all descendant nodes looking for w:t and w:tab in order
-        # We use a simple recursive walk since XmlNodeList ordering
-        # is document order for GetElementsByTagName.
-        # Strategy: get all runs (w:r) in order, then within each run
-        # get child w:t and w:tab nodes.
-        def _walk_run(run):
-            child = run.FirstChild
-            while child is not None:
-                local = child.LocalName
-                if local == 't':
-                    parts.append(child.InnerText)
-                elif local == 'tab':
-                    parts.append(u'	')
-                child = child.NextSibling
-
-        # First try namespaced runs
-        runs = para_node.GetElementsByTagName('r', NS)
-        if not runs.Count:
-            runs = para_node.GetElementsByTagName('r')
-        for i in range(runs.Count):
-            _walk_run(runs.Item(i))
-
-        # Fallback: no runs — grab w:t directly (old behaviour)
-        if not parts:
-            for t in para_node.GetElementsByTagName('t', NS):
-                parts.append(t.InnerText)
-            if not parts:
-                for t in para_node.GetElementsByTagName('t'):
-                    parts.append(t.InnerText)
-        return u''.join(parts)
-
-    def _is_heading_style(style_id):
-        sid = (style_id or '').lower()
-        return (sid.startswith('heading') or
-                sid in ('title', 'subtitle', 'caption'))
-
-    def _run_props(run_node):
-        """Return (bold, italic, underline) for a w:r run node."""
-        bold = italic = underline = False
-        rpr_list = run_node.GetElementsByTagName('rPr', NS)
-        if not rpr_list.Count:
-            rpr_list = run_node.GetElementsByTagName('rPr')
-        if rpr_list.Count:
-            rpr = rpr_list.Item(0)
-            bold      = bool(rpr.GetElementsByTagName('b',  NS).Count or
-                             rpr.GetElementsByTagName('b').Count)
-            italic    = bool(rpr.GetElementsByTagName('i',  NS).Count or
-                             rpr.GetElementsByTagName('i').Count)
-            underline = bool(rpr.GetElementsByTagName('u',  NS).Count or
-                             rpr.GetElementsByTagName('u').Count)
-        return bold, italic, underline
-
-    # ── Bullet character map from numbering.xml ─────────────────────
-    _bullet_chars = {}   # numId (str) -> bullet char string
-    try:
-        with zipfile.ZipFile(file_path, 'r') as _zf:
-            if 'word/numbering.xml' in _zf.namelist():
-                _nxml = _zf.read('word/numbering.xml').decode(
-                    'utf-8', errors='replace')
-                _ndoc = _load_xml(_nxml)
-                # abstractNum entries carry the bullet format
-                for _an in list(_ndoc.GetElementsByTagName(
-                        'abstractNum', NS)) + list(
-                        _ndoc.GetElementsByTagName('abstractNum')):
-                    for _lvl in list(_an.GetElementsByTagName(
-                            'lvl', NS)) + list(
-                            _an.GetElementsByTagName('lvl')):
-                        # Only ilvl 0 (first level)
-                        ilvl = (_attr(_lvl, 'ilvl') or
-                                _lvl.GetAttribute('w:ilvl') or '0')
-                        if ilvl != '0':
-                            continue
-                        _nfmt_els = (list(_lvl.GetElementsByTagName(
-                            'numFmt', NS)) or list(
-                            _lvl.GetElementsByTagName('numFmt')))
-                        _ltxt_els = (list(_lvl.GetElementsByTagName(
-                            'lvlText', NS)) or list(
-                            _lvl.GetElementsByTagName('lvlText')))
-                        if _nfmt_els and _ltxt_els:
-                            fmt = (_attr(_nfmt_els[0], 'val') or
-                                   _nfmt_els[0].GetAttribute('w:val') or '')
-                            txt = (_attr(_ltxt_els[0], 'val') or
-                                   _ltxt_els[0].GetAttribute('w:val') or
-                                   u'·')
-                            if fmt == 'bullet':
-                                # map abstractNumId -> char
-                                _an_id = (_attr(_an, 'abstractNumId') or
-                                          _an.GetAttribute('w:abstractNumId') or
-                                          '0')
-                                _bullet_chars[_an_id] = txt
-                # num->abstractNum mapping
-                _num_map = {}  # numId -> bullet char
-                for _num in list(_ndoc.GetElementsByTagName(
-                        'num', NS)) + list(
-                        _ndoc.GetElementsByTagName('num')):
-                    _nid = (_attr(_num, 'numId') or
-                            _num.GetAttribute('w:numId') or '')
-                    _anid_els = (list(_num.GetElementsByTagName(
-                        'abstractNumId', NS)) or list(
-                        _num.GetElementsByTagName('abstractNumId')))
-                    if _anid_els and _nid:
-                        _anid = (_attr(_anid_els[0], 'val') or
-                                 _anid_els[0].GetAttribute('w:val') or '')
-                        if _anid in _bullet_chars:
-                            _num_map[_nid] = _bullet_chars[_anid]
-                _bullet_chars.update(_num_map)
-    except Exception as _bex:
-        logger.debug('bullet parse: {}'.format(_bex))
-
-    def _get_bullet_char(para_node):
-        """Return bullet prefix string if paragraph is a list item, else ''."""
-        ppr = None
-        ppr_list = para_node.GetElementsByTagName('pPr', NS)
-        if not ppr_list.Count:
-            ppr_list = para_node.GetElementsByTagName('pPr')
-        if ppr_list.Count:
-            ppr = ppr_list.Item(0)
-        if ppr is None:
-            return ''
-        num_pr = (list(ppr.GetElementsByTagName('numPr', NS)) or
-                  list(ppr.GetElementsByTagName('numPr')))
-        if not num_pr:
-            return ''
-        num_id_els = (list(num_pr[0].GetElementsByTagName('numId', NS)) or
-                      list(num_pr[0].GetElementsByTagName('numId')))
-        if not num_id_els:
-            return u'§ '   # fallback § if numPr exists but no numId
-        nid = (_attr(num_id_els[0], 'val') or
-               num_id_els[0].GetAttribute('w:val') or '')
-        char = _bullet_chars.get(nid, u'§')
-        # Normalise common bullet chars to § to match doc style
-        if char in (u'•', u'·', u'', '-', '*', u'–'):
-            char = u'§'
-        return char + u' '
-
-    def _para_is_heading(para_node, style_id):
-        if _is_heading_style(style_id):
-            return True
-        text = _text_of(para_node).strip()
-        if not text:
-            return False
-        # Never treat parenthesised text as a heading
-        if text.startswith('('):
-            return False
-        # List items are never headings
-        if _get_bullet_char(para_node):
-            return False
-        # Heuristic: bold AND all-uppercase
-        runs = list(para_node.GetElementsByTagName('r', NS))
-        if not runs:
-            runs = list(para_node.GetElementsByTagName('r'))
-        if not runs:
-            return False
-        all_bold = all(_run_props(r)[0] for r in runs if _text_of(r).strip())
-        is_upper = text == text.upper() and any(c.isalpha() for c in text)
-        return all_bold and is_upper and len(text) <= 80
-
-    sections = []
-    current  = None
-
-    try:
-        with zipfile.ZipFile(file_path, 'r') as zf:
-            doc_xml = zf.read('word/document.xml').decode('utf-8', errors='replace')
-    except Exception as ex:
-        logger.error('read_word_sections: cannot open {}: {}'.format(file_path, ex))
-        return []
-
-    try:
-        xdoc = _load_xml(doc_xml)
-    except Exception as ex:
-        logger.error('read_word_sections: XML parse failed: {}'.format(ex))
-        return []
-
-    paras = xdoc.GetElementsByTagName('p', NS)
-    if not paras.Count:
-        paras = xdoc.GetElementsByTagName('p')
-
-    for i in range(paras.Count):
-        p = paras.Item(i)
-
-        # Get paragraph style id
-        style_id = ''
-        ppr_list = p.GetElementsByTagName('pPr', NS)
-        if not ppr_list.Count:
-            ppr_list = p.GetElementsByTagName('pPr')
-        if ppr_list.Count:
-            ppr = ppr_list.Item(0)
-            pstyle = ppr.GetElementsByTagName('pStyle', NS)
-            if not pstyle.Count:
-                pstyle = ppr.GetElementsByTagName('pStyle')
-            if pstyle.Count:
-                style_id = (_attr(pstyle.Item(0), 'val') or
-                            pstyle.Item(0).GetAttribute('w:val') or '')
-
-        text = _text_of(p).strip()
-
-        if _para_is_heading(p, style_id):
-            if current is not None:
-                sections.append(current)
-            current = {'heading': text, 'paragraphs': []}
-        else:
-            if current is None:
-                # Text before any heading — create anonymous section
-                if text:
-                    current = {'heading': '', 'paragraphs': []}
-            if current is not None:
-                # Collect run-level formatting for the paragraph
-                runs = list(p.GetElementsByTagName('r', NS))
-                if not runs:
-                    runs = list(p.GetElementsByTagName('r'))
-                bullet_prefix = _get_bullet_char(p)
-                if runs:
-                    bold_any = italic_any = underline_any = False
-                    for r in runs:
-                        b, it, ul = _run_props(r)
-                        if b:  bold_any      = True
-                        if it: italic_any    = True
-                        if ul: underline_any = True
-                    current['paragraphs'].append({
-                        'text':      text,
-                        'bold':      bold_any,
-                        'italic':    italic_any,
-                        'underline': underline_any,
-                        'bullet':    bullet_prefix,
-                    })
-                elif text:
-                    current['paragraphs'].append({
-                        'text': text, 'bold': False,
-                        'italic': False, 'underline': False,
-                        'bullet': bullet_prefix,
-                    })
-
-    if current is not None:
-        sections.append(current)
-
-    return sections
-
-
-def get_word_headings(file_path):
-    """
-    Return display labels for the Section combo in the UI.
-
-    When a heading appears more than once (e.g. EXTERIOR STEELWORK),
-    append the first parenthesised subtitle from its body paragraphs
-    so each entry is unique and meaningful:
-        EXTERIOR STEELWORK (Zinc Metal Spray Only)
-        EXTERIOR STEELWORK (Inorganic zinc and Top Coats)
-    The label stored in row.NamedRange is this display string so we can
-    look up the section at Apply time.
-    """
-    try:
-        sections = [s for s in read_word_sections(file_path)
-                    if s.get('heading')]
-        # Count how many times each raw heading occurs
-        from collections import Counter as _Counter
-        counts = _Counter(s['heading'] for s in sections)
-        labels = []
-        for s in sections:
-            heading = s['heading']
-            if counts[heading] > 1:
-                # Find first parenthesised paragraph to disambiguate
-                subtitle = ''
-                for p in s.get('paragraphs', []):
-                    t = p.get('text', '').strip()
-                    if t.startswith('(') and t.endswith(')'):
-                        subtitle = ' ' + t
-                        break
-                labels.append(heading + subtitle)
-            else:
-                labels.append(heading)
-        return labels
-    except Exception as ex:
-        logger.error('get_word_headings: {}'.format(ex))
-        return []
-
-
-# ---------------------------------------------------------------------------
-# Notes row apply
-# ---------------------------------------------------------------------------
-
-def apply_notes_row(rows, view_name, view_type, sheet_size,
-                    col_count, file_path, size_mm=2.3):
-    """
-    Apply a set of Word notes rows to a single Drafting/Legend view.
-
-    rows is a list of dicts:
-        [{'heading': str, 'paragraphs': [...], 'col': int}, ...]
-
-    Returns {'view_name', 'status', 'message'}.
-    """
-    from pyrevit import output as _output
-    out = _output.get_output()
-    out.print_md('## pyTable Notes: {}'.format(view_name))
-
-    result = {'view_name': view_name, 'status': 'error', 'message': ''}
-
-    if not rows:
-        result['message'] = 'No sections to place.'
-        return result
-
-    payload = {
-        'view_name':  view_name,
-        'view_type':  view_type,
-        'sections':   rows,
-        'sheet_size': sheet_size,
-        'col_count':  col_count,
-        'size_mm':    size_mm,
-    }
-
-    try:
-        _run_export_script('create_notes.py', payload)
-        result['status']  = 'success'
-        result['message'] = 'Created'
-        out.print_md('**Done:** {}'.format(view_name))
-    except Exception as ex:
-        import traceback
-        result['message'] = str(ex)
-        out.print_md('**ERROR:** {}'.format(ex))
-        logger.error(traceback.format_exc())
-
-    return result
-
-def main():
-    """Launch the pyTable UI."""
-    from pyTable_ui import PyTableWindow
-    window = PyTableWindow()
-    window.show_dialog()
-
-
-if __name__ == '__main__':
-    main()
-
-
-
-def _hash_range(file_path, named_range, sheet_name):
-    """
-    Compute a quick hash of the named range content + formatting.
-    Used to detect changes between applies.
-    """
-    import hashlib
-    try:
-        rows = read_named_range_data(file_path, named_range, sheet_name)
-        fmt  = read_range_formatting(file_path, named_range, sheet_name)
-        # Hash cell values
-        content = repr(rows)
-        # Hash cell styles (fills, colours, borders)
-        styles = repr(sorted(fmt.get('cell_styles', {}).items()))
-        combined = content + styles
-        return hashlib.md5(combined.encode('utf-8', errors='replace')).hexdigest()
-    except Exception:
-        return None
-
-def _hash_word_section(file_path, heading):
-    """
-    Compute a hash of a single Word section (heading + body paragraphs).
-    Used for per-row sync detection on Word cards — equivalent to
-    _hash_range for Excel rows.
-    """
-    import hashlib
-    try:
-        sections = read_word_sections(file_path)
-        for sec in sections:
-            if sec.get('heading', '') == heading:
-                content = repr(sec)
-                return hashlib.md5(
-                    content.encode('utf-8', errors='replace')).hexdigest()
-    except Exception:
-        pass
-    return None
-
-
-# ── pyTable persistence via shared parameter ──────────────────────────────────
-
-PYTABLE_PARAM_GUID = 'f0a46d4c-c148-4ff4-95c8-9750eec5d480'
-PYTABLE_PARAM_NAME = 'pyTable'
-PYTABLE_PARAM_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), 'pyTable.txt')
-
-
-def _get_pytable_param():
-    """
-    Get or create the pyTable shared parameter on ProjectInfo.
-    Returns the Parameter object or None.
-    """
-    try:
-        proj_info = doc.ProjectInformation
-        # Try to find existing parameter
-        p = proj_info.LookupParameter(PYTABLE_PARAM_NAME)
-        if p is not None:
-            return p
-        # Need to load shared parameter file and bind
-        app = revit.HOST_APP.app
-        orig_file = app.SharedParametersFilename
-        try:
-            app.SharedParametersFilename = PYTABLE_PARAM_FILE
-            sp_file = app.OpenSharedParameterFile()
-            if sp_file is None:
-                return None
-            # Find or create group
-            grp = None
-            for g in sp_file.Groups:
-                if g.Name == 'Seed43':
-                    grp = g
-                    break
-            if grp is None:
-                return None
-            # Find definition
-            defn = None
-            for d in grp.Definitions:
-                if d.Name == PYTABLE_PARAM_NAME:
-                    defn = d
-                    break
-            if defn is None:
-                return None
-            # Bind to ProjectInfo
-            cats = DB.CategorySet()
-            cats.Insert(doc.Settings.Categories.get_Item(
-                DB.BuiltInCategory.OST_ProjectInformation))
-            binding = DB.InstanceBinding(cats)
-            with revit.Transaction('pyTable - bind parameter'):
-                doc.ParameterBindings.Insert(defn, binding)
-            return proj_info.LookupParameter(PYTABLE_PARAM_NAME)
-        finally:
-            app.SharedParametersFilename = orig_file
-    except Exception as ex:
-        logger.warning('pyTable param get failed: {}'.format(ex))
-        return None
-
-
-def save_pytable_state(file_data):
-    """
-    Serialise pyTable UI state to the shared parameter on ProjectInfo.
-
-    file_data: {path: {rows: [Row, ...], ...}}
-
-    Format:
-        #card 01
-        C:\\path\\to\\file.xlsx
-        VN-name|S-sheet|R-range|VT-viewtype
-        ...
-        #card 02
-        ...
-    """
-    lines = []
-    for i, (path, fd) in enumerate(file_data.items(), 1):
-        lines.append('#card {:02d}'.format(i))
-        lines.append(path)
-        for row in fd.get('rows', []):
-            mt = ''
-            try:
-                if row._applied_mtime:
-                    mt = str(int(row._applied_mtime))
-            except Exception:
-                pass
-            h = ''
-            try:
-                if row._applied_hash:
-                    h = row._applied_hash
-            except Exception:
-                pass
-            cn = getattr(row, 'ColNo', 1)
-            lines.append('VN-{}|S-{}|R-{}|VT-{}|MT-{}|H-{}|CN-{}'.format(
-                row.ViewName, row.Sheet, row.NamedRange,
-                row.ViewType, mt, h, cn))
-        # Card-level word settings
-        ss = fd.get('sheet_size', '')
-        cc = fd.get('col_count', '')
-        vn = fd.get('view_name', '')
-        if ss:
-            lines.append('CARD_SS-{}|CC-{}|VN-{}'.format(ss, cc, vn))
-    text = '\n'.join(lines)
-    try:
-        p = _get_pytable_param()
-        if p is not None:
-            with revit.Transaction('pyTable - save state'):
-                p.Set(text)
-            logger.debug('pyTable state saved ({} chars)'.format(len(text)))
-    except Exception as ex:
-        logger.warning('pyTable save failed: {}'.format(ex))
-
-
-def load_pytable_state():
-    """
-    Read pyTable state from the shared parameter.
-
-    Returns list of dicts:
-        [{'path': str, 'rows': [{'view_name', 'sheet', 'named_range', 'view_type'}]}]
-    """
-    try:
-        p = _get_pytable_param()
-        if p is None:
-            return []
-        text = p.AsString()
-        if not text:
-            return []
-        cards = []
-        current = None
-        for line in text.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            if line.startswith('#card'):
-                current = {'path': '', 'rows': []}
-                cards.append(current)
-            elif current is not None and not current['path']:
-                current['path'] = line
-            elif current is not None and '|' in line:
-                parts = {}
-                for seg in line.split('|'):
-                    if '-' in seg:
-                        k, v = seg.split('-', 1)
-                        parts[k] = v
-                if 'CARD_SS' in parts:
-                    # Card-level word settings line
-                    current['sheet_size'] = parts.get('CARD_SS', 'A3 Landscape')
-                    try:
-                        current['col_count'] = int(parts.get('CC', 2))
-                    except Exception:
-                        current['col_count'] = 2
-                    current['view_name'] = parts.get('VN', '')
-                    continue
-                mt = parts.get('MT', '')
-                current['rows'].append({
-                    'view_name':    parts.get('VN', ''),
-                    'sheet':        parts.get('S',  ''),
-                    'named_range':  parts.get('R',  ''),
-                    'view_type':    parts.get('VT', 'Schedule View'),
-                    'applied_mtime': float(mt) if mt else None,
-                    'applied_hash':  parts.get('H') or None,
-                    'col_no':       int(parts.get('CN', 1)),
-                })
-        return cards
-    except Exception as ex:
-        logger.warning('pyTable load failed: {}'.format(ex))
-        return []
+ctrl = PyTablesWindow()
+ctrl.show()

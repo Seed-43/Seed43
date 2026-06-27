@@ -201,7 +201,7 @@ else:
 # Reason/Method legend text — from payload (built from live OptionsSettings data)
 # If payload absent (standalone run), read directly from the Options JSON files.
 def _read_coded_json(path, one_line=False):
-    """Read [{'code','separator','description'}] -> formatted legend text."""
+    """Read [{'code','separator','description'}] → formatted legend text."""
     try:
         import json as _jj, os as _oo
         with open(path, 'r') as _f:
@@ -250,6 +250,7 @@ def _hex_to_rgb(h):
     try:
         h = h.strip().lstrip('#')
         if len(h) == 3:
+            # Expand shorthand: #F07 -> #FF0077
             h = h[0]*2 + h[1]*2 + h[2]*2
         return (int(h[0:2],16), int(h[2:4],16), int(h[4:6],16))
     except: return None
@@ -267,7 +268,7 @@ def natural_sort_key(s):
     return [int(p) if p.isdigit() else p.lower() for p in parts]
 
 def format_revit_date(rev):
-    """Return date as Day\r\nMonth\r\nYear (three lines, Revit schedule line break)."""
+    """Return date as Day\r\nMonth\r\nYear (three lines — Revit schedule line break)."""
     try:
         d = rev.RevisionDate
         if hasattr(d, 'Day'):
@@ -325,6 +326,7 @@ def apply_style(sec, r, c, bold=False, size_mm=_DATA_MM, bg_rgb=None, italic=Fal
 
         style = TableCellStyle()
 
+        # Set all property values first
         style.IsFontBold   = bold
         style.IsFontItalic = italic
         style.TextSize     = (size_mm / 0.75) * (72.0 / 25.4)
@@ -345,6 +347,7 @@ def apply_style(sec, r, c, bold=False, size_mm=_DATA_MM, bg_rgb=None, italic=Fal
         style.FontVerticalAlignment = getattr(
             VerticalAlignmentStyle, valign, VerticalAlignmentStyle.Middle)
 
+        # Enable overrides AFTER setting values
         opts = style.GetCellStyleOverrideOptions()
         opts.Bold                = True
         opts.Italics             = True
@@ -360,7 +363,10 @@ def apply_style(sec, r, c, bold=False, size_mm=_DATA_MM, bg_rgb=None, italic=Fal
         output.print_md("   style({},{}) {}".format(r, c, e))
 
 def force_bg(sec, r, c, bg_rgb):
-    """Force background colour on a cell regardless of AllowOverrideCellStyle."""
+    """
+    Force background colour on a cell regardless of AllowOverrideCellStyle.
+    Used for non-anchor cells in merged rows where AllowOverrideCellStyle returns False.
+    """
     try:
         from Autodesk.Revit.DB import Color
         style = sec.GetTableCellStyle(r, c)
@@ -373,7 +379,10 @@ def force_bg(sec, r, c, bg_rgb):
         pass
 
 def force_fg(sec, r, c, fg_rgb):
-    """Force text colour on a cell by reading the existing style and patching TextColor."""
+    """
+    Force text colour on a cell by reading the existing style and patching TextColor.
+    Use on merge anchor cells where apply_style text colour is not sticking.
+    """
     try:
         from Autodesk.Revit.DB import Color
         style = sec.GetTableCellStyle(r, c)
@@ -386,7 +395,7 @@ def force_fg(sec, r, c, fg_rgb):
         output.print_md("   force_fg({},{}) {}".format(r, c, e))
 
 def remove_cell_borders(sec, r, c):
-    """Remove all four borders from a single cell."""
+    """Remove all four borders (top/bottom/left/right) from a single cell."""
     try:
         style = sec.GetTableCellStyle(r, c)
         opts  = style.GetCellStyleOverrideOptions()
@@ -511,7 +520,7 @@ issued_revisions = all_issued_revisions[-MAX_REVS:]
 
 n_revs     = len(issued_revisions)
 rev_start  = 3
-TOTAL_COLS = 3 + MAX_REVS   # 13 cols, 3 fixed + 10 rev
+TOTAL_COLS = 3 + MAX_REVS   # 13 cols — 3 fixed + 10 rev
 
 def _tag(s, tag):
     """Parse TAG:value format from IssuedTo string, e.g. R:C M:E F:PDF S:A3"""
@@ -578,7 +587,7 @@ def get_sheet_param(sheet, param_name):
     return ''
 
 def get_group_label(sheet, params):
-    """Build 'Folder - Stage' label from whichever params have values on this sheet."""
+    """Build 'Folder \u2014 Stage' label from whichever params have values on this sheet."""
     parts = [get_sheet_param(sheet, pn) for pn in params]
     parts = [p for p in parts if p]   # drop blanks
     return u' \u2014 '.join(parts) if parts else ''
@@ -590,16 +599,8 @@ if GROUP_PARAMS:
     for s in tx_sheets:
         key = get_group_label(s, GROUP_PARAMS)
         _groups.setdefault(key, []).append(s)
-    # Sort groups by group label string naturally.
-    # Sheets within each group are already in sheet-number order from tx_sheets.
-    # Empty-label groups (no matching parameter) sort last.
-    grouped_sheets = sorted(
-        _groups.items(),
-        key=lambda item: natural_sort_key(item[0]) if item[0] else ['~']
-    )
-    _log("DEBUG grouped_sheets order:")
-    for _gl, _gs in grouped_sheets:
-        _log("  group='{}' first_sheet='{}'".format(_gl, _gs[0].SheetNumber))
+    # grouped_sheets: list of (label, [sheets]) — '' label means ungrouped
+    grouped_sheets = list(_groups.items())
 else:
     grouped_sheets = [('', tx_sheets)]  # single group, no header row
 
@@ -632,8 +633,8 @@ def _get_or_create_line_style(name, rgb):
         output.print_md("  line style {}: {}".format(name, _e))
         return None
 
-_ON_ID  = None   # pyT On, black visible border
-_OFF_ID = None   # pyT Off, white invisible border
+_ON_ID  = None   # pyT On  — black visible border
+_OFF_ID = None   # pyT Off — white invisible border
 _BG_ID_CACHE = {}  # hex -> ElementId, for bg-colour-matched border styles
 
 def _bg_line_id(hex_colour):
@@ -645,7 +646,7 @@ def _bg_line_id(hex_colour):
     _BG_ID_CACHE[hex_colour] = lid
     return lid
 
-# ── Text style helper ─────────────────────────────────────────────────────────
+# ── Text style helper (same as drafting view script) ─────────────────────────
 
 def get_or_create_text_style(name, font, size_mm, bold=False, italic=False):
     """Return existing or newly-created TextNoteType, sized from JSON."""
@@ -711,17 +712,13 @@ def _pre_calc_pages():
             _grps = _OD2()
             for s in _sheets:
                 _grps.setdefault(get_group_label(s, GROUP_PARAMS), []).append(s)
-            # Sort groups by label string, matching main render order
-            _sorted_grps = sorted(
-                _grps.items(),
-                key=lambda item: natural_sort_key(item[0]) if item[0] else ['~']
-            )
             _rr = []
             _first_grp_done = False
-            for gl, gs in _sorted_grps:
-                if gl:
-                    if GROUP_LABEL or _first_grp_done:
-                        _rr.append(('group', gl))
+            for gl, gs in _grps.items():
+                # Always skip gap before the very first group (nothing above it to separate).
+                # After the first group, always add the gap row (with or without label text).
+                if gl and _first_grp_done:
+                    _rr.append(('group', gl))
                 for s in gs:
                     _rr.append(('sheet', s))
                 _first_grp_done = True
@@ -822,6 +819,7 @@ def _apply_block_cell_borders(hdr, ri, ec_s, ec_e, brd):
         try:
             _sty  = hdr.GetTableCellStyle(ri, _ci)
             _opts = _sty.GetCellStyleOverrideOptions()
+            # Top and bottom apply to every cell in the range
             _set_border(_sty, _opts, 'BorderTopLineStyle',    brd.get('t', False))
             _set_border(_sty, _opts, 'BorderBottomLineStyle', brd.get('b', False))
             # Left: outer border on first cell, hide on interior cells
@@ -836,10 +834,10 @@ def _apply_block_cell_borders(hdr, ri, ec_s, ec_e, brd):
 
 def _apply_data_row_borders(hdr, ri, ec_s, ec_e, is_last, outer_b, data_b, rev_cols=False):
     """Apply borders for a data row (sheet/recip).
-    Top: always from outer_b (first row) or hidden (subsequent rows handled by prev bottom).
-    Bottom: outer_b on last row, data_b.h grid line otherwise.
-    Left: outer_b on leftmost cell only.
-    Right: outer_b on rightmost cell only, data_b.v between rev columns.
+    - Top: always from outer_b (first row) or hidden (subsequent rows handled by prev bottom)
+    - Bottom: outer_b on last row, data_b.h grid line otherwise
+    - Left: outer_b on leftmost cell only
+    - Right: outer_b on rightmost cell only; data_b.v between rev columns
     """
     _h = data_b.get('h', True)
     _v = data_b.get('v', True)
@@ -859,13 +857,17 @@ def _apply_data_row_borders(hdr, ri, ec_s, ec_e, is_last, outer_b, data_b, rev_c
             _sty  = hdr.GetTableCellStyle(ri, _ci)
             _opts = _sty.GetCellStyleOverrideOptions()
             _in_rev = _ci >= REV_START
+            # Top: show outer top only (Revit handles row separation via bottom of prev row)
             _sb(_sty, _opts, 'BorderTopLineStyle', outer_b.get('t', True))
+            # Bottom: outer on last row, h-grid otherwise
             _sb(_sty, _opts, 'BorderBottomLineStyle',
                 outer_b.get('b', True) if is_last else _h)
+            # Left: outer on leftmost col; v-grid on rev cols; leave others to ShowGridLines
             if _ci == ec_s:
                 _sb(_sty, _opts, 'BorderLeftLineStyle', outer_b.get('l', True))
             elif _in_rev:
                 _sb(_sty, _opts, 'BorderLeftLineStyle', _v)
+            # Right: outer on rightmost col; v-grid on rev cols; leave others to ShowGridLines
             if _ci == _last_col:
                 _sb(_sty, _opts, 'BorderRightLineStyle', outer_b.get('r', True))
             elif _in_rev:
@@ -883,7 +885,7 @@ def _block_borders(b):
         'r': brd.get('r', False),
     }
 
-# Resolve column span to Excel-style column start/end
+# Resolve column span → Excel-style column start/end
 # Layout cols: A=0, B=1, C=2, D=rev columns (3..3+MAX_REVS-1)
 REV_START  = 3
 LAST_COL   = REV_START + MAX_REVS - 1
@@ -891,9 +893,11 @@ TOTAL_COLS = REV_START + MAX_REVS
 
 def _col_range(ci, span, blocks):
     """Return (ec_start, ec_end) for block at canvas col ci with given span."""
+    # canvas col 0→excel 0, 1→1, 2→2, 3(D)→REV_START..LAST_COL
     if ci == 3 or ci >= 3:
         return REV_START, LAST_COL
     ec_start = ci
+    # span across layout cols
     ec_end = min(ci + span - 1, 2)  # caps at col C (=2) unless into D
     if ci + span - 1 >= 3:          # spans into D column
         ec_end = LAST_COL
@@ -907,11 +911,9 @@ render_plan = []
 _sheet_render_rows = []  # ('group', label) or ('sheet', sheet_obj)
 _first_grp_done = False
 for grp_label, grp_sheets in grouped_sheets:
-    # Always add group row if label exists and GROUP_LABEL is on.
-    # When GROUP_LABEL is off, still add a gap row between groups (but not before the first).
-    if grp_label:
-        if GROUP_LABEL or _first_grp_done:
-            _sheet_render_rows.append(('group', grp_label))
+    # Skip group row before the first group, only add gaps between groups.
+    if grp_label and _first_grp_done:
+        _sheet_render_rows.append(('group', grp_label))
     for s in grp_sheets:
         _sheet_render_rows.append(('sheet', s))
     _first_grp_done = True
@@ -957,26 +959,6 @@ pages = [_all_sheet_items[:rows_page1]]
 _rem  = _all_sheet_items[rows_page1:]
 while _rem:
     pages.append(_rem[:rows_page_n]); _rem = _rem[rows_page_n:]
-
-# ── Reflow group markers stranded at a page boundary ─────────────────────────
-# A group gap/header row only makes sense when its sheets follow it on the same
-# page. If a page ends with trailing group markers, move them onto the next page
-# so the header sits with its sheets, on the last page drop them since no data
-# follows anywhere.
-for _pi in range(len(pages)):
-    _carry = []
-    while pages[_pi] and pages[_pi][-1][0] == 'group':
-        _carry.insert(0, pages[_pi].pop())
-    if _carry and _pi + 1 < len(pages):
-        pages[_pi + 1] = _carry + pages[_pi + 1]
-# Strip leading group markers only when GROUP_LABEL is off.
-# When on, all group label rows are shown including the first.
-# When off, group rows are gaps only, so leading ones are removed to avoid blank space.
-if not GROUP_LABEL:
-    for _pi in range(len(pages)):
-        while pages[_pi] and pages[_pi][0][0] == 'group':
-            pages[_pi].pop(0)
-pages = [pg for pg in pages if pg] or [[]]
 
 total_pages  = max(1, len(pages))
 SCHEDULE_NAME = "pyTransmit Schedule 01-{:02d}".format(total_pages)
@@ -1088,7 +1070,7 @@ def _render_page(hdr, page_sheet_items, is_first_page, is_last_page=False):
         kind2 = pr['kind']
 
         if kind2 == 'footer':
-            continue  # footer driven by JSON only, no hardcoded row
+            continue  # footer driven by JSON only — no hardcoded row
 
         row2   = pr['row']
         blocks = row2.get('blocks', [])
@@ -1184,7 +1166,7 @@ def _render_page(hdr, page_sheet_items, is_first_page, is_last_page=False):
                 safe_text(hdr, ri2, ec_s, _leg)
                 apply_style(hdr, ri2, ec_s, bold=False, size_mm=sz, halign=just, valign=_block_valign(b))
                 _apply_block_cell_borders(hdr, ri2, ec_s, ec_e, brd)
-                # Hide all rev columns, ShowGridLines would otherwise draw them
+                # Hide all rev columns — ShowGridLines would otherwise draw them
                 _no_border = {'t': False, 'b': False, 'l': False, 'r': False}
                 _apply_block_cell_borders(hdr, ri2, REV_START, LAST_COL, _no_border)
 
@@ -1269,6 +1251,7 @@ def _render_page(hdr, page_sheet_items, is_first_page, is_last_page=False):
             ci += span
 
     # ── Footer row borders ────────────────────────────────────────────────────
+    # Style algo skips footer rows, so apply their borders directly here.
     _REV_TYPES = {'spine_copies', 'spine_reason', 'spine_method',
                   'spine_initials', 'spine_doc_type', 'spine_print_size'}
     _HIDE_ALL  = {'t': False, 'b': False, 'l': False, 'r': False}
@@ -1298,7 +1281,7 @@ def _render_page(hdr, page_sheet_items, is_first_page, is_last_page=False):
                 _fdata = _fb.get('data_borders', {'h': True, 'v': True})
                 if _ftype == 'blank':
                     remove_row_borders(hdr, pr['ri'], TOTAL_COLS)
-                    # Re-assert bottom border on the row above, Revit adjacency
+                    # Re-assert bottom border on the row above — Revit adjacency
                     # last-write-wins means remove_row_borders would erase it
                     _above_ri = pr['ri'] - 1
                     if _above_ri >= 0:
@@ -1317,20 +1300,24 @@ def _render_page(hdr, page_sheet_items, is_first_page, is_last_page=False):
                                         _sty.SetCellStyleOverrideOptions(_opts)
                                         hdr.SetCellStyle(_above_ri, _ci, _sty)
                                     except Exception: pass
-                    # Footer blank rows are NOT added to blank_row_indices, the cleanup
+                    # Footer blank rows are NOT added to blank_row_indices — the cleanup
                     # transaction's blank row handler triggers adjacency and erases the
                     # bottom border on the last recip row above it.
                 elif _ftype in _REV_TYPES:
+                    # Rev-column block: per-column borders with is_last for outer bottom
                     _apply_data_row_borders(hdr, pr['ri'], REV_START, LAST_COL,
                                             _is_last_r, _fbrd, _fdata, rev_cols=True)
                     if _fbrd.get('b', False):
                         footer_bottom_ris.add(pr['ri'])
                 elif _ftype in ('sent_to', 'attn_to'):
+                    # Fixed data block: use data_borders for intermediate rows,
+                    # outer border only on last recipient row
                     _apply_data_row_borders(hdr, pr['ri'], _fec_s, _fec_e,
                                             _is_last_r, _fbrd, _fdata, rev_cols=False)
                     if _fbrd.get('b', False):
                         footer_bottom_ris.add(pr['ri'])
                 else:
+                    # Static text/reason_list block
                     _apply_block_cell_borders(hdr, pr['ri'], _fec_s, _fec_e, _fbrd)
                     if not _row_has_rev_block:
                         _apply_block_cell_borders(hdr, pr['ri'], REV_START, LAST_COL,
@@ -1343,7 +1330,7 @@ def _render_page(hdr, page_sheet_items, is_first_page, is_last_page=False):
 
 # ── Main schedule transaction ─────────────────────────────────────────────────
 
-with revit.Transaction("pyTransmit — Update Schedule") as t:
+with revit.Transaction("pyTransmit \u2014 Update Schedule") as t:
 
     sched, existed = get_or_create_schedule(doc, SCHEDULE_NAME)
     sched_def = sched.Definition
@@ -1463,7 +1450,7 @@ def _apply_algo_border(hdr_sec, sched_ri, layout_ri, layout_ci):
         hdr_sec.SetCellStyle(sched_ri, layout_ci if layout_ci < REV_START else REV_START, _sty)
     except Exception: pass
 
-# ── Border cleanup transaction, algo-driven ───────────────────────────────────
+# ── Border cleanup transaction — algo-driven ──────────────────────────────────
 
 with revit.Transaction("pyTransmit footer") as tf:
 
@@ -1515,6 +1502,9 @@ with revit.Transaction("pyTransmit footer") as tf:
                 if not _cs:
                     continue
                 _show_t = _cs.get('t', False)
+                # Group boundary rows need h-line to close the group block.
+                # Truly last row uses the cell style's outer bottom border.
+                # Intermediate data rows use h for row dividers.
                 _is_group_boundary = _is_last and _sched_is_last.get(_sched_ri) is True and _sched_ri != max(_sched_is_last.keys()) if _sched_is_last else False
                 if not _is_data:
                     _show_b = _cs.get('b', False)
@@ -1536,15 +1526,16 @@ with revit.Transaction("pyTransmit footer") as tf:
                         _r = _show_r if _rci == MAX_REVS - 1 else _v
                         _set_cell_border(hdr_f, _sched_ri, _sci, _show_t, _show_b, _l, _r)
 
-        # Blank rows, mirror row above bottom for top, hide bottom/left/right
+        # Blank rows — mirror row above bottom for top, hide bottom/left/right
         for _blank_ri in _p1_blank_ris:
             _above_layout_ri = _sched_to_layout.get(_blank_ri - 1)
             for _ci in range(TOTAL_COLS):
+                # Top mirrors what row above set as bottom
                 _lci_above = _ci if _ci < REV_START else REV_START
                 _cs_above = _get_sched_style(_above_layout_ri, _lci_above) if _above_layout_ri is not None else {}
                 _above_b = _cs_above.get('b', False)
                 _set_cell_border(hdr_f, _blank_ri, _ci, _above_b, False, False, False)
-            # Re-assert bottom on row above, adjacency last-write-wins
+            # Re-assert bottom on row above — adjacency last-write-wins
             _above_ri = _blank_ri - 1
             if _above_ri >= 0 and _above_ri in _p1_footer_bot_ris:
                 for _ci in range(TOTAL_COLS):
@@ -1568,6 +1559,7 @@ with revit.Transaction("pyTransmit footer") as tf:
             for _ci in range(TOTAL_COLS):
                 _set_cell_border(hdr_f, gri, _ci, _data_h, _data_h, False, False)
             # Re-assert bottom on the sheet row immediately above this group row
+            # so Revit adjacency doesn't let the group row's top override it.
             _above_ri = gri - 1
             if _above_ri in _sched_to_layout:
                 _above_data_b = _sched_data_b.get(_above_ri, {})
@@ -1586,7 +1578,8 @@ with revit.Transaction("pyTransmit footer") as tf:
                         _show_r_a = _cs_a.get('r', False) if _ci == TOTAL_COLS - 1 else _above_v
                     _set_cell_border(hdr_f, _above_ri, _ci, _show_t_a, _above_h, _show_l_a, _show_r_a)
 
-    # Re-assert footer row bottom borders, runs regardless of style algo
+    # Re-assert footer row bottom borders — runs regardless of style algo
+    # The cleanup transaction's blank-row handler erases them via adjacency
     for _fbr in _p1_footer_bot_ris:
         for _ci in range(TOTAL_COLS):
             try:
@@ -1599,7 +1592,7 @@ with revit.Transaction("pyTransmit footer") as tf:
             except Exception: pass
 
     # Re-assert bottom on last sheet row by also setting top on the footer blank
-    # row below it, remove_row_borders in the main loop sets it to OFF which
+    # row below it — remove_row_borders in the main loop sets it to OFF which
     # erases the last sheet row bottom via Revit adjacency last-write-wins.
     if _sched_is_last:
         _last_sheet_ri = max(_sched_is_last.keys())
@@ -1611,6 +1604,7 @@ with revit.Transaction("pyTransmit footer") as tf:
                 _cs_b  = _get_sched_style(_last_layout_ri, _lci_b) if _last_layout_ri is not None else {}
                 _show_b_last = _cs_b.get('b', False)
                 try:
+                    # Set top of blank row to mirror last sheet row bottom
                     _sty  = hdr_f.GetTableCellStyle(_footer_blank_ri, _ci)
                     _opts = _sty.GetCellStyleOverrideOptions()
                     _opts.BorderTopLineStyle = True
@@ -1647,7 +1641,6 @@ for page_idx, page_items in enumerate(pages[1:], start=2):
 
         hdr2  = vs2.GetTableData().GetSectionData(SectionType.Header)
         body2 = vs2.GetTableData().GetSectionData(SectionType.Body)
-        body2.SetColumnWidth(0, total_w)
 
         if existed2:
             clear_schedule_header(hdr2)
@@ -1691,11 +1684,8 @@ for page_idx, page_items in enumerate(pages[1:], start=2):
                     _bl2 = _bt2[6] if len(_bt2) >= 8 else 0
                     _s2_to_layout[_br2] = _bl2
                     if _bk2 == "data" and _be2:
-                        # Only include non-footer rows so max() finds the true last sheet row
-                        _blri_row2 = _ROWS[_bl2] if _bl2 < len(_ROWS) else {}
-                        if _blri_row2.get('section', 'body') != 'footer':
-                            _s2_is_last[_br2] = _be2[1]
-                            _s2_data_b[_br2]  = _be2[0] if isinstance(_be2[0], dict) else {'h':True,'v':True}
+                        _s2_is_last[_br2] = _be2[1]
+                        _s2_data_b[_br2]  = _be2[0] if isinstance(_be2[0], dict) else {'h':True,'v':True}
                 for _sr2, _lr2 in _s2_to_layout.items():
                     _il2 = _s2_is_last.get(_sr2, True)
                     _db2 = _s2_data_b.get(_sr2, {})
@@ -1704,15 +1694,7 @@ for page_idx, page_items in enumerate(pages[1:], start=2):
                     for _lc2 in range(4):
                         _cs2 = _get_sched_style(_lr2, _lc2)
                         if not _cs2: continue
-                        _t2 = _cs2.get('t', False)
-                        if not _id2:
-                            _b2 = _cs2.get('b', False)
-                        elif _il2 and page_idx == total_pages and _sr2 == max(_s2_is_last.keys()):
-                            _b2 = _cs2.get('b', False)   # truly last sheet row on final page, outer border
-                        elif _il2:
-                            _b2 = _h2                     # group boundary or page-split continuation, h-line divider
-                        else:
-                            _b2 = _h2                     # intermediate row divider
+                        _t2 = _cs2.get('t',False); _b2 = _cs2.get('b',False) if (_il2 or not _id2) else _h2
                         _l2 = _cs2.get('l',False); _r2 = _cs2.get('r',False)
                         if _lc2 < REV_START:
                             _set_cell_border(hdr2_f, _sr2, _lc2, _t2, _b2, _l2, _r2)
@@ -1727,7 +1709,7 @@ for page_idx, page_items in enumerate(pages[1:], start=2):
                         _lci_a2 = _ci if _ci < REV_START else REV_START
                         _cs_a2 = _get_sched_style(_above_lr2, _lci_a2) if _above_lr2 is not None else {}
                         _set_cell_border(hdr2_f, _br, _ci, _cs_a2.get('b', False), False, False, False)
-                    # Re-assert bottom on row above, adjacency last-write-wins
+                    # Re-assert bottom on row above — adjacency last-write-wins
                     _above_ri2 = _br - 1
                     if _above_ri2 >= 0 and _above_ri2 in _p2_footer_bot_ris:
                         for _ci in range(TOTAL_COLS):
@@ -1762,27 +1744,7 @@ for page_idx, page_items in enumerate(pages[1:], start=2):
                                 _show_r_a2 = _cs_a2.get('r', False) if _ci == TOTAL_COLS - 1 else _above_v2
                             _set_cell_border(hdr2_f, _above_ri2, _ci, _show_t_a2, _above_h2, _show_l_a2, _show_r_a2)
 
-                # Re-assert bottom on the last sheet row by setting top on the footer
-                # blank row below it, Revit adjacency last-write-wins erases it otherwise.
-                if page_idx == total_pages and _s2_is_last:
-                    _last_ri2 = max(_s2_is_last.keys())
-                    _footer_blank_ri2 = _last_ri2 + 1
-                    if _footer_blank_ri2 < hdr2_f.NumberOfRows:
-                        _last_lr2 = _s2_to_layout.get(_last_ri2)
-                        for _ci in range(TOTAL_COLS):
-                            _lci_b2 = _ci if _ci < REV_START else REV_START
-                            _cs_b2  = _get_sched_style(_last_lr2, _lci_b2) if _last_lr2 is not None else {}
-                            _show_b_last2 = _cs_b2.get('b', False)
-                            try:
-                                _sty2  = hdr2_f.GetTableCellStyle(_footer_blank_ri2, _ci)
-                                _opts2 = _sty2.GetCellStyleOverrideOptions()
-                                _opts2.BorderTopLineStyle = True
-                                _sty2.BorderTopLineStyle  = (_ON_ID if _ON_ID else ElementId.InvalidElementId) if _show_b_last2 else _OFF_ID
-                                _sty2.SetCellStyleOverrideOptions(_opts2)
-                                hdr2_f.SetCellStyle(_footer_blank_ri2, _ci, _sty2)
-                            except Exception: pass
-
-        # Re-assert footer row bottom borders, unconditional, outside style algo block
+        # Re-assert footer row bottom borders — unconditional, outside style algo block
         for _fbr2 in _p2_footer_bot_ris:
             for _ci in range(TOTAL_COLS):
                 try:
@@ -1835,6 +1797,8 @@ if logo_path and _os.path.exists(logo_path):
         output.print_md("   Logo insertion failed: {}".format(logo_err))
 
 
+
+
 # ── Footer bottom border final pass ──────────────────────────────────────────
 # Run in its own transaction last so nothing can overwrite it.
 def _reassert_footer_bottoms(vs, footer_bot_ris):
@@ -1853,6 +1817,7 @@ def _reassert_footer_bottoms(vs, footer_bot_ris):
                 _next_ri = _ri + 1
                 for _ci in range(TOTAL_COLS):
                     try:
+                        # Set bottom on target row
                         _s = _hdr.GetTableCellStyle(_ri, _ci)
                         _o = _s.GetCellStyleOverrideOptions()
                         _o.BorderBottomLineStyle = True

@@ -66,15 +66,15 @@ def _ensure_param(doc, spf_path):
             pass
 
 
-def _calc_mark(rev, doc, pos):
-    """Calculate the revision mark using the Revit 2022+ numbering sequence API.
-    pos is the revision's precomputed position within its own numbering sequence.
-    """
+def _calc_mark(rev, doc, issued_revs):
+    """Calculate the revision mark using the Revit 2022+ numbering sequence API."""
     try:
         seq_id   = rev.RevisionNumberingSequenceId
         seq_elem = doc.GetElement(seq_id)
         if seq_elem is None:
             return ''  # None numbering type has no sequence element
+        same_seq = [r for r in issued_revs if r.RevisionNumberingSequenceId == seq_id]
+        pos = same_seq.index(rev)
         num_type_str = str(seq_elem.NumberType)
         if 'None' in num_type_str:
             return ''
@@ -101,9 +101,9 @@ def _calc_mark(rev, doc, pos):
     return result
 
 
-def _get_mark(rev, sheet, pos, doc):
+def _get_mark(rev, sheet, issued_revs, doc):
     # Check sequence type first, return empty for None numbering
-    mark = _calc_mark(rev, doc, pos)
+    mark = _calc_mark(rev, doc, issued_revs)
     if mark == '':
         return ''
     # Per Sheet mode: use GetRevisionNumberOnSheet (Revit 2022+)
@@ -133,15 +133,6 @@ def write_rev_param(doc, publish_dir):
     issued_revs = sorted([r for r in all_revs if r.Issued], key=lambda r: r.SequenceNumber)
     if not issued_revs:
         return
-    # Precompute each revision's position within its own numbering sequence once,
-    # instead of recomputing this for every sheet/revision combination.
-    _seq_groups = {}
-    for r in issued_revs:
-        _seq_groups.setdefault(r.RevisionNumberingSequenceId, []).append(r)
-    _rev_pos = {}
-    for seq_id, group in _seq_groups.items():
-        for i, r in enumerate(group):
-            _rev_pos[r.Id] = i
     all_sheets = list(FilteredElementCollector(doc)
         .OfCategory(BuiltInCategory.OST_Sheets)
         .WhereElementIsNotElementType().ToElements())
@@ -151,7 +142,7 @@ def write_rev_param(doc, publish_dir):
         marks = []
         for rev in issued_revs:
             if rev.Id in sheet_rev_ids:
-                marks.append(_get_mark(rev, sheet, _rev_pos[rev.Id], doc))
+                marks.append(_get_mark(rev, sheet, issued_revs, doc))
             else:
                 marks.append('')
         sheet_marks[sheet.Id] = marks

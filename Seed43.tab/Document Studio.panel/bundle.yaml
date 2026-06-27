@@ -1,8 +1,6 @@
 
 layout:
   - pyTransmit
-  - PyTables
+  - CAD Layer Manager
   - DocStack_1
-  - DocStack_2
-
-
+  - PyTables

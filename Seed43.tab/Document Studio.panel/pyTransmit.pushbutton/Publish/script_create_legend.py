@@ -162,23 +162,16 @@ with revit.Transaction("pyTransmit - Create Legend") as _t:
 
     options = CopyPasteOptions()
     options.SetDuplicateTypeNamesHandler(_CopyUseDestination())
-    # Copy elements one at a time, CopyElements does not guarantee the
-    # returned ids are in the same order as the input ids, so copying
-    # individually keeps each source -> destination override mapping correct.
-    for src_id in elements_to_copy:
+    copied = ElementTransformUtils.CopyElements(
+        temp_view,
+        List[DB.ElementId](elements_to_copy),
+        dest_legend,
+        None,
+        options
+    )
+    for dest_id, src_id in zip(copied, elements_to_copy):
         try:
-            copied = ElementTransformUtils.CopyElements(
-                temp_view,
-                List[DB.ElementId]([src_id]),
-                dest_legend,
-                None,
-                options
-            )
-            for dest_id in copied:
-                try:
-                    dest_legend.SetElementOverrides(dest_id, temp_view.GetElementOverrides(src_id))
-                except Exception:
-                    pass
+            dest_legend.SetElementOverrides(dest_id, temp_view.GetElementOverrides(src_id))
         except Exception:
             pass
 

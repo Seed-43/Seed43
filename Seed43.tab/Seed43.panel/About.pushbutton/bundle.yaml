@@ -1,18 +1,29 @@
 title: "𝑨𝒃𝒐𝒖𝒕"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
 tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
   _____________________________________________________________________
   Description:
   Opens the Seed43 About window.
   From here, you can check which version of the Seed43 toolbar is installed,
   see what has changed in the latest version, and update to the newest version with one click.
-  You can also toggle individual tools and panels on or off directly from this window.
+  You can also reorder your tools and panels in the ribbon from this window.
+  _____________________________________________________________________
+  How-to:
+  -> Run the tool
+  -> The About window will open
+  -> Check the version shown under Seed43
+  -> If an update is available an update button will appear
+  -> Click the update button to download and install the latest version
+  -> Once the update is done, reload pyRevit when prompted
+  -> To reorder tools, drag them into the order you want and click Apply
   _____________________________________________________________________
   Notes:
   - An internet connection is required to check for and download updates
   - After updating, you will need to reload pyRevit for the changes to take effect
-  - Toggling a tool off hides it from the Revit ribbon until it is turned back on
+  - Reordering tools changes how they appear in the Revit ribbon
+  - If a file cannot be saved during reorder, check it is not set to read only
   _____________________________________________________________________
   Last update:
-  - Removed reordering; panel and tool order now follows bundle.yaml
-    _____________________________________________________________________
+  - Initial release
+  _____________________________________________________________________

@@ -14,6 +14,18 @@ tooltip: |
 
   Safe to run on workshared models.
   _____________________________________________________________________
+  How-to:
+  -> Run the tool
+  -> Choose scope (active view or whole project)
+  -> Choose what to replace the newline with
+  -> Confirm, and the fix is applied in a single transaction
+
+  Note:
+  - Double spaces produced by the replacement are automatically
+    collapsed to a single space
+  - Leading and trailing whitespace is trimmed from each fixed note
+  - Elements that cannot be edited are skipped and reported
+  _____________________________________________________________________
   Last update:
   - Initial release
   _____________________________________________________________________

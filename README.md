@@ -17,7 +17,7 @@
 
 ## Compatibility
 
-- Autodesk Revit 2022 — 2026
+- Autodesk Revit 2024 — 2026
 - [PyRevit](https://github.com/pyrevitlabs/pyRevit) required
 
 ---

@@ -39,17 +39,16 @@ def compute_row_heights(rows, groups, excel_starts, excel_counts,
 
     # ── Pass 1: initial heights from single-row blocks ──────────────────────
     # Skip spanning blocks — their height is handled in Pass 2 distribution.
-    # A block "spans" if the same column is None in the next row of its group.
+    # 'row_span' on a block is the authoritative signal for vertical spanning,
+    # set by the layout builder. merge_down only groups rows for borders and
+    # is NOT a reliable signal on its own (a None column can also be caused
+    # by horizontal span consumption from an earlier column in the same row).
     def _is_spanning(ri, ci):
-        """True if this block spans into the next row (next row ci is None)."""
-        row = rows[ri]
-        if not row.get('merge_down', False):
+        """True if this block has row_span > 1 (spans into following rows)."""
+        block = _get_block(rows[ri], ci)
+        if block is None:
             return False
-        next_row = rows[ri + 1] if ri + 1 < len(rows) else None
-        if next_row is None:
-            return False
-        nb = _get_block(next_row, ci)
-        return nb is None
+        return int(block.get('row_span', 1)) > 1
 
     for ri, row in enumerate(rows):
         if row.get('section') == 'footer':
@@ -77,29 +76,17 @@ def compute_row_heights(rows, groups, excel_starts, excel_counts,
         if gs == ge:
             continue  # single layout row — no distribution needed
 
-        # For each layout col (0-3), find what spans it vertically in this group
-        # A "span" is a block at row R in col C that is None in rows R+1, R+2...
-        # Those None rows are part of the merged vertical span.
-
+        # For each layout col (0-3), find blocks with row_span > 1 and
+        # distribute their height across the rows they span.
         for ci in range(4):
-            # Walk the group and identify spans for this column
             _ri = gs
             while _ri <= ge:
                 block = _get_block(rows[_ri], ci)
-                if block is None:
+                if block is None or int(block.get('row_span', 1)) <= 1:
                     _ri += 1
                     continue
 
-                # This block starts at _ri — find how far it spans (where col ci is None)
-                span_end = _ri
-                nri = _ri + 1
-                while nri <= ge:
-                    nb = _get_block(rows[nri], ci)
-                    if nb is None:
-                        span_end = nri
-                        nri += 1
-                    else:
-                        break
+                span_end = min(ge, _ri + int(block.get('row_span', 1)) - 1)
 
                 if span_end == _ri:
                     # Span of 1 — already handled in Pass 1
@@ -136,12 +123,12 @@ def compute_row_heights(rows, groups, excel_starts, excel_counts,
             if legend_block is None:
                 continue
 
-            # Find span extent (where col A is None in subsequent rows)
+            # Find span extent (where col A/B is a genuine vertical continuation,
+            # not a None caused by horizontal span consumption in that row)
             span_end = ri
             nri = ri + 1
             while nri <= ge:
-                nb = _get_block(rows[nri], 0) or _get_block(rows[nri], 1)
-                if nb is None:
+                if _is_continuation_slot(rows[nri], 0) and _is_continuation_slot(rows[nri], 1):
                     span_end = nri
                     nri += 1
                 else:
@@ -191,6 +178,37 @@ def _get_block(row, ci):
     if ci < len(blocks):
         return blocks[ci]
     return None
+
+
+def _is_horizontally_consumed(row, ci):
+    """
+    True if column ci is None only because an earlier block in this same
+    row has a span that covers it (horizontal merge), not because it is
+    a vertical-merge continuation slot.
+    """
+    blocks = row.get('blocks', [])
+    cc = 0
+    while cc < ci:
+        b = blocks[cc] if cc < len(blocks) else None
+        if b is None:
+            cc += 1
+            continue
+        span = int(b.get('span', 1))
+        if cc + span > ci:
+            return True
+        cc += span
+    return False
+
+
+def _is_continuation_slot(row, ci):
+    """
+    True if column ci in this row is a genuine vertical-merge continuation
+    slot, i.e. it is None and not consumed by a horizontal span from an
+    earlier column in the same row.
+    """
+    if _get_block(row, ci) is not None:
+        return False
+    return not _is_horizontally_consumed(row, ci)
 
 
 def _distribute_span(rows, span_ris, ci, block, block_height_fn,

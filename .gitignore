@@ -1,0 +1,17 @@
+﻿# Zip backups
+*.zip
+
+# Log files
+*.log
+
+# Local settings
+settings.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Exclude temp and BreakTime
+Seed43.tab/temp/
+Seed43.tab/Seed43.panel/BreakTime.pushbutton/

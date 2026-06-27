@@ -1,0 +1,312 @@
+{
+  "created": "2026-06-18", 
+  "filters": [
+    {
+      "definition": {
+        "name": "Rebar ��32", 
+        "rules": "Autodesk.Revit.DB.LogicalAndFilter", 
+        "cats": [
+          "-2009000"
+        ]
+      }, 
+      "settings": {
+        "surf_fg_pat": "3", 
+        "surf_bg_visible": true, 
+        "enabled": true, 
+        "halftone": false, 
+        "proj_line_pattern_id": "-1", 
+        "cut_bg_color": null, 
+        "surf_fg_color": "#FF7373", 
+        "cut_bg_pat": "-1", 
+        "surf_bg_color": null, 
+        "cut_bg_visible": true, 
+        "cut_line_color": null, 
+        "cut_fg_color": null, 
+        "surf_fg_visible": true, 
+        "surf_bg_pat": "-1", 
+        "cut_line_pattern_id": "-1", 
+        "visible": true, 
+        "transparency": 0, 
+        "cut_fg_visible": true, 
+        "cut_fg_pat": "-1", 
+        "proj_line_weight": -1, 
+        "cut_line_weight": -1, 
+        "proj_line_color": null
+      }, 
+      "name": "Rebar Ø32"
+    }, 
+    {
+      "definition": {
+        "name": "Rebar ��12", 
+        "rules": "Autodesk.Revit.DB.LogicalAndFilter", 
+        "cats": [
+          "-2009000"
+        ]
+      }, 
+      "settings": {
+        "surf_fg_pat": "3", 
+        "surf_bg_visible": true, 
+        "enabled": true, 
+        "halftone": false, 
+        "proj_line_pattern_id": "-1", 
+        "cut_bg_color": null, 
+        "surf_fg_color": "#FFB4B4", 
+        "cut_bg_pat": "-1", 
+        "surf_bg_color": null, 
+        "cut_bg_visible": true, 
+        "cut_line_color": null, 
+        "cut_fg_color": null, 
+        "surf_fg_visible": true, 
+        "surf_bg_pat": "-1", 
+        "cut_line_pattern_id": "-1", 
+        "visible": true, 
+        "transparency": 0, 
+        "cut_fg_visible": true, 
+        "cut_fg_pat": "-1", 
+        "proj_line_weight": -1, 
+        "cut_line_weight": -1, 
+        "proj_line_color": null
+      }, 
+      "name": "Rebar Ø12"
+    }, 
+    {
+      "definition": {
+        "name": "Rebar ��25", 
+        "rules": "Autodesk.Revit.DB.LogicalAndFilter", 
+        "cats": [
+          "-2009000"
+        ]
+      }, 
+      "settings": {
+        "surf_fg_pat": "3", 
+        "surf_bg_visible": true, 
+        "enabled": true, 
+        "halftone": false, 
+        "proj_line_pattern_id": "-1", 
+        "cut_bg_color": null, 
+        "surf_fg_color": "#FFB9FF", 
+        "cut_bg_pat": "-1", 
+        "surf_bg_color": null, 
+        "cut_bg_visible": true, 
+        "cut_line_color": null, 
+        "cut_fg_color": null, 
+        "surf_fg_visible": true, 
+        "surf_bg_pat": "-1", 
+        "cut_line_pattern_id": "-1", 
+        "visible": true, 
+        "transparency": 0, 
+        "cut_fg_visible": true, 
+        "cut_fg_pat": "-1", 
+        "proj_line_weight": -1, 
+        "cut_line_weight": -1, 
+        "proj_line_color": null
+      }, 
+      "name": "Rebar Ø25"
+    }, 
+    {
+      "definition": {
+        "name": "Rebar ��08", 
+        "rules": "Autodesk.Revit.DB.LogicalAndFilter", 
+        "cats": [
+          "-2009000"
+        ]
+      }, 
+      "settings": {
+        "surf_fg_pat": "3", 
+        "surf_bg_visible": true, 
+        "enabled": true, 
+        "halftone": false, 
+        "proj_line_pattern_id": "-1", 
+        "cut_bg_color": null, 
+        "surf_fg_color": "#AAD5FF", 
+        "cut_bg_pat": "-1", 
+        "surf_bg_color": null, 
+        "cut_bg_visible": true, 
+        "cut_line_color": null, 
+        "cut_fg_color": null, 
+        "surf_fg_visible": true, 
+        "surf_bg_pat": "-1", 
+        "cut_line_pattern_id": "-1", 
+        "visible": true, 
+        "transparency": 0, 
+        "cut_fg_visible": true, 
+        "cut_fg_pat": "-1", 
+        "proj_line_weight": -1, 
+        "cut_line_weight": -1, 
+        "proj_line_color": null
+      }, 
+      "name": "Rebar Ø08"
+    }, 
+    {
+      "definition": {
+        "name": "Rebar ��10", 
+        "rules": "Autodesk.Revit.DB.LogicalAndFilter", 
+        "cats": [
+          "-2009000"
+        ]
+      }, 
+      "settings": {
+        "surf_fg_pat": "3", 
+        "surf_bg_visible": true, 
+        "enabled": true, 
+        "halftone": false, 
+        "proj_line_pattern_id": "-1", 
+        "cut_bg_color": null, 
+        "surf_fg_color": "#FFBC9B", 
+        "cut_bg_pat": "-1", 
+        "surf_bg_color": null, 
+        "cut_bg_visible": true, 
+        "cut_line_color": null, 
+        "cut_fg_color": null, 
+        "surf_fg_visible": true, 
+        "surf_bg_pat": "-1", 
+        "cut_line_pattern_id": "-1", 
+        "visible": true, 
+        "transparency": 0, 
+        "cut_fg_visible": true, 
+        "cut_fg_pat": "-1", 
+        "proj_line_weight": -1, 
+        "cut_line_weight": -1, 
+        "proj_line_color": null
+      }, 
+      "name": "Rebar Ø10"
+    }, 
+    {
+      "definition": {
+        "name": "Rebar ��16", 
+        "rules": "Autodesk.Revit.DB.LogicalAndFilter", 
+        "cats": [
+          "-2009000"
+        ]
+      }, 
+      "settings": {
+        "surf_fg_pat": "3", 
+        "surf_bg_visible": true, 
+        "enabled": true, 
+        "halftone": false, 
+        "proj_line_pattern_id": "-1", 
+        "cut_bg_color": null, 
+        "surf_fg_color": "#B8B8DC", 
+        "cut_bg_pat": "-1", 
+        "surf_bg_color": null, 
+        "cut_bg_visible": true, 
+        "cut_line_color": null, 
+        "cut_fg_color": null, 
+        "surf_fg_visible": true, 
+        "surf_bg_pat": "-1", 
+        "cut_line_pattern_id": "-1", 
+        "visible": true, 
+        "transparency": 0, 
+        "cut_fg_visible": true, 
+        "cut_fg_pat": "-1", 
+        "proj_line_weight": -1, 
+        "cut_line_weight": -1, 
+        "proj_line_color": null
+      }, 
+      "name": "Rebar Ø16"
+    }, 
+    {
+      "definition": {
+        "name": "Rebar ��40", 
+        "rules": "Autodesk.Revit.DB.LogicalAndFilter", 
+        "cats": [
+          "-2009000"
+        ]
+      }, 
+      "settings": {
+        "surf_fg_pat": "3", 
+        "surf_bg_visible": true, 
+        "enabled": true, 
+        "halftone": false, 
+        "proj_line_pattern_id": "-1", 
+        "cut_bg_color": null, 
+        "surf_fg_color": "#CE9D9D", 
+        "cut_bg_pat": "-1", 
+        "surf_bg_color": null, 
+        "cut_bg_visible": true, 
+        "cut_line_color": null, 
+        "cut_fg_color": null, 
+        "surf_fg_visible": true, 
+        "surf_bg_pat": "-1", 
+        "cut_line_pattern_id": "-1", 
+        "visible": true, 
+        "transparency": 0, 
+        "cut_fg_visible": true, 
+        "cut_fg_pat": "-1", 
+        "proj_line_weight": -1, 
+        "cut_line_weight": -1, 
+        "proj_line_color": null
+      }, 
+      "name": "Rebar Ø40"
+    }, 
+    {
+      "definition": {
+        "name": "Rebar ��20", 
+        "rules": "Autodesk.Revit.DB.LogicalAndFilter", 
+        "cats": [
+          "-2009000"
+        ]
+      }, 
+      "settings": {
+        "surf_fg_pat": "3", 
+        "surf_bg_visible": true, 
+        "enabled": true, 
+        "halftone": false, 
+        "proj_line_pattern_id": "-1", 
+        "cut_bg_color": null, 
+        "surf_fg_color": "#B3FFB3", 
+        "cut_bg_pat": "-1", 
+        "surf_bg_color": null, 
+        "cut_bg_visible": true, 
+        "cut_line_color": null, 
+        "cut_fg_color": null, 
+        "surf_fg_visible": true, 
+        "surf_bg_pat": "-1", 
+        "cut_line_pattern_id": "-1", 
+        "visible": true, 
+        "transparency": 0, 
+        "cut_fg_visible": true, 
+        "cut_fg_pat": "-1", 
+        "proj_line_weight": -1, 
+        "cut_line_weight": -1, 
+        "proj_line_color": null
+      }, 
+      "name": "Rebar Ø20"
+    }, 
+    {
+      "definition": {
+        "name": "Rebar ��06", 
+        "rules": "Autodesk.Revit.DB.LogicalAndFilter", 
+        "cats": [
+          "-2009000"
+        ]
+      }, 
+      "settings": {
+        "surf_fg_pat": "3", 
+        "surf_bg_visible": true, 
+        "enabled": true, 
+        "halftone": false, 
+        "proj_line_pattern_id": "-1", 
+        "cut_bg_color": null, 
+        "surf_fg_color": "#FFFFFF", 
+        "cut_bg_pat": "-1", 
+        "surf_bg_color": null, 
+        "cut_bg_visible": true, 
+        "cut_line_color": null, 
+        "cut_fg_color": null, 
+        "surf_fg_visible": true, 
+        "surf_bg_pat": "-1", 
+        "cut_line_pattern_id": "-1", 
+        "visible": true, 
+        "transparency": 0, 
+        "cut_fg_visible": true, 
+        "cut_fg_pat": "-1", 
+        "proj_line_weight": -1, 
+        "cut_line_weight": -1, 
+        "proj_line_color": null
+      }, 
+      "name": "Rebar Ø06"
+    }
+  ], 
+  "name": "Rebar"
+}

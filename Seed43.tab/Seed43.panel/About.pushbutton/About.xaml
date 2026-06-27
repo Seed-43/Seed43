@@ -60,29 +60,6 @@
         <Setter Property="Opacity"    Value="0.9"/>
     </Style>
 
-    <Style x:Key="PulldownHeader" TargetType="TextBlock">
-        <Setter Property="Foreground"        Value="#208A3C"/>
-        <Setter Property="FontSize"          Value="12"/>
-        <Setter Property="FontWeight"        Value="SemiBold"/>
-        <Setter Property="VerticalAlignment" Value="Center"/>
-    </Style>
-
-    <Style x:Key="PulldownCard" TargetType="Border">
-        <Setter Property="Background"      Value="#232933"/>
-        <Setter Property="BorderBrush"     Value="#208A3C"/>
-        <Setter Property="BorderThickness" Value="2,0,0,0"/>
-        <Setter Property="CornerRadius"    Value="0,4,4,0"/>
-        <Setter Property="Margin"          Value="12,3,4,3"/>
-    </Style>
-
-    <Style x:Key="StandaloneCard" TargetType="Border">
-        <Setter Property="Background"      Value="#232933"/>
-        <Setter Property="BorderBrush"     Value="#4A5568"/>
-        <Setter Property="BorderThickness" Value="2,0,0,0"/>
-        <Setter Property="CornerRadius"    Value="0,4,4,0"/>
-        <Setter Property="Margin"          Value="12,3,4,3"/>
-    </Style>
-
     <Style x:Key="SecondaryBtn" TargetType="Button">
         <Setter Property="Background"      Value="#404553"/>
         <Setter Property="Foreground"      Value="#F4FAFF"/>
@@ -136,7 +113,7 @@
     <Border x:Name="update_ribbon" Visibility="Collapsed"
             Background="#D4720A" Cursor="Hand" Padding="20,8">
         <DockPanel>
-            <TextBlock Text="&#x25B2;  Update Available — click to update"
+            <TextBlock Text="&#x25B2;  Update Available \u2014 click to update"
                        FontSize="12" FontWeight="SemiBold"
                        Foreground="#F4FAFF" VerticalAlignment="Center"/>
             <TextBlock x:Name="update_ribbon_version"
@@ -167,16 +144,9 @@
                    Foreground="#A0AABB" Margin="0,0,0,8"/>
 
         <!-- Dynamic tool list populated by script -->
-        <ScrollViewer MaxHeight="340" VerticalScrollBarVisibility="Auto" Margin="0,0,0,0">
+        <ScrollViewer MaxHeight="340" VerticalScrollBarVisibility="Auto">
             <StackPanel x:Name="tools_container"/>
         </ScrollViewer>
-
-        <!-- Apply order footer -->
-        <DockPanel Margin="0,10,0,0">
-            <Button x:Name="apply_order_btn" Content="Apply Order"
-                    Style="{StaticResource SecondaryBtn}"
-                    HorizontalAlignment="Right"/>
-        </DockPanel>
 
     </StackPanel>
 </StackPanel>

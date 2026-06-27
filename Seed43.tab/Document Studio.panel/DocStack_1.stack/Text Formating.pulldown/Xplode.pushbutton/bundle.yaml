@@ -4,25 +4,9 @@ tooltip: |
   𝐕𝐄𝐑𝐒𝐈𝐎𝐍 260521
   _____________________________________________________________________
   Description:
-  Breaks one or more multi-line Text Notes into individual single-line
-  Text Notes, stacked at the same position as the original.
+  Breaks one or more multi-line Text Notes into individual single-line Text Notes, stacked at the same position as the original.
 
-  Each line of text becomes its own independent Text Note. The original
-  note is removed and replaced with the split result.
-  _____________________________________________________________________
-  How-to:
-  -> Run the tool
-  -> Select the Text Notes you want to split
-  -> Press FINISH when done selecting
-  -> Each line is created as a separate note in place
-  -> The original notes are deleted automatically
-  _____________________________________________________________________
-  Notes:
-  - Only multi-line Text Notes are affected, single lines are skipped
-  - Blank lines are ignored and not created as empty notes
-  - Split notes use the same text type as the original
-  - All new notes are selected after the operation
-  - Works in the active view only
+  Each line of text becomes its own independent Text Note. The original note is removed and replaced with the split result.
   _____________________________________________________________________
   Last update:
   - Initial release

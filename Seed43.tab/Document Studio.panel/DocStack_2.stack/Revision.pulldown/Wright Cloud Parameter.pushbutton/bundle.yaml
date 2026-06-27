@@ -1,0 +1,40 @@
+title: "Write Cloud Parameter"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
+  _____________________________________________________________________
+  Description:
+  Writes sheet and revision data directly to the built-in Revision Cloud
+  parameters so clouds carry their context wherever they appear.
+  
+  Writes: Sheet Number + Revision Number to the Mark parameter
+  Example result: "S202 - C"
+  
+  Works for:
+  - Clouds placed directly on sheets
+  - Clouds inside views that are placed on sheets
+  _____________________________________________________________________
+  How-to:
+  -> Run the tool
+  -> No selection required, runs automatically
+  -> The tool will:
+      - Collect all revision clouds in the model
+      - Resolve each cloud's parent sheet
+      - Write the sheet number and revision number to the Mark parameter
+  -> Result:
+      - All reachable clouds are updated
+      - Skipped clouds are logged with the reason
+      - A summary is printed on completion
+  _____________________________________________________________________
+  Notes:
+  - Uses the built-in Mark parameter, no project parameters required
+  - Mark is written as "Sheet - RevNumber" (for example "S202 - C")
+  - The revision number shown is the label visible on the sheet,
+    not the internal sequence number
+  - Clouds on views that are not placed on any sheet are skipped
+  - Clouds whose workset is not editable are logged and skipped
+  - All writes happen in a single transaction and can be undone
+  _____________________________________________________________________
+  Last update:
+  - Initial release
+  _____________________________________________________________________

@@ -786,25 +786,14 @@ for ri, row in enumerate(ROWS):
         rgt_b  = 1 if _cs.get('r', False) else 0
         _cell_bg = _cs.get('bg') or (_hex(b.get('bg_color'), None) if b.get('bg_color') else None)
         # ── Determine vertical Excel row span for this block ──────
-        # merge_down: if this col is present here but None in next layout rows
-        # of the same group, span those Excel rows too (like rowspan in HTML)
+        # 'row_span' on the block is the authoritative vertical-span signal
+        # (set by the layout builder). merge_down alone is not used here,
+        # a None column in a following row can also be caused by horizontal
+        # span consumption from an earlier column in that row, which is not
+        # a vertical span of this block.
         er_end = er_start + er_count - 1
         if row_span > 1 and grp_end >= ri + row_span - 1:
             er_end = _row_excel_start[ri + row_span - 1] + _row_excel_count[ri + row_span - 1] - 1
-        elif row.get('merge_down', False):
-            # Walk forward through group: span rows where this ci is None/absent
-            _span_end_ri = ri
-            _nri = ri + 1
-            while _nri <= grp_end:
-                _nrow_blocks = ROWS[_nri].get('blocks', [])
-                _nblock = _nrow_blocks[ci] if ci < len(_nrow_blocks) else None
-                if _nblock is None:
-                    _span_end_ri = _nri
-                    _nri += 1
-                else:
-                    break
-            if _span_end_ri > ri:
-                er_end = _row_excel_start[_span_end_ri] + _row_excel_count[_span_end_ri] - 1
 
         # ══ TEXT block ════════════════════════════════════════════
         if t == 'text':

@@ -858,6 +858,21 @@ class Seed43Dialog(object):
                 log("Installing...")
                 sync_tree(new_tab, TAB_DIR_DEST)
 
+                # ── Sync root files (startup.py, extension.json, etc.) ────────
+                ROOT_SKIP = {
+                    "Seed43.tab", "lib", "UI",
+                    ".git", ".gitignore", "README.md", "LICENSE",
+                    "install.bat", "sync-start.bat", "sync-end.bat",
+                }
+                for fname in os.listdir(extracted_root):
+                    if fname in ROOT_SKIP:
+                        continue
+                    src = os.path.join(extracted_root, fname)
+                    dst = os.path.join(S43_INSTALL, fname)
+                    if os.path.isfile(src):
+                        if not fname.lower().endswith(".json") and not fname.lower().endswith(".png"):
+                            shutil.copy2(src, dst)
+
                 new_version_file = os.path.join(extracted_root, "version.txt")
                 if os.path.isfile(new_version_file):
                     shutil.copy2(new_version_file, VERSION_FILE)

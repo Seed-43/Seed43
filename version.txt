@@ -1,10 +1,16 @@
-2.0.0
+260627
 
 _____________________________________________________________________
 Last update:
-- updated pyTransmit
-- General updates to use pyrevitlib
-- Extra text tools added
-- PyTables added but still under development 
-- Updated some icons to be more concise
+- View Organiser: split casing into two separate settings for Title on Sheet and Sheet Name, added sanitize_name() and read-only guard
+- Organiser Reset: updated to match View Organiser casing changes
+- PyTables: full rewrite from xlsx range importer to WPF link manager with drag-drop, card UI and ExtensibleStorage persistence
+- pyTransmit Schedule: group sorting removed, span detection rewritten, border and group gap logic simplified
+- pyTransmit Excel: span detection updated to match schedule changes
+- pyTransmit Legend: CopyElements switched back to batch copy instead of one-at-a-time loop
+- pyTransmit write_rev_param: revision position calculation moved inside _calc_mark instead of precomputed
+- pyTransmit Dialogues: title now set directly in XAML string instead of via FindName after load
+- pyTransmit SetupSettings: fixed bad DB import causing revision query to fail
+- pyTransmit script: auto-update check added
+- About: drag-and-drop reordering removed
 _____________________________________________________________________

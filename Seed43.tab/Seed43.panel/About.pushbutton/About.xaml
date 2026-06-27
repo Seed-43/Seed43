@@ -273,16 +273,59 @@
 
         <!-- Seed43 version card -->
         <Border Style="{StaticResource CardStyle}" Padding="16">
-            <StackPanel>
-                <TextBlock x:Name="s43_title" Text="Checking..."
-                           FontSize="12" FontWeight="SemiBold"
-                           Foreground="#208A3C" Margin="0,0,0,6"/>
-                <TextBlock x:Name="s43_changelog" Text="" Visibility="Collapsed"/>
-                <ScrollViewer Style="{StaticResource MacScrollViewer}"
-                              MaxHeight="180">
-                    <StackPanel x:Name="s43_changelog_panel"/>
-                </ScrollViewer>
-            </StackPanel>
+            <Grid>
+                <!-- Normal changelog view -->
+                <StackPanel x:Name="card_normal">
+                    <TextBlock x:Name="s43_title" Text="Checking..."
+                               FontSize="12" FontWeight="SemiBold"
+                               Foreground="#208A3C" Margin="0,0,0,6"/>
+                    <TextBlock x:Name="s43_changelog" Text="" Visibility="Collapsed"/>
+                    <ScrollViewer Style="{StaticResource MacScrollViewer}"
+                                  MaxHeight="180">
+                        <StackPanel x:Name="s43_changelog_panel"/>
+                    </ScrollViewer>
+                </StackPanel>
+
+                <!-- Confirm overlay (shown when update clicked) -->
+                <StackPanel x:Name="card_confirm" Visibility="Collapsed">
+                    <TextBlock Text="Restore Seed43 from GitHub?"
+                               FontSize="13" FontWeight="SemiBold"
+                               Foreground="#208A3C" Margin="0,0,0,8"/>
+                    <TextBlock Text="This will download the latest version and overwrite all scripts."
+                               FontSize="12" Foreground="#F4FAFF" Opacity="0.9"
+                               TextWrapping="Wrap" Margin="0,0,0,4"/>
+                    <TextBlock Text="Local config files (.json) will be preserved."
+                               FontSize="12" Foreground="#F4FAFF" Opacity="0.9"
+                               TextWrapping="Wrap" Margin="0,0,0,4"/>
+                    <TextBlock Text="Reload PyRevit after updating."
+                               FontSize="12" Foreground="#F4FAFF" Opacity="0.9"
+                               TextWrapping="Wrap" Margin="0,0,0,16"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button x:Name="confirm_cancel_btn" Content="Cancel"
+                                Style="{StaticResource SecondaryBtn}"
+                                Padding="12,4" Height="24" FontSize="11"
+                                Margin="0,0,8,0"/>
+                        <Button x:Name="confirm_yes_btn" Content="Yes, Update"
+                                Style="{StaticResource ReloadBtn}"
+                                Padding="12,4" Height="24" FontSize="11"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Done overlay (shown when update complete) -->
+                <StackPanel x:Name="card_done" Visibility="Collapsed">
+                    <TextBlock Text="Seed43 Updated"
+                               FontSize="13" FontWeight="SemiBold"
+                               Foreground="#208A3C" Margin="0,0,0,8"/>
+                    <TextBlock x:Name="card_done_msg" Text=""
+                               FontSize="12" Foreground="#F4FAFF" Opacity="0.9"
+                               TextWrapping="Wrap" Margin="0,0,0,16"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button x:Name="done_ok_btn" Content="OK"
+                                Style="{StaticResource ReloadBtn}"
+                                Padding="12,4" Height="24" FontSize="11"/>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
         </Border>
 
         <!-- Tools divider -->

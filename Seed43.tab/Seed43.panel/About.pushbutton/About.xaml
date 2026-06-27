@@ -86,16 +86,48 @@
         </Setter>
     </Style>
 
+    <Style x:Key="UpdateBtn" TargetType="Button">
+        <Setter Property="Background"      Value="#C0392B"/>
+        <Setter Property="Foreground"      Value="#F4FAFF"/>
+        <Setter Property="FontSize"        Value="12"/>
+        <Setter Property="Padding"         Value="16,8"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Cursor"          Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="#E74C3C"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter Property="Background" Value="#922B21"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 </Window.Resources>
 <StackPanel>
 
     <!-- Header -->
     <Border Background="#232933" Height="64">
         <DockPanel Margin="20,0">
-            <Button x:Name="footer_reload" Content="Reload PyRevit"
-                    Style="{StaticResource SecondaryBtn}"
-                    HorizontalAlignment="Right" DockPanel.Dock="Right"
-                    VerticalAlignment="Center"/>
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right"
+                        VerticalAlignment="Center">
+                <Button x:Name="header_update_btn"
+                        Content="Update Seed43"
+                        Style="{StaticResource UpdateBtn}"
+                        Margin="0,0,8,0"/>
+                <Button x:Name="footer_reload"
+                        Content="Reload PyRevit"
+                        Style="{StaticResource SecondaryBtn}"/>
+            </StackPanel>
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <Image x:Name="header_icon"
                        Width="28" Height="28"
@@ -113,7 +145,7 @@
     <Border x:Name="update_ribbon" Visibility="Collapsed"
             Background="#D4720A" Cursor="Hand" Padding="20,8">
         <DockPanel>
-            <TextBlock Text="&#x25B2;  Update Available \u2014 click to update"
+            <TextBlock Text="&#x25B2;  Update Available &#x2014; click to update"
                        FontSize="12" FontWeight="SemiBold"
                        Foreground="#F4FAFF" VerticalAlignment="Center"/>
             <TextBlock x:Name="update_ribbon_version"

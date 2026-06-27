@@ -3,6 +3,9 @@
 _____________________________________________________________________
 Last update:
 
+  Disclaimer:
+  - Seed43 tools are under active development and provided as-is.
+
   pyTransmit
   - Schedule: group sorting removed, span detection rewritten, border and group gap logic simplified
   - Excel: span detection updated to match schedule changes

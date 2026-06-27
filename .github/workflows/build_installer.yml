@@ -24,6 +24,22 @@ jobs:
       - name: Install NSIS
         run: choco install nsis -y --no-progress
 
+      - name: Prepare installer files
+        shell: powershell
+        run: |
+          # Copy Seed43.extension into the installer folder so NSIS can bundle it
+          Copy-Item -Path "Seed43.tab" -Destination "installer\Seed43.extension\Seed43.tab" -Recurse
+          # Copy root extension files
+          $rootFiles = @("extension.json", "Seed43.png", "startup.py", "version.txt", "seed43_migrations.yaml")
+          foreach ($f in $rootFiles) {
+            if (Test-Path $f) {
+              Copy-Item $f "installer\Seed43.extension\"
+            }
+          }
+          # Copy lib and UI folders if they exist
+          if (Test-Path "lib") { Copy-Item -Path "lib" -Destination "installer\Seed43.extension\lib" -Recurse }
+          if (Test-Path "UI")  { Copy-Item -Path "UI"  -Destination "installer\Seed43.extension\UI"  -Recurse }
+
       - name: Build installer
         shell: powershell
         run: |

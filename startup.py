@@ -478,6 +478,21 @@ def download_and_apply_update(status_lbl, progress_bar):
         status_lbl.Text = "Applying update..."
         sync_tree(new_tab, TAB_DIR)
 
+        # ── Sync root files (startup.py, extension.json, etc.) ────────────────
+        ROOT_SKIP = {
+            "Seed43.tab", "lib", "UI",
+            ".git", ".gitignore", "README.md", "LICENSE",
+            "install.bat", "sync-start.bat", "sync-end.bat",
+        }
+        for fname in os.listdir(extracted_root):
+            if fname in ROOT_SKIP:
+                continue
+            src = os.path.join(extracted_root, fname)
+            dst = os.path.join(EXTENSION_DIR, fname)
+            if os.path.isfile(src):
+                if not fname.lower().endswith(".json") and not fname.lower().endswith(".png"):
+                    shutil.copy2(src, dst)
+
         # ── Update local version.txt ──────────────────────────────────────────
 
         new_version_file = os.path.join(extracted_root, "version.txt")

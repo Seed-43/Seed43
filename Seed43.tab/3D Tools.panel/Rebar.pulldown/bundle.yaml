@@ -1,7 +1,5 @@
-title:
-  en_us: 3D Rebar
 
 layout:
-  - Toggle Concealment
   - Set Workset
+  - Toggle Concealment
   - Update Tag Value To All Elements

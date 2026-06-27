@@ -23,18 +23,5 @@ tooltip: |
   - QA cleanup
   - Fixing inconsistent annotation styles
   _____________________________________________________________________
-  How-to:
-  -> Run the tool
-  -> Select SOURCE
-  -> Select TARGET
-  -> Select formatting options (optional)
-  
-  -> Tool will:
-      - Update all matching Text types
-  
-  Note:
-  - Formatting can be applied without changing type
-  - Type can be changed without applying formatting
-  _____________________________________________________________________
   Last update:
   - Updated to use pyrevitlib  _____________________________________________________________________

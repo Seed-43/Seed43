@@ -1,0 +1,60 @@
+name: Build Seed43 Installer
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(head -1 version.txt | tr -d '[:space:]')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Install NSIS
+        run: choco install nsis -y
+
+      - name: Build installer
+        shell: cmd
+        run: |
+          makensis /DVERSION=${{ steps.version.outputs.version }} installer\Seed43_Installer.nsi
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Seed43_Install_${{ steps.version.outputs.version }}
+          path: installer\Seed43_Install.exe
+          retention-days: 30
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Seed43 v${{ steps.version.outputs.version }}
+          body: |
+            ## Seed43 v${{ steps.version.outputs.version }}
+
+            ### Installation
+            1. Download `Seed43_Install.exe` below
+            2. Run the installer
+            3. Open Revit and reload pyRevit
+
+            ### Requirements
+            - pyRevit 4.8+
+            - Autodesk Revit 2022+
+
+            See [seed43.org](https://seed43.org) for full documentation.
+          files: installer\Seed43_Install.exe
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

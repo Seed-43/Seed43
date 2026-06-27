@@ -323,7 +323,7 @@ class Dialogs(object):
         xaml = (
             _WINDOW_OPEN.replace('SizeToContent="Height"',
                                  'Width="420" SizeToContent="Height"') +
-            '<TextBlock Text="' + title + '"'
+            '<TextBlock x:Name="title_tb"'
             ' Foreground="#F4FAFF" FontSize="14" FontWeight="Bold" Margin="0,0,0,10"/>'
             '<TextBlock x:Name="msg_tb"'
             ' Foreground="#F4FAFF" FontSize="12" Opacity="0.85"'
@@ -338,6 +338,7 @@ class Dialogs(object):
             _WINDOW_CLOSE
         )
         dlg = Markup.XamlReader.Parse(xaml)
+        dlg.FindName("title_tb").Text  = title
         dlg.FindName("msg_tb").Text    = message
         dlg.FindName("ok_btn").Content = ok_label
 

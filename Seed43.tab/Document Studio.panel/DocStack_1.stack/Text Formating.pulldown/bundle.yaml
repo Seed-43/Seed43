@@ -1,14 +1,16 @@
 
 layout:
   - Fix Page Brake
+  - ----
+  - Change Type Format
+  - Format Selected
+  - ----
+  - Find Replace
+  - Find Type
+  - ----
   - Match Alignment
   - Match Properties
   - Match Width
-  - Format Selected
-  - Change Type Format
-  - Find Type
-  - Find Replace
+  - ----
   - MText
   - Xplode
-
-

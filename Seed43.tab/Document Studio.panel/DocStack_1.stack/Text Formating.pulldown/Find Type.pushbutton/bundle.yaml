@@ -17,15 +17,6 @@ tooltip: |
   - Cleaning inconsistent documentation
   - Locating incorrect annotation usage
   _____________________________________________________________________
-  How-to:
-  -> Run the tool
-  -> Select a Text Type
-  -> Choose a View or Legend from the results list
-  
-  -> Tool will:
-      - Open the selected view
-      - Select all matching text notes
-  _____________________________________________________________________
   Last update:
   - Updated to use pyrevitlib
   _____________________________________________________________________

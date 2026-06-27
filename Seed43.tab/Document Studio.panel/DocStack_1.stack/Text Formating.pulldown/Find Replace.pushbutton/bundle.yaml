@@ -17,15 +17,7 @@ tooltip: |
 
   Leave the Replace field blank to delete the matched text entirely.
   _____________________________________________________________________
-  How-to:
-  -> Run the tool
-  -> Choose scope
-  -> Choose match mode
-  -> Enter the text to find
-  -> Enter the replacement text (or leave blank to delete)
-  -> Confirm, and the replacement is applied in a single transaction
-  _____________________________________________________________________
-  Last update:
+    Last update:
   - Initial release
   _____________________________________________________________________
 

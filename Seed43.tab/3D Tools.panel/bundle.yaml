@@ -1,5 +1,4 @@
-version: unknown
 
 layout:
-  - Rebar
   - 3DStack_1
+  - Rebar

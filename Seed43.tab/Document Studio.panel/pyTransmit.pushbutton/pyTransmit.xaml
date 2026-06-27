@@ -14,22 +14,6 @@
 
     <DockPanel LastChildFill="True">
 
-        <!-- Update ribbon (hidden until update detected) -->
-        <Border x:Name="update_ribbon"
-                DockPanel.Dock="Top"
-                Visibility="Collapsed"
-                Background="#D4720A"
-                Cursor="Hand"
-                Padding="20,8">
-            <DockPanel>
-                <ContentControl x:Name="update_ribbon_icon_tb" VerticalAlignment="Center"/>
-                <TextBlock x:Name="update_ribbon_version"
-                           Text=""
-                           FontSize="11" Foreground="#F4FAFF" Opacity="0.85"
-                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
-            </DockPanel>
-        </Border>
-
         <!-- Header -->
         <Border DockPanel.Dock="Top" Background="#232933" 
                 Height="70" 

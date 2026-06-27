@@ -127,11 +127,40 @@ def version_tuple(version_str):
 def dispatch(window, fn):
     window.Dispatcher.Invoke(Action(fn))
 
+def sync_tree(src, dst):
+    """Sync src into dst file by file.
+    Copies all files from src except .json.
+    Deletes dst files not in src except .json.
+    Removes dst dirs not in src only if they contain no .json files."""
+    if not os.path.isdir(dst):
+        os.makedirs(dst)
+    src_names = set(os.listdir(src))
+    dst_names = set(os.listdir(dst))
+    for name in src_names:
+        s = os.path.join(src, name)
+        d = os.path.join(dst, name)
+        if os.path.isdir(s):
+            sync_tree(s, d)
+        elif not name.lower().endswith(".json") and not name.lower().endswith(".png"):
+            shutil.copy2(s, d)
+    for name in dst_names:
+        if name not in src_names:
+            d = os.path.join(dst, name)
+            if os.path.isfile(d):
+                if not name.lower().endswith(".json") and not name.lower().endswith(".png"):
+                    os.remove(d)
+            elif os.path.isdir(d):
+                has_json = any(
+                    f.lower().endswith(".json")
+                    for _, _, files in os.walk(d)
+                    for f in files
+                )
+                if not has_json:
+                    shutil.rmtree(d)
+
 # \u2500\u2500 YAML order helpers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
 def read_yaml_layout(folder_path):
-    """Read the layout: list from a bundle.yaml inside folder_path.
-    Returns a list of name strings, or [] if not found."""
     yaml_path = os.path.join(folder_path, "bundle.yaml")
     try:
         if not os.path.exists(yaml_path):
@@ -155,8 +184,6 @@ def read_yaml_layout(folder_path):
         return []
 
 def apply_yaml_order(items, folder_path):
-    """Sort items by bundle.yaml layout in folder_path.
-    Items not in the layout are appended at the end."""
     order = read_yaml_layout(folder_path)
     if not order:
         return items
@@ -211,31 +238,26 @@ def scan_panel(folder_path):
         children = sorted(os.listdir(folder_path))
     except Exception:
         return items
-
     for child_name in children:
         child_path = os.path.join(folder_path, child_name)
         if not os.path.isdir(child_path):
             continue
         ext = folder_ext(child_name)
-
         if ext == '.pushbutton':
             if has_script(child_path):
                 items.append({'type': 'button',
                               'name': strip_ext(child_name, '.pushbutton'),
                               'path': child_path})
-
         elif ext == '.pulldown':
             items.append({'type': 'pulldown',
                           'name': strip_ext(child_name, '.pulldown'),
                           'path': child_path,
                           'children': scan_pushbuttons(child_path)})
-
         elif ext == '.splitpushbutton':
             items.append({'type': 'splitpushbutton',
                           'name': strip_ext(child_name, '.splitpushbutton'),
                           'path': child_path,
                           'children': scan_pushbuttons(child_path)})
-
         elif ext == '.stack':
             stack_items = []
             try:
@@ -266,7 +288,6 @@ def scan_panel(folder_path):
                               'name': strip_ext(child_name, '.stack'),
                               'path': child_path,
                               'children': stack_items})
-
     return items
 
 # \u2500\u2500 Folder toggle logic \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
@@ -399,10 +420,8 @@ class ToolManager(object):
         for item in apply_yaml_order(items, panel_path):
             if item['type'] == 'button':
                 body.Children.Add(self._tool_row(item, renamer))
-
             elif item['type'] in ('pulldown', 'splitpushbutton'):
                 body.Children.Add(self._tool_row(item, renamer))
-
             elif item['type'] == 'stack':
                 stack_renamer = FolderRenamer(item['path'], parent=renamer)
                 for child in apply_yaml_order(item['children'], item['path']):
@@ -518,6 +537,7 @@ class Seed43Dialog(object):
 
     def _bind(self):
         self.window.FindName("footer_reload").Click             += self._on_reload
+        self.window.FindName("header_update_btn").Click         += self._on_s43_update
         self.window.FindName("update_ribbon").MouseLeftButtonUp += self._on_s43_update
 
     def _init_tools(self):
@@ -568,8 +588,7 @@ class Seed43Dialog(object):
 
     def _on_s43_update(self, sender, args):
         result = MessageBox.Show(
-            "Update Seed43 extension to v{0}?\n\nThe extension will be re-downloaded from GitHub.\nReload PyRevit in Revit after updating.".format(
-                getattr(self, "_remote_s43_version", "latest")),
+            "Restore Seed43 from GitHub?\n\nThis will download the latest version and overwrite all scripts.\nYour local config files (.json) will be preserved.\nReload PyRevit in Revit after updating.",
             "Update Seed43",
             MessageBoxButton.YesNo,
             MessageBoxImage.Question
@@ -584,7 +603,6 @@ class Seed43Dialog(object):
         TAB_DIR_DEST   = os.path.join(S43_INSTALL, "Seed43.tab")
         TEMP_ZIP       = os.path.join(os.environ.get("TEMP", ""), "seed43_update.zip")
         TEMP_DIR       = os.path.join(os.environ.get("TEMP", ""), "seed43_update_extracted")
-        SKIP_EXTENSIONS = (".yaml", ".json")
 
         def log(msg):
             dispatch(self.window, lambda: setattr(
@@ -592,7 +610,7 @@ class Seed43Dialog(object):
 
         def worker():
             try:
-                log("Downloading update...")
+                log("Downloading...")
                 wc = WebClient()
                 wc.Headers.Add("Cache-Control", "no-cache, no-store")
                 wc.DownloadFile(REPO_ZIP_URL, TEMP_ZIP)
@@ -613,18 +631,12 @@ class Seed43Dialog(object):
                 if not extracted_root:
                     raise Exception("Could not find extracted folder.")
 
-                log("Installing update...")
+                log("Installing...")
                 new_tab = os.path.join(extracted_root, "Seed43.tab")
                 if not os.path.exists(new_tab):
                     raise Exception("Seed43.tab not found in download.")
 
-                if os.path.isdir(TAB_DIR_DEST):
-                    shutil.rmtree(TAB_DIR_DEST)
-                shutil.copytree(
-                    new_tab,
-                    TAB_DIR_DEST,
-                    ignore=shutil.ignore_patterns(*["*" + ext for ext in SKIP_EXTENSIONS])
-                )
+                sync_tree(new_tab, TAB_DIR_DEST)
 
                 new_version_file = os.path.join(extracted_root, "version.txt")
                 if os.path.isfile(new_version_file):
@@ -648,10 +660,8 @@ class Seed43Dialog(object):
         t.Start()
 
     def _on_s43_update_done(self, version):
-        self._local_s43_version = version
-        self.window.FindName("update_ribbon").Visibility = Visibility.Collapsed
-        self.window.FindName("s43_version").Text = u"\u25CF  Installed  v{0}".format(version)
-        self.window.FindName("s43_changelog").Text = u"Updated to v{0}, reloading PyRevit...".format(version)
+        self.window.FindName("s43_title").Text = u"\u25CF  Installed  v{0}".format(version)
+        self.window.FindName("s43_changelog").Text = u"Updated to v{0}. Reload PyRevit to apply.".format(version)
         MessageBox.Show(
             "Seed43 updated to v{0}.\n\nPyRevit will now reload to apply the update.".format(version),
             "Seed43 Updated",

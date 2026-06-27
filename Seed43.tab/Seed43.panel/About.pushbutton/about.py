@@ -101,7 +101,11 @@ def read_last_update():
             if in_section:
                 if stripped.startswith("___"):
                     break
+                if not stripped:
+                    continue
                 if stripped.startswith("-"):
+                    notes.append(u"  " + stripped)
+                else:
                     notes.append(stripped)
         return notes
     except Exception:
@@ -539,6 +543,7 @@ class Seed43Dialog(object):
         self.window.FindName("footer_reload").Click             += self._on_reload
         self.window.FindName("header_update_btn").Click         += self._on_s43_update
         self.window.FindName("update_ribbon").MouseLeftButtonUp += self._on_s43_update
+        self.window.FindName("issues_btn").Click                += self._on_issues
 
     def _init_tools(self):
         self._tool_manager = ToolManager(self.window)
@@ -567,13 +572,57 @@ class Seed43Dialog(object):
         t.IsBackground = True
         t.Start()
 
+    def _render_changelog(self, notes):
+        from System.Windows import Thickness, FontWeights, TextWrapping
+        container = self.window.FindName("s43_changelog_panel")
+        if not container:
+            self.window.FindName("s43_changelog").Text = "\n".join(notes)
+            return
+        container.Children.Clear()
+        for note in notes:
+            stripped = note.strip()
+            # Use a Grid for bullet lines so wrapped text indents under the text
+            # not under the dash, giving a clean hanging indent effect
+            if stripped.startswith("-"):
+                from System.Windows.Controls import Grid, ColumnDefinition
+                from System.Windows import GridLength, GridUnitType
+                g   = Grid()
+                c0  = ColumnDefinition()
+                c0.Width = GridLength(16)
+                c1  = ColumnDefinition()
+                c1.Width = GridLength(1, GridUnitType.Star)
+                g.ColumnDefinitions.Add(c0)
+                g.ColumnDefinitions.Add(c1)
+                g.Margin = Thickness(8, 1, 0, 1)
+                dash = TextBlock()
+                dash.Text      = u"-"
+                dash.FontSize  = 12
+                dash.Foreground = SolidColorBrush(ColorConverter.ConvertFromString("#F4FAFF"))
+                dash.Opacity   = 0.9
+                Grid.SetColumn(dash, 0)
+                g.Children.Add(dash)
+                body = TextBlock()
+                body.Text        = stripped[1:].strip()
+                body.FontSize    = 12
+                body.TextWrapping = TextWrapping.Wrap
+                body.Foreground  = SolidColorBrush(ColorConverter.ConvertFromString("#F4FAFF"))
+                body.Opacity     = 0.9
+                Grid.SetColumn(body, 1)
+                g.Children.Add(body)
+                container.Children.Add(g)
+            else:
+                tb            = TextBlock()
+                tb.Text       = stripped
+                tb.FontSize   = 12
+                tb.Foreground = SolidColorBrush(ColorConverter.ConvertFromString("#208A3C"))
+                tb.FontWeight = FontWeights.SemiBold
+                tb.Margin     = Thickness(0, 6, 0, 2)
+                container.Children.Add(tb)
+
     def _update_s43_ui(self, local, notes, remote):
         self.window.FindName("s43_title").Text = u"\u25CF  Installed  v{}".format(local) if local else "Version unknown"
 
-        if notes:
-            self.window.FindName("s43_changelog").Text = "\n".join(notes)
-        else:
-            self.window.FindName("s43_changelog").Text = ""
+        self._render_changelog(notes)
 
         if remote and version_tuple(remote) > version_tuple(local):
             self._remote_s43_version = remote
@@ -581,10 +630,8 @@ class Seed43Dialog(object):
                 u"v{}  \u2192  v{}".format(local, remote)
             self.window.FindName("update_ribbon").Visibility = Visibility.Visible
         elif not remote:
-            self.window.FindName("s43_changelog").Text = (
-                "\n".join(notes) + "\n\nCould not reach GitHub to check for updates."
-                if notes else "Could not reach GitHub to check for updates."
-            )
+            extra = [u"Could not reach GitHub to check for updates."]
+            self._render_changelog(notes + extra)
 
     def _on_s43_update(self, sender, args):
         result = MessageBox.Show(
@@ -679,6 +726,12 @@ class Seed43Dialog(object):
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning
             )
+
+    def _on_issues(self, sender, args):
+        import System
+        psi = System.Diagnostics.ProcessStartInfo("https://github.com/Seed-43/Seed43/issues")
+        psi.UseShellExecute = True
+        System.Diagnostics.Process.Start(psi)
 
     def _on_error(self, msg):
         MessageBox.Show("Operation failed:\n\n" + msg, "Seed43",

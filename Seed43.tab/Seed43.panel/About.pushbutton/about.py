@@ -255,11 +255,14 @@ def apply_migrations(migrations, tab_dst):
 
 # ── Sync helper ───────────────────────────────────────────────────────────────
 
-def sync_tree(src, dst):
+def sync_tree(src, dst, skipped=None):
     """Sync src into dst file by file.
     Copies all files from src except .json and .png.
     Deletes dst files not in src except .json and .png.
-    Removes dst dirs not in src only if they contain no .json files."""
+    Removes dst dirs not in src only if they contain no .json files.
+    Appends any skipped file paths to the skipped list if provided."""
+    if skipped is None:
+        skipped = []
     if not os.path.isdir(dst):
         os.makedirs(dst)
     src_names = set(os.listdir(src))
@@ -268,15 +271,21 @@ def sync_tree(src, dst):
         s = os.path.join(src, name)
         d = os.path.join(dst, name)
         if os.path.isdir(s):
-            sync_tree(s, d)
-        elif not name.lower().endswith(".json") and not name.lower().endswith(".png"):
-            shutil.copy2(s, d)
+            sync_tree(s, d, skipped)
+        elif not name.lower().endswith(".json") and not name.lower().endswith(".png") and not name.lower().endswith(".mp4"):
+            try:
+                shutil.copy2(s, d)
+            except Exception:
+                skipped.append(d)
     for name in dst_names:
         if name not in src_names:
             d = os.path.join(dst, name)
             if os.path.isfile(d):
-                if not name.lower().endswith(".json") and not name.lower().endswith(".png"):
-                    os.remove(d)
+                if not name.lower().endswith(".json") and not name.lower().endswith(".png") and not name.lower().endswith(".mp4"):
+                    try:
+                        os.remove(d)
+                    except Exception:
+                        skipped.append(d)
             elif os.path.isdir(d):
                 has_json = any(
                     f.lower().endswith(".json")
@@ -284,7 +293,11 @@ def sync_tree(src, dst):
                     for f in files
                 )
                 if not has_json:
-                    shutil.rmtree(d)
+                    try:
+                        shutil.rmtree(d)
+                    except Exception:
+                        skipped.append(d)
+    return skipped
 
 # ── YAML order helpers ────────────────────────────────────────────────────────
 
@@ -856,7 +869,7 @@ class Seed43Dialog(object):
                     apply_migrations(migrations, TAB_DIR_DEST)
 
                 log("Installing...")
-                sync_tree(new_tab, TAB_DIR_DEST)
+                skipped = sync_tree(new_tab, TAB_DIR_DEST)
 
                 # ── Sync root files (startup.py, extension.json, etc.) ────────
                 ROOT_SKIP = {
@@ -871,7 +884,10 @@ class Seed43Dialog(object):
                     dst = os.path.join(S43_INSTALL, fname)
                     if os.path.isfile(src):
                         if not fname.lower().endswith(".json") and not fname.lower().endswith(".png"):
-                            shutil.copy2(src, dst)
+                            try:
+                                shutil.copy2(src, dst)
+                            except Exception:
+                                skipped.append(dst)
 
                 new_version_file = os.path.join(extracted_root, "version.txt")
                 if os.path.isfile(new_version_file):
@@ -880,13 +896,20 @@ class Seed43Dialog(object):
                 version = fetch_remote_version() or "unknown"
                 log("Done, v{0}".format(version))
 
-                if os.path.exists(TEMP_ZIP):
-                    os.remove(TEMP_ZIP)
-                if os.path.exists(TEMP_DIR):
-                    shutil.rmtree(TEMP_DIR)
+                try:
+                    if os.path.exists(TEMP_ZIP):
+                        os.remove(TEMP_ZIP)
+                except Exception:
+                    pass
+                try:
+                    if os.path.exists(TEMP_DIR):
+                        shutil.rmtree(TEMP_DIR)
+                except Exception:
+                    pass
 
+                _skipped = skipped[:]
                 dispatch(self.window, lambda: self._stop_spinner())
-                dispatch(self.window, lambda: self._on_s43_update_done(version))
+                dispatch(self.window, lambda: self._on_s43_update_done(version, _skipped))
 
             except Exception as ex:
                 dispatch(self.window, lambda: self._stop_spinner())
@@ -896,11 +919,51 @@ class Seed43Dialog(object):
         t.IsBackground = True
         t.Start()
 
-    def _on_s43_update_done(self, version):
+    def _on_s43_update_done(self, version, skipped=None):
+        from System.Windows import Thickness, FontWeights, TextWrapping
         self.window.FindName("s43_title").Text = u"\u25CF  Installed  v{0}".format(version)
-        msg = self.window.FindName("card_done_msg")
-        if msg:
-            msg.Text = u"Updated to v{0}.\n\nPyRevit will now reload to apply the update.".format(version)
+        title = self.window.FindName("card_done_title")
+        if title:
+            title.Text = u"Seed43 Updated to v{0}.".format(version)
+
+        # Build done message as separate TextBlocks so newlines render correctly
+        panel = self.window.FindName("card_done_panel")
+        if panel:
+            panel.Children.Clear()
+
+            def add_line(text, dim=False):
+                tb = TextBlock()
+                tb.Text        = text
+                tb.FontSize    = 12
+                tb.TextWrapping = TextWrapping.Wrap
+                tb.Foreground  = SolidColorBrush(ColorConverter.ConvertFromString(
+                    "#A0AABB" if dim else "#F4FAFF"))
+                tb.Opacity     = 0.7 if dim else 0.9
+                tb.Margin      = Thickness(0, 1, 0, 1)
+                panel.Children.Add(tb)
+
+            if skipped:
+                names = [os.path.basename(p) for p in skipped]
+                tb = TextBlock()
+                tb.Margin = Thickness(0, 8, 0, 2)
+                tb.Text = u"Revit has {0} file{1} open that could not be updated:".format(
+                    len(names), "s" if len(names) != 1 else "")
+                tb.FontSize    = 12
+                tb.TextWrapping = TextWrapping.Wrap
+                tb.Foreground  = SolidColorBrush(ColorConverter.ConvertFromString("#D4720A"))
+                panel.Children.Add(tb)
+                for n in names:
+                    add_line(u"  - " + n, dim=True)
+                tb2 = TextBlock()
+                tb2.Text      = u"Reload PyRevit to apply the remaining changes."
+                tb2.FontSize  = 12
+                tb2.TextWrapping = TextWrapping.Wrap
+                tb2.Foreground = SolidColorBrush(ColorConverter.ConvertFromString("#F4FAFF"))
+                tb2.Opacity   = 0.9
+                tb2.Margin    = Thickness(0, 8, 0, 0)
+                panel.Children.Add(tb2)
+
+
         self._show_card("card_done")
 
         def on_ok(s, e):

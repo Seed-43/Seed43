@@ -257,10 +257,9 @@ def apply_migrations(migrations, tab_dst):
 
 def sync_tree(src, dst, skipped=None):
     """Sync src into dst file by file.
-    Copies all files from src except .json and .png.
-    Deletes dst files not in src except .json and .png.
-    Removes dst dirs not in src only if they contain no .json files.
-    Appends any skipped file paths to the skipped list if provided."""
+    Tries to copy/update all files. If a file is locked by Revit the
+    exception is caught silently and the file is added to the skipped list.
+    Removes dst files and dirs not in src, skipping locked ones silently."""
     if skipped is None:
         skipped = []
     if not os.path.isdir(dst):
@@ -272,7 +271,7 @@ def sync_tree(src, dst, skipped=None):
         d = os.path.join(dst, name)
         if os.path.isdir(s):
             sync_tree(s, d, skipped)
-        elif not name.lower().endswith(".json") and not name.lower().endswith(".png") and not name.lower().endswith(".mp4"):
+        else:
             try:
                 shutil.copy2(s, d)
             except Exception:
@@ -281,22 +280,15 @@ def sync_tree(src, dst, skipped=None):
         if name not in src_names:
             d = os.path.join(dst, name)
             if os.path.isfile(d):
-                if not name.lower().endswith(".json") and not name.lower().endswith(".png") and not name.lower().endswith(".mp4"):
-                    try:
-                        os.remove(d)
-                    except Exception:
-                        skipped.append(d)
+                try:
+                    os.remove(d)
+                except Exception:
+                    skipped.append(d)
             elif os.path.isdir(d):
-                has_json = any(
-                    f.lower().endswith(".json")
-                    for _, _, files in os.walk(d)
-                    for f in files
-                )
-                if not has_json:
-                    try:
-                        shutil.rmtree(d)
-                    except Exception:
-                        skipped.append(d)
+                try:
+                    shutil.rmtree(d)
+                except Exception:
+                    skipped.append(d)
     return skipped
 
 # ── YAML order helpers ────────────────────────────────────────────────────────
@@ -883,11 +875,10 @@ class Seed43Dialog(object):
                     src = os.path.join(extracted_root, fname)
                     dst = os.path.join(S43_INSTALL, fname)
                     if os.path.isfile(src):
-                        if not fname.lower().endswith(".json") and not fname.lower().endswith(".png"):
-                            try:
-                                shutil.copy2(src, dst)
-                            except Exception:
-                                skipped.append(dst)
+                        try:
+                            shutil.copy2(src, dst)
+                        except Exception:
+                            skipped.append(dst)
 
                 new_version_file = os.path.join(extracted_root, "version.txt")
                 if os.path.isfile(new_version_file):

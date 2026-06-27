@@ -1,6 +1,5 @@
 ; Seed43 Installer
 ; NSIS Script
-; Builds a Windows installer that downloads and installs the Seed43 pyRevit extension
 
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
@@ -20,9 +19,6 @@ Var ExtensionsDir
 !define MUI_ABORTWARNING
 !define MUI_ICON                    "Seed43.ico"
 !define MUI_UNICON                  "Seed43.ico"
-!define MUI_HEADERIMAGE
-!define MUI_HEADERIMAGE_BITMAP      "installer_header.bmp"
-!define MUI_WELCOMEFINISHPAGE_BITMAP "installer_welcome.bmp"
 
 !define MUI_WELCOMEPAGE_TITLE       "Welcome to Seed43"
 !define MUI_WELCOMEPAGE_TEXT        "This will install the Seed43 toolbar extension for pyRevit.$\r$\n$\r$\npyRevit must already be installed before continuing.$\r$\n$\r$\nClick Next to continue."
@@ -45,15 +41,12 @@ Var ExtensionsDir
 ; ── Functions ─────────────────────────────────────────────────────────────────
 
 Function FindPyRevit
-    ; Check common pyRevit Extensions locations
     StrCpy $pyRevitFound "0"
 
-    ; Standard location
     IfFileExists "$APPDATA\pyRevit\Extensions\*.*" 0 +3
         StrCpy $ExtensionsDir "$APPDATA\pyRevit\Extensions"
         StrCpy $pyRevitFound "1"
 
-    ; Alternate location
     ${If} $pyRevitFound == "0"
         IfFileExists "$LOCALAPPDATA\pyRevit\Extensions\*.*" 0 +3
             StrCpy $ExtensionsDir "$LOCALAPPDATA\pyRevit\Extensions"
@@ -62,7 +55,7 @@ Function FindPyRevit
 
     ${If} $pyRevitFound == "0"
         MessageBox MB_YESNO|MB_ICONEXCLAMATION \
-            "pyRevit Extensions folder not found.$\r$\n$\r$\npyRevit must be installed before installing Seed43.$\r$\n$\r$\nDownload pyRevit from https://github.com/pyrevitlabs/pyRevit/releases$\r$\n$\r$\nDo you want to continue anyway and install to the default location?" \
+            "pyRevit Extensions folder not found.$\r$\n$\r$\npyRevit must be installed before installing Seed43.$\r$\n$\r$\nDownload pyRevit from https://github.com/pyrevitlabs/pyRevit/releases$\r$\n$\r$\nDo you want to continue anyway?" \
             IDYES continue IDNO abort
         abort:
             Abort
@@ -81,21 +74,17 @@ Section "Seed43" SecMain
     SetOutPath "$ExtensionsDir"
     DetailPrint "Installing to: $ExtensionsDir"
 
-    ; Remove old install if present
     ${If} ${FileExists} "$ExtensionsDir\Seed43.extension\*.*"
         DetailPrint "Removing previous Seed43 installation..."
         RMDir /r "$ExtensionsDir\Seed43.extension"
     ${EndIf}
 
-    ; Extract bundled Seed43.extension
     DetailPrint "Extracting Seed43..."
     SetOverwrite on
     File /r "Seed43.extension"
 
-    ; Write uninstaller
     WriteUninstaller "$ExtensionsDir\Seed43.extension\Uninstall_Seed43.exe"
 
-    ; Write registry entry for Add/Remove Programs
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Seed43" \
                      "DisplayName" "Seed43 for pyRevit"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Seed43" \

@@ -24,7 +24,7 @@ from System import Uri, UriKind, Action
 # It is imported lazily below, only on the rare path where an update is applied.
 
 
-# ── XAML ──────────────────────────────────────────────────────────────────────
+# ── XAML ─────────────────────────────────────────────────────────────────────
 
 WINDOW_XAML = """
 <Window
@@ -271,9 +271,6 @@ TAB_DIR       = os.path.join(EXTENSION_DIR, "Seed43.tab")
 VERSION_FILE  = os.path.join(EXTENSION_DIR, "version.txt")
 ICON_PATH     = os.path.join(SCRIPT_DIR, "icon.png")
 
-# File extensions to skip during update, preserving local config files
-SKIP_EXTENSIONS = (".yaml", ".json")
-
 
 # ── FUNCTIONS ─────────────────────────────────────────────────────────────────
 
@@ -317,9 +314,48 @@ def version_tuple(version_str):
         return (0, 0, 0)
 
 
+def sync_tree(src, dst):
+    """Sync src into dst file by file.
+    - Copies all files from src, skipping .json files
+    - Deletes files in dst that are not in src, but keeps .json files
+    - Removes dirs in dst not in src only if they contain no .json files
+    - Recurses into all subdirs
+    """
+    if not os.path.isdir(dst):
+        os.makedirs(dst)
+
+    src_names = set(os.listdir(src))
+    dst_names = set(os.listdir(dst))
+
+    # Copy/overwrite everything from src except .json
+    for name in src_names:
+        s = os.path.join(src, name)
+        d = os.path.join(dst, name)
+        if os.path.isdir(s):
+            sync_tree(s, d)
+        elif not name.lower().endswith(".json"):
+            shutil.copy2(s, d)
+
+    # Delete dst files/dirs not in src, but preserve .json files
+    for name in dst_names:
+        if name not in src_names:
+            d = os.path.join(dst, name)
+            if os.path.isfile(d):
+                if not name.lower().endswith(".json"):
+                    os.remove(d)
+            elif os.path.isdir(d):
+                has_json = any(
+                    f.lower().endswith(".json")
+                    for _, _, files in os.walk(d)
+                    for f in files
+                )
+                if not has_json:
+                    shutil.rmtree(d)
+
+
 def download_and_apply_update(status_lbl, progress_bar):
-    """Download the repo zip, swap in the new Seed43.tab, update version.txt.
-    Skips yaml and json files to preserve local config.
+    """Download the repo zip, sync the new Seed43.tab into place, update version.txt.
+    Preserves local .json config files. Copies .yaml files from the new version.
     Returns True on success, False on failure."""
     tmp_zip = os.path.join(EXTENSION_DIR, "_seed43_update.zip")
     tmp_dir = os.path.join(EXTENSION_DIR, "_seed43_update_tmp")
@@ -356,17 +392,11 @@ def download_and_apply_update(status_lbl, progress_bar):
             status_lbl.Text = "Update failed: Seed43.tab not found in download."
             return False
 
-        # ── Replace Seed43.tab, skipping yaml and json files ─────────────────
+        # ── Sync Seed43.tab, keeping json, updating yaml ──────────────────────
 
         status_lbl.Text = "Applying update..."
 
-        if os.path.isdir(TAB_DIR):
-            shutil.rmtree(TAB_DIR)
-        shutil.copytree(
-            new_tab,
-            TAB_DIR,
-            ignore=shutil.ignore_patterns(*["*" + ext for ext in SKIP_EXTENSIONS])
-        )
+        sync_tree(new_tab, TAB_DIR)
 
         # ── Update local version.txt ──────────────────────────────────────────
 
@@ -405,12 +435,12 @@ class UpdateWindow(object):
 
         # ── Load icon ─────────────────────────────────────────────────────────
         if os.path.exists(ICON_PATH):
-            img       = self.window.FindName("header_icon")
-            bmp       = BitmapImage()
+            img           = self.window.FindName("header_icon")
+            bmp           = BitmapImage()
             bmp.BeginInit()
             bmp.UriSource = Uri(ICON_PATH, UriKind.Absolute)
             bmp.EndInit()
-            img.Source = bmp
+            img.Source    = bmp
 
         self.title_lbl    = self.window.FindName("update_title_lbl")
         self.msg_lbl      = self.window.FindName("update_msg_lbl")

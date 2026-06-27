@@ -22,12 +22,17 @@ jobs:
           echo "Building version: $VERSION"
 
       - name: Install NSIS
-        run: choco install nsis -y
+        run: choco install nsis -y --no-progress
 
       - name: Build installer
-        shell: cmd
+        shell: powershell
         run: |
-          makensis /DVERSION=${{ steps.version.outputs.version }} installer\Seed43_Installer.nsi
+          $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
+          if (-not (Test-Path $makensis)) {
+            $makensis = "C:\Program Files\NSIS\makensis.exe"
+          }
+          & $makensis /DVERSION=${{ steps.version.outputs.version }} installer\Seed43_Installer.nsi
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4

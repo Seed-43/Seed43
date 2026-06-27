@@ -1,16 +1,26 @@
-2.0.0
+26.06.27
 
 _____________________________________________________________________
 Last update:
-- View Organiser: split casing into two separate settings for Title on Sheet and Sheet Name, added sanitize_name() and read-only guard
-- Organiser Reset: updated to match View Organiser casing changes
-- PyTables: full rewrite from xlsx range importer to WPF link manager with drag-drop, card UI and ExtensibleStorage persistence
-- pyTransmit Schedule: group sorting removed, span detection rewritten, border and group gap logic simplified
-- pyTransmit Excel: span detection updated to match schedule changes
-- pyTransmit Legend: CopyElements switched back to batch copy instead of one-at-a-time loop
-- pyTransmit write_rev_param: revision position calculation moved inside _calc_mark instead of precomputed
-- pyTransmit Dialogues: title now set directly in XAML string instead of via FindName after load
-- pyTransmit SetupSettings: fixed bad DB import causing revision query to fail
-- pyTransmit script: auto-update check added
-- About: drag-and-drop reordering removed
+
+  pyTransmit
+  - Schedule: group sorting removed, span detection rewritten, border and group gap logic simplified
+  - Excel: span detection updated to match schedule changes
+  - Legend: CopyElements switched back to batch copy instead of one-at-a-time loop
+  - write_rev_param: revision position calculation moved inside _calc_mark instead of precomputed
+  - Dialogs: title now set directly in XAML string instead of via FindName after load
+  - SetupSettings: fixed bad DB import causing revision query to fail
+  - script: auto-update check added
+
+  View Organiser
+  - Split casing into two separate settings for Title on Sheet and Sheet Name
+  - Added sanitize_name() and read-only guard
+  - Organiser Reset updated to match
+
+  PyTables
+  - Full rewrite from xlsx range importer to WPF link manager with drag-drop, card UI and ExtensibleStorage persistence
+
+  About
+  - Drag-and-drop reordering removed, tool order now follows bundle.yaml
+  - Added Update Seed43 button to header
 _____________________________________________________________________

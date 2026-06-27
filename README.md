@@ -24,17 +24,17 @@
 
 ## Installation
 
-### Option 1 — Windows Installer (Recommended)
+### Option 1: Windows Installer (Recommended)
 1. Download `Seed43_Install.exe` from the [latest release](https://github.com/Seed-43/Seed43/releases/latest)
 2. Double-click to run
 3. Open Revit and reload PyRevit
 
-### Option 2 — PyRevit Extension Manager
+### Option 2: PyRevit Extension Manager
 1. Open PyRevit Settings → Extensions
 2. Add custom extension source
 3. Find **Seed43** in the list and click Install
 
-### Option 3 — Manual
+### Option 3: Manual
 1. Download or clone this repo
 2. Copy `Seed43.extension` to `%APPDATA%\pyRevit\Extensions\`
 3. Reload PyRevit inside Revit

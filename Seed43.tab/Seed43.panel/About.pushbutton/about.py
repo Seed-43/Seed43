@@ -633,16 +633,63 @@ class Seed43Dialog(object):
             extra = [u"Could not reach GitHub to check for updates."]
             self._render_changelog(notes + extra)
 
-    def _on_s43_update(self, sender, args):
-        result = MessageBox.Show(
-            "Restore Seed43 from GitHub?\n\nThis will download the latest version and overwrite all scripts.\nYour local config files (.json) will be preserved.\nReload PyRevit in Revit after updating.",
-            "Update Seed43",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question
-        )
-        if str(result) != "Yes":
-            return
+    def _show_card(self, name):
+        """Show one of card_normal / card_confirm / card_done, hide the others."""
+        for panel in ("card_normal", "card_confirm", "card_done"):
+            p = self.window.FindName(panel)
+            if p:
+                p.Visibility = Visibility.Visible if panel == name else Visibility.Collapsed
 
+    def _start_spinner(self):
+        from System.Windows.Threading import DispatcherTimer
+        from System import TimeSpan
+        self._spinner_dots = 0
+        self._spinner_timer = DispatcherTimer()
+        self._spinner_timer.Interval = TimeSpan.FromMilliseconds(400)
+        def tick(s, e):
+            self._spinner_dots = (self._spinner_dots + 1) % 4
+            dots = u"." * self._spinner_dots
+            container = self.window.FindName("s43_changelog_panel")
+            if container:
+                container.Children.Clear()
+                from System.Windows import Thickness
+                tb = TextBlock()
+                tb.Text      = u"Updating" + dots
+                tb.FontSize  = 12
+                tb.Foreground = SolidColorBrush(ColorConverter.ConvertFromString("#208A3C"))
+                tb.Margin    = Thickness(0, 2, 0, 2)
+                container.Children.Add(tb)
+        self._spinner_timer.Tick += tick
+        self._spinner_timer.Start()
+
+    def _stop_spinner(self):
+        try:
+            self._spinner_timer.Stop()
+        except Exception:
+            pass
+
+    def _on_s43_update(self, sender, args):
+        self._show_card("card_confirm")
+
+        def on_cancel(s, e):
+            self._show_card("card_normal")
+
+        def on_yes(s, e):
+            self._show_card("card_normal")
+            self._do_update()
+
+        cancel_btn = self.window.FindName("confirm_cancel_btn")
+        yes_btn    = self.window.FindName("confirm_yes_btn")
+        # Remove existing handlers to avoid stacking on repeated clicks
+        try:
+            cancel_btn.Click -= on_cancel
+            yes_btn.Click    -= on_yes
+        except Exception:
+            pass
+        cancel_btn.Click += on_cancel
+        yes_btn.Click    += on_yes
+
+    def _do_update(self):
         self.window.FindName("update_ribbon").Visibility = Visibility.Collapsed
 
         EXTENSIONS_DIR = os.path.join(os.environ.get("APPDATA", ""), "pyRevit", "Extensions")
@@ -650,6 +697,8 @@ class Seed43Dialog(object):
         TAB_DIR_DEST   = os.path.join(S43_INSTALL, "Seed43.tab")
         TEMP_ZIP       = os.path.join(os.environ.get("TEMP", ""), "seed43_update.zip")
         TEMP_DIR       = os.path.join(os.environ.get("TEMP", ""), "seed43_update_extracted")
+
+        self._start_spinner()
 
         def log(msg):
             dispatch(self.window, lambda: setattr(
@@ -697,9 +746,11 @@ class Seed43Dialog(object):
                 if os.path.exists(TEMP_DIR):
                     shutil.rmtree(TEMP_DIR)
 
+                dispatch(self.window, lambda: self._stop_spinner())
                 dispatch(self.window, lambda: self._on_s43_update_done(version))
 
             except Exception as ex:
+                dispatch(self.window, lambda: self._stop_spinner())
                 dispatch(self.window, lambda: self._on_error(str(ex)))
 
         t = Thread(ThreadStart(worker))
@@ -708,24 +759,30 @@ class Seed43Dialog(object):
 
     def _on_s43_update_done(self, version):
         self.window.FindName("s43_title").Text = u"\u25CF  Installed  v{0}".format(version)
-        self.window.FindName("s43_changelog").Text = u"Updated to v{0}. Reload PyRevit to apply.".format(version)
-        MessageBox.Show(
-            "Seed43 updated to v{0}.\n\nPyRevit will now reload to apply the update.".format(version),
-            "Seed43 Updated",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information
-        )
-        self.window.Close()
+        msg = self.window.FindName("card_done_msg")
+        if msg:
+            msg.Text = u"Updated to v{0}.\n\nPyRevit will now reload to apply the update.".format(version)
+        self._show_card("card_done")
+
+        def on_ok(s, e):
+            self.window.Close()
+            try:
+                from pyrevit.loader import sessionmgr
+                sessionmgr.reload_pyrevit()
+            except Exception as ex:
+                MessageBox.Show(
+                    "Please reload PyRevit manually.\n\n" + str(ex),
+                    "Reload Required",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning
+                )
+
+        ok_btn = self.window.FindName("done_ok_btn")
         try:
-            from pyrevit.loader import sessionmgr
-            sessionmgr.reload_pyrevit()
-        except Exception as ex:
-            MessageBox.Show(
-                "Please reload PyRevit manually.\n\n" + str(ex),
-                "Reload Required",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning
-            )
+            ok_btn.Click -= on_ok
+        except Exception:
+            pass
+        ok_btn.Click += on_ok
 
     def _on_issues(self, sender, args):
         import System

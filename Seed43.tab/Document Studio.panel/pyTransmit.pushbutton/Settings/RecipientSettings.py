@@ -18,13 +18,34 @@ clr.AddReference("System.Windows.Forms")
 from System.Windows import Application
 from System.Windows.Controls import DataGrid
 from System.Windows.Input import MouseButtonState
+
+try:
+    from Snippets import _dialogs as sdlg
+except Exception:
+    sdlg = None
+
+def _alert(message, title='', exitscript=False):
+    """Themed popup via the shared Snippets dialog lib, falls back to
+    pyRevit's default forms.alert if the shared lib isn't available."""
+    if sdlg:
+        sdlg.message(message, title=title)
+    else:
+        forms.alert(message, title=title)
+    if exitscript:
+        script.exit()
+
+def _confirm(message, title='', no='No'):
+    """Themed yes/no popup, returns True on yes."""
+    if sdlg:
+        return sdlg.confirm(message, title=title, no=no)
+    return bool(forms.alert(message, title=title, ok=False, yes=True, no=True))
 from System.Collections.ObjectModel import ObservableCollection
 from System.ComponentModel import INotifyPropertyChanged, PropertyChangedEventArgs
 from System.Windows.Forms import OpenFileDialog, SaveFileDialog, DialogResult
 from System.Windows.Forms import OpenFileDialog as WinFormsOpenFileDialog
 from System import EventHandler
 
-# xlsxwriter is bundled with pyRevit's IronPython environment — no install needed.
+# xlsxwriter is bundled with pyRevit's IronPython environment, no install needed.
 
 # For Excel import, we'll use COM automation (works in IronPython)
 EXCEL_READ_SUPPORT = True  # COM is always available on Windows
@@ -595,7 +616,7 @@ class RecipientManagerWindow(WPFWindow):
                 elif ext == '.csv':
                     headers, data = read_csv(file_path)
                 else:
-                    forms.alert("Unsupported file format: {}".format(ext), title="Import Error")
+                    _alert("Unsupported file format: {}".format(ext), title="Import Error")
                     return
                 
                 # Store import data
@@ -613,7 +634,7 @@ class RecipientManagerWindow(WPFWindow):
                 self.import_btn.IsEnabled = True
             
             except Exception as e:
-                forms.alert("Error reading file:\n{}".format(str(e)), title="Import Error")
+                _alert("Error reading file:\n{}".format(str(e)), title="Import Error")
                 self.import_file_path = None
                 self.import_headers = []
                 self.import_data = []
@@ -679,7 +700,7 @@ class RecipientManagerWindow(WPFWindow):
             preview_window = ImportPreviewWindow(preview_data)
             preview_window.ShowDialog()
         except Exception as e:
-            forms.alert("Error showing preview:\n{}".format(str(e)), title="Preview Error")
+            _alert("Error showing preview:\n{}".format(str(e)), title="Preview Error")
     
     def import_data(self, sender, args):
         """Import data into the grid"""
@@ -728,7 +749,7 @@ class RecipientManagerWindow(WPFWindow):
         if duplicate_count > 0:
             summary += "Skipped (duplicates): {} records".format(duplicate_count)
         
-        forms.alert(summary, title="Import Complete")
+        _alert(summary, title="Import Complete")
         
         # Reset import UI
         self._reset_import_ui()
@@ -736,11 +757,11 @@ class RecipientManagerWindow(WPFWindow):
     def _validate_import_mapping(self):
         """Validate that column mappings are selected"""
         if self.recipient_mapping_cb.SelectedIndex <= 0:
-            forms.alert("Please select a column for 'Recipient'", title="Mapping Required")
+            _alert("Please select a column for 'Recipient'", title="Mapping Required")
             return False
         
         if self.attention_mapping_cb.SelectedIndex <= 0:
-            forms.alert("Please select a column for 'Attention To'", title="Mapping Required")
+            _alert("Please select a column for 'Attention To'", title="Mapping Required")
             return False
         
         return True
@@ -778,13 +799,7 @@ class RecipientManagerWindow(WPFWindow):
         if not to_remove:
             return
         
-        if forms.alert(
-            "Delete {} record(s)?".format(len(to_remove)),
-            title="Confirm Delete",
-            ok=False,
-            yes=True,
-            no=True
-        ):
+        if _confirm("Delete {} record(s)?".format(len(to_remove)), title="Confirm Delete"):
             for record in to_remove:
                 self.recipients.Remove(record)
             
@@ -809,7 +824,7 @@ class RecipientManagerWindow(WPFWindow):
             records_to_export = list(self.recipients)
         
         if not records_to_export:
-            forms.alert("No records to export.", title="Export")
+            _alert("No records to export.", title="Export")
             return
         
         # Ask for file type
@@ -841,12 +856,12 @@ class RecipientManagerWindow(WPFWindow):
                 else:
                     write_csv(dialog.FileName, records_to_export)
                 
-                forms.alert(
+                _alert(
                     "Exported {} record(s) successfully!".format(len(records_to_export)),
                     title="Export Complete"
                 )
             except Exception as e:
-                forms.alert("Error exporting:\n{}".format(str(e)), title="Export Error")
+                _alert("Error exporting:\n{}".format(str(e)), title="Export Error")
     
     def search_changed(self, sender, args):
         """Filter grid based on search text"""
@@ -904,7 +919,7 @@ class RecipientManagerWindow(WPFWindow):
         except: pass
 
     def context_select_all(self, sender, args):
-        """Right-click Select All — highlights all rows in the grid."""
+        """Right-click Select All, highlights all rows in the grid."""
         try:
             grid = getattr(self, 'recipients_grid', None)
             if grid:
@@ -912,7 +927,7 @@ class RecipientManagerWindow(WPFWindow):
         except: pass
 
     def context_select_none(self, sender, args):
-        """Right-click Select None — clears all grid highlights."""
+        """Right-click Select None, clears all grid highlights."""
         try:
             grid = getattr(self, 'recipients_grid', None)
             if grid:
@@ -922,7 +937,7 @@ class RecipientManagerWindow(WPFWindow):
         except: pass
     
     # ═══════════════════════════════════════════════════════════════════════
-    # DRAG & DROP — row reordering with green drop indicator
+    # DRAG & DROP, row reordering with green drop indicator
     # ═══════════════════════════════════════════════════════════════════════
 
     _drag_source_row  = None
@@ -1109,7 +1124,7 @@ class RecipientManagerWindow(WPFWindow):
             elif col_header in ('attention to (person)', 'attention to'):
                 key_fn = lambda r: (r.AttentionTo or '').lower()
             else:
-                return   # unknown column — skip
+                return   # unknown column, skip
             prev = self._last_sort.get(col_header)
             if prev == 'asc':
                 items.sort(key=key_fn, reverse=True)
@@ -1147,13 +1162,7 @@ class RecipientManagerWindow(WPFWindow):
         """Delete selected row"""
         selected = self.recipients_grid.SelectedItem
         if selected:
-            if forms.alert(
-                "Delete this record?",
-                title="Confirm Delete",
-                ok=False,
-                yes=True,
-                no=True
-            ):
+            if _confirm("Delete this record?", title="Confirm Delete"):
                 self.recipients.Remove(selected)
                 self._update_record_count()
     
@@ -1178,14 +1187,14 @@ def main():
         window = RecipientManagerWindow()
         window.ShowDialog()
     except Exception as e:
-        forms.alert("Error initializing window:\n{}".format(str(e)), exitscript=True)
+        _alert("Error initializing window:\n{}".format(str(e)), exitscript=True)
 
 if __name__ == "__main__":
     main()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# PANEL CONTROLLER  — embedded use inside pyTransmit main window
+# PANEL CONTROLLER, embedded use inside pyTransmit main window
 # ═══════════════════════════════════════════════════════════════════════════
 
 class RecipientSettingsController(object):
@@ -1294,7 +1303,7 @@ class RecipientSettingsController(object):
         bind('rec_client_tab_btn', 'Click', self.switch_to_client_tab)
         bind('rec_dist_tab_btn',   'Click', self.switch_to_dist_tab)
 
-        # Shared add/delete — dispatch based on _current_tab
+        # Shared add/delete, dispatch based on _current_tab
         bind('rec_add_btn',    'Click', self._add_row_dispatch)
         bind('rec_delete_btn', 'Click', self._delete_rows_dispatch)
 
@@ -1551,7 +1560,7 @@ class RecipientSettingsController(object):
                 records = list(self.data)
 
         if not records:
-            forms.alert("No records to export.", title="Export"); return
+            _alert("No records to export.", title="Export"); return
 
         opts = ['Excel (.xlsx)', 'CSV (.csv)']
         fmt  = forms.CommandSwitchWindow.show(opts, message='Select export format:')
@@ -1573,9 +1582,9 @@ class RecipientSettingsController(object):
                         for r in records: w.writerow([r.Distribution])
                 else:
                     (write_excel if fmt.startswith('Excel') else write_csv)(dialog.FileName, records)
-                forms.alert("Exported {} record(s).".format(len(records)), title="Export Complete")
+                _alert("Exported {} record(s).".format(len(records)), title="Export Complete")
             except Exception as e:
-                forms.alert("Export error:\n{}".format(str(e)), title="Export Error")
+                _alert("Export error:\n{}".format(str(e)), title="Export Error")
 
     # ── Browse / Import (Client List only) ────────────────────────────
 
@@ -1592,7 +1601,7 @@ class RecipientSettingsController(object):
                 elif ext == '.csv':
                     headers, data = read_csv(fp)
                 else:
-                    forms.alert("Unsupported format: {}".format(ext), title="Import Error"); return
+                    _alert("Unsupported format: {}".format(ext), title="Import Error"); return
                 self._import_headers = headers
                 self._import_data    = data
                 self.rec_file_path_tb.Text = fp
@@ -1602,7 +1611,7 @@ class RecipientSettingsController(object):
                 try: self.rec_import_btn.IsEnabled  = True
                 except: pass
             except Exception as e:
-                forms.alert("Error reading file:\n{}".format(str(e)), title="Import Error")
+                _alert("Error reading file:\n{}".format(str(e)), title="Import Error")
                 self._import_headers = []
                 self._import_data    = []
 
@@ -1627,9 +1636,9 @@ class RecipientSettingsController(object):
 
     def preview_import(self, sender, args):
         if self.rec_recipient_mapping_cb.SelectedIndex <= 0:
-            forms.alert("Please select the Company column.", title="Mapping Required"); return
+            _alert("Please select the Company column.", title="Mapping Required"); return
         if self.rec_attention_mapping_cb.SelectedIndex <= 0:
-            forms.alert("Please select the Attention To column.", title="Mapping Required"); return
+            _alert("Please select the Attention To column.", title="Mapping Required"); return
         r_idx = self.rec_recipient_mapping_cb.SelectedIndex - 1
         a_idx = self.rec_attention_mapping_cb.SelectedIndex - 1
         preview = []
@@ -1640,13 +1649,13 @@ class RecipientSettingsController(object):
         try:
             ImportPreviewWindow(preview).ShowDialog()
         except Exception as e:
-            forms.alert("Preview error:\n{}".format(str(e)), title="Preview Error")
+            _alert("Preview error:\n{}".format(str(e)), title="Preview Error")
 
     def import_data(self, sender, args):
         if self.rec_recipient_mapping_cb.SelectedIndex <= 0:
-            forms.alert("Please select the Company column.", title="Mapping Required"); return
+            _alert("Please select the Company column.", title="Mapping Required"); return
         if self.rec_attention_mapping_cb.SelectedIndex <= 0:
-            forms.alert("Please select the Attention To column.", title="Mapping Required"); return
+            _alert("Please select the Attention To column.", title="Mapping Required"); return
         r_idx = self.rec_recipient_mapping_cb.SelectedIndex - 1
         a_idx = self.rec_attention_mapping_cb.SelectedIndex - 1
         added = skipped = 0
@@ -1661,7 +1670,7 @@ class RecipientSettingsController(object):
             added += 1
         msg = "Imported: {} records".format(added)
         if skipped: msg += "\nSkipped (duplicates): {}".format(skipped)
-        forms.alert(msg, title="Import Complete")
+        _alert(msg, title="Import Complete")
         self.rec_file_path_tb.Text = ""
         self.rec_recipient_mapping_cb.Items.Clear()
         self.rec_attention_mapping_cb.Items.Clear()
@@ -1691,8 +1700,7 @@ class RecipientSettingsController(object):
     def delete_rows(self, sender, args):
         to_remove = self._grid_selected_items()
         if not to_remove: return
-        if forms.alert("Delete {} record(s)?".format(len(to_remove)),
-                       title="Confirm Delete", ok=False, yes=True, no=True):
+        if _confirm("Delete {} record(s)?".format(len(to_remove)), title="Confirm Delete"):
             for r in to_remove: self.data.Remove(r)
             try: self.rec_delete_btn.IsEnabled = False
             except: pass
@@ -1735,8 +1743,7 @@ class RecipientSettingsController(object):
     def context_delete(self, sender, args):
         to_remove = self._grid_selected_items()
         if not to_remove: return
-        if forms.alert("Delete {} record(s)?".format(len(to_remove)),
-                       title="Confirm Delete", ok=False, yes=True, no=True):
+        if _confirm("Delete {} record(s)?".format(len(to_remove)), title="Confirm Delete"):
             for r in to_remove: self.data.Remove(r)
 
     def context_copy(self, sender, args):
@@ -1774,8 +1781,7 @@ class RecipientSettingsController(object):
     def dist_delete_rows(self, sender, args):
         to_remove = self._dist_selected_items()
         if not to_remove: return
-        if forms.alert("Delete {} record(s)?".format(len(to_remove)),
-                       title="Confirm Delete", ok=False, yes=True, no=True):
+        if _confirm("Delete {} record(s)?".format(len(to_remove)), title="Confirm Delete"):
             for r in to_remove: self.dist_data.Remove(r)
             try: self.rec_delete_btn.IsEnabled = False
             except: pass
@@ -1819,8 +1825,7 @@ class RecipientSettingsController(object):
     def dist_context_delete(self, sender, args):
         to_remove = self._dist_selected_items()
         if not to_remove: return
-        if forms.alert("Delete {} record(s)?".format(len(to_remove)),
-                       title="Confirm Delete", ok=False, yes=True, no=True):
+        if _confirm("Delete {} record(s)?".format(len(to_remove)), title="Confirm Delete"):
             for r in to_remove: self.dist_data.Remove(r)
 
     def dist_context_copy(self, sender, args):

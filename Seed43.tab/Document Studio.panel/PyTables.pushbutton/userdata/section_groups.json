@@ -1,0 +1,30 @@
+{
+  "groups": [
+    {
+      "name": "Steel", 
+      "keywords": [
+        "STEELWORK", 
+        "STEEL", 
+        "INTERIOR STEELWORK", 
+        "BOLTS & THREADED RODS"
+      ]
+    }, 
+    {
+      "name": "Concrete", 
+      "keywords": [
+        "CONCRETE", 
+        "PRECAST"
+      ]
+    }, 
+    {
+      "name": "General", 
+      "keywords": [
+        "DRAWINGS & DOCUMENTATION", 
+        "GENERAL", 
+        "HEALTH & SAFETY", 
+        "QUALITY ASSURANCE", 
+        "PROPRIETARY PRODUCTS"
+      ]
+    }
+  ]
+}

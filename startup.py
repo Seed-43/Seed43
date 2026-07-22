@@ -24,7 +24,7 @@ from System import Uri, UriKind, Action
 # It is imported lazily below, only on the rare path where an update is applied.
 
 
-# ── XAML ──────────────────────────────────────────────────────────────────────
+# ── XAML ─────────────────────────────────────────────────────────────────────
 
 WINDOW_XAML = """
 <Window
@@ -271,9 +271,6 @@ TAB_DIR       = os.path.join(EXTENSION_DIR, "Seed43.tab")
 VERSION_FILE  = os.path.join(EXTENSION_DIR, "version.txt")
 ICON_PATH     = os.path.join(SCRIPT_DIR, "icon.png")
 
-# File extensions to skip during update, preserving local config files
-SKIP_EXTENSIONS = (".yaml", ".json")
-
 
 # ── FUNCTIONS ─────────────────────────────────────────────────────────────────
 
@@ -317,9 +314,124 @@ def version_tuple(version_str):
         return (0, 0, 0)
 
 
+def sync_tree(src, dst):
+    """Sync src into dst file by file.
+    - Copies all files from src, skipping .json files
+    - Deletes files in dst that are not in src, but keeps .json files
+    - Removes dirs in dst not in src only if they contain no .json files
+    - Recurses into all subdirs
+    """
+    if not os.path.isdir(dst):
+        os.makedirs(dst)
+
+    src_names = set(os.listdir(src))
+    dst_names = set(os.listdir(dst))
+
+    # Copy/overwrite everything from src except .json
+    for name in src_names:
+        s = os.path.join(src, name)
+        d = os.path.join(dst, name)
+        if os.path.isdir(s):
+            sync_tree(s, d)
+        elif not name.lower().endswith(".json"):
+            shutil.copy2(s, d)
+
+    # Delete dst files/dirs not in src, but preserve .json files
+    for name in dst_names:
+        if name not in src_names:
+            d = os.path.join(dst, name)
+            if os.path.isfile(d):
+                if not name.lower().endswith(".json"):
+                    os.remove(d)
+            elif os.path.isdir(d):
+                has_json = any(
+                    f.lower().endswith(".json")
+                    for _, _, files in os.walk(d)
+                    for f in files
+                )
+                if not has_json:
+                    shutil.rmtree(d)
+
+
+def read_migrations(extracted_root):
+    """Parse seed43_migrations.yaml from the extracted repo root.
+    Returns a list of migration dicts with from/to/subfolders keys."""
+    yaml_path = os.path.join(extracted_root, "seed43_migrations.yaml")
+    if not os.path.exists(yaml_path):
+        return []
+    migrations = []
+    current    = None
+    in_sub     = False
+    sub_from   = None
+    try:
+        with open(yaml_path, "r") as f:
+            lines = f.readlines()
+        for line in lines:
+            stripped = line.strip()
+            indent   = len(line) - len(line.lstrip())
+            if not stripped or stripped.startswith("#"):
+                continue
+            if stripped.startswith("migrations:"):
+                continue
+            if indent <= 4 and stripped.startswith("- from:"):
+                if current:
+                    migrations.append(current)
+                current  = {'from': stripped[len("- from:"):].strip(),
+                            'to': None, 'subfolders': []}
+                in_sub   = False
+                sub_from = None
+            elif indent <= 4 and stripped.startswith("to:") and current and current['to'] is None:
+                current['to'] = stripped[len("to:"):].strip()
+            elif stripped == "subfolders:":
+                in_sub = True
+            elif in_sub and stripped.startswith("- from:"):
+                sub_from = stripped[len("- from:"):].strip()
+            elif in_sub and stripped.startswith("to:") and sub_from:
+                current['subfolders'].append({
+                    'from': sub_from,
+                    'to':   stripped[len("to:"):].strip()
+                })
+                sub_from = None
+        if current:
+            migrations.append(current)
+    except Exception:
+        return []
+    return [m for m in migrations if m.get('from') and m.get('to')]
+
+
+def apply_migrations(migrations, tab_dst):
+    """Copy .json files from old folder paths to new folder paths before syncing."""
+    for m in migrations:
+        old_dir = os.path.join(tab_dst, m['from'])
+        new_dir = os.path.join(tab_dst, m['to'])
+        if not os.path.isdir(old_dir):
+            continue
+        if not os.path.isdir(new_dir):
+            os.makedirs(new_dir)
+        for fname in os.listdir(old_dir):
+            if fname.lower().endswith(".json"):
+                src = os.path.join(old_dir, fname)
+                dst = os.path.join(new_dir, fname)
+                if not os.path.exists(dst):
+                    shutil.copy2(src, dst)
+        for sub in m.get('subfolders', []):
+            old_sub = os.path.join(old_dir, sub['from'])
+            new_sub = os.path.join(new_dir, sub['to'])
+            if not os.path.isdir(old_sub):
+                continue
+            if not os.path.isdir(new_sub):
+                os.makedirs(new_sub)
+            for fname in os.listdir(old_sub):
+                if fname.lower().endswith(".json"):
+                    src = os.path.join(old_sub, fname)
+                    dst = os.path.join(new_sub, fname)
+                    if not os.path.exists(dst):
+                        shutil.copy2(src, dst)
+
+
 def download_and_apply_update(status_lbl, progress_bar):
-    """Download the repo zip, swap in the new Seed43.tab, update version.txt.
-    Skips yaml and json files to preserve local config.
+    """Download the repo zip, sync the new Seed43.tab into place, update version.txt.
+    Preserves local .json config files. Copies .yaml files from the new version.
     Returns True on success, False on failure."""
     tmp_zip = os.path.join(EXTENSION_DIR, "_seed43_update.zip")
     tmp_dir = os.path.join(EXTENSION_DIR, "_seed43_update_tmp")
@@ -356,17 +468,30 @@ def download_and_apply_update(status_lbl, progress_bar):
             status_lbl.Text = "Update failed: Seed43.tab not found in download."
             return False
 
-        # ── Replace Seed43.tab, skipping yaml and json files ─────────────────
+        # ── Sync Seed43.tab, keeping json, updating yaml ──────────────────────
+
+        status_lbl.Text = "Checking migrations..."
+        migrations = read_migrations(extracted_root)
+        if migrations:
+            apply_migrations(migrations, TAB_DIR)
 
         status_lbl.Text = "Applying update..."
+        sync_tree(new_tab, TAB_DIR)
 
-        if os.path.isdir(TAB_DIR):
-            shutil.rmtree(TAB_DIR)
-        shutil.copytree(
-            new_tab,
-            TAB_DIR,
-            ignore=shutil.ignore_patterns(*["*" + ext for ext in SKIP_EXTENSIONS])
-        )
+        # ── Sync root files (startup.py, extension.json, etc.) ────────────────
+        ROOT_SKIP = {
+            "Seed43.tab", "lib", "UI",
+            ".git", ".gitignore", "README.md", "LICENSE",
+            "install.bat", "sync-start.bat", "sync-end.bat",
+        }
+        for fname in os.listdir(extracted_root):
+            if fname in ROOT_SKIP:
+                continue
+            src = os.path.join(extracted_root, fname)
+            dst = os.path.join(EXTENSION_DIR, fname)
+            if os.path.isfile(src):
+                if not fname.lower().endswith(".json") and not fname.lower().endswith(".png"):
+                    shutil.copy2(src, dst)
 
         # ── Update local version.txt ──────────────────────────────────────────
 
@@ -405,12 +530,12 @@ class UpdateWindow(object):
 
         # ── Load icon ─────────────────────────────────────────────────────────
         if os.path.exists(ICON_PATH):
-            img       = self.window.FindName("header_icon")
-            bmp       = BitmapImage()
+            img           = self.window.FindName("header_icon")
+            bmp           = BitmapImage()
             bmp.BeginInit()
             bmp.UriSource = Uri(ICON_PATH, UriKind.Absolute)
             bmp.EndInit()
-            img.Source = bmp
+            img.Source    = bmp
 
         self.title_lbl    = self.window.FindName("update_title_lbl")
         self.msg_lbl      = self.window.FindName("update_msg_lbl")
@@ -493,6 +618,144 @@ def _check_and_notify(ui_dispatcher):
         pass
 
 
+# ── SCHEDULED PRINT (pySheets, works even if pySheets isn't open) ─────────────
+#
+# pySheets' own in-window scheduler (a DispatcherTimer) only runs while its
+# window is open, closing the window kills it. This registers a session-level
+# Application.Idling handler instead, so an armed schedule survives the
+# window closing, as long as Revit and the target document stay open.
+#
+# V1 only: if the target document isn't open when the schedule comes due, it
+# is skipped rather than opened automatically. Auto-opening the document is a
+# planned V2 addition, not built yet.
+
+def _find_pysheets_dir():
+    """Locate PySheets.pushbutton under Seed43.tab. Returns the folder
+    path, or None if it can't be found (extension reorganized, tool
+    removed, etc, in which case the scheduler just does nothing)."""
+    try:
+        for root, _dirs, _files in os.walk(TAB_DIR):
+            if os.path.basename(root) == "PySheets.pushbutton":
+                return root
+    except Exception:
+        pass
+    return None
+
+
+_PYSHEETS_DIR = _find_pysheets_dir()
+_SCHEDULE_FILE = (
+    os.path.join(_PYSHEETS_DIR, "userdata", "settings", "scheduled_print.json")
+    if _PYSHEETS_DIR else None
+)
+_LIB_DIR = os.path.join(EXTENSION_DIR, "lib")
+
+_last_schedule_check = [0.0]
+
+
+def _read_schedule():
+    if not _SCHEDULE_FILE:
+        return None
+    try:
+        if not File.Exists(_SCHEDULE_FILE):
+            return None
+        import json
+        reader  = StreamReader(_SCHEDULE_FILE)
+        content = reader.ReadToEnd()
+        reader.Close()
+        return json.loads(content)
+    except Exception:
+        return None
+
+
+def _launch_pysheets_schedule(sched):
+    """Import pySheets fresh and hand it the due schedule. Imported lazily
+    here, not at module load, to keep it out of every Revit startup."""
+    import sys as _sys
+    if _PYSHEETS_DIR and _PYSHEETS_DIR not in _sys.path:
+        _sys.path.insert(0, _PYSHEETS_DIR)
+    if _LIB_DIR and os.path.isdir(_LIB_DIR) and _LIB_DIR not in _sys.path:
+        _sys.path.insert(0, _LIB_DIR)
+    import pySheets
+    pySheets.launch_scheduled(sched)
+
+
+from Autodesk.Revit.UI import IExternalEventHandler, ExternalEvent
+from Autodesk.Revit.DB import ModelPathUtils
+
+
+class _PySheetsScheduleHandler(IExternalEventHandler):
+    """Runs on Revit's own API thread (that's the whole point of
+    ExternalEvent), safely deferred by Revit itself until no command is
+    active, so this never interrupts something the user is mid-way
+    through doing."""
+
+    def Execute(self, uiapp):
+        try:
+            sched = _read_schedule()
+            if not sched or not sched.get("enabled"):
+                return
+            doc_path = sched.get("document_path")
+            if not doc_path:
+                return
+
+            target_doc = None
+            for d in uiapp.Application.Documents:
+                try:
+                    if d.PathName and os.path.normcase(d.PathName) == os.path.normcase(doc_path):
+                        target_doc = d
+                        break
+                except Exception:
+                    continue
+            if target_doc is None:
+                return  # V1: not open, skip rather than open it
+
+            try:
+                model_path = ModelPathUtils.ConvertUserVisiblePathToModelPath(doc_path)
+                uiapp.OpenAndActivateDocument(model_path)
+            except Exception:
+                pass  # already open+active, activation failing here is not fatal
+
+            _launch_pysheets_schedule(sched)
+        except Exception:
+            pass
+
+    def GetName(self):
+        return "Seed43 pySheets Scheduled Print"
+
+
+_pysheets_schedule_event = ExternalEvent.Create(_PySheetsScheduleHandler())
+
+
+def _on_idling(sender, args):
+    """Cheap periodic check (throttled to roughly every 20 seconds) for
+    whether an armed pySheets schedule has come due."""
+    try:
+        import time
+        now = time.time()
+        if now - _last_schedule_check[0] < 20:
+            return
+        _last_schedule_check[0] = now
+
+        sched = _read_schedule()
+        if not sched or not sched.get("enabled"):
+            return
+        next_run_str = sched.get("next_run")
+        if not next_run_str:
+            return
+
+        from datetime import datetime
+        try:
+            next_run = datetime.strptime(next_run_str, "%Y-%m-%dT%H:%M:%S")
+        except Exception:
+            return
+        if datetime.now() < next_run:
+            return
+
+        _pysheets_schedule_event.Raise()
+    except Exception:
+        pass
+
+
 def main():
     ui_dispatcher = Dispatcher.CurrentDispatcher
 
@@ -502,6 +765,11 @@ def main():
     t = Thread(ThreadStart(worker))
     t.IsBackground = True
     t.Start()
+
+    try:
+        __revit__.Application.Idling += _on_idling
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":

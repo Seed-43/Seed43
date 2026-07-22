@@ -1,0 +1,18 @@
+title: "Project Units"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  _____________________________________________________________________
+  Description:
+  Saves and restores all project unit settings via a JSON file.
+
+  - Save current project units to project_units.json
+  - Restore units from project_units.json to any project
+  - Covers all measurable specs including length, area, volume,
+    angle, slope, currency and more
+  - Preserves accuracy, grouping, prefix, suffix and display options
+
+  Useful for:
+  - Applying a standard unit template across multiple projects
+  - Quickly restoring units after a project is shared or migrated
+  - Enforcing office unit standards without manual setup
+  _____________________________________________________________________

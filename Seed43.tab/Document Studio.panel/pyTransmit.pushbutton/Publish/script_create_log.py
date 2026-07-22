@@ -1,33 +1,5 @@
 # -*- coding: utf-8 -*-
-__title__     = "pyTransmit Log"
-__author__    = "Nagel Consultants"
-__doc__       = """
-VERSION 260521
-_____________________________________________________________________
-Description:
-Creates a log file after a pyTransmit export run. The log records
-everything that happened during the export, all settings used, and
-copies of the layout files. Everything is zipped into a single file
-the user can send for support.
-
-_____________________________________________________________________
-How-to:
-Turn on logging in the main pyTransmit window under the options menu.
-A save dialog will ask where to put the zip file. Run the export as
-normal. The log is created automatically when the export finishes,
-then logging turns itself off until you turn it on again.
-
-_____________________________________________________________________
-Notes:
-- The zip contains a readable text log and copies of all layout files.
-- Logging turns off automatically after each run.
-- The log is named with the date and time of the run.
-
-_____________________________________________________________________
-Last update:
-260521, Initial version.
-_____________________________________________________________________
-"""
+# script_create_log.py
 
 import os
 import json
@@ -40,7 +12,7 @@ def build_log(payload, log_lines, zip_path, layout_paths):
     """
     Write the log text and zip it together with the layout JSON files used.
 
-    payload      : the full export payload dict from script.py
+    payload      : the full export payload dict from pyTransmit.py
     log_lines    : list of strings collected during the export run
     zip_path     : full path to the output zip file chosen by the user
     layout_paths : list of full paths to the layout JSON files that were used

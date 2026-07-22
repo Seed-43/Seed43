@@ -17,7 +17,7 @@ def compute_row_heights(rows, groups, excel_starts, excel_counts,
     excel_counts : dict
         {layout_row_index: number_of_excel_rows_for_this_layout_row}
     block_height_fn : callable
-        fn(block_dict) -> float  — returns required height in pts for a block.
+        fn(block_dict) -> float, returns required height in pts for a block.
     single_line_h : float
         Height for a row containing only single-line col A content.
     min_h : float
@@ -34,11 +34,11 @@ def compute_row_heights(rows, groups, excel_starts, excel_counts,
         heights[er] = max(heights.get(er, min_h), h)
 
     def _force(er, h):
-        """Override — used when we know the exact value (not a max)."""
+        """Override, used when we know the exact value (not a max)."""
         heights[er] = h
 
     # ── Pass 1: initial heights from single-row blocks ──────────────────────
-    # Skip spanning blocks — their height is handled in Pass 2 distribution.
+    # Skip spanning blocks, their height is handled in Pass 2 distribution.
     # 'row_span' on a block is the authoritative signal for vertical spanning,
     # set by the layout builder. merge_down only groups rows for borders and
     # is NOT a reliable signal on its own (a None column can also be caused
@@ -61,7 +61,7 @@ def compute_row_heights(rows, groups, excel_starts, excel_counts,
         for ci, block in enumerate(row.get('blocks', [])):
             if not block:
                 continue
-            # Skip spanning blocks — Pass 2 handles their height distribution
+            # Skip spanning blocks, Pass 2 handles their height distribution
             if _is_spanning(ri, ci):
                 continue
             bh = block_height_fn(block)
@@ -74,7 +74,7 @@ def compute_row_heights(rows, groups, excel_starts, excel_counts,
     # ── Pass 2: group-level height distribution ──────────────────────────────
     for gs, ge in groups:
         if gs == ge:
-            continue  # single layout row — no distribution needed
+            continue  # single layout row, no distribution needed
 
         # For each layout col (0-3), find blocks with row_span > 1 and
         # distribute their height across the rows they span.
@@ -89,7 +89,7 @@ def compute_row_heights(rows, groups, excel_starts, excel_counts,
                 span_end = min(ge, _ri + int(block.get('row_span', 1)) - 1)
 
                 if span_end == _ri:
-                    # Span of 1 — already handled in Pass 1
+                    # Span of 1, already handled in Pass 1
                     _ri += 1
                     continue
 
@@ -269,7 +269,7 @@ def _distribute_span(rows, span_ris, ci, block, block_height_fn,
     if free_ris:
         per_free = remainder / len(free_ris)
     else:
-        # No free rows — distribute evenly across all rows
+        # No free rows, distribute evenly across all rows
         per_free = required_h / len(span_ris) if span_ris else required_h
 
     # Apply heights

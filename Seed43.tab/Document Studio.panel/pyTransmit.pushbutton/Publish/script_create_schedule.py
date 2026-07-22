@@ -1,10 +1,32 @@
 # -*- coding: utf-8 -*-
 # script_create_schedule.py
 
-# Must be first — reads the payload injected by pyTransmit via exec()
+# Must be first, reads the payload injected by pyTransmit via exec()
 _p = globals().get('PYTRANSMIT_PAYLOAD', {})
 
 from pyrevit import revit, script, DB, forms
+
+try:
+    from Snippets import _dialogs as sdlg
+except Exception:
+    sdlg = None
+
+def _alert(message, title='', exitscript=False):
+    """Themed popup via the shared Snippets dialog lib, falls back to
+    pyRevit's default forms.alert if the shared lib isn't available."""
+    if sdlg:
+        sdlg.message(message, title=title)
+    else:
+        forms.alert(message, title=title)
+    if exitscript:
+        script.exit()
+
+def _confirm(message, title='', no='No'):
+    """Themed yes/no popup, returns True on yes."""
+    if sdlg:
+        return sdlg.confirm(message, title=title, no=no)
+    return bool(forms.alert(message, title=title, ok=False, yes=True, no=True))
+
 from Autodesk.Revit.DB import (
     FilteredElementCollector, BuiltInCategory,
     ViewSchedule, ScheduleFilter, ScheduleFilterType,
@@ -158,14 +180,14 @@ RECIPIENTS = (
 )
 N_REC = max(1, len(RECIPIENTS))   # actual recipient row count (at least 1)
 
-# Whether to show reason/method legend section — from meta_rows payload
+# Whether to show reason/method legend section, from meta_rows payload
 _SHOW_REASON = any(lbl.lower() in ('reason for issue', 'reason')
                    for lbl, _ in (_p.get('meta_rows') or []))
 _SHOW_METHOD = any(lbl.lower() in ('method of issue', 'method')
                    for lbl, _ in (_p.get('meta_rows') or []))
 _SHOW_LEGEND = _SHOW_REASON or _SHOW_METHOD  # show legend block only if needed
 
-#  Determine which meta rows to show — must be done here so RI_ indices are correct 
+#  Determine which meta rows to show, must be done here so RI_ indices are correct 
 _LABEL_TO_KEY = {
     'issued by':        'initials',
     'initials':         'initials',
@@ -198,7 +220,7 @@ else:
             _enabled_keys.add(_k)
     _filtered = [(lbl, key) for lbl, key in _ALL_META if key in _enabled_keys]
 
-# Reason/Method legend text — from payload (built from live OptionsSettings data)
+# Reason/Method legend text, from payload (built from live OptionsSettings data)
 # If payload absent (standalone run), read directly from the Options JSON files.
 def _read_coded_json(path, one_line=False):
     """Read [{'code','separator','description'}] -> formatted legend text."""
@@ -492,7 +514,7 @@ all_revisions = list(revit.query.get_elements_by_class(DB.Revision, doc=doc))
 all_issued_revisions = sorted(
     [r for r in all_revisions if r.Issued], key=lambda r: r.SequenceNumber)
 if not all_issued_revisions:
-    forms.alert("No issued revisions found.", exitscript=True)
+    _alert("No issued revisions found.", exitscript=True)
 # Filter to selected numbering type if payload specifies one
 _rev_type_filter = _p.get('rev_numbering_type', '')
 if _rev_type_filter:
@@ -504,7 +526,7 @@ if _rev_type_filter:
     all_issued_revisions = [r for r in all_issued_revisions
                             if _get_num_type(r) == _rev_type_filter]
     if not all_issued_revisions:
-        forms.alert("No issued revisions found for type '{}'.".format(_rev_type_filter), exitscript=True)
+        _alert("No issued revisions found for type '{}'.".format(_rev_type_filter), exitscript=True)
 # all_issued_revisions = full history used for sheet collection
 # issued_revisions     = visible columns only (capped at MAX_REVS)
 issued_revisions = all_issued_revisions[-MAX_REVS:]
@@ -780,9 +802,9 @@ def _parse_copies_for_recipient(issued_to_str, recipient_label, recipient_index=
 
 # ── JSON-driven row plan ──────────────────────────────────────────────────────
 # Walk _ROWS from the layout JSON and build a flat list of "render items":
-#   ('fixed',  ri, blocks)         — one schedule row
-#   ('data',   ri, blocks, items)  — expands to len(items) rows
-#   ('sheets', ri, blocks)         — expands to sheet rows (page-split here)
+#   ('fixed',  ri, blocks), one schedule row
+#   ('data',   ri, blocks, items), expands to len(items) rows
+#   ('sheets', ri, blocks), expands to sheet rows (page-split here)
 
 def _block_just(b):
     j = b.get('just', 'left')

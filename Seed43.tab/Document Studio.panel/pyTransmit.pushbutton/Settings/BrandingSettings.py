@@ -54,7 +54,7 @@ class BrandingSettingsController(object):
         """
         Called once on startup (before window shown).
         If source is configured and reachable, copies to Settings/logo.<ext>.
-        Silent — never raises.  Returns local logo path or ''.
+        Silent, never raises.  Returns local logo path or ''.
         """
         try:
             self._do_sync_logo()
@@ -73,7 +73,7 @@ class BrandingSettingsController(object):
             os.makedirs(self._settings_dir)
         shutil.copy2(src, dst)
 
-    # ── Public API used by script.py at generate-time ────────────────────────
+    # ── Public API used by pyTransmit.py at generate-time ────────────────────────
 
     def get_logo_path(self):
         """Return the best available local logo path, or '' if none."""
@@ -103,7 +103,7 @@ class BrandingSettingsController(object):
     def get_header_fg_color(self):
         return self._cfg.get('header_fg_color', self.DEFAULT_CFG['header_fg_color'])
 
-    # ── Save on panel close (called by styling_back_click in script.py) ───────
+    # ── Save on panel close (called by styling_back_click in pyTransmit.py) ───────
 
     def save_and_back(self):
         """
@@ -267,6 +267,6 @@ class BrandingSettingsController(object):
                     dst = os.path.join(self._settings_dir, 'logo' + ext)
                     self._host.logo_status_lbl.Text = u'\u2139\uFE0F  Will sync to: {}'.format(dst)
                 except: pass
-        except Exception, ex:
+        except Exception as ex:
             try: self._host.logo_status_lbl.Text = u'\u274C  Browse error: {}'.format(str(ex))
             except: pass

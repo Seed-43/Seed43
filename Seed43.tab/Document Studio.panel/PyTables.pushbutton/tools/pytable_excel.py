@@ -1,39 +1,68 @@
 # -*- coding: utf-8 -*-
-# v2-fillfix
-"""
-pyTable - Import Excel named ranges into Revit as native views.
-
-Schedule View -> Key Schedule using the same pattern as pyRevit's
-                 CSV importer. Excel named range data is read directly
-                 from the xlsx zip, no COM, no temp files for the user.
-
-Legend View   -> Legend view with data as native TextNote elements.
-Drafting View -> Drafting view with data as native TextNote elements.
-"""
 from pyrevit import revit, DB
 from pyrevit import forms
 from pyrevit import script
 
 import os
+import json as _json
 import zipfile as _zipfile
 import re
+import time as _time
+import threading as _threading
+import wpf
+from System import Action as _Action
+from System.Windows import (
+    Visibility, Thickness,
+    VerticalAlignment, HorizontalAlignment,
+    FontWeights, CornerRadius, TextTrimming,
+    GridLength, GridUnitType
+)
+from System import DateTime
+from System.Windows.Controls import (
+    StackPanel, Border, CheckBox, TextBlock, TextBox,
+    ComboBox, Button, Orientation, ScrollViewer,
+    Grid, ColumnDefinition
+)
+from System.Windows.Shapes import Ellipse
+from System.Windows.Media import SolidColorBrush, Color
 
 logger = script.get_logger()
 doc = revit.doc
 uidoc = revit.uidoc
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
+try:
+    from Snippets import _dialogs as sdlg
+except Exception:
+    sdlg = None
 
-VIEW_TYPE_LEGEND   = 'Legend View'
+try:
+    from Snippets._icons import make_icon as _mi
+except Exception:
+    _mi = None
+
+"""
+pytable_excel.py -- everything specific to the Excel side of pyTable:
+reading .xlsx named ranges/formatting directly from the zip (no COM),
+building native Schedule/Legend/Drafting views from that data, and
+the ExcelCardMixin providing the Excel-specific parts of the row/card
+UI (mixed into PyTableWindow alongside WordCardMixin in PyTable.py).
+"""
+
+import sys as _sys
+_sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from pytable_shared import (
+    hb, Row, VIEW_TYPES, SRC_COLOURS, STATUS_COLOURS,
+    _run_export_script, _confirm, _alert,
+)
+
+
 VIEW_TYPE_SCHEDULE = 'Schedule View'
 VIEW_TYPE_DRAFTING = 'Drafting View'
+VIEW_TYPE_LEGEND   = 'Legend View'
 
+MM     = 1.0 / 304.8   # millimetres to Revit internal feet
+PREFIX = 'pyTable Table '
 
-# ---------------------------------------------------------------------------
-# Data class
-# ---------------------------------------------------------------------------
 
 class TableRow(object):
     """Configuration for one import row from the UI."""
@@ -51,9 +80,7 @@ class TableRow(object):
         self.size_dat_mm = 2.3        # data row font size in mm
 
 
-# ---------------------------------------------------------------------------
-# Read xlsx metadata (named ranges + sheet names)
-# ---------------------------------------------------------------------------
+# ── Read xlsx metadata (named ranges + sheet names) ──
 
 def get_named_ranges_from_workbook(file_path):
     """
@@ -87,7 +114,7 @@ def get_named_ranges_from_workbook(file_path):
         xml_doc.LoadXml(xml_bytes.decode('utf-8'))
         ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
 
-        # ── Sheets ───────────────────────────────────────────────────
+        # ── Sheets ──
         sheets = []
         sheet_nodes = xml_doc.GetElementsByTagName('sheet', ns)
         if sheet_nodes.Count == 0:
@@ -98,7 +125,7 @@ def get_named_ranges_from_workbook(file_path):
                 sheets.append(a.Value)
         result['sheets'] = sheets
 
-        # ── Named ranges ─────────────────────────────────────────────
+        # ── Named ranges ──
         sheet_ranges = {s: [] for s in sheets}
         named_ranges = []
 
@@ -156,9 +183,7 @@ def get_named_ranges_from_workbook(file_path):
     return result
 
 
-# ---------------------------------------------------------------------------
-# Read cell data from xlsx named range
-# ---------------------------------------------------------------------------
+# ── Read cell data from xlsx named range ──
 
 def read_named_range_data(file_path, named_range, sheet_name):
     """
@@ -216,7 +241,6 @@ def read_named_range_data(file_path, named_range, sheet_name):
         )
         return []
 
-
 def _read_shared_strings(z, XmlDocument):
     shared_strings = []
     if 'xl/sharedStrings.xml' not in z.namelist():
@@ -242,7 +266,6 @@ def _read_shared_strings(z, XmlDocument):
         shared_strings.append(text)
     return shared_strings
 
-
 def _resolve_named_range(wb_xml, named_range):
     dn_nodes = wb_xml.GetElementsByTagName('definedName')
     if dn_nodes.Count == 0:
@@ -255,7 +278,6 @@ def _resolve_named_range(wb_xml, named_range):
         if attr and attr.Value == named_range:
             return dn_nodes[i].InnerText
     return None
-
 
 def _find_sheet_file(z, wb_xml, sheet_name, XmlDocument):
     sheet_nodes = wb_xml.GetElementsByTagName('sheet')
@@ -296,13 +318,11 @@ def _find_sheet_file(z, wb_xml, sheet_name, XmlDocument):
             return target
     return None
 
-
 def _col_letter_to_index(col_str):
     result = 0
     for ch in col_str.upper():
         result = result * 26 + (ord(ch) - ord('A') + 1)
     return result - 1
-
 
 def _parse_range_bounds(range_ref):
     try:
@@ -318,7 +338,6 @@ def _parse_range_bounds(range_ref):
         )
     except Exception:
         return 0, 0, None, None
-
 
 def read_range_formatting(file_path, named_range, sheet_name):
     """
@@ -625,7 +644,6 @@ def read_range_formatting(file_path, named_range, sheet_name):
 
     return result
 
-
 def _resolve_colour(xml_doc, color_node, skip_white=True):
     """
     Resolve an Excel colour node to an (r, g, b) tuple or None.
@@ -696,7 +714,6 @@ def _resolve_colour(xml_doc, color_node, skip_white=True):
 
     return rgb
 
-
 def _apply_tint(rgb, color_node):
     """Apply Excel tint (-1 to 1) to an RGB tuple. Returns modified RGB."""
     if color_node is None:
@@ -731,7 +748,6 @@ def _apply_tint(rgb, color_node):
 # Cache for theme colours so we only parse once per workbook read
 _theme_colour_cache = {}
 
-
 def _get_theme_colour(xml_doc, idx):
     """
     Return (r, g, b) for a theme colour index.
@@ -739,7 +755,6 @@ def _get_theme_colour(xml_doc, idx):
     """
     global _theme_colour_cache
     return _theme_colour_cache.get(idx)
-
 
 def _set_theme_cache(colours):
     """Called from read_range_formatting with resolved theme colours."""
@@ -808,7 +823,6 @@ _EXCEL_INDEXED_COLOURS = {
     64: (0,   0,   0),    # system foreground
     65: (255, 255, 255),  # system background
 }
-
 
 def _parse_fonts(xml_doc):
     """
@@ -883,7 +897,6 @@ def _parse_fonts(xml_doc):
         fonts.append(f)
     return fonts
 
-
 def _parse_fills(xml_doc):
     """
     Parse fill definitions from styles XmlDocument.
@@ -928,7 +941,6 @@ def _parse_fills(xml_doc):
         fills.append(rgb)
     return fills
 
-
 def _parse_borders(xml_doc):
     """
     Parse border definitions from styles XmlDocument.
@@ -966,7 +978,6 @@ def _parse_borders(xml_doc):
                 b[side + '_color'] = None
         borders.append(b)
     return borders
-
 
 def _parse_xfs(xml_doc):
     """
@@ -1100,9 +1111,6 @@ def _parse_xfs(xml_doc):
         xfs.append(xf)
     return xfs
 
-
-
-
 def _extract_rows(ws_xml, shared_strings,
                   min_col, min_row, max_col, max_row):
     row_nodes = ws_xml.GetElementsByTagName('row')
@@ -1181,24 +1189,19 @@ def _extract_rows(ws_xml, shared_strings,
     return result
 
 
-# ---------------------------------------------------------------------------
-# Schedule creation - pyTransmit pattern
+# ── Schedule creation - pyTransmit pattern ──
 # Uses ViewSchedule.CreateSchedule with ElementId.InvalidElementId (no
 # category) and builds the entire table in the Header section.
 # No Key Schedule, no project parameters required.
-# ---------------------------------------------------------------------------
 
 MM = 1.0 / 304.8   # millimetres to Revit internal feet
 
-# ---------------------------------------------------------------------------
-# pyTable text type manager
+# ── pyTable text type manager ──
 # Text types are named "pyTable Table XX" and matched by font/size/bold.
 # If an existing type matches the fingerprint it is reused.
 # If not, a new one is created with the next available number.
-# ---------------------------------------------------------------------------
 
 PREFIX = 'pyTable Table '
-
 
 def _text_type_fingerprint(font, size_mm, bold):
     """
@@ -1208,7 +1211,6 @@ def _text_type_fingerprint(font, size_mm, bold):
     return '{}__{:.4f}__{}'.format(
         font.lower().strip(), size_mm, 'bold' if bold else 'regular'
     )
-
 
 def _read_fingerprint(tt):
     """
@@ -1231,7 +1233,6 @@ def _read_fingerprint(tt):
         return _text_type_fingerprint(font, size_mm, bold)
     except Exception:
         return None
-
 
 def get_or_create_text_type(font='Arial', size_mm=2.3, bold=False):
     """
@@ -1306,19 +1307,6 @@ def get_or_create_text_type(font='Arial', size_mm=2.3, bold=False):
     )
     return new_tt
 
-
-
-    """Return existing schedule by name or create a new blank one."""
-    for v in revit.query.get_elements_by_class(DB.ViewSchedule, doc=doc):
-        if v.Name == view_name:
-            return v, True
-    vs = DB.ViewSchedule.CreateSchedule(
-        doc, DB.ElementId.InvalidElementId
-    )
-    vs.Name = view_name
-    return vs, False
-
-
 def _clear_header(hdr):
     """Strip header back to a single 1x1 cell."""
     while hdr.NumberOfRows > 1:
@@ -1332,13 +1320,11 @@ def _clear_header(hdr):
         except Exception:
             break
 
-
 def _safe_text(hdr, r, c, text):
     try:
         hdr.SetCellText(r, c, str(text))
     except Exception as ex:
         logger.debug('SetCellText({},{}) {}'.format(r, c, ex))
-
 
 def _apply_style(hdr, r, c, bold=False, size_mm=2.5,
                  bg_rgb=None, halign='Left',
@@ -1400,7 +1386,6 @@ def _apply_style(hdr, r, c, bold=False, size_mm=2.5,
     except Exception as ex:
         logger.debug('apply_style({},{}) {}'.format(r, c, ex))
 
-
 def _safe_merge(hdr, r1, c1, r2, c2):
     try:
         from Autodesk.Revit.DB import TableMergedCell
@@ -1412,7 +1397,6 @@ def _safe_merge(hdr, r1, c1, r2, c2):
         logger.debug(
             'MergeCells({},{},{},{}) {}'.format(r1, c1, r2, c2, ex)
         )
-
 
 def create_schedule_from_data(view_name, fields, records,
                               font='Arial',
@@ -1439,12 +1423,12 @@ def create_schedule_from_data(view_name, fields, records,
     # Check for existing
     for v in revit.query.get_elements_by_class(DB.ViewSchedule, doc=doc):
         if v.Name == view_name:
-            action = forms.alert(
+            action = _confirm(
                 'A schedule named "{}" already exists.\n'
                 'Overwrite or skip?'.format(view_name),
-                options=['Overwrite', 'Skip']
+                title='Schedule exists', yes='Overwrite', no='Skip'
             )
-            if action != 'Overwrite':
+            if not action:
                 return None, 'skipped'
             doc.Delete(v.Id)
             break
@@ -1600,9 +1584,7 @@ def create_schedule_from_data(view_name, fields, records,
     return vs, 'success'
 
 
-# ---------------------------------------------------------------------------
-# Legend / Drafting view creation
-# ---------------------------------------------------------------------------
+# ── Legend / Drafting view creation ──
 
 def create_drafting_view(view_name, scale):
     """Create a blank Drafting view."""
@@ -1614,7 +1596,7 @@ def create_drafting_view(view_name, scale):
             vft = v
             break
     if not vft:
-        forms.alert(
+        _alert(
             'No Drafting View family type found.',
             exitscript=True
         )
@@ -1622,7 +1604,6 @@ def create_drafting_view(view_name, scale):
     view.Name = view_name
     view.Scale = scale
     return view
-
 
 def create_legend_view(view_name, scale):
     """Create a Legend view by duplicating an existing one."""
@@ -1634,7 +1615,7 @@ def create_legend_view(view_name, scale):
             template = v
             break
     if not template:
-        forms.alert(
+        _alert(
             'No Legend view found. Create one first.',
             exitscript=True
         )
@@ -1643,7 +1624,6 @@ def create_legend_view(view_name, scale):
     view.Name = view_name
     view.Scale = scale
     return view
-
 
 def place_table_in_view(view, fields, records):
     """
@@ -1676,9 +1656,7 @@ def place_table_in_view(view, fields, records):
             DB.TextNote.Create(doc, view.Id, pt, str(cell), opts)
 
 
-# ---------------------------------------------------------------------------
-# Core apply logic
-# ---------------------------------------------------------------------------
+# ── Core apply logic ──
 
 def _get_or_create_line_style(name, rgb):
     """
@@ -1704,7 +1682,6 @@ def _get_or_create_line_style(name, rgb):
         DB.GraphicsStyleType.Projection
     )
     return gs.Id
-
 
 def _pre_create_line_styles(cell_styles):
     """
@@ -1740,43 +1717,6 @@ def _pre_create_line_styles(cell_styles):
             logger.error('Line style {} failed: {}'.format(name, ex))
     return line_ids
 
-
-def _run_export_script(script_name, payload):
-    """
-    Run one of the Export/ scripts via exec() with PYTABLE_PAYLOAD injected.
-    Wraps execution in a transaction since export scripts modify the document.
-    Legend script manages its own transactions internally so is run without
-    the outer wrapper to avoid nesting.
-    """
-    export_dir  = os.path.join(os.path.dirname(__file__), 'Export')
-    script_path = os.path.join(export_dir, script_name)
-
-    if not os.path.exists(script_path):
-        raise Exception(
-            'Export script not found: {}'.format(script_path)
-        )
-
-    ns = {
-        '__name__':        script_name,
-        '__file__':        script_path,
-        '__builtins__':    __builtins__,
-        'PYTABLE_PAYLOAD': payload,
-    }
-
-    src = open(script_path, 'r').read()
-
-    # These scripts manage their own transactions internally
-    if script_name in ('create_legend.py', 'create_notes.py'):
-        exec(src, ns)
-    else:
-        with revit.Transaction(
-            'pyTable - {}'.format(
-                payload.get('view_name', script_name)
-            )
-        ):
-            exec(src, ns)
-
-
 def apply_row(row):
     """
     Process one UI row:
@@ -1786,20 +1726,14 @@ def apply_row(row):
 
     Returns {'view_name', 'status', 'message'}
     """
-    from pyrevit import output as _output
-    out = _output.get_output()
-
     result = {
         'view_name': row.view_name,
         'status':    'error',
         'message':   ''
     }
 
-    out.print_md('## pyTable: {}'.format(row.view_name))
-    out.print_md('File: `{}`'.format(row.file_path))
-    out.print_md('Range: `{}` | Sheet: `{}`'.format(
-        row.named_range, row.sheet_name
-    ))
+    logger.debug('pyTable: {} | {} | {}/{}'.format(
+        row.view_name, row.file_path, row.sheet_name, row.named_range))
 
     # Read data from xlsx
     rows = read_named_range_data(
@@ -1808,21 +1742,15 @@ def apply_row(row):
         row.sheet_name
     )
 
-    out.print_md('Rows read: **{}**'.format(len(rows)))
-
     if not rows:
         result['message'] = (
             'No data found in named range "{}". '
             'Check the range name and sheet.'.format(row.named_range)
         )
-        out.print_md('ERROR: {}'.format(result['message']))
         return result
 
     fields  = [str(h) for h in rows[0]]
     records = [[str(c) for c in r] for r in rows[1:]]
-
-    out.print_md('Fields: `{}`'.format(fields))
-    out.print_md('Data rows: **{}**'.format(len(records)))
 
     if not fields:
         result['message'] = 'Named range has no header row.'
@@ -1838,38 +1766,12 @@ def apply_row(row):
     hdr_tt_id = hdr_tt.Id if hdr_tt else DB.ElementId.InvalidElementId
     dat_tt_id = dat_tt.Id if dat_tt else DB.ElementId.InvalidElementId
 
-    out.print_md(
-        'Text types: hdr=`{}` dat=`{}`'.format(
-            hdr_tt.get_Parameter(
-                DB.BuiltInParameter.SYMBOL_NAME_PARAM
-            ).AsString() if hdr_tt else 'none',
-            dat_tt.get_Parameter(
-                DB.BuiltInParameter.SYMBOL_NAME_PARAM
-            ).AsString() if dat_tt else 'none'
-        )
-    )
-
     # Read cell formatting from xlsx
     fmt = read_range_formatting(
         row.file_path,
         row.named_range,
         row.sheet_name
     )
-    out.print_md(
-        'Formatting: {} cell styles, {} merges'.format(
-            len(fmt.get('cell_styles', {})),
-            len(fmt.get('merges', []))
-        )
-    )
-
-    # Build payload for export script
-    out.print_md('### Data to be written')
-    header_row = ' | '.join(fields)
-    separator  = ' | '.join(['---'] * len(fields))
-    out.print_md('| {} |'.format(header_row))
-    out.print_md('| {} |'.format(separator))
-    for rec in records:
-        out.print_md('| {} |'.format(' | '.join(rec)))
 
     # Pre-create line styles outside any transaction (Revit requirement)
     line_ids = _pre_create_line_styles(fmt.get('cell_styles', {}))
@@ -1905,419 +1807,31 @@ def apply_row(row):
         result['message'] = 'Unknown view type: {}'.format(row.view_type)
         return result
 
-    out.print_md(
-        'Running: `{}` for view type `{}`'.format(
-            export_script, row.view_type
-        )
-    )
-
     try:
         _run_export_script(export_script, payload)
         result['status']  = 'success'
         result['message'] = 'Created'
-        out.print_md('**Done:** {}'.format(row.view_name))
     except Exception as e:
         import traceback
         result['message'] = str(e)
-        out.print_md('**ERROR:** {}'.format(e))
         logger.error(traceback.format_exc())
 
     return result
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
-
-
-# ---------------------------------------------------------------------------
-# Word document reading
-# ---------------------------------------------------------------------------
-
-def read_word_sections(file_path):
-    """
-    Parse a .docx file and extract sections as a list of dicts:
-        [{'heading': str, 'paragraphs': [{'text': str, 'bold': bool,
-          'italic': bool, 'underline': bool}]}, ...]
-
-    A section starts when a paragraph is detected as a heading:
-    - Word heading styles (Heading1, Heading2, etc.)
-    - Bold-only paragraphs with all-caps or short text (<= 60 chars)
-
-    Uses zipfile + XmlDocument — no COM, no third-party libraries.
-    """
-    import zipfile
-    clr_ref = False
-    try:
-        import clr as _clr
-        _clr.AddReference('System.Xml')
-        clr_ref = True
-    except Exception:
-        pass
-
-    from System.Xml import XmlDocument
-
-    def _load_xml(text):
-        xd = XmlDocument()
-        xd.LoadXml(text)
-        return xd
-
-    NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
-
-    def _attr(node, local):
-        """Get a w: attribute value by local name."""
-        try:
-            return node.GetAttribute(local, NS) or node.GetAttribute(local)
-        except Exception:
-            return ''
-
-    def _text_of(para_node):
-        """
-        Concatenate all w:t and w:tab content inside a paragraph node,
-        preserving tab characters in document order.
-        w:tab elements are emitted as \t — this is essential for
-        alignment tables where Word uses tab stops to align columns.
-        """
-        parts = []
-        # Walk all descendant nodes looking for w:t and w:tab in order
-        # We use a simple recursive walk since XmlNodeList ordering
-        # is document order for GetElementsByTagName.
-        # Strategy: get all runs (w:r) in order, then within each run
-        # get child w:t and w:tab nodes.
-        def _walk_run(run):
-            child = run.FirstChild
-            while child is not None:
-                local = child.LocalName
-                if local == 't':
-                    parts.append(child.InnerText)
-                elif local == 'tab':
-                    parts.append(u'	')
-                child = child.NextSibling
-
-        # First try namespaced runs
-        runs = para_node.GetElementsByTagName('r', NS)
-        if not runs.Count:
-            runs = para_node.GetElementsByTagName('r')
-        for i in range(runs.Count):
-            _walk_run(runs.Item(i))
-
-        # Fallback: no runs — grab w:t directly (old behaviour)
-        if not parts:
-            for t in para_node.GetElementsByTagName('t', NS):
-                parts.append(t.InnerText)
-            if not parts:
-                for t in para_node.GetElementsByTagName('t'):
-                    parts.append(t.InnerText)
-        return u''.join(parts)
-
-    def _is_heading_style(style_id):
-        sid = (style_id or '').lower()
-        return (sid.startswith('heading') or
-                sid in ('title', 'subtitle', 'caption'))
-
-    def _run_props(run_node):
-        """Return (bold, italic, underline) for a w:r run node."""
-        bold = italic = underline = False
-        rpr_list = run_node.GetElementsByTagName('rPr', NS)
-        if not rpr_list.Count:
-            rpr_list = run_node.GetElementsByTagName('rPr')
-        if rpr_list.Count:
-            rpr = rpr_list.Item(0)
-            bold      = bool(rpr.GetElementsByTagName('b',  NS).Count or
-                             rpr.GetElementsByTagName('b').Count)
-            italic    = bool(rpr.GetElementsByTagName('i',  NS).Count or
-                             rpr.GetElementsByTagName('i').Count)
-            underline = bool(rpr.GetElementsByTagName('u',  NS).Count or
-                             rpr.GetElementsByTagName('u').Count)
-        return bold, italic, underline
-
-    # ── Bullet character map from numbering.xml ─────────────────────
-    _bullet_chars = {}   # numId (str) -> bullet char string
-    try:
-        with zipfile.ZipFile(file_path, 'r') as _zf:
-            if 'word/numbering.xml' in _zf.namelist():
-                _nxml = _zf.read('word/numbering.xml').decode(
-                    'utf-8', errors='replace')
-                _ndoc = _load_xml(_nxml)
-                # abstractNum entries carry the bullet format
-                for _an in list(_ndoc.GetElementsByTagName(
-                        'abstractNum', NS)) + list(
-                        _ndoc.GetElementsByTagName('abstractNum')):
-                    for _lvl in list(_an.GetElementsByTagName(
-                            'lvl', NS)) + list(
-                            _an.GetElementsByTagName('lvl')):
-                        # Only ilvl 0 (first level)
-                        ilvl = (_attr(_lvl, 'ilvl') or
-                                _lvl.GetAttribute('w:ilvl') or '0')
-                        if ilvl != '0':
-                            continue
-                        _nfmt_els = (list(_lvl.GetElementsByTagName(
-                            'numFmt', NS)) or list(
-                            _lvl.GetElementsByTagName('numFmt')))
-                        _ltxt_els = (list(_lvl.GetElementsByTagName(
-                            'lvlText', NS)) or list(
-                            _lvl.GetElementsByTagName('lvlText')))
-                        if _nfmt_els and _ltxt_els:
-                            fmt = (_attr(_nfmt_els[0], 'val') or
-                                   _nfmt_els[0].GetAttribute('w:val') or '')
-                            txt = (_attr(_ltxt_els[0], 'val') or
-                                   _ltxt_els[0].GetAttribute('w:val') or
-                                   u'·')
-                            if fmt == 'bullet':
-                                # map abstractNumId -> char
-                                _an_id = (_attr(_an, 'abstractNumId') or
-                                          _an.GetAttribute('w:abstractNumId') or
-                                          '0')
-                                _bullet_chars[_an_id] = txt
-                # num->abstractNum mapping
-                _num_map = {}  # numId -> bullet char
-                for _num in list(_ndoc.GetElementsByTagName(
-                        'num', NS)) + list(
-                        _ndoc.GetElementsByTagName('num')):
-                    _nid = (_attr(_num, 'numId') or
-                            _num.GetAttribute('w:numId') or '')
-                    _anid_els = (list(_num.GetElementsByTagName(
-                        'abstractNumId', NS)) or list(
-                        _num.GetElementsByTagName('abstractNumId')))
-                    if _anid_els and _nid:
-                        _anid = (_attr(_anid_els[0], 'val') or
-                                 _anid_els[0].GetAttribute('w:val') or '')
-                        if _anid in _bullet_chars:
-                            _num_map[_nid] = _bullet_chars[_anid]
-                _bullet_chars.update(_num_map)
-    except Exception as _bex:
-        logger.debug('bullet parse: {}'.format(_bex))
-
-    def _get_bullet_char(para_node):
-        """Return bullet prefix string if paragraph is a list item, else ''."""
-        ppr = None
-        ppr_list = para_node.GetElementsByTagName('pPr', NS)
-        if not ppr_list.Count:
-            ppr_list = para_node.GetElementsByTagName('pPr')
-        if ppr_list.Count:
-            ppr = ppr_list.Item(0)
-        if ppr is None:
-            return ''
-        num_pr = (list(ppr.GetElementsByTagName('numPr', NS)) or
-                  list(ppr.GetElementsByTagName('numPr')))
-        if not num_pr:
-            return ''
-        num_id_els = (list(num_pr[0].GetElementsByTagName('numId', NS)) or
-                      list(num_pr[0].GetElementsByTagName('numId')))
-        if not num_id_els:
-            return u'§ '   # fallback § if numPr exists but no numId
-        nid = (_attr(num_id_els[0], 'val') or
-               num_id_els[0].GetAttribute('w:val') or '')
-        char = _bullet_chars.get(nid, u'§')
-        # Normalise common bullet chars to § to match doc style
-        if char in (u'•', u'·', u'', '-', '*', u'–'):
-            char = u'§'
-        return char + u' '
-
-    def _para_is_heading(para_node, style_id):
-        if _is_heading_style(style_id):
-            return True
-        text = _text_of(para_node).strip()
-        if not text:
-            return False
-        # Never treat parenthesised text as a heading
-        if text.startswith('('):
-            return False
-        # List items are never headings
-        if _get_bullet_char(para_node):
-            return False
-        # Heuristic: bold AND all-uppercase
-        runs = list(para_node.GetElementsByTagName('r', NS))
-        if not runs:
-            runs = list(para_node.GetElementsByTagName('r'))
-        if not runs:
-            return False
-        all_bold = all(_run_props(r)[0] for r in runs if _text_of(r).strip())
-        is_upper = text == text.upper() and any(c.isalpha() for c in text)
-        return all_bold and is_upper and len(text) <= 80
-
-    sections = []
-    current  = None
-
-    try:
-        with zipfile.ZipFile(file_path, 'r') as zf:
-            doc_xml = zf.read('word/document.xml').decode('utf-8', errors='replace')
-    except Exception as ex:
-        logger.error('read_word_sections: cannot open {}: {}'.format(file_path, ex))
-        return []
-
-    try:
-        xdoc = _load_xml(doc_xml)
-    except Exception as ex:
-        logger.error('read_word_sections: XML parse failed: {}'.format(ex))
-        return []
-
-    paras = xdoc.GetElementsByTagName('p', NS)
-    if not paras.Count:
-        paras = xdoc.GetElementsByTagName('p')
-
-    for i in range(paras.Count):
-        p = paras.Item(i)
-
-        # Get paragraph style id
-        style_id = ''
-        ppr_list = p.GetElementsByTagName('pPr', NS)
-        if not ppr_list.Count:
-            ppr_list = p.GetElementsByTagName('pPr')
-        if ppr_list.Count:
-            ppr = ppr_list.Item(0)
-            pstyle = ppr.GetElementsByTagName('pStyle', NS)
-            if not pstyle.Count:
-                pstyle = ppr.GetElementsByTagName('pStyle')
-            if pstyle.Count:
-                style_id = (_attr(pstyle.Item(0), 'val') or
-                            pstyle.Item(0).GetAttribute('w:val') or '')
-
-        text = _text_of(p).strip()
-
-        if _para_is_heading(p, style_id):
-            if current is not None:
-                sections.append(current)
-            current = {'heading': text, 'paragraphs': []}
-        else:
-            if current is None:
-                # Text before any heading — create anonymous section
-                if text:
-                    current = {'heading': '', 'paragraphs': []}
-            if current is not None:
-                # Collect run-level formatting for the paragraph
-                runs = list(p.GetElementsByTagName('r', NS))
-                if not runs:
-                    runs = list(p.GetElementsByTagName('r'))
-                bullet_prefix = _get_bullet_char(p)
-                if runs:
-                    bold_any = italic_any = underline_any = False
-                    for r in runs:
-                        b, it, ul = _run_props(r)
-                        if b:  bold_any      = True
-                        if it: italic_any    = True
-                        if ul: underline_any = True
-                    current['paragraphs'].append({
-                        'text':      text,
-                        'bold':      bold_any,
-                        'italic':    italic_any,
-                        'underline': underline_any,
-                        'bullet':    bullet_prefix,
-                    })
-                elif text:
-                    current['paragraphs'].append({
-                        'text': text, 'bold': False,
-                        'italic': False, 'underline': False,
-                        'bullet': bullet_prefix,
-                    })
-
-    if current is not None:
-        sections.append(current)
-
-    return sections
-
-
-def get_word_headings(file_path):
-    """
-    Return display labels for the Section combo in the UI.
-
-    When a heading appears more than once (e.g. EXTERIOR STEELWORK),
-    append the first parenthesised subtitle from its body paragraphs
-    so each entry is unique and meaningful:
-        EXTERIOR STEELWORK (Zinc Metal Spray Only)
-        EXTERIOR STEELWORK (Inorganic zinc and Top Coats)
-    The label stored in row.NamedRange is this display string so we can
-    look up the section at Apply time.
-    """
-    try:
-        sections = [s for s in read_word_sections(file_path)
-                    if s.get('heading')]
-        # Count how many times each raw heading occurs
-        from collections import Counter as _Counter
-        counts = _Counter(s['heading'] for s in sections)
-        labels = []
-        for s in sections:
-            heading = s['heading']
-            if counts[heading] > 1:
-                # Find first parenthesised paragraph to disambiguate
-                subtitle = ''
-                for p in s.get('paragraphs', []):
-                    t = p.get('text', '').strip()
-                    if t.startswith('(') and t.endswith(')'):
-                        subtitle = ' ' + t
-                        break
-                labels.append(heading + subtitle)
-            else:
-                labels.append(heading)
-        return labels
-    except Exception as ex:
-        logger.error('get_word_headings: {}'.format(ex))
-        return []
-
-
-# ---------------------------------------------------------------------------
-# Notes row apply
-# ---------------------------------------------------------------------------
-
-def apply_notes_row(rows, view_name, view_type, sheet_size,
-                    col_count, file_path, size_mm=2.3):
-    """
-    Apply a set of Word notes rows to a single Drafting/Legend view.
-
-    rows is a list of dicts:
-        [{'heading': str, 'paragraphs': [...], 'col': int}, ...]
-
-    Returns {'view_name', 'status', 'message'}.
-    """
-    from pyrevit import output as _output
-    out = _output.get_output()
-    out.print_md('## pyTable Notes: {}'.format(view_name))
-
-    result = {'view_name': view_name, 'status': 'error', 'message': ''}
-
-    if not rows:
-        result['message'] = 'No sections to place.'
-        return result
-
-    payload = {
-        'view_name':  view_name,
-        'view_type':  view_type,
-        'sections':   rows,
-        'sheet_size': sheet_size,
-        'col_count':  col_count,
-        'size_mm':    size_mm,
-    }
-
-    try:
-        _run_export_script('create_notes.py', payload)
-        result['status']  = 'success'
-        result['message'] = 'Created'
-        out.print_md('**Done:** {}'.format(view_name))
-    except Exception as ex:
-        import traceback
-        result['message'] = str(ex)
-        out.print_md('**ERROR:** {}'.format(ex))
-        logger.error(traceback.format_exc())
-
-    return result
-
-def main():
-    """Launch the pyTable UI."""
-    from pyTable_ui import PyTableWindow
-    window = PyTableWindow()
-    window.show_dialog()
-
-
-if __name__ == '__main__':
-    main()
-
-
+# ── Entry point ──
+# ── Word document reading ──
 
 def _hash_range(file_path, named_range, sheet_name):
     """
     Compute a quick hash of the named range content + formatting.
     Used to detect changes between applies.
+
+    Both the outer cell_styles dict AND every inner per-cell style dict
+    must be sorted before repr(), plain repr(dict) is not safe here:
+    dict key iteration order can differ between separate Revit sessions
+    (hash randomisation), which was previously causing every row to show
+    as "changed" even when the source file was never touched.
     """
     import hashlib
     try:
@@ -2325,193 +1839,383 @@ def _hash_range(file_path, named_range, sheet_name):
         fmt  = read_range_formatting(file_path, named_range, sheet_name)
         # Hash cell values
         content = repr(rows)
-        # Hash cell styles (fills, colours, borders)
-        styles = repr(sorted(fmt.get('cell_styles', {}).items()))
+        # Hash cell styles (fills, colours, borders) — sort both the
+        # outer dict (by cell coordinate) and every inner style dict
+        # (by property name) so the string is identical across sessions
+        # for identical data.
+        cell_styles = fmt.get('cell_styles', {})
+        styles_sorted = sorted(
+            (coord, sorted(style.items()))
+            for coord, style in cell_styles.items()
+        )
+        styles = repr(styles_sorted)
         combined = content + styles
         return hashlib.md5(combined.encode('utf-8', errors='replace')).hexdigest()
     except Exception:
         return None
 
-def _hash_word_section(file_path, heading):
-    """
-    Compute a hash of a single Word section (heading + body paragraphs).
-    Used for per-row sync detection on Word cards — equivalent to
-    _hash_range for Excel rows.
-    """
-    import hashlib
-    try:
-        sections = read_word_sections(file_path)
-        for sec in sections:
-            if sec.get('heading', '') == heading:
-                content = repr(sec)
-                return hashlib.md5(
-                    content.encode('utf-8', errors='replace')).hexdigest()
-    except Exception:
-        pass
-    return None
 
+class ExcelCardMixin(object):
+    """Excel-specific card/row UI methods, mixed into
+    PyTableWindow. Everything here assumes fd.get('source_type') == 'xl'."""
 
-# ── pyTable persistence via shared parameter ──────────────────────────────────
-
-PYTABLE_PARAM_GUID = 'f0a46d4c-c148-4ff4-95c8-9750eec5d480'
-PYTABLE_PARAM_NAME = 'pyTable'
-PYTABLE_PARAM_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), 'pyTable.txt')
-
-
-def _get_pytable_param():
-    """
-    Get or create the pyTable shared parameter on ProjectInfo.
-    Returns the Parameter object or None.
-    """
-    try:
-        proj_info = doc.ProjectInformation
-        # Try to find existing parameter
-        p = proj_info.LookupParameter(PYTABLE_PARAM_NAME)
-        if p is not None:
-            return p
-        # Need to load shared parameter file and bind
-        app = revit.HOST_APP.app
-        orig_file = app.SharedParametersFilename
+    def _make_excel_card(self, path):
+        """Build the flat, single-card layout Excel cards use --
+        one fd per card, no grouping/multi-view nesting like Word.
+        Called from the shared _make_card dispatcher."""
+        fd = self._file_data[path]
+        outer = Border()
         try:
-            app.SharedParametersFilename = PYTABLE_PARAM_FILE
-            sp_file = app.OpenSharedParameterFile()
-            if sp_file is None:
-                return None
-            # Find or create group
-            grp = None
-            for g in sp_file.Groups:
-                if g.Name == 'Seed43':
-                    grp = g
-                    break
-            if grp is None:
-                return None
-            # Find definition
-            defn = None
-            for d in grp.Definitions:
-                if d.Name == PYTABLE_PARAM_NAME:
-                    defn = d
-                    break
-            if defn is None:
-                return None
-            # Bind to ProjectInfo
-            cats = DB.CategorySet()
-            cats.Insert(doc.Settings.Categories.get_Item(
-                DB.BuiltInCategory.OST_ProjectInformation))
-            binding = DB.InstanceBinding(cats)
-            with revit.Transaction('pyTable - bind parameter'):
-                doc.ParameterBindings.Insert(defn, binding)
-            return proj_info.LookupParameter(PYTABLE_PARAM_NAME)
-        finally:
-            app.SharedParametersFilename = orig_file
-    except Exception as ex:
-        logger.warning('pyTable param get failed: {}'.format(ex))
-        return None
+            outer.Style = self.FindResource('CardStyle')
+        except Exception:
+            outer.Background     = hb('#2B3340')
+            outer.CornerRadius   = CornerRadius(8)
+            outer.Padding        = Thickness(16)
+            outer.Margin         = Thickness(0, 0, 0, 12)
 
+        inner = StackPanel()
+        inner.Orientation = Orientation.Vertical
 
-def save_pytable_state(file_data):
-    """
-    Serialise pyTable UI state to the shared parameter on ProjectInfo.
+        # Card header row — Grid so the right-hand group (reload,
+        # close) stays flush right regardless of path length. Left
+        # group: collapse toggle, source badge, path, last-modified.
+        header_row = Grid()
+        header_row.Margin = Thickness(0, 0, 0, 8)
+        _hcol_l = ColumnDefinition()
+        _hcol_l.Width = GridLength(1, GridUnitType.Star)
+        _hcol_r = ColumnDefinition()
+        _hcol_r.Width = GridLength.Auto
+        header_row.ColumnDefinitions.Add(_hcol_l)
+        header_row.ColumnDefinitions.Add(_hcol_r)
 
-    file_data: {path: {rows: [Row, ...], ...}}
+        header_left = StackPanel()
+        header_left.Orientation = Orientation.Horizontal
+        Grid.SetColumn(header_left, 0)
+        header_row.Children.Add(header_left)
 
-    Format:
-        #card 01
-        C:\\path\\to\\file.xlsx
-        VN-name|S-sheet|R-range|VT-viewtype
-        ...
-        #card 02
-        ...
-    """
-    lines = []
-    for i, (path, fd) in enumerate(file_data.items(), 1):
-        lines.append('#card {:02d}'.format(i))
-        lines.append(path)
-        for row in fd.get('rows', []):
-            mt = ''
+        header_right = StackPanel()
+        header_right.Orientation = Orientation.Horizontal
+        header_right.HorizontalAlignment = HorizontalAlignment.Right
+        Grid.SetColumn(header_right, 1)
+        header_row.Children.Add(header_right)
+
+        # Collapse/expand toggle — chevron-circle vector icon from the
+        # shared Seed43 icon lib. The icon's own circle outline is the
+        # chrome, so the button itself stays transparent; only the
+        # icon's fill colour changes (grey while expanded, green once
+        # collapsed) to match the rest of the card-state language.
+        collapse_btn = Button()
+        collapse_btn.Background      = SolidColorBrush(Color.FromArgb(0, 0, 0, 0))
+        try:
+            collapse_btn.Style = self.FindResource('RoundToolBtnStyle')
+        except Exception:
+            collapse_btn.BorderThickness = Thickness(0)
+        collapse_btn.FocusVisualStyle = None
+        collapse_btn.Width    = 28
+        collapse_btn.Height   = 28
+        collapse_btn.HorizontalContentAlignment = HorizontalAlignment.Center
+        collapse_btn.VerticalContentAlignment   = VerticalAlignment.Center
+        collapse_btn.VerticalAlignment          = VerticalAlignment.Center
+        collapse_btn.Margin          = Thickness(0, 0, 8, 0)
+        try:
+            collapse_btn.Cursor = __import__(
+                'System.Windows.Input', fromlist=['Cursors']).Cursors.Hand
+        except Exception:
+            pass
+        collapse_btn.Tag     = path
+        collapse_btn.ToolTip = 'Collapse'
+        collapse_btn.Click  += self._toggle_card_collapse
+        self._set_collapse_icon(collapse_btn, False)
+        header_left.Children.Add(collapse_btn)
+
+        # Source-type badge (W / XL) — same look as the per-row badge,
+        # a touch bigger to hold its own at card-header scale.
+        src_badge = Border()
+        src_badge.Width             = 24
+        src_badge.Height            = 24
+        src_badge.CornerRadius      = CornerRadius(4)
+        src_badge.Background        = hb(SRC_COLOURS.get(
+            fd.get('source_type', 'xl'), '#555'))
+        src_badge.Margin            = Thickness(0, 0, 8, 0)
+        src_badge.VerticalAlignment = VerticalAlignment.Center
+        src_lbl = TextBlock()
+        src_lbl.Text                = ('W' if fd.get('source_type') == 'word'
+                                        else 'XL')
+        src_lbl.FontSize            = 9
+        src_lbl.FontWeight          = FontWeights.Bold
+        src_lbl.Foreground          = hb('#FFFFFF')
+        src_lbl.HorizontalAlignment = HorizontalAlignment.Center
+        src_lbl.VerticalAlignment   = VerticalAlignment.Center
+        src_badge.Child = src_lbl
+        header_left.Children.Add(src_badge)
+
+        heading = TextBlock()
+        heading.Text         = path
+        heading.TextTrimming = TextTrimming.CharacterEllipsis
+        heading.ToolTip      = path
+        heading.VerticalAlignment = VerticalAlignment.Center
+        heading.Foreground   = hb('#6B7280')
+        heading.FontWeight   = FontWeights.SemiBold
+        heading.FontSize     = 13
+        header_left.Children.Add(heading)
+        fd['heading_label']  = heading
+
+        lm_text = TextBlock()
+        try:
+            dt = DateTime.FromFileTime(
+                int(os.path.getmtime(path) * 10000000) + 116444736000000000)
+            lm_text.Text = dt.ToString('dd/MM/yyyy HH:mm')
+        except Exception:
+            lm_text.Text = ''
+        lm_text.FontSize         = 10
+        lm_text.Foreground       = hb('#F4FAFF')
+        lm_text.Opacity          = 0.55
+        lm_text.VerticalAlignment = VerticalAlignment.Center
+        lm_text.Margin           = Thickness(10, 0, 0, 0)
+        header_left.Children.Add(lm_text)
+
+        # Quick Add — same action as the control-row Add button below,
+        # placed here too for one-click access without scrolling past
+        # a long row list to reach it.
+        header_add_btn = self._green_btn(u'+ Add Row')
+        header_add_btn.Tag    = path
+        header_add_btn.Click += self._add_row_for_card
+        header_add_btn.VerticalAlignment = VerticalAlignment.Center
+        header_add_btn.Margin = Thickness(6, 0, 0, 0)
+        header_right.Children.Add(header_add_btn)
+
+        # Per-card Batch menu — Delete selected / Duplicate / path mode /
+        # Open File / Open Folder / Unlink View / Remove view. Separate
+        # from the global toolbar Batch menu, which operates across all
+        # cards (Enabled toggling, bulk view-type set).
+        batch_btn = Button()
+        batch_btn.Content    = u'Batch \u25be'
+        try:
+            batch_btn.Style = self.FindResource('SecondaryButtonStyle')
+        except Exception:
+            batch_btn.Background      = hb('#404553')
+            batch_btn.Foreground      = hb('#F4FAFF')
+            batch_btn.BorderThickness = Thickness(0)
+        batch_btn.FocusVisualStyle = None
+        batch_btn.Height      = 24
+        batch_btn.Padding     = Thickness(12, 0, 12, 0)
+        batch_btn.FontSize    = 11
+        batch_btn.VerticalAlignment = VerticalAlignment.Center
+        batch_btn.Margin      = Thickness(6, 0, 0, 0)
+        batch_btn.Tag         = path
+        batch_btn.Click      += self._card_batch_menu
+        header_right.Children.Add(batch_btn)
+
+        # Per-card reload — grey when everything's in sync, blue when any
+        # row in this card needs reapplying, matching each row's own
+        # sync-dot state aggregated up to the card.
+        reload_btn = Button()
+        if _mi is not None:
             try:
-                if row._applied_mtime:
-                    mt = str(int(row._applied_mtime))
+                reload_btn.Content = _mi('reload', size=14, color='#FFFFFF')
             except Exception:
-                pass
-            h = ''
-            try:
-                if row._applied_hash:
-                    h = row._applied_hash
-            except Exception:
-                pass
-            cn = getattr(row, 'ColNo', 1)
-            lines.append('VN-{}|S-{}|R-{}|VT-{}|MT-{}|H-{}|CN-{}'.format(
-                row.ViewName, row.Sheet, row.NamedRange,
-                row.ViewType, mt, h, cn))
-        # Card-level word settings
-        ss = fd.get('sheet_size', '')
-        cc = fd.get('col_count', '')
-        vn = fd.get('view_name', '')
-        if ss:
-            lines.append('CARD_SS-{}|CC-{}|VN-{}'.format(ss, cc, vn))
-    text = '\n'.join(lines)
-    try:
-        p = _get_pytable_param()
-        if p is not None:
-            with revit.Transaction('pyTable - save state'):
-                p.Set(text)
-            logger.debug('pyTable state saved ({} chars)'.format(len(text)))
-    except Exception as ex:
-        logger.warning('pyTable save failed: {}'.format(ex))
+                reload_btn.Content = u'\u21bb'
+        else:
+            reload_btn.Content = u'\u21bb'
+        try:
+            reload_btn.Style = self.FindResource('RoundToolBtnStyle')
+        except Exception:
+            reload_btn.Foreground      = hb('#F4FAFF')
+            reload_btn.BorderThickness = Thickness(0)
+        reload_btn.FocusVisualStyle = None
+        reload_btn.Width       = 28
+        reload_btn.Height      = 28
+        reload_btn.HorizontalContentAlignment = HorizontalAlignment.Center
+        reload_btn.VerticalContentAlignment   = VerticalAlignment.Center
+        reload_btn.VerticalAlignment          = VerticalAlignment.Center
+        reload_btn.Margin  = Thickness(6, 0, 0, 0)
+        reload_btn.Tag     = path
+        reload_btn.ToolTip = 'Reload rows that need updating'
+        reload_btn.Click  += self._card_reload_click
+        header_right.Children.Add(reload_btn)
+        fd['reload_btn'] = reload_btn
 
+        # Close card — always-red filled circle (more prominent than
+        # the subtle row-level x buttons, since closing a whole card
+        # is a bigger action).
+        del_card_btn = Button()
+        del_card_btn.Content         = u'\u2715'
+        del_card_btn.FontSize        = 11
+        del_card_btn.Foreground      = hb('#F4FAFF')
+        try:
+            del_card_btn.Style = self.FindResource('LocalCloseBtn')
+        except Exception:
+            del_card_btn.Background      = hb('#2B3340')
+            del_card_btn.BorderThickness = Thickness(0)
+        del_card_btn.FocusVisualStyle = None
+        del_card_btn.Width            = 28
+        del_card_btn.Height           = 28
+        del_card_btn.HorizontalContentAlignment = HorizontalAlignment.Center
+        del_card_btn.VerticalContentAlignment   = VerticalAlignment.Center
+        del_card_btn.VerticalAlignment   = VerticalAlignment.Center
+        del_card_btn.Margin          = Thickness(6, 0, 0, 0)
+        del_card_btn.ToolTip         = 'Close (remove this card)'
+        del_card_btn.Tag             = path
+        del_card_btn.Click          += self._del_card_click
+        header_right.Children.Add(del_card_btn)
 
-def load_pytable_state():
-    """
-    Read pyTable state from the shared parameter.
+        # Row container
+        row_panel = StackPanel()
+        row_panel.Orientation = Orientation.Vertical
 
-    Returns list of dicts:
-        [{'path': str, 'rows': [{'view_name', 'sheet', 'named_range', 'view_type'}]}]
-    """
-    try:
-        p = _get_pytable_param()
-        if p is None:
-            return []
-        text = p.AsString()
-        if not text:
-            return []
-        cards = []
-        current = None
-        for line in text.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            if line.startswith('#card'):
-                current = {'path': '', 'rows': []}
-                cards.append(current)
-            elif current is not None and not current['path']:
-                current['path'] = line
-            elif current is not None and '|' in line:
-                parts = {}
-                for seg in line.split('|'):
-                    if '-' in seg:
-                        k, v = seg.split('-', 1)
-                        parts[k] = v
-                if 'CARD_SS' in parts:
-                    # Card-level word settings line
-                    current['sheet_size'] = parts.get('CARD_SS', 'A3 Landscape')
-                    try:
-                        current['col_count'] = int(parts.get('CC', 2))
-                    except Exception:
-                        current['col_count'] = 2
-                    current['view_name'] = parts.get('VN', '')
-                    continue
-                mt = parts.get('MT', '')
-                current['rows'].append({
-                    'view_name':    parts.get('VN', ''),
-                    'sheet':        parts.get('S',  ''),
-                    'named_range':  parts.get('R',  ''),
-                    'view_type':    parts.get('VT', 'Schedule View'),
-                    'applied_mtime': float(mt) if mt else None,
-                    'applied_hash':  parts.get('H') or None,
-                    'col_no':       int(parts.get('CN', 1)),
-                })
-        return cards
-    except Exception as ex:
-        logger.warning('pyTable load failed: {}'.format(ex))
-        return []
+        inner.Children.Add(header_row)
+
+        # Column headers inside card
+        col_hdr = StackPanel()
+        col_hdr.Orientation = Orientation.Horizontal
+        col_hdr.Margin      = Thickness(0, 0, 0, 8)
+
+        def _ch(text, width, pad_left=4):
+            tb = TextBlock()
+            tb.Text             = text
+            tb.Width            = width
+            tb.FontSize         = 10
+            tb.Foreground       = hb('#F4FAFF')
+            tb.Opacity          = 0.45
+            tb.VerticalAlignment = VerticalAlignment.Center
+            tb.Padding          = Thickness(pad_left, 0, 0, 0)
+            return tb
+
+        # Tri-state select-all — indeterminate when some but not all
+        # rows in this card are checked, so the header always reflects
+        # the actual selection state at a glance. No fixed Width (auto-
+        # sizes like the row checkboxes do) so it lines up with them
+        # instead of drifting off to a different horizontal position.
+        tri_cb = CheckBox()
+        tri_cb.IsThreeState      = True
+        tri_cb.Margin            = Thickness(0, 0, 6, 0)
+        tri_cb.VerticalAlignment = VerticalAlignment.Center
+        tri_cb.Tag               = path
+        tri_cb.ToolTip           = 'Select all / none rows in this card'
+        tri_cb.Click            += self._card_select_all_click
+        fd['select_all_cb'] = tri_cb
+
+        col_hdr.Children.Add(_ch('',           14, 0))
+        col_hdr.Children.Add(tri_cb)                   # select-all
+        col_hdr.Children.Add(_ch('View Name', 124))
+        col_hdr.Children.Add(_ch('Sheet',     124))
+        col_hdr.Children.Add(_ch('Range',     134))
+        col_hdr.Children.Add(_ch('Modified',   96))
+        col_hdr.Children.Add(_ch('View Type', 134))
+
+        inner.Children.Add(col_hdr)
+        inner.Children.Add(row_panel)
+        outer.Child = inner
+
+        fd['card_panel']    = row_panel
+        fd['sections_hdr']  = col_hdr
+        fd['card_border']   = outer
+        fd['card_inner']    = inner
+
+        self.CardsPanel.Children.Add(outer)
+        self._update_card_reload_indicator(path)
+        self._update_card_link_badge(path)
+        self._update_tri_select_state(path)
+
+    def _excel_view_name_live_check(self, sender, e):
+        """Live (as-you-type) conflict check for an Excel row's View
+        Name box."""
+        row = sender.Tag
+        if row is None:
+            return
+        name = sender.Text.strip()
+        taken = self._view_name_taken(name, exclude_row=row)
+        self._style_view_name_conflict(sender, taken)
+
+    def _vn_lost(self, sender, e):
+        row = sender.Tag
+        if not row:
+            return
+        row.ViewName = sender.Text.strip()
+        sender.Text  = row.ViewName
+        if not row.ViewName:
+            # Blank = neutral, just reset border — dot stays as-is
+            self._style_view_name_conflict(sender, False)
+            if row._dot and row.Status not in ('success', 'error'):
+                row._dot.Fill = hb('#6B7280')
+                row.Status = 'pending'
+            return
+        taken = self._view_name_taken(row.ViewName, exclude_row=row)
+        self._style_view_name_conflict(sender, taken)
+        if taken:
+            if row._dot:
+                row._dot.Fill = hb('#DC2626')
+                row.Status = 'error'
+        else:
+            if row._dot and row.Status not in ('success', 'skipped'):
+                row._dot.Fill = hb('#6B7280')
+                row.Status = 'pending'
+        self._revalidate_all_view_name_boxes()
+
+    def _sc_changed(self, sender, e):
+        if sender.SelectedItem is None:
+            return
+        tag = sender.Tag
+        if not isinstance(tag, tuple):
+            return
+        row, rc = tag
+        new_sheet = sender.SelectedItem
+        row.Sheet = new_sheet
+        rc.Items.Clear()
+        for r in row.ranges_for(new_sheet):
+            rc.Items.Add(r)
+        if rc.Items.Count > 0:
+            rc.SelectedIndex = 0
+            row.NamedRange = rc.Items[0]
+            if not row.ViewName:
+                row.ViewName = row.NamedRange
+                if row._vn_textbox is not None:
+                    row._vn_textbox.Text = row.ViewName
+
+    def _rc_changed(self, sender, e):
+        if sender.SelectedItem is None:
+            return
+        row = sender.Tag
+        if row:
+            row.NamedRange = sender.SelectedItem
+            if not row.ViewName:
+                row.ViewName = row.NamedRange
+                if row._vn_textbox is not None:
+                    row._vn_textbox.Text = row.ViewName
+
+    def _vt_changed(self, sender, e):
+        if sender.SelectedItem is None:
+            return
+        row = sender.Tag
+        if row:
+            row.ViewType = sender.SelectedItem
+
+    def _parse_excel(self, path):
+        real_path = path
+        if path in self._file_data:
+            # Already loaded — picking it again via + Add Tables reads
+            # as "I want another card for this file", not "do nothing
+            # and quietly jump back to the existing one".
+            path = self._next_duplicate_key(real_path)
+        try:
+            wb = get_named_ranges_from_workbook(real_path)
+        except Exception as ex:
+            logger.error('Read failed: {}'.format(ex))
+            wb = {}
+        sheets = wb.get('sheets', [])
+        srmap  = wb.get('sheet_ranges', {})
+        if not srmap:
+            all_r = wb.get('named_ranges', [])
+            srmap = {s: all_r for s in sheets}
+        self._file_data[path] = {
+            'sheets':          sheets,
+            'sheet_range_map': srmap,
+            'source_type':     'xl',
+            'rows':            [],
+            'card_panel':      None,
+            'card_border':     None,
+            'real_path':       real_path,
+        }
+        self._active_file = path
+        self._make_card(path)
+

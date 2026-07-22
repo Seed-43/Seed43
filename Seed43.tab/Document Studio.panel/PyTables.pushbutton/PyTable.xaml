@@ -1,0 +1,885 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="pyTable"
+        Width="960" Height="720"
+        MinWidth="700" MinHeight="400" MaxHeight="900"
+        WindowStyle="None"
+        ResizeMode="CanResize"
+        WindowStartupLocation="CenterScreen"
+        Background="#3B4553"
+        TextElement.FontFamily="Segoe UI"
+        TextElement.Foreground="#F4FAFF"
+        FontSize="12">
+
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="56"
+                             CornerRadius="10"
+                             GlassFrameThickness="0"
+                             ResizeBorderThickness="12"
+                             UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <!-- These 5 styles are looked up via FindResource() throughout
+             pyTable_ui.py. They used to live only in the unused
+             PyTables.xaml (nothing loads that file), so every lookup
+             silently failed and fell back to native/plain rendering,
+             this is why the dropdown arrow and a few other controls
+             looked inconsistent. Defined here now, in the file this
+             window actually loads. -->
+        <Style x:Key="CardStyle" TargetType="Border">
+                <Setter Property="Background"    Value="#2B3340"/>
+                <Setter Property="CornerRadius"  Value="8"/>
+                <Setter Property="Padding"       Value="16"/>
+                <Setter Property="Margin"        Value="0,0,0,12"/>
+                <Setter Property="Effect">
+                    <Setter.Value>
+                        <DropShadowEffect Color="Black" Opacity="0.2" ShadowDepth="2" BlurRadius="4"/>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+        <Style x:Key="SectionLabelStyle" TargetType="TextBlock">
+                <Setter Property="Foreground"  Value="#208A3C"/>
+                <Setter Property="FontWeight"  Value="SemiBold"/>
+                <Setter Property="FontSize"    Value="14"/>
+                <Setter Property="Margin"      Value="0,0,0,8"/>
+            </Style>
+
+        <Style x:Key="SmallButtonStyle" TargetType="Button">
+                <Setter Property="Background"      Value="#208A3C"/>
+                <Setter Property="Foreground"      Value="#F4FAFF"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding"         Value="12,4"/>
+                <Setter Property="FontSize"        Value="11"/>
+                <Setter Property="FontWeight"      Value="SemiBold"/>
+                <Setter Property="Cursor"          Value="Hand"/>
+                <Setter Property="Height"          Value="24"/>
+                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="ButtonBorder"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="4"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="ButtonBorder" Property="Background" Value="#2B933F"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="ButtonBorder" Property="Background" Value="#1A6E2E"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+        <Style x:Key="GridCellStyle" TargetType="TextBox">
+                <Setter Property="Background"               Value="#F4FAFF"/>
+                <Setter Property="Foreground"               Value="#2B3340"/>
+                <Setter Property="BorderBrush"              Value="#208A3C"/>
+                <Setter Property="BorderThickness"          Value="1"/>
+                <Setter Property="Padding"                  Value="6,3"/>
+                <Setter Property="FontSize"                 Value="11"/>
+                <Setter Property="Height"                   Value="26"/>
+                <Setter Property="Margin"                   Value="0,0,6,6"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="TextBox">
+                            <Border x:Name="MainBorder"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6">
+                                <ScrollViewer x:Name="PART_ContentHost"
+                                              Focusable="False"
+                                              HorizontalScrollBarVisibility="Hidden"
+                                              VerticalScrollBarVisibility="Hidden"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="MainBorder" Property="BorderBrush" Value="#2B933F"/>
+                                </Trigger>
+                                <Trigger Property="IsFocused" Value="True">
+                                    <Setter TargetName="MainBorder" Property="BorderBrush"     Value="#2B933F"/>
+                                    <Setter TargetName="MainBorder" Property="BorderThickness" Value="2"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+        <!-- Same as GridCellStyle but for a name-conflict error state.
+             GridCellStyle's IsFocused/IsMouseOver triggers hardcode a
+             green border, which would silently mask a red border set
+             from code while the box has focus — exactly the moment a
+             typed conflict most needs to be visible. A separate style
+             with red-family triggers instead of green ones sidesteps
+             that entirely, rather than fighting the trigger from code. -->
+        <Style x:Key="GridCellErrorStyle" TargetType="TextBox">
+                <Setter Property="Background"               Value="#FBE2E2"/>
+                <Setter Property="Foreground"               Value="#2B3340"/>
+                <Setter Property="BorderBrush"              Value="#DC2626"/>
+                <Setter Property="BorderThickness"          Value="1"/>
+                <Setter Property="Padding"                  Value="6,3"/>
+                <Setter Property="FontSize"                 Value="11"/>
+                <Setter Property="Height"                   Value="26"/>
+                <Setter Property="Margin"                   Value="0,0,6,6"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="TextBox">
+                            <Border x:Name="MainBorder"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6">
+                                <ScrollViewer x:Name="PART_ContentHost"
+                                              Focusable="False"
+                                              HorizontalScrollBarVisibility="Hidden"
+                                              VerticalScrollBarVisibility="Hidden"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="MainBorder" Property="BorderBrush" Value="#E53E3E"/>
+                                </Trigger>
+                                <Trigger Property="IsFocused" Value="True">
+                                    <Setter TargetName="MainBorder" Property="BorderBrush"     Value="#E53E3E"/>
+                                    <Setter TargetName="MainBorder" Property="BorderThickness" Value="2"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+        <Style x:Key="ModernComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Background"      Value="#F4FAFF"/>
+            <Setter Property="Foreground"      Value="#2B3340"/>
+            <Setter Property="BorderBrush"     Value="#208A3C"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding"         Value="8,4"/>
+            <Setter Property="FontSize"        Value="12"/>
+            <Setter Property="Height"          Value="28"/>
+            <Setter Property="Margin"          Value="0,0,0,10"/>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="Padding" Value="8,4"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ComboBoxItem">
+                                    <Border x:Name="ItemBd" Background="Transparent" Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsHighlighted" Value="True">
+                                            <Setter TargetName="ItemBd" Property="Background" Value="#D9F0E1"/>
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="ItemBd" Property="Background" Value="#BFE8CE"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <Grid>
+                                <ToggleButton Background="Transparent"
+                                              BorderThickness="0"
+                                              IsChecked="{Binding IsDropDownOpen, Mode=TwoWay,
+                                                          RelativeSource={RelativeSource TemplatedParent}}"
+                                              ClickMode="Press">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border Background="Transparent"/>
+                                        </ControlTemplate>
+                                    </ToggleButton.Template>
+                                </ToggleButton>
+                                <ContentPresenter x:Name="ContentSite"
+                                                  IsHitTestVisible="False"
+                                                  Content="{TemplateBinding SelectionBoxItem}"
+                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                  Margin="{TemplateBinding Padding}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"/>
+                                <Path x:Name="ArrowPath"
+                                      Fill="{TemplateBinding Foreground}"
+                                      IsHitTestVisible="False"
+                                      HorizontalAlignment="Right"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,8,0"
+                                      Data="M 0 0 L 4 4 L 8 0 Z"/>
+                                <Popup x:Name="ComboPopup"
+                                       Placement="Bottom"
+                                       IsOpen="{TemplateBinding IsDropDownOpen}"
+                                       AllowsTransparency="True"
+                                       Focusable="False"
+                                       PopupAnimation="None">
+                                    <Border x:Name="PopupBd"
+                                            Background="#F4FAFF"
+                                            BorderBrush="#208A3C"
+                                            BorderThickness="1"
+                                            CornerRadius="6"
+                                            Width="{TemplateBinding ActualWidth}"
+                                            RenderTransformOrigin="0.5,0">
+                                        <Border.RenderTransform>
+                                            <ScaleTransform x:Name="PopupScale" ScaleY="1"/>
+                                        </Border.RenderTransform>
+                                        <ScrollViewer MaxHeight="260">
+                                            <StackPanel IsItemsHost="True"/>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#2B933F"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#D9F0E1"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- These 5 are referenced directly in this file's own markup
+             (not just via FindResource in Python), missed in the first pass
+             which only checked Python-side lookups. -->
+        <Style x:Key="MacScrollBarThumb" TargetType="Thumb">
+                <Setter Property="Background" Value="#208A3C"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Thumb">
+                            <Border x:Name="thumb"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="3"
+                                    Margin="2,2,2,2"/>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="thumb" Property="Background" Value="#27AE60"/>
+                                </Trigger>
+                                <Trigger Property="IsDragging" Value="True">
+                                    <Setter TargetName="thumb" Property="Background" Value="#2ECC71"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+        <Style x:Key="MacScrollBar" TargetType="ScrollBar">
+                <Setter Property="Orientation" Value="Vertical"/>
+                <Setter Property="Width"       Value="8"/>
+                <Setter Property="MinWidth"    Value="8"/>
+                <Setter Property="Background"  Value="Transparent"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ScrollBar">
+                            <Grid x:Name="GridRoot" Width="8">
+                                <Track x:Name="PART_Track"
+                                       Orientation="Vertical"
+                                       IsDirectionReversed="True">
+                                    <Track.Thumb>
+                                        <Thumb Style="{StaticResource MacScrollBarThumb}"/>
+                                    </Track.Thumb>
+                                </Track>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="GridRoot" Property="Width" Value="10"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+        <Style x:Key="MacScrollViewer" TargetType="ScrollViewer">
+                <Setter Property="VerticalScrollBarVisibility"   Value="Auto"/>
+                <Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ScrollViewer">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ScrollContentPresenter Grid.Column="0"
+                                                        Margin="{TemplateBinding Padding}"
+                                                        CanContentScroll="{TemplateBinding CanContentScroll}"/>
+                                <ScrollBar x:Name="PART_VerticalScrollBar"
+                                           Grid.Column="1"
+                                           Orientation="Vertical"
+                                           Style="{StaticResource MacScrollBar}"
+                                           Value="{TemplateBinding VerticalOffset}"
+                                           Maximum="{TemplateBinding ScrollableHeight}"
+                                           ViewportSize="{TemplateBinding ViewportHeight}"
+                                           Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"/>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+        <Style x:Key="SecondaryButtonStyle" TargetType="Button">
+                <Setter Property="Background"      Value="#404553"/>
+                <Setter Property="Foreground"      Value="#F4FAFF"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding"         Value="16,8"/>
+                <Setter Property="FontSize"        Value="12"/>
+                <Setter Property="Cursor"          Value="Hand"/>
+                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="6"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#4E5566"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#333B48"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="Bd" Property="Background" Value="#555555"/>
+                                    <Setter Property="Foreground"                  Value="#888888"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+        <Style x:Key="OptionsToggleButtonStyle" TargetType="ToggleButton">
+            <Setter Property="Width"           Value="36"/>
+            <Setter Property="Height"          Value="36"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="FontSize"        Value="18"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd"
+                                Background="Transparent"
+                                CornerRadius="6"
+                                Width="36" Height="36">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#404553"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#208A3C"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="LocalCloseBtn" TargetType="Button">
+            <Setter Property="Width"           Value="32"/>
+            <Setter Property="Height"          Value="32"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="16">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#C53030"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="RoundToolBtnStyle" TargetType="Button">
+            <Setter Property="Width"           Value="20"/>
+            <Setter Property="Height"          Value="20"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="20">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.82"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="FilterCheckBoxStyle" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#2B3340"/>
+            <Setter Property="FontSize"   Value="12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <Border x:Name="ItemBd" Background="Transparent" CornerRadius="4" Padding="6,4">
+                            <StackPanel Orientation="Horizontal">
+                                <Border Width="14" Height="14"
+                                        BorderBrush="#208A3C" BorderThickness="1.5"
+                                        CornerRadius="3" Background="White"
+                                        VerticalAlignment="Center">
+                                    <Path x:Name="CheckMark"
+                                          Data="M 1 4 L 4 7 L 9 1"
+                                          Stroke="#208A3C" StrokeThickness="2"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                          Visibility="Collapsed"/>
+                                </Border>
+                                <ContentPresenter Margin="6,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ItemBd" Property="Background" Value="#D9F0E1"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Dark popup-menu chrome for every ContextMenu (Batch menus,
+             etc). Without this, ContextMenu/MenuItem render with the
+             default Windows light theme regardless of everything
+             else in this stylesheet being dark. -->
+        <Style x:Key="DarkContextMenuStyle" TargetType="ContextMenu">
+            <Setter Property="Background"      Value="#2B3340"/>
+            <Setter Property="BorderBrush"     Value="#404553"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding"         Value="4"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <Border.Effect>
+                                <DropShadowEffect Color="Black" Opacity="0.35"
+                                                   ShadowDepth="3" BlurRadius="10"/>
+                            </Border.Effect>
+                            <StackPanel IsItemsHost="True" Margin="4"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkMenuItemStyle" TargetType="MenuItem">
+            <Setter Property="Background"  Value="Transparent"/>
+            <Setter Property="Foreground"  Value="#F4FAFF"/>
+            <Setter Property="FontSize"    Value="12"/>
+            <Setter Property="Padding"     Value="10,7"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter ContentSource="Header"
+                                               VerticalAlignment="Center"
+                                               RecognizesAccessKey="True"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#208A3C"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#6B7280"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkMenuSeparatorStyle" TargetType="Separator">
+            <Setter Property="Background" Value="#404553"/>
+            <Setter Property="Height"     Value="1"/>
+            <Setter Property="Margin"     Value="6,4"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Separator">
+                        <Border Background="{TemplateBinding Background}"
+                                Height="{TemplateBinding Height}"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="56"/>    <!-- header + toolbar -->
+            <RowDefinition Height="Auto"/>  <!-- status card (fixed) -->
+            <RowDefinition Height="*"/>     <!-- scrollable file cards -->
+            <RowDefinition Height="34"/>    <!-- footer -->
+        </Grid.RowDefinitions>
+
+        <!-- ══ HEADER + TOOLBAR ══════════════════════════════════════ -->
+        <Border Grid.Row="0"
+                Background="#232933"
+                CornerRadius="10,10,12,12">
+            <Border.Effect>
+                <DropShadowEffect Color="Black" Opacity="0.3"
+                                  ShadowDepth="2" BlurRadius="6"/>
+            </Border.Effect>
+            <Grid Margin="24,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Wordmark -->
+                <StackPanel Grid.Column="0"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="py"
+                               FontWeight="Bold" FontSize="20"
+                               Foreground="#208A3C"
+                               VerticalAlignment="Center"/>
+                    <TextBlock Text="Table"
+                               FontWeight="SemiBold" FontSize="20"
+                               Foreground="#F4FAFF"
+                               Margin="4,0,0,0"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Toolbar — Grid columns, VerticalAlignment=Center on each item -->
+                <Grid Grid.Column="2" VerticalAlignment="Center"
+                      shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="6"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="6"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="1"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="6"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Button Grid.Column="0"
+                            x:Name="AddTablesBtn"
+                            Content="+ Add Tables"
+                            Style="{StaticResource SmallButtonStyle}"
+                            Height="24" Padding="12,0"
+                            VerticalAlignment="Center"
+                            Click="OnAddTables"/>
+
+                    <Button Grid.Column="2"
+                            Content="Batch ▾"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Height="24" Padding="12,0"
+                            VerticalAlignment="Center"
+                            Click="OnBatchActions"/>
+
+                    <Border Grid.Column="6"
+                            Width="1" Height="18"
+                            Background="#404553"
+                            VerticalAlignment="Center"/>
+
+                    <Grid Grid.Column="8">
+                        <ToggleButton x:Name="SourceFilterToggle"
+                                      Height="24" Width="110"
+                                      Background="#F4FAFF"
+                                      Cursor="Hand"
+                                      PreviewMouseLeftButtonDown="OnFilterTogglePreviewDown">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border x:Name="Bd"
+                                            Background="{TemplateBinding Background}"
+                                            BorderBrush="#208A3C"
+                                            BorderThickness="1"
+                                            CornerRadius="6">
+                                        <Grid>
+                                            <TextBlock Text="Source" Foreground="#2B3340" FontSize="12"
+                                                       Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                            <Path Fill="#2B3340" IsHitTestVisible="False"
+                                                  HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                  Margin="0,0,8,0" Data="M 0 0 L 4 4 L 8 0 Z"/>
+                                        </Grid>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="#D9F0E1"/>
+                                        </Trigger>
+                                        <Trigger Property="IsChecked" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="#D9F0E1"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+                        <Popup PlacementTarget="{Binding ElementName=SourceFilterToggle}"
+                               Placement="Bottom"
+                               IsOpen="{Binding ElementName=SourceFilterToggle, Path=IsChecked}"
+                               AllowsTransparency="True"
+                               StaysOpen="False">
+                            <Border Background="#F4FAFF" BorderBrush="#208A3C" BorderThickness="1"
+                                    CornerRadius="6" Padding="10,8">
+                                <Border.Effect>
+                                    <DropShadowEffect Color="Black" Opacity="0.3" ShadowDepth="2" BlurRadius="6"/>
+                                </Border.Effect>
+                                <StackPanel>
+                                    <CheckBox x:Name="SrcFilterExcel" Content="Excel" IsChecked="True"
+                                              Style="{StaticResource FilterCheckBoxStyle}" Margin="0,1"
+                                              Click="OnSourceFilterChanged"/>
+                                    <CheckBox x:Name="SrcFilterWord" Content="Word" IsChecked="True"
+                                              Style="{StaticResource FilterCheckBoxStyle}" Margin="0,1"
+                                              Click="OnSourceFilterChanged"/>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
+
+                    <Grid Grid.Column="10">
+                        <ToggleButton x:Name="TypeFilterToggle"
+                                      Height="24" Width="100"
+                                      Background="#F4FAFF"
+                                      Cursor="Hand"
+                                      PreviewMouseLeftButtonDown="OnFilterTogglePreviewDown">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border x:Name="Bd"
+                                            Background="{TemplateBinding Background}"
+                                            BorderBrush="#208A3C"
+                                            BorderThickness="1"
+                                            CornerRadius="6">
+                                        <Grid>
+                                            <TextBlock Text="Type" Foreground="#2B3340" FontSize="12"
+                                                       Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                            <Path Fill="#2B3340" IsHitTestVisible="False"
+                                                  HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                  Margin="0,0,8,0" Data="M 0 0 L 4 4 L 8 0 Z"/>
+                                        </Grid>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="#D9F0E1"/>
+                                        </Trigger>
+                                        <Trigger Property="IsChecked" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="#D9F0E1"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+                        <Popup PlacementTarget="{Binding ElementName=TypeFilterToggle}"
+                               Placement="Bottom"
+                               IsOpen="{Binding ElementName=TypeFilterToggle, Path=IsChecked}"
+                               AllowsTransparency="True"
+                               StaysOpen="False">
+                            <Border Background="#F4FAFF" BorderBrush="#208A3C" BorderThickness="1"
+                                    CornerRadius="6" Padding="10,8">
+                                <Border.Effect>
+                                    <DropShadowEffect Color="Black" Opacity="0.3" ShadowDepth="2" BlurRadius="6"/>
+                                </Border.Effect>
+                                <StackPanel>
+                                    <CheckBox x:Name="TypeFilterSchedule" Content="Schedule View" IsChecked="True"
+                                              Style="{StaticResource FilterCheckBoxStyle}" Margin="0,1"
+                                              Click="OnTypeFilterChanged"/>
+                                    <CheckBox x:Name="TypeFilterLegend" Content="Legend View" IsChecked="True"
+                                              Style="{StaticResource FilterCheckBoxStyle}" Margin="0,1"
+                                              Click="OnTypeFilterChanged"/>
+                                    <CheckBox x:Name="TypeFilterDrafting" Content="Drafting View" IsChecked="True"
+                                              Style="{StaticResource FilterCheckBoxStyle}" Margin="0,1"
+                                              Click="OnTypeFilterChanged"/>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
+
+                </Grid>
+
+                <!-- Apply + hamburger + close -->
+                <StackPanel Grid.Column="3"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button x:Name="ApplyBtn"
+                            Content="Apply"
+                            Style="{StaticResource SmallButtonStyle}"
+                            Width="80" Height="24"
+                            Margin="0,0,10,0"
+                            Click="OnApply"/>
+                    <ToggleButton x:Name="MenuBtn"
+                                  Content="☰"
+                                  Style="{StaticResource OptionsToggleButtonStyle}"
+                                  Click="OnMenuOpen"/>
+                    <Button x:Name="CloseBtn"
+                            Style="{StaticResource LocalCloseBtn}"
+                            Margin="6,0,0,0"
+                            ToolTip="Close"
+                            Click="OnCloseWindow"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Column headers now inside each card — row collapsed -->
+
+        <!-- ══ STATUS CARD (always visible) ════════════════════════ -->
+        <Border x:Name="StatusCardHost"
+                Grid.Row="1"
+                Margin="12,8,12,4">
+            <!-- populated by _build_status_card() in code-behind -->
+        </Border>
+
+        <!-- ══ SCROLLABLE CONTENT ════════════════════════════════════ -->
+        <ScrollViewer x:Name="RowsScroll"
+                      Grid.Row="2"
+                      Style="{StaticResource MacScrollViewer}"
+                      Background="#3B4553"
+                      Padding="12,8,12,8">
+            <StackPanel x:Name="CardsPanel"
+                        Background="Transparent"/>
+        </ScrollViewer>
+
+        <!-- Drop zone (shown when no files loaded) -->
+        <Border x:Name="DropZonePanel"
+                Grid.Row="2"
+                Background="#3B4553"
+                AllowDrop="True"
+                Drop="OnDrop"
+                DragOver="OnDragOver">
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                <Border Width="52" Height="52"
+                        Background="#232933"
+                        CornerRadius="10"
+                        HorizontalAlignment="Center"
+                        Margin="0,0,0,14">
+                    <TextBlock Text="↑" FontSize="26"
+                               Foreground="#208A3C"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock Text="Link documents to Revit"
+                           FontSize="14" FontWeight="SemiBold"
+                           Foreground="#F4FAFF"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,8"/>
+                <TextBlock TextWrapping="Wrap" MaxWidth="360"
+                           TextAlignment="Center" FontSize="11"
+                           Foreground="#F4FAFF" Opacity="0.55"
+                           Margin="0,0,0,20">
+                    Browse or drag and drop an Excel or Word file.
+                </TextBlock>
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Center">
+                    <Border BorderBrush="#208A3C" BorderThickness="1"
+                            CornerRadius="10" Padding="10,3" Margin="0,0,6,0">
+                        <TextBlock Text=".xlsx" FontSize="10" Foreground="#F4FAFF" Opacity="0.6"/>
+                    </Border>
+                    <Border BorderBrush="#208A3C" BorderThickness="1"
+                            CornerRadius="10" Padding="10,3" Margin="0,0,6,0">
+                        <TextBlock Text=".xls" FontSize="10" Foreground="#F4FAFF" Opacity="0.6"/>
+                    </Border>
+                    <Border BorderBrush="#208A3C" BorderThickness="1"
+                            CornerRadius="10" Padding="10,3" Margin="0,0,6,0">
+                        <TextBlock Text=".docx" FontSize="10" Foreground="#F4FAFF" Opacity="0.6"/>
+                    </Border>
+                    <Border BorderBrush="#208A3C" BorderThickness="1"
+                            CornerRadius="10" Padding="10,3" Margin="0,0,6,0">
+                        <TextBlock Text=".ods" FontSize="10" Foreground="#F4FAFF" Opacity="0.6"/>
+                    </Border>
+                    <Border BorderBrush="#208A3C" BorderThickness="1"
+                            CornerRadius="10" Padding="10,3">
+                        <TextBlock Text=".odt" FontSize="10" Foreground="#F4FAFF" Opacity="0.6"/>
+                    </Border>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- ══ FOOTER ════════════════════════════════════════════════ -->
+        <Border Grid.Row="3"
+                Background="#232933"
+                BorderBrush="#404553"
+                BorderThickness="0,1,0,0"
+                Padding="16,0">
+            <TextBlock x:Name="FooterCounts"
+                       Text="No files loaded"
+                       FontSize="10" Foreground="#F4FAFF"
+                       Opacity="0.45"
+                       VerticalAlignment="Center"/>
+        </Border>
+
+    </Grid>
+
+        <!-- Decorative resize-grip dots, bottom-right corner. Purely visual;
+             actual resizing is handled by WindowChrome's ResizeBorderThickness. -->
+        <Canvas Width="16" Height="16"
+                HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                Margin="0,0,8,6"
+                IsHitTestVisible="False">
+            <Rectangle Canvas.Left="10" Canvas.Top="10" Width="3" Height="3" Fill="#F4FAFF" Opacity="0.35"/>
+            <Rectangle Canvas.Left="10" Canvas.Top="5"  Width="3" Height="3" Fill="#F4FAFF" Opacity="0.35"/>
+            <Rectangle Canvas.Left="5"  Canvas.Top="10" Width="3" Height="3" Fill="#F4FAFF" Opacity="0.35"/>
+            <Rectangle Canvas.Left="10" Canvas.Top="0"  Width="3" Height="3" Fill="#F4FAFF" Opacity="0.35"/>
+            <Rectangle Canvas.Left="5"  Canvas.Top="5"  Width="3" Height="3" Fill="#F4FAFF" Opacity="0.35"/>
+            <Rectangle Canvas.Left="0"  Canvas.Top="10" Width="3" Height="3" Fill="#F4FAFF" Opacity="0.35"/>
+        </Canvas>
+    </Grid>
+</Window>

@@ -1,0 +1,26 @@
+# seed43_migrations.yaml
+# Place this file in the repo root alongside version.txt
+#
+# When a tool or folder is renamed, add an entry here so the updater
+# copies .json config files from the old location to the new one
+# before syncing. Paths are relative to Seed43.tab.
+#
+# Format:
+#
+# migrations:
+#   - from: Old Panel.panel/Old Tool.pushbutton
+#     to:   New Panel.panel/New Tool.pushbutton
+#     subfolders:
+#       - from: OldSubFolder
+#         to:   NewSubFolder
+#
+# Example - if pyTransmit was renamed to New Transmit:
+#
+# migrations:
+#   - from: Document Studio.panel/pyTransmit.pushbutton
+#     to:   Document Studio.panel/New Transmit.pushbutton
+#     subfolders:
+#       - from: Settings
+#         to:   Config
+
+migrations:

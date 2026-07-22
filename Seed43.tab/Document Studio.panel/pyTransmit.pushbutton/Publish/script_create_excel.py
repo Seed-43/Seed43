@@ -18,6 +18,27 @@ def _log(msg):
 from pyrevit import revit, script, DB, forms
 import re, os, json, copy
 
+try:
+    from Snippets import _dialogs as sdlg
+except Exception:
+    sdlg = None
+
+def _alert(message, title='', exitscript=False):
+    """Themed popup via the shared Snippets dialog lib, falls back to
+    pyRevit's default forms.alert if the shared lib isn't available."""
+    if sdlg:
+        sdlg.message(message, title=title)
+    else:
+        forms.alert(message, title=title)
+    if exitscript:
+        script.exit()
+
+def _confirm(message, title='', no='No'):
+    """Themed yes/no popup, returns True on yes."""
+    if sdlg:
+        return sdlg.confirm(message, title=title, no=no)
+    return bool(forms.alert(message, title=title, ok=False, yes=True, no=True))
+
 output = script.get_output()
 output.hide()
 
@@ -38,7 +59,7 @@ MM_TO_CH = 0.175          # 1 mm ≈ 0.175 Excel character-width units (approx, 
 # ── Load layout JSON ─────────────────────────────────────────────────────────
 
 def _load_layout():
-    # 1. Explicit path injected by script.py from the Export Settings assignment
+    # 1. Explicit path injected by pyTransmit.py from the Export Settings assignment
     _explicit = _p.get('layout_json_path')
     if _explicit and os.path.isfile(_explicit):
         try:
@@ -541,7 +562,7 @@ def data_row_fmt(block, row_idx, n_rows, bot_b, extra=None):
 
 def _resolve_borders(block, above_block, below_block):
     """Resolve shared borders: on beats off.
-    A shared edge is ON if either side wants it — but only if the current
+    A shared edge is ON if either side wants it, but only if the current
     block participates in bordering (has at least one border set).
     Returns (top, bottom) for THIS block after resolving with neighbours."""
     bords  = block.get('borders', {}) if block else {}
@@ -727,7 +748,7 @@ for _er, _h in _row_heights.items():
 
 # ── Main writing loop ─────────────────────────────────────────────────────────
 
-# _prev_row_blocks no longer needed — borders resolved by layout_Style_Algoruthum
+# _prev_row_blocks no longer needed, borders resolved by layout_Style_Algoruthum
 _prev_row_blocks = [None, None, None, None]  # kept for write_legend compatibility
 
 output.print_md("Writing {} layout rows → {} Excel rows...".format(len(ROWS), _total_excel_rows))
@@ -891,7 +912,7 @@ for ri, row in enumerate(ROWS):
                                 'x_offset': 0, 'y_offset': 2,
                                 'object_position': 1})
                     else:
-                        # No dimension info — use fixed scale
+                        # No dimension info, use fixed scale
                         _anchor = LAST_COL if _just == 'right' else ec_start
                         ws.insert_image(er_start, _anchor, _lp,
                             {'x_scale': 0.5, 'y_scale': 0.5, 'object_position': 1})
@@ -1132,7 +1153,7 @@ for ri, row in enumerate(ROWS):
 
 # ── Print setup ──────────────────────────────────────────────────────────────
 
-# Paper size: xlsxwriter codes — 9=A4, 8=A3, 1=Letter
+# Paper size: xlsxwriter codes, 9=A4, 8=A3, 1=Letter
 _paper_map = {
     (210, 297): 9,   # A4 portrait
     (297, 210): 9,   # A4 landscape
@@ -1228,19 +1249,18 @@ for attempt in range(MAX_RETRIES):
     except Exception as e:
         err_msg = str(e)
         if attempt < MAX_RETRIES - 1:
-            retry = forms.alert(
-                "Could not save — the file may already be open in Excel.\n\n"
+            retry = _confirm(
+                "Could not save, the file may already be open in Excel.\n\n"
                 "Please close the file then click Retry, or Cancel to abort.\n\n"
                 "File: {}\n\nError: {}".format(save_path, err_msg),
-                title="File Locked — Please Close Excel",
-                yes=True, no=True)
+                title="File Locked: Please Close Excel")
             if not retry:
                 output.print_md("Save aborted.")
                 script.exit()
             time.sleep(1)
         else:
             output.print_md("## Save failed after {} attempts".format(MAX_RETRIES))
-            forms.alert("Could not save after {} attempts:\n{}".format(MAX_RETRIES, err_msg))
+            _alert("Could not save after {} attempts:\n{}".format(MAX_RETRIES, err_msg))
             script.exit()
 
 if saved:
@@ -1252,5 +1272,5 @@ if saved:
         if _open_dlg:
             if _open_dlg(u'Excel Saved', u'Open the file?'):
                 os.startfile(save_path)
-        elif forms.alert("Excel saved!\n\nOpen the file?", yes=True, no=True):
+        elif _confirm("Excel saved!\n\nOpen the file?"):
             os.startfile(save_path)

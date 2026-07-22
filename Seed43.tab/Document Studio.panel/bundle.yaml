@@ -1,5 +1,6 @@
 
 layout:
+  - PySheets
   - pyTransmit
   - PyTables
   - DocStack_1

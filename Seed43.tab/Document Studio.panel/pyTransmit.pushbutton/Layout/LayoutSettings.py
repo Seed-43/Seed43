@@ -21,6 +21,10 @@ import System.Windows.Shapes as _SWS
 
 from pyrevit.forms import WPFWindow
 from Snippets._icons import make_icon
+try:
+    from Snippets import _dialogs as sdlg
+except Exception:
+    sdlg = None
 
 
 # ── Paths ─────────────────────────────────────────────────────────
@@ -73,7 +77,7 @@ PALETTE = [
 TYPE_NAMES  = {p[0]: p[1] for p in PALETTE if p[0] != '__grp__'}
 TYPE_ICONS  = {p[0]: p[2] for p in PALETTE if p[0] != '__grp__'}
 TYPE_GROUP  = {p[0]: p[3] for p in PALETTE if p[0] != '__grp__'}
-# Spine blocks aren't in the palette — group them as 'revision'
+# Spine blocks aren't in the palette, group them as 'revision'
 for _t in ('spine_dates','spine_initials','spine_reason','spine_method','spine_doc_type','spine_print_size','spine_copies','spine_rev'):
     TYPE_GROUP.setdefault(_t, 'revision')
 
@@ -310,7 +314,7 @@ class PreviewBuilder(object):
                 grp_end += 1
 
             if grp_end > grp_start:
-                # Merged group — build a single combined row
+                # Merged group, build a single combined row
                 el = self._build_merged_rows(active[grp_start:grp_end + 1],
                                              col_px, revs, cw, scale, text_styles, logo_path)
                 if el:
@@ -446,7 +450,7 @@ class PreviewBuilder(object):
             grid.ColumnDefinitions.Add(cd)
 
         outer = _SWC.Border()
-        # Row-level border left off — each cell gets its own border from block settings
+        # Row-level border left off, each cell gets its own border from block settings
 
         for idx, v in enumerate(visible):
             cell = _SWC.Border()
@@ -545,11 +549,11 @@ class PreviewBuilder(object):
         pad = max(1, int(2 * scale))
         thick = _SW.Thickness(pad)
 
-        # Data row height calculation — for consistent alignment across data blocks
+        # Data row height calculation, for consistent alignment across data blocks
         _st = text_styles.get(block.get('text_style', 'Data')) or DEFAULT_TEXT_STYLES.get('Data') or {'size_mm': 2.2}
         st_mm = _st.get('size_mm', 2.2)
 
-        # Fixed data row height — ensures all data blocks align row-by-row in merged groups
+        # Fixed data row height, ensures all data blocks align row-by-row in merged groups
         data_row_h = max(10, int(st_mm * scale * 1.8 + 2 * pad))
 
         def tb_row(text, style_name, just, alt=False, alt_color='#F5F7FA', show_h=True):
@@ -793,7 +797,7 @@ class PreviewBuilder(object):
         if t in items_map:
             items = items_map[t]
             if block.get('list_style') == 'row':
-                # Horizontal text row — evenly spaced, no boxes
+                # Horizontal text row, evenly spaced, no boxes
                 row_g = _SWC.Grid()
                 row_g.Margin = _SW.Thickness(pad)
                 for _ in items:
@@ -997,7 +1001,7 @@ class LayoutSettingsWindow(WPFWindow):
             try: os.makedirs(self._layouts_dir)
             except: pass
 
-        # Resolve XAML — same folder as this script
+        # Resolve XAML, same folder as this script
         xaml = os.path.join(script_dir, 'LayoutSettings.xaml')
         WPFWindow.__init__(self, xaml)
 
@@ -1050,7 +1054,7 @@ class LayoutSettingsWindow(WPFWindow):
         self.DragOver += self._window_drag_over
 
     def _window_drag_over(self, sender, args):
-        """Accept drag at window level — prevents WPF returning None effect."""
+        """Accept drag at window level, prevents WPF returning None effect."""
         try:
             args.Effects = _SW.DragDropEffects.Move
             args.Handled = True
@@ -1127,7 +1131,7 @@ class LayoutSettingsWindow(WPFWindow):
         if self._active_tmpl not in self._templates:
             self._active_tmpl = list(self._templates.keys())[0]
 
-        # Migrate legacy block types (heading/title removed — text covers both)
+        # Migrate legacy block types (heading/title removed, text covers both)
         for tname, td in self._templates.items():
             for row in td.get('rows', []):
                 for b in row.get('blocks', []):
@@ -1282,7 +1286,7 @@ class LayoutSettingsWindow(WPFWindow):
         self._sync_page_cb()
 
     def _update_rev_label(self):
-        # No-op now — lbl_d shows the column percentage, not rev count
+        # No-op now, lbl_d shows the column percentage, not rev count
         # (rev count is shown in the header rev stepper and prev_info_tb)
         pass
 
@@ -1300,7 +1304,7 @@ class LayoutSettingsWindow(WPFWindow):
             self.lbl_a.Text = '{}'.format(a)
             self.lbl_b.Text = '{}'.format(b)
             self.lbl_c.Text = '{}'.format(c)
-            # lbl_d is a TextBlock (residual, no '%' — % is adjacent)
+            # lbl_d is a TextBlock (residual, no '%', % is adjacent)
             self.lbl_d.Text = '{}'.format(d)
             # Update the splitter bar's column ratios
             try:
@@ -1399,7 +1403,7 @@ class LayoutSettingsWindow(WPFWindow):
                     new_c = max(5, c0 - actual)
                     self._col_pct = [a0, new_b, new_c]
                 else:
-                    # CD boundary — moving means changing C; D = residual
+                    # CD boundary, moving means changing C; D = residual
                     new_c = max(5, min(60, c0 + delta_pct))
                     # Ensure D stays >= 5%
                     max_c = 100 - a0 - b0 - 5
@@ -1562,7 +1566,7 @@ class LayoutSettingsWindow(WPFWindow):
                 except Exception: pass
                 self._render_canvas()
             self._canvas_debounce_timer.Tick += _tick
-        # Reset the timer — keep extending it until slider stops moving
+        # Reset the timer, keep extending it until slider stops moving
         try: self._canvas_debounce_timer.Stop()
         except Exception: pass
         self._canvas_debounce_timer.Start()
@@ -1777,7 +1781,7 @@ class LayoutSettingsWindow(WPFWindow):
             stack.Children.Add(item)
 
     def _make_palette2_item(self, tid, label, icon, grp, sub):
-        """Edge-to-edge palette card — mirrors _make_style_card structure:
+        """Edge-to-edge palette card, mirrors _make_style_card structure:
         Border with BgCard background, CornerRadius=6, Bdr border, Padding=10, Margin bottom=8.
         Inner StackPanel with a header line and optional muted subtitle.
         """
@@ -2285,7 +2289,7 @@ class LayoutSettingsWindow(WPFWindow):
     def _make_canvas_row(self, ri, row, fracs, show_controls=True, in_group=False):
         occ = self._occupied(ri)
 
-        # Single-column outer — controls float right via negative margin
+        # Single-column outer, controls float right via negative margin
         outer = _SWC.Border()
         outer.Margin = _SW.Thickness(0, 0, 0, 2 if in_group else 4)
         outer.MinHeight = 80  # matches cell Height for uniform row height
@@ -2296,7 +2300,7 @@ class LayoutSettingsWindow(WPFWindow):
         dock.VerticalAlignment = _SW.VerticalAlignment.Stretch
         outer.Child = dock
 
-        # Row controls docked to the right — fixed width, no overlap
+        # Row controls docked to the right, fixed width, no overlap
         ctrl = _SWC.StackPanel()
         ctrl.VerticalAlignment = _SW.VerticalAlignment.Center
         ctrl.Margin = _SW.Thickness(2, 0, 0, 0)
@@ -2330,7 +2334,7 @@ class LayoutSettingsWindow(WPFWindow):
                 btn.MouseLeftButtonUp += fn
                 ctrl.Children.Add(btn)
 
-            # Section tag button — only on top row of group (or standalone)
+            # Section tag button, only on top row of group (or standalone)
             # Colour encodes both section type and repeat state:
             #   body              = card (dark, no colour)
             #   repeat_header     = dark blue   (first page only)
@@ -2370,7 +2374,7 @@ class LayoutSettingsWindow(WPFWindow):
             sec_btn.MouseLeftButtonUp += lambda s,e,r=ri: self._cycle_section(r)
             ctrl.Children.Add(sec_btn)
 
-        # Merge button — always shown (merge this row with the one below)
+        # Merge button, always shown (merge this row with the one below)
         is_merged = row.get('merge_down', False)
         merge_btn = _SWC.Border()
         merge_btn.Width = 18; merge_btn.Height = 18
@@ -2399,7 +2403,7 @@ class LayoutSettingsWindow(WPFWindow):
         slots_g.AllowDrop = True
         slots_g.VerticalAlignment = _SW.VerticalAlignment.Stretch
 
-        # Build locked set — vline positions interior to a span are locked
+        # Build locked set, vline positions interior to a span are locked
         locked_vpos = set()
         for ci2 in range(4):
             if ci2 in occ: continue
@@ -2497,7 +2501,7 @@ class LayoutSettingsWindow(WPFWindow):
         # Check if this cell is vertically occupied by a block above
         v_owner = self._v_occupied(ri, ci) if in_group else None
         if v_owner:
-            # Cell is occupied by a row-spanning block above — show a greyed-out indicator
+            # Cell is occupied by a row-spanning block above, show a greyed-out indicator
             wrapper = _SWC.Border()
             wrapper.CornerRadius = _SW.CornerRadius(5)
             wrapper.Margin = _SW.Thickness(0, 0, 3, 0)
@@ -2530,10 +2534,10 @@ class LayoutSettingsWindow(WPFWindow):
         # Wire drop events on the wrapper so palette drags are caught
         # even when the drag enters the cell's child elements
         wrapper.AllowDrop = True
-        # PreviewDragOver tunnels down — set effects here to allow drop
+        # PreviewDragOver tunnels down, set effects here to allow drop
         wrapper.PreviewDragOver += lambda s, e, r=ri, c=ci: self._cell_drag_over(s, e, r, c)
         wrapper.PreviewDragLeave += lambda s, e, r=ri, c=ci: self._cell_drag_leave(s, e, r, c)
-        # Use bubbling Drop (not PreviewDrop) — fires after tunneling completes
+        # Use bubbling Drop (not PreviewDrop), fires after tunneling completes
         wrapper.Drop += lambda s, e, r=ri, c=ci: self._cell_drop(s, e, r, c)
 
         wrapper.VerticalAlignment = _SW.VerticalAlignment.Stretch
@@ -2545,7 +2549,7 @@ class LayoutSettingsWindow(WPFWindow):
 
         # ── Top part: the block cell itself ──────────────────────
         cell = _SWC.Border()
-        cell.Height = 80  # fixed — all canvas blocks (filled and empty) identical height
+        cell.Height = 80  # fixed, all canvas blocks (filled and empty) identical height
         cell.VerticalAlignment = _SW.VerticalAlignment.Stretch
         cell.HorizontalAlignment = _SW.HorizontalAlignment.Stretch
         cell.Cursor = _SWI.Cursors.Arrow
@@ -2925,7 +2929,7 @@ class LayoutSettingsWindow(WPFWindow):
 
 
         # ── Spine block settings (vertical lines + rotation) ─────
-        # ── Data grid lines — H/V icons (data blocks + spine blocks) ──
+        # ── Data grid lines, H/V icons (data blocks + spine blocks) ──
         _has_h = block.get('type') in DATA_BLOCK_TYPES
         _has_v = block.get('type') in DATA_BLOCK_TYPES or block.get('type') in SPINE_HEADER_TYPES
         if _has_h or _has_v:
@@ -3257,7 +3261,7 @@ class LayoutSettingsWindow(WPFWindow):
     # ── Drag events ───────────────────────────────────────────────
     def _cell_drag_over(self, sender, args, ri, ci):
         try:
-            # Always show Move cursor — we verify data in Drop handler
+            # Always show Move cursor, we verify data in Drop handler
             args.Effects = _SW.DragDropEffects.Move
             args.Handled = True
             sender.BorderBrush = BK['accent']
@@ -3369,7 +3373,7 @@ class LayoutSettingsWindow(WPFWindow):
         del_btn.Foreground = BK['muted']; del_btn.Cursor = _SWI.Cursors.Hand
         del_btn.HorizontalAlignment = _SW.HorizontalAlignment.Right
         built_in = name in ('Title','Header','Data')
-        # Built-in styles cannot be deleted — hide the X entirely
+        # Built-in styles cannot be deleted, hide the X entirely
         del_btn.Visibility = _SW.Visibility.Collapsed if built_in else _SW.Visibility.Visible
         del_btn.Click += lambda s,e,n=name: self._delete_style(n)
         hdr.Children.Add(h_tb); hdr.Children.Add(del_btn)
@@ -3387,7 +3391,7 @@ class LayoutSettingsWindow(WPFWindow):
             fp.Children.Add(lbl); fp.Children.Add(control)
             _SWC.Grid.SetColumn(fp, col); _SWC.Grid.SetRow(fp, row); grid.Children.Add(fp)
 
-        # Font — enumerate system fonts (same set Revit uses for text styles)
+        # Font, enumerate system fonts (same set Revit uses for text styles)
         font_cb = _SWC.ComboBox()
         try: font_cb.Style = self.FindResource('MCB')
         except Exception:
@@ -3520,6 +3524,17 @@ class LayoutSettingsWindow(WPFWindow):
     # ── Colour picker dialog ──────────────────────────────────────
     def _color_dialog(self, current_hex=None):
         """Show a simple hex-input dialog for colour picking."""
+        if sdlg:
+            val = sdlg.ask_string(
+                'Enter hex colour (#RRGGBB)',
+                title='Background Colour',
+                default=current_hex or '#FFFFFF')
+            if val is None:
+                return None
+            val = val.strip()
+            if not val.startswith('#'):
+                val = '#' + val
+            return val
         import System.Windows.Markup as _Markup
         xaml_str = u'''<Window
             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -3566,6 +3581,8 @@ class LayoutSettingsWindow(WPFWindow):
 
     # ── Helpers ───────────────────────────────────────────────────
     def _prompt(self, message, default=''):
+        if sdlg:
+            return sdlg.ask_string(message, default=default or '')
         import System.Windows.Markup as _Markup
         xaml_str = u'''<Window
             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"

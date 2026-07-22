@@ -1,0 +1,244 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterScreen"
+        HorizontalContentAlignment="Center"
+        WindowStyle="None"
+        ResizeMode="CanResize" 
+        SizeToContent="Height" 
+        Width="950" 
+        MinHeight="500"
+        Title="Naming Formats" 
+        Closing="cancelled"
+        Background="#3B4553">
+
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="70"
+                             CornerRadius="10"
+                             GlassFrameThickness="0"
+                             ResizeBorderThickness="8"
+                             UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
+    
+
+    <DockPanel Margin="24,24,24,24">
+        <!-- Header -->
+        <Border Background="#232933" 
+                Height="70" 
+                DockPanel.Dock="Top"
+                CornerRadius="0,0,12,12"
+                Margin="0,0,0,12">
+            <Border.Effect>
+                <DropShadowEffect Color="Black" Opacity="0.3" ShadowDepth="2" BlurRadius="6"/>
+            </Border.Effect>
+            <Grid Margin="24,0,24,0">
+                <StackPanel Orientation="Horizontal" 
+                            VerticalAlignment="Center" 
+                            HorizontalAlignment="Left">
+                    <TextBlock Text="py" 
+                               FontWeight="Bold" 
+                               FontSize="32" 
+                               Foreground="{DynamicResource AccentColor}" 
+                               VerticalAlignment="Center" />
+                    <TextBlock Text="Naming" 
+                               FontWeight="SemiBold" 
+                               FontSize="32" 
+                               Foreground="{DynamicResource LightText}" 
+                               Margin="4,0,0,0" 
+                               VerticalAlignment="Center" />
+                </StackPanel>
+                <Button x:Name="win_close_btn"
+                        Content="&#10005;"
+                        Style="{DynamicResource WinCtrlCloseBtn}"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        ToolTip="Close"
+                        Click="win_close_clicked"
+                        shell:WindowChrome.IsHitTestVisibleInChrome="True"/>
+            </Grid>
+        </Border>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition MinWidth="200" Width="1*" />
+                <ColumnDefinition Width="4" />
+                <ColumnDefinition MinWidth="450" Width="2*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Left Panel -->
+            <Border Grid.Column="0" Style="{DynamicResource CardStyle}" Margin="0,0,5,0">
+                <DockPanel>
+                    <TextBlock Text="Naming Formats" 
+                               Style="{DynamicResource SectionLabelStyle}" 
+                               DockPanel.Dock="Top" />
+                    <Button Content="Save" 
+                            Height="32" 
+                            Margin="0,8,0,0" 
+                            Style="{DynamicResource ModernButtonStyle}" 
+                            Click="save_formats" 
+                            DockPanel.Dock="Bottom"/>
+                    <Grid DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition />
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" 
+                                Content="Duplicate" 
+                                Height="32" 
+                                Margin="0,0,3,0" 
+                                Style="{DynamicResource ModernButtonStyle}" 
+                                Click="duplicate_namingformat"/>
+                        <Button Grid.Column="1" 
+                                Content="Delete" 
+                                Height="32" 
+                                Margin="2,0,0,0" 
+                                Style="{DynamicResource ModernButtonStyle}" 
+                                Click="delete_namingformat"/>
+                    </Grid>
+                    <ListBox x:Name="formats_lb" 
+                             Style="{DynamicResource ModernListBoxStyle}" 
+                             SelectionChanged="namingformat_changed" 
+                             SelectionMode="Single" 
+                             SelectedIndex="0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding name}" Foreground="{DynamicResource LightText}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <GridSplitter Grid.Column="1" 
+                          HorizontalAlignment="Stretch" 
+                          Width="4" 
+                          Background="{DynamicResource AccentColor}"/>
+
+            <!-- Right Panel -->
+            <Border Grid.Column="2" Style="{DynamicResource CardStyle}" Margin="5,0,0,0">
+                <StackPanel x:Name="namingformat_edit">
+                    <TextBlock Text="Format Title" Style="{DynamicResource SectionLabelStyle}" />
+                    <TextBlock TextWrapping="Wrap" 
+                               Style="{DynamicResource FieldLabelStyle}"
+                               Foreground="{DynamicResource LightText}">
+                        This is the name of this specific naming format. Give the format a descriptive
+                        name that is easy to understand and find. For example: "City of Portland ePermit"
+                    </TextBlock>
+                    <TextBox x:Name="template_name_tb"
+                             Text="{Binding name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Style="{DynamicResource ModernTextBoxStyle}"/>
+
+                    <TextBlock Text="Template" 
+                               Style="{DynamicResource SectionLabelStyle}" 
+                               Margin="0,10,0,0" />
+                    <TextBlock TextWrapping="Wrap" 
+                               Style="{DynamicResource FieldLabelStyle}"
+                               Foreground="{DynamicResource LightText}">
+                        This is the actual naming format template. Each "{}" (tag) represents a value that will be
+                        filled when creating the name for a PDF file. Pick and choose from the tags listed
+                        below and drag them to this box.
+                    </TextBlock>
+                    <TextBox x:Name="template_tb"
+                             Text="{Binding template, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Style="{DynamicResource ModernTextBoxStyle}"
+                             AllowDrop="True" 
+                             PreviewDrop="stop_drag" 
+                             PreviewDragOver="preview_drag"
+                             TextChanged="template_changed"/>
+
+                    <TextBlock Text="Preview" 
+                               Style="{DynamicResource SectionLabelStyle}" 
+                               Margin="0,10,0,0" />
+                    <TextBox x:Name="preview_tb"
+                             IsReadOnly="True"
+                             Style="{DynamicResource ModernTextBoxStyle}"
+                             Foreground="{DynamicResource AccentColor}"
+                             Background="{DynamicResource pyRevitDarkBrush}"/>
+
+                    <TextBlock Text="Drag and drop from formatters below. Hover over the formatter for description" 
+                               Style="{DynamicResource FieldLabelStyle}"
+                               Foreground="{DynamicResource LightText}" 
+                               Margin="0,5,0,0"/>
+                    <ItemsControl x:Name="formatters_wp" Margin="0,5,0,0">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel IsItemsHost="True" PreviewMouseLeftButtonDown="start_drag"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border x:Name="formatter_box" 
+                                        Height="20" 
+                                        Margin="5,5,0,0" 
+                                        Background="DarkGray" 
+                                        BorderThickness="0" 
+                                        CornerRadius="5" 
+                                        ToolTip="{Binding desc}">
+                                    <TextBlock Text="{Binding template}" 
+                                               FontFamily="Consolas" 
+                                               Foreground="White" 
+                                               VerticalAlignment="Center" 
+                                               Margin="5,0,5,0" 
+                                               Padding="0,0,0,1" />
+                                </Border>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding template}" Value="{}{name}">
+                                        <Setter TargetName="formatter_box" Property="Background" Value="{DynamicResource pyRevitDarkBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding template}" Value="{}{name_dash}">
+                                        <Setter TargetName="formatter_box" Property="Background" Value="{DynamicResource pyRevitDarkBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding template}" Value="{}{name_underline}">
+                                        <Setter TargetName="formatter_box" Property="Background" Value="{DynamicResource pyRevitDarkBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding template}" Value="{}{rev_number}">
+                                        <Setter TargetName="formatter_box" Property="Background" Value="#d84936" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding template}" Value="{}{rev_desc}">
+                                        <Setter TargetName="formatter_box" Property="Background" Value="#d84936" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding template}" Value="{}{rev_date}">
+                                        <Setter TargetName="formatter_box" Property="Background" Value="#d84936" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding template}" Value="{}{proj_name}">
+                                        <Setter TargetName="formatter_box" Property="Background" Value="#665dba" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding template}" Value="{}{proj_number}">
+                                        <Setter TargetName="formatter_box" Property="Background" Value="#665dba" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding template}" Value="{}{proj_building_name}">
+                                        <Setter TargetName="formatter_box" Property="Background" Value="#665dba" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding template}" Value="{}{proj_issue_date}">
+                                        <Setter TargetName="formatter_box" Property="Background" Value="#665dba" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding template}" Value="{}{proj_org_name}">
+                                        <Setter TargetName="formatter_box" Property="Background" Value="#665dba" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding template}" Value="{}{proj_status}">
+                                        <Setter TargetName="formatter_box" Property="Background" Value="#665dba" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding template}" Value="{}{sheet_param:PARAM_NAME}">
+                                        <Setter TargetName="formatter_box" Property="Background" Value="Black" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding template}" Value="{}{tblock_param:PARAM_NAME}">
+                                        <Setter TargetName="formatter_box" Property="Background" Value="Black" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding template}" Value="{}{proj_param:PARAM_NAME}">
+                                        <Setter TargetName="formatter_box" Property="Background" Value="Black" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding template}" Value="{}{glob_param:PARAM_NAME}">
+                                        <Setter TargetName="formatter_box" Property="Background" Value="Black" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </DockPanel>
+</Window>

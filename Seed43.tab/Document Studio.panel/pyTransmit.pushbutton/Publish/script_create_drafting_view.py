@@ -6,6 +6,28 @@
 _p = globals().get('PYTRANSMIT_PAYLOAD', {})
 
 from pyrevit import revit, script, DB, forms
+
+try:
+    from Snippets import _dialogs as sdlg
+except Exception:
+    sdlg = None
+
+def _alert(message, title='', exitscript=False):
+    """Themed popup via the shared Snippets dialog lib, falls back to
+    pyRevit's default forms.alert if the shared lib isn't available."""
+    if sdlg:
+        sdlg.message(message, title=title)
+    else:
+        forms.alert(message, title=title)
+    if exitscript:
+        script.exit()
+
+def _confirm(message, title='', no='No'):
+    """Themed yes/no popup, returns True on yes."""
+    if sdlg:
+        return sdlg.confirm(message, title=title, no=no)
+    return bool(forms.alert(message, title=title, ok=False, yes=True, no=True))
+
 from Autodesk.Revit.DB import (
     FilteredElementCollector, XYZ, Line, TextNote, TextNoteType,
     CurveElement, ViewFamilyType, ViewFamily, ViewDrafting,
@@ -606,7 +628,7 @@ if not drafting_view:
         if vft.ViewFamily == ViewFamily.Drafting:
             _drafting_vft = vft; break
     if not _drafting_vft:
-        forms.alert("No Drafting ViewFamilyType found.", exitscript=True)
+        _alert("No Drafting ViewFamilyType found.", exitscript=True)
     with revit.Transaction("pyTransmit DV - Create view") as t:
         drafting_view = ViewDrafting.Create(doc, _drafting_vft.Id)
         drafting_view.Name = VIEW_NAME

@@ -10,6 +10,11 @@ import System.Windows.Markup as Markup
 from System.Windows import Visibility
 from System.IO import Path
 
+try:
+    from Snippets import _dialogs as sdlg
+except Exception:
+    sdlg = None
+
 
 # ── SHARED XAML FRAGMENTS ─────────────────────────────────────────────────────
 
@@ -217,7 +222,7 @@ class Dialogs(object):
     @staticmethod
     def open_file(title, message):
         """
-        Themed 'file saved — open it?' dialog.
+        Themed 'file saved, open it?' dialog.
         Returns True if the user chose Open, False if No.
         """
         xaml = (
@@ -319,7 +324,14 @@ class Dialogs(object):
         """
         Themed alert dialog with a title, message, and single OK button.
         Use instead of forms.alert to match the pyTransmit dark theme.
+
+        Delegates to the shared Snippets._dialogs module when available and
+        no custom ok_label is needed, falls back to the local XAML card
+        below otherwise (custom button label, or shared lib not on path).
         """
+        if sdlg and ok_label == "OK":
+            sdlg.message(message, title=title)
+            return
         xaml = (
             _WINDOW_OPEN.replace('SizeToContent="Height"',
                                  'Width="420" SizeToContent="Height"') +

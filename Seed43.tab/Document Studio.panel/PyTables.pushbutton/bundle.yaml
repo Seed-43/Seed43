@@ -1,36 +1,14 @@
 title: "pyTable"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
 tooltip: |
-  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 260525
   _____________________________________________________________________
   Description:
-  Links Excel and Word documents to Revit views. Drop a file into
-  the tool and each named range or sheet becomes a Legend, Schedule,
-  or Drafting view inside your project.
-
-  The view name, type, scale, and browser folder are all set before
-  applying, so your project browser stays organised from the start.
-  _____________________________________________________________________
-  How-to:
-  -> Run the tool
-  -> Drop your Excel or Word files into the window, or click Browse
-  -> Each sheet or named range appears as a row in the table
-  -> Set the view name, type, and scale for each row
-  -> Click Apply to Revit
-  -> Choose which browser folder the views should go into
-  -> Confirm or skip any views that already exist by the same name
-  _____________________________________________________________________
-  Notes:
-  - Excel files use the Name Box ranges defined inside the workbook
-  - Word documents are placed as rasterised images
-  - Each row can be set to Legend, Schedule, or Drafting view
-  - Views that already exist will prompt you to overwrite or skip
-  - Browser folder is chosen once and applied to all views in that run
-  - DPI only applies to image type rows
-  - Black and white option converts the image on export
-  _____________________________________________________________________
-  Last update:
-  - Initial release
+  Links Excel and Word documents to Revit views. Drop a file in and each named range or document section becomes a Legend, Schedule, or Drafting view inside your project, built from real Revit data, not an image.
+  Excel named ranges become Schedule, Legend, or Drafting views,carrying over the cell values, fonts, colours, and borders.
+  Word documents are split by heading into sections, each one becomes a
+  Legend or Drafting view arranged into columns you choose.
+  Set the view name, type, and column layout for each row, then apply.
+  Views that already exist by the same name prompt to overwrite or skip, and any row whose source content changes after being applied is flagged so you know it needs reapplying.
   _____________________________________________________________________
 min_revit_ver: 2022
 max_revit_ver: 2026

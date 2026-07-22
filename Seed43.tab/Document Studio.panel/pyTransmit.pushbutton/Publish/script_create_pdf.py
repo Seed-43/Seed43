@@ -9,6 +9,27 @@ import re, os, time, sys, tempfile
 output = script.get_output()
 output.hide()
 
+try:
+    from Snippets import _dialogs as sdlg
+except Exception:
+    sdlg = None
+
+def _alert(message, title='', exitscript=False):
+    """Themed popup via the shared Snippets dialog lib, falls back to
+    pyRevit's default forms.alert if the shared lib isn't available."""
+    if sdlg:
+        sdlg.message(message, title=title)
+    else:
+        forms.alert(message, title=title)
+    if exitscript:
+        script.exit()
+
+def _confirm(message, title='', no='No'):
+    """Themed yes/no popup, returns True on yes."""
+    if sdlg:
+        return sdlg.confirm(message, title=title, no=no)
+    return bool(forms.alert(message, title=title, ok=False, yes=True, no=True))
+
 # ── Log capture via payload ───────────────────────────────────────────
 _log_lines = PYTRANSMIT_PAYLOAD.get('_log_lines', [])
 def _log(msg):
@@ -47,10 +68,9 @@ import sys as _sys
 _settings_dir = os.path.join(os.path.dirname(_script_dir), 'Settings')
 if _settings_dir not in _sys.path:
     _sys.path.insert(0, _settings_dir)
-from Dialogs import Dialogs
 
 if not os.path.exists(_excel_path):
-    forms.alert("script_create_excel.py not found at:\n{}".format(_excel_path), exitscript=True)
+    _alert("script_create_excel.py not found at:\n{}".format(_excel_path), exitscript=True)
 
 _payload_for_excel = dict(_p)
 _payload_for_excel['_pdf_temp_xlsx_path'] = _temp_xlsx
@@ -67,11 +87,11 @@ try:
     exec(_src, _ns)
 except Exception as _e:
     import traceback as _tb
-    forms.alert("Error generating temp Excel:\n{}".format(
+    _alert("Error generating temp Excel:\n{}".format(
         _tb.format_exc() or str(_e)), exitscript=True)
 
 if not os.path.exists(_temp_xlsx):
-    forms.alert("Temp Excel file was not created:\n{}".format(_temp_xlsx), exitscript=True)
+    _alert("Temp Excel file was not created:\n{}".format(_temp_xlsx), exitscript=True)
 
 output.print_md("Temp Excel created: `{}`".format(_temp_xlsx))
 
@@ -104,7 +124,7 @@ else:
 
 output.print_md("PDF path: `{}`".format(_pdf_path))
 
-# ── Step 3: Export via Shell (most reliable — no COM interop issues) ──────────
+# ── Step 3: Export via Shell (most reliable, no COM interop issues) ──────────
 output.print_md("Exporting to PDF...")
 
 # Delete existing PDF first so converter can write cleanly
@@ -112,9 +132,9 @@ if os.path.exists(_pdf_path):
     try:
         os.remove(_pdf_path)
     except Exception as _del_existing:
-        Dialogs.alert(
-            "File In Use",
-            "Cannot overwrite the existing PDF, it may be open in another program. Please close it and try again."
+        _alert(
+            "Cannot overwrite the existing PDF, it may be open in another program. Please close it and try again.",
+            title="File In Use"
         )
         sys.exit(0)
 
@@ -168,7 +188,7 @@ if not _pdf_written:
         'xl.Visible       = False\n'
         'xl.DisplayAlerts = False\n'
         'Set wb = xl.Workbooks.Open(xlPath, False, True)\n'
-        'wb.ExportAsFixedFormat 0, pdfPath, 0, True, False, , , False\n'
+        'wb.ExportAsFixedFormat 0, pdfPath, 0, True, False,,, False\n'
         'wb.Close False\n'
         'xl.Quit\n'
         'Set wb = Nothing\n'
@@ -197,9 +217,9 @@ if not _pdf_written:
 
 # ── No converter found ────────────────────────────────────────────────────────
 if not _pdf_written:
-    Dialogs.alert(
-        "PDF Export Failed",
-        "No supported PDF converter was found. Install Microsoft Office (Excel) or LibreOffice (free) from libreoffice.org, then re-run pyTransmit."
+    _alert(
+        "No supported PDF converter was found. Install Microsoft Office (Excel) or LibreOffice (free) from libreoffice.org, then re-run pyTransmit.",
+        title="PDF Export Failed"
     )
     try: os.remove(_temp_xlsx)
     except Exception: pass
@@ -217,5 +237,5 @@ if _pdf_path and os.path.exists(_pdf_path):
     if _open_dlg:
         if _open_dlg(u'PDF Saved', u'Open the file?'):
             os.startfile(_pdf_path)
-    elif forms.alert("PDF saved!\n\nOpen the file?", yes=True, no=True):
+    elif _confirm("PDF saved!\n\nOpen the file?"):
         os.startfile(_pdf_path)

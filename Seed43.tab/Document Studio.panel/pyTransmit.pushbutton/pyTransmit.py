@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# script.py
+# pyTransmit.py
 from pyrevit import revit, forms, script, DB
 from Autodesk.Revit.DB import (
     FilteredElementCollector, BuiltInCategory, XYZ, Line, TextNote, TextNoteType, CurveElement,
@@ -11,8 +11,8 @@ import re
 from itertools import groupby
 from pyrevit.forms import WPFWindow  # kept for other uses
 import wpf
-from System.Windows import Window, ResourceDictionary
-from System import Uri, UriKind
+from System.Windows import Window
+from System import Uri, UriKind, Action
 from System.Windows.Media.Imaging import BitmapImage
 import clr
 clr.AddReference("PresentationFramework")
@@ -25,21 +25,48 @@ import sys
 
 _SCRIPT_DIR_MAIN = os.path.dirname(os.path.abspath(__file__))
 
-def _find_seed43_styles():
-    """Walk up from the pushbutton folder to find Seed43Styles.xaml. Returns path or None."""
+try:
+    from Snippets import _dialogs as sdlg
+except Exception:
+    sdlg = None
+
+def _alert(message, title='', exitscript=False):
+    """Themed popup via the shared Snippets dialog lib, falls back to
+    pyRevit's default forms.alert if the shared lib isn't available."""
+    if sdlg:
+        sdlg.message(message, title=title)
+    else:
+        forms.alert(message, title=title)
+    if exitscript:
+        script.exit()
+
+def _confirm(message, title='', no='No'):
+    """Themed yes/no popup, returns True on yes."""
+    if sdlg:
+        return sdlg.confirm(message, title=title, no=no)
+    return bool(forms.alert(message, title=title, ok=False, yes=True, no=True))
+
+# ── EXTERNAL URLS ──
+# Update these to change where Help and About point
+ABOUT_URL = "https://seed43.org/pytransmit/"
+SUPPORT_EMAIL = "support@seed43.org"
+
+def _find_seed43_version():
+    """Walk up from this pushbutton to Seed43.extension/version.txt and
+    return just the version string (its first line). Returns 'unknown'
+    if the file can't be found or read."""
     folder = _SCRIPT_DIR_MAIN
     for _ in range(6):
-        for sub in ('', 'UI'):
-            candidate = os.path.join(folder, sub, 'Seed43Styles.xaml')
-            if os.path.isfile(candidate):
-                return candidate
+        candidate = os.path.join(folder, 'version.txt')
+        if os.path.isfile(candidate):
+            try:
+                with open(candidate, 'r') as f:
+                    return f.readline().strip()
+            except Exception:
+                return 'unknown'
         folder = os.path.dirname(folder)
-    return None
-
-# ── EXTERNAL URLS ───────────────────────────────────────────────────────────────
-# Update these to change where Help and About point
-HELP_URL  = "https://seed43.org/your-thoughts/"
-ABOUT_URL = "https://seed43.org/"
+    return 'unknown'
+SUPPORT_URL = "https://buymeacoffee.com/seed43"
 
 import json as _json
 
@@ -78,14 +105,9 @@ class RevTableWindow(Window):
     def __init__(self):
         
         try:
-            styles_path = _find_seed43_styles()
-            if styles_path:
-                rd = ResourceDictionary()
-                rd.Source = Uri(styles_path)
-                self.Resources = rd
             xaml_path = os.path.join(_SCRIPT_DIR_MAIN, "pyTransmit.xaml")
             wpf.LoadComponent(self, xaml_path)
-        except Exception, e:
+        except Exception as e:
             # Build full exception chain including inner exceptions
             msg = str(e)
             try:
@@ -97,7 +119,7 @@ class RevTableWindow(Window):
                     depth += 1
             except Exception:
                 pass
-            forms.alert("Failed to load pyTransmit.xaml:\n\n{}".format(msg), exitscript=True)
+            _alert("Failed to load pyTransmit.xaml:\n\n{}".format(msg), exitscript=True)
 
         # ── Load icon ─────────────────────────────────────────────────────────
         _icon_path = os.path.join(_SCRIPT_DIR_MAIN, "icon.png")
@@ -120,12 +142,13 @@ class RevTableWindow(Window):
             _close_icon_names = [
                 'setup_close_btn', 'styling_close_btn', 'export_format_close_btn',
                 'recipient_close_btn', 'options_close_btn', 'export_settings_close_btn',
-                'import_settings_close_btn', 'filenaming_close_btn',
+                'import_settings_close_btn', 'filenaming_close_btn', 'win_close_btn',
             ]
             for _btn_name in _close_icon_names:
                 _btn = self.FindName(_btn_name)
                 if _btn:
                     _btn.Content = _mi('close', size=14, color='#F4FAFF')
+            self.options_btn.Content = _mi('menu', size=18, color='#F4FAFF')
             # ── Log menu warning icon ─────────────────────────────────────────
             _log_holder = self.FindName('log_icon_holder')
             if _log_holder:
@@ -147,12 +170,12 @@ class RevTableWindow(Window):
             pass
 
         if not hasattr(self, 'execute_btn'):
-            forms.alert("Button 'execute_btn' not found in XAML.", exitscript=True)
+            _alert("Button 'execute_btn' not found in XAML.", exitscript=True)
         
         try:
             self.execute_btn.Click += self.execute_btn_click
-        except Exception, e:
-            forms.alert("Failed to bind button Click events: {}".format(str(e)), exitscript=True)
+        except Exception as e:
+            _alert("Failed to bind button Click events: {}".format(str(e)), exitscript=True)
         
         self.doc = revit.doc
         all_revs = list(revit.query.get_elements_by_class(DB.Revision, doc=self.doc))
@@ -164,8 +187,8 @@ class RevTableWindow(Window):
 
         try:
             self.revision_cb.ItemsSource = ["{} - {}".format(rev.SequenceNumber, rev.Description) for rev in self.non_issued_revs]
-        except Exception, e:
-            forms.alert("Failed to populate revision ComboBox: {}".format(str(e)), exitscript=True)
+        except Exception as e:
+            _alert("Failed to populate revision ComboBox: {}".format(str(e)), exitscript=True)
         
         try:
             self.reason_cb.SelectedIndex = 0
@@ -181,13 +204,13 @@ class RevTableWindow(Window):
         self.sheet_params = self.get_sheet_parameters()
         
         if not self.sheet_params:
-            forms.alert("No suitable sheet parameters found.", exitscript=True)
+            _alert("No suitable sheet parameters found.", exitscript=True)
         
         try:
             self.sheet_param_cb_1.ItemsSource = ["(None)"] + self.sheet_params
             self.sheet_param_cb_1.SelectionChanged += self.sheet_param_selection_changed
-        except Exception, e:
-            forms.alert("Failed to populate or bind sheet parameter ComboBox: {}".format(str(e)), exitscript=True)
+        except Exception as e:
+            _alert("Failed to populate or bind sheet parameter ComboBox: {}".format(str(e)), exitscript=True)
         
         # (Excel export path is now configured in Setup Settings)
 
@@ -270,7 +293,7 @@ class RevTableWindow(Window):
             if _row:
                 _row.Visibility = _SW.Visibility.Collapsed
         else:
-            # Multiple types — show the combo
+            # Multiple types, show the combo
             self._rev_numbering_type = _seen[0]
             if _cb:
                 _cb.ItemsSource    = _seen
@@ -383,7 +406,7 @@ class RevTableWindow(Window):
             new_combo.Name = "sheet_param_cb_{}".format(self.param_counter)
             try:
                 new_combo.Style = self.FindResource("ModernComboBoxStyle")
-            except Exception, e:
+            except Exception as e:
                 print("Failed to apply ModernComboBoxStyle: {}".format(str(e)))
             available_params = [p for p in self.sheet_params if p not in self.selected_params]
             new_combo.ItemsSource = ["(None)"] + available_params
@@ -422,8 +445,8 @@ class RevTableWindow(Window):
                             if initials_str:
                                 selected_rev.IssuedBy = initials_str
                             selected_rev.Issued = True
-                    except Exception, e:
-                        forms.alert("Failed to update revision data: {}".format(str(e)), exitscript=True)
+                    except Exception as e:
+                        _alert("Failed to update revision data: {}".format(str(e)), exitscript=True)
                         return
 
             # Determine what to run based on Revit Export Type selection in Setup
@@ -445,18 +468,18 @@ class RevTableWindow(Window):
 
             self.Close()
 
-        except Exception, e:
+        except Exception as e:
             try:
                 self.Close()
             except Exception:
                 pass
-            forms.alert("Error in execute_btn_click: {}".format(str(e)), exitscript=True)
+            _alert("Error in execute_btn_click: {}".format(str(e)), exitscript=True)
 
     def _build_issued_to_string(self):
         """
         Build the IssuedTo string written into the Revit revision record.
 
-        Always records every enabled field and the full recipient list — no
+        Always records every enabled field and the full recipient list, no
         user-configurable toggles.  The schedule generator reads this string
         back to populate the transmittal, so it must be complete and consistent.
 
@@ -468,7 +491,7 @@ class RevTableWindow(Window):
           (first letter of the role label, attention to in brackets, copies integer)
 
         Recipients (Client List mode):
-          [Company — Attention To]<copies>  ...
+          [Company, Attention To]<copies>  ...
 
         Example:
           R:C M:E F:PDF S:A3 I:JD | A.[Jane Smith]3 O.[Bob Jones]1
@@ -534,7 +557,7 @@ class RevTableWindow(Window):
         except:
             pass
 
-        # Issued By — written to rev.IssuedBy, NOT included in IssuedTo string
+        # Issued By, written to rev.IssuedBy, NOT included in IssuedTo string
         _initials_val = ''
         try:
             if cfg.get('show_initials', True):
@@ -544,7 +567,7 @@ class RevTableWindow(Window):
         except:
             pass
 
-        # Recipients — always record the full list from whichever mode is active
+        # Recipients, always record the full list from whichever mode is active
         recipient_parts = []
         try:
             if mode == 'dist':
@@ -555,7 +578,7 @@ class RevTableWindow(Window):
                     code   = '{}{}.'.format(_ri + 1, label[:1].upper() if label else '?')
                     recipient_parts.append('{}[{}]{}'.format(
                         code, self.safe(attn), self.safeint(copies)))
-            else:  # client mode — new structure: {company_cb, contact_cb, copies_tb}
+            else:  # client mode, new structure: {company_cb, contact_cb, copies_tb}
                 for row in self._client_rows:
                     comp_cb  = row.get('company_cb')
                     cont_cb  = row.get('contact_cb')
@@ -580,12 +603,12 @@ class RevTableWindow(Window):
             _rec_prefix = 'DL' if mode == 'dist' else 'CL'
             parts.append('{}: {}'.format(_rec_prefix, ' '.join(recipient_parts)))
 
-        # Rev Numbering Type tag — records which type was selected for this issue
+        # Rev Numbering Type tag, records which type was selected for this issue
         _rnt = getattr(self, '_rev_numbering_type', '')
         if _rnt:
             parts.append('RT:{}'.format(_rnt))
 
-        # VIS tag — snapshot which info rows are visible.
+        # VIS tag, snapshot which info rows are visible.
         # Always written (even if empty) so the mismatch checker can distinguish
         # "all fields off" from "old revision with no VIS tag".
         _vis_parts = []
@@ -595,7 +618,7 @@ class RevTableWindow(Window):
         if cfg.get('show_projname', True): _vis_parts.append('PJ')
         parts.append('VIS:{}'.format(','.join(_vis_parts)))
 
-        # EX tag — snapshot which export formats are enabled
+        # EX tag, snapshot which export formats are enabled
         _ex_parts = []
         if cfg.get('out_schedule',  True):  _ex_parts.append('RS')
         if cfg.get('out_drafting',  False): _ex_parts.append('RD')
@@ -605,7 +628,7 @@ class RevTableWindow(Window):
         if _ex_parts:
             parts.append('EX:{}'.format(','.join(_ex_parts)))
 
-        # RPG tag — snapshot page break setting
+        # RPG tag, snapshot page break setting
         _phm = cfg.get('page_height_mode', 'a4')
         _phv = cfg.get('page_height_mm', 287)
         if _phm == 'none':
@@ -615,10 +638,10 @@ class RevTableWindow(Window):
         else:
             parts.append('RPG:1')  # A4
 
-        # GP tag — snapshot active sheet grouping parameters
+        # GP tag, snapshot active sheet grouping parameters
         _gp_list = getattr(self, 'selected_params', None) or []
         if _gp_list:
-            # Use ~~ as separator — safe, won't appear in Revit parameter names
+            # Use ~~ as separator, safe, won't appear in Revit parameter names
             parts.append(u'GP:{}'.format(u'~~'.join(_gp_list)))
 
         return ' | '.join(parts), _initials_val
@@ -637,7 +660,7 @@ class RevTableWindow(Window):
     # ── Data models (mirrors standalone managers) ─────────────────────
 
     # ═══════════════════════════════════════════════════════════════════════
-    # PANEL CONTROLLERS  — panels are now inline in pyTransmit.xaml
+    # PANEL CONTROLLERS, panels are now inline in pyTransmit.xaml
     # ═══════════════════════════════════════════════════════════════════════
 
     def _init_controllers(self):
@@ -657,7 +680,7 @@ class RevTableWindow(Window):
             self.rec_ctrl = RecipientSettingsController()
             self.rec_ctrl.attach(self)
         except Exception as ex:
-            forms.alert("Failed to init RecipientManager:\n{}".format(str(ex)))
+            _alert("Failed to init RecipientManager:\n{}".format(str(ex)))
             self.rec_ctrl = None
 
         # ── Options Manager ────────────────────────────────────────────────
@@ -666,7 +689,7 @@ class RevTableWindow(Window):
             self.opt_ctrl = OptionsSettingsController()
             self.opt_ctrl.attach(self)
         except Exception as ex:
-            forms.alert("Failed to init OptionsManager:\n{}".format(str(ex)))
+            _alert("Failed to init OptionsManager:\n{}".format(str(ex)))
             self.opt_ctrl = None
 
         # ── Setup Settings ─────────────────────────────────────────────────
@@ -676,7 +699,7 @@ class RevTableWindow(Window):
             self.setup_ctrl.attach(self)
             # load_and_apply() is called later, after full window init
         except Exception as ex:
-            forms.alert("Failed to init SetupSettings:\n{}".format(str(ex)))
+            _alert("Failed to init SetupSettings:\n{}".format(str(ex)))
             self.setup_ctrl = None
 
         # ── Export Settings ────────────────────────────────────────────────
@@ -685,7 +708,7 @@ class RevTableWindow(Window):
             self.export_ctrl = ExportSettingsController(script_dir)
             self.export_ctrl.attach(self)
         except Exception as ex:
-            forms.alert("Failed to init ExportSettings:\n{}".format(str(ex)))
+            _alert("Failed to init ExportSettings:\n{}".format(str(ex)))
             self.export_ctrl = None
 
         # ── Import Settings ────────────────────────────────────────────────
@@ -694,7 +717,7 @@ class RevTableWindow(Window):
             self.import_ctrl = ImportSettingsController(script_dir)
             self.import_ctrl.attach(self)
         except Exception as ex:
-            forms.alert("Failed to init ImportSettings:\n{}".format(str(ex)))
+            _alert("Failed to init ImportSettings:\n{}".format(str(ex)))
             self.import_ctrl = None
 
         # ── Branding & Styling ─────────────────────────────────────────────
@@ -707,7 +730,7 @@ class RevTableWindow(Window):
             self.brand_ctrl.attach(self)
             self.brand_ctrl.auto_sync_logo()
         except Exception as ex:
-            forms.alert("Failed to init BrandingSettings:\n{}".format(str(ex)))
+            _alert("Failed to init BrandingSettings:\n{}".format(str(ex)))
             self.brand_ctrl = None
 
         try:
@@ -716,7 +739,7 @@ class RevTableWindow(Window):
             self.filenaming_ctrl.attach(self)
             self.filenaming_ctrl.load_config()
         except Exception as ex:
-            forms.alert("Failed to init FileNamingSettings:\n{}".format(str(ex)))
+            _alert("Failed to init FileNamingSettings:\n{}".format(str(ex)))
             self.filenaming_ctrl = None
 
     # ── Panel visibility ──────────────────────────────────────────────────
@@ -751,6 +774,12 @@ class RevTableWindow(Window):
                   'export_settings_header_lbl', 'import_settings_header_lbl',
                   'styling_header_lbl', 'filenaming_header_lbl', 'export_format_header_lbl']:
             hide(n)
+
+        try:
+            self.win_close_btn.Visibility = (
+                V.Visible if panel_name == "main" else V.Collapsed)
+        except Exception:
+            pass
 
         if panel_name == "main":
             show('header_normal_btns')
@@ -804,8 +833,7 @@ class RevTableWindow(Window):
                 try:
                     save = self._show_save_dialog("Recipients")
                 except Exception:
-                    save = forms.alert("Save changes to Recipients?",
-                                       title="Recipients", ok=False, yes=True, no=True)
+                    save = _confirm("Save changes to Recipients?", title="Recipients")
                 if save:
                     self.rec_ctrl.save()
                     self._auto_export_if_enabled()
@@ -822,8 +850,7 @@ class RevTableWindow(Window):
                 try:
                     save = self._show_save_dialog("Options")
                 except Exception:
-                    save = forms.alert("Save changes to Options?",
-                                       title="Options", ok=False, yes=True, no=True)
+                    save = _confirm("Save changes to Options?", title="Options")
                 if save:
                     self.opt_ctrl.save_all()
                     self._auto_export_if_enabled()
@@ -834,7 +861,7 @@ class RevTableWindow(Window):
             pass
         self._show_panel("main")
 
-    # ── Header export buttons — delegate to controllers ───────────────────
+    # ── Header export buttons, delegate to controllers ───────────────────
 
     def recipient_export_click(self, sender, args):
         if self.rec_ctrl:
@@ -851,7 +878,7 @@ class RevTableWindow(Window):
         self._show_panel("export_format")
 
     def export_format_back_click(self, sender, args):
-        """Export Format X — save config and return to main."""
+        """Export Format X, save config and return to main."""
         if self.setup_ctrl:
             self.setup_ctrl.save()
             self.setup_ctrl.apply()
@@ -866,17 +893,20 @@ class RevTableWindow(Window):
         self._show_panel("setup")
 
     def setup_back_click(self, sender, args):
-        """Setup X — save config, apply, return to main."""
+        """Setup X, save config, apply, return to main."""
         if self.setup_ctrl:
             self.setup_ctrl.save()
             self.setup_ctrl.apply()
         self._show_panel("main")
 
+    def win_close_clicked(self, sender, args):
+        self.Close()
+
     # ── Styling / Branding panel ──────────────────────────────────────────────
     # All logic lives in Settings/BrandingSettings.py (BrandingSettingsController)
 
     def menu_styling_click(self, sender, args):
-        """Legacy — Branding panel removed; redirects to Document Layout."""
+        """Legacy, Branding panel removed; redirects to Document Layout."""
         self.menu_layout_click(sender, args)
 
     def menu_layout_click(self, sender, args):
@@ -895,12 +925,12 @@ class RevTableWindow(Window):
             win = LayoutSettingsWindow(_layout_dir)
             win.ShowDialog()
         except Exception as e:
-            forms.alert(
+            _alert(
                 'Could not open Layout Builder:\n{}'.format(str(e)),
                 title='Document Layout')
 
     def styling_back_click(self, sender, args):
-        """Styling X — legacy handler kept for safety."""
+        """Styling X, legacy handler kept for safety."""
         self._show_panel("main")
 
     def _on_closing(self, sender, args):
@@ -917,7 +947,7 @@ class RevTableWindow(Window):
                 pass
 
     def filenaming_back_click(self, sender, args):
-        """File Naming X — auto-save and return to main."""
+        """File Naming X, auto-save and return to main."""
         try:
             if self.filenaming_ctrl:
                 self.filenaming_ctrl.save_and_back()
@@ -950,12 +980,12 @@ class RevTableWindow(Window):
             self.filenaming_ctrl._on_path_stop_drag(sender, args)
 
     def setup_mode_changed(self, sender, args):
-        """Radio button toggled — delegate to SetupSettingsController."""
+        """Radio button toggled, delegate to SetupSettingsController."""
         if self.setup_ctrl:
             self.setup_ctrl._on_mode_changed(sender, args)
 
     def setup_fields_changed(self, sender, args):
-        """Checkbox/RadioButton toggled — delegate to SetupSettingsController, then handle local UI."""
+        """Checkbox/RadioButton toggled, delegate to SetupSettingsController, then handle local UI."""
         if self.setup_ctrl:
             self.setup_ctrl._on_field_changed(sender, args)
         # Show/hide custom height TextBox based on page height radio selection
@@ -983,18 +1013,67 @@ class RevTableWindow(Window):
         self.options_btn.IsChecked = False
         self._show_panel("options")
 
+    _last_url_open_time = 0.0
+
+    def _open_url(self, url, title=''):
+        """Open a URL in the default browser without blocking the UI thread.
+        subprocess.Popen('cmd /c start ...') spawns cmd.exe as a shell
+        wrapper, and that first launch can hang for a long time from inside
+        Revit's process (shell resolution, security scanning), and since it
+        ran synchronously on the UI thread, the whole window would freeze
+        for that entire time, any clicks made during the freeze then all
+        fired at once the moment it finally unblocked. os.startfile skips
+        the shell wrapper entirely, and running it on a background thread
+        means even a slow launch can never block the UI."""
+        import time
+        now = time.time()
+        if now - self._last_url_open_time < 2.0:
+            return
+        self._last_url_open_time = now
+
+        def _launch():
+            try:
+                os.startfile(url)
+            except Exception:
+                try:
+                    import subprocess
+                    subprocess.Popen(['cmd', '/c', 'start', '', url])
+                except Exception as e:
+                    def _show():
+                        _alert("Could not open browser:\n{}".format(str(e)), title=title)
+                    try:
+                        self.Dispatcher.Invoke(Action(_show))
+                    except Exception:
+                        pass
+
+        import threading
+        threading.Thread(target=_launch).start()
+
+    def options_toggle_preview_down(self, sender, args):
+        """Explicit close-on-reclick. Popup StaysOpen=False already auto-closes
+        on any click outside it, including a second click on this same toggle
+        button, and that same click's Click event would then flip IsChecked
+        back to True, reopening it. Intercept here first so a re-click always
+        just closes, instead of closing and instantly reopening."""
+        if self.OptionsPopup.IsOpen:
+            self.OptionsPopup.IsOpen = False
+            self.options_btn.IsChecked = False
+            args.Handled = True
+
     def menu_about_click(self, sender, args):
         """☰ → About: open ABOUT_URL in the default browser."""
         self.OptionsPopup.IsOpen   = False
         self.options_btn.IsChecked = False
-        try:
-            import subprocess
-            subprocess.Popen(['cmd', '/c', 'start', '', ABOUT_URL])
-        except Exception, e:
-            forms.alert("Could not open browser:\n{}".format(str(e)), title="About")
+        self._open_url(ABOUT_URL, title="About")
+
+    def menu_support_click(self, sender, args):
+        """☰ → Support: open SUPPORT_URL in the default browser."""
+        self.OptionsPopup.IsOpen   = False
+        self.options_btn.IsChecked = False
+        self._open_url(SUPPORT_URL, title="Support")
 
     def close_about_click(self, sender, args):
-        """Legacy close handler — modal no longer used but kept for safety."""
+        """Legacy close handler, modal no longer used but kept for safety."""
         try:
             self.AboutModal.Visibility = System.Windows.Visibility.Collapsed
             self.Overlay.Visibility    = System.Windows.Visibility.Collapsed
@@ -1159,7 +1238,7 @@ class RevTableWindow(Window):
                 select_simple('format_cb',    self.opt_ctrl.format_data,    format_val)
                 select_simple('printsize_cb', self.opt_ctrl.printsize_data, size_val)
 
-            # ── Distribution List rows — attn + copies ────────────────────
+            # ── Distribution List rows, attn + copies ────────────────────
             try:
                 # Recipients block is after " | DL: " or " | CL: "
                 recip_block = ''
@@ -1170,10 +1249,10 @@ class RevTableWindow(Window):
                         recip_block = _part[3:].strip()
                         break
                     elif _part.startswith('CL:'):
-                        # Last revision was saved in client mode — skip dist row fill
+                        # Last revision was saved in client mode, skip dist row fill
                         _saved_as_client = True
                         break
-                # Fallback: old format (no DL:/CL: prefix) — second pipe-block
+                # Fallback: old format (no DL:/CL: prefix), second pipe-block
                 if not recip_block and not _saved_as_client:
                     _blocks = issued_to.split(' | ')
                     if len(_blocks) > 1:
@@ -1254,7 +1333,7 @@ class RevTableWindow(Window):
 
         last_ito = (self.issued_revs[-1].IssuedTo or '').strip()
 
-        # Parse VIS tag — if present use it directly.
+        # Parse VIS tag, if present use it directly.
         # If absent, check whether this looks like a pyTransmit revision (has R:/M:/EX: tags).
         # If it does, VIS was omitted because all fields were off → treat as empty set.
         # If it doesn't, it's a genuinely old pre-pyTransmit revision → assume all-on.
@@ -1265,13 +1344,13 @@ class RevTableWindow(Window):
         else:
             _is_pytransmit = bool(_re.search(r'\b(?:R:|M:|EX:|DL:|CL:|RPG:)', last_ito))
             if _is_pytransmit:
-                # pyTransmit revision issued with all info rows off — VIS tag was skipped
+                # pyTransmit revision issued with all info rows off, VIS tag was skipped
                 _proj_vis = set()
             else:
-                # Genuine old revision with no pyTransmit tags — assume all rows were on
+                # Genuine old revision with no pyTransmit tags, assume all rows were on
                 _proj_vis = {'FR', 'CL', 'PN', 'PJ'}
 
-        # Parse EX tag — if absent infer from context (old revisions assumed schedule only)
+        # Parse EX tag, if absent infer from context (old revisions assumed schedule only)
         _ex_m = _re.search(r'\|?\s*EX:([\w,]+)', last_ito)
         if _ex_m:
             _proj_ex = set(_ex_m.group(1).split(','))
@@ -1295,7 +1374,7 @@ class RevTableWindow(Window):
         if cfg.get('out_pdf',       False): _cur_ex.add('PDF')
 
         if _cur_vis == _proj_vis and _cur_ex == _proj_ex:
-            return  # All good — no mismatch
+            return  # All good, no mismatch
 
         # Build human-readable diff
         _VIS_LABELS = {'FR': 'Organisation', 'CL': 'Client', 'PN': 'Project No.', 'PJ': 'Project'}
@@ -1323,9 +1402,9 @@ class RevTableWindow(Window):
             # Permanently update Setup settings to match project snapshot
             self._apply_vis_ex_to_setup(_proj_vis, _proj_ex, permanent=True)
         elif _result == 'session':
-            # Apply for this session only — don't save to disk
+            # Apply for this session only, don't save to disk
             self._apply_vis_ex_to_setup(_proj_vis, _proj_ex, permanent=False)
-        # 'ignore' — do nothing
+        # 'ignore', do nothing
 
     def _apply_vis_ex_to_setup(self, vis_set, ex_set, permanent=False):
         """Apply a VIS+EX snapshot to the Setup controller."""
@@ -1395,12 +1474,12 @@ class RevTableWindow(Window):
                      or item.get('Distribution', '')
                      or str(item))
 
-            # Row: DockPanel — label stretches, copies fixed right, attn fills middle
+            # Row: DockPanel, label stretches, copies fixed right, attn fills middle
             dp = _SWC.DockPanel()
             dp.Margin = _SW.Thickness(0, 0, 0, 4)
             dp.LastChildFill = True
 
-            # Label — left side, fixed width
+            # Label, left side, fixed width
             lbl = _SWC.TextBlock()
             lbl.Text = label
             lbl.Foreground = white
@@ -1411,7 +1490,7 @@ class RevTableWindow(Window):
             _SWC.DockPanel.SetDock(lbl, _SWC.Dock.Left)
             dp.Children.Add(lbl)
 
-            # Copies — right side, fixed width
+            # Copies, right side, fixed width
             copies_tb = _SWC.TextBox()
             copies_tb.Width = 54
             copies_tb.HorizontalContentAlignment = _SW.HorizontalAlignment.Center
@@ -1421,7 +1500,7 @@ class RevTableWindow(Window):
             except: pass
             dp.Children.Add(copies_tb)
 
-            # Attention To — fills remaining space
+            # Attention To, fills remaining space
             attn_tb = _SWC.TextBox()
             attn_tb.HorizontalAlignment = _SW.HorizontalAlignment.Stretch
             try: attn_tb.Style = self.FindResource("ModernTextBoxStyle")
@@ -1464,7 +1543,7 @@ class RevTableWindow(Window):
             hdr_dp = _SWC.DockPanel()
             hdr_dp.Margin = _SW.Thickness(0, 0, 0, 2)
 
-            # Copies label — fixed width, docked right
+            # Copies label, fixed width, docked right
             copies_lbl = _SWC.TextBlock()
             copies_lbl.Text = "Copies"
             copies_lbl.Width = 46
@@ -1475,7 +1554,7 @@ class RevTableWindow(Window):
             _SWC.DockPanel.SetDock(copies_lbl, _SWC.Dock.Right)
             hdr_dp.Children.Add(copies_lbl)
 
-            # Company / Contact labels — split evenly
+            # Company / Contact labels, split evenly
             hdr_grid = _SWC.Grid()
             hc0 = _SWC.ColumnDefinition()
             hc0.Width = _SW.GridLength(1, _SW.GridUnitType.Star)
@@ -1496,7 +1575,7 @@ class RevTableWindow(Window):
             hdr_dp.Children.Add(hdr_grid)
             stack.Children.Add(hdr_dp)
         except Exception:
-            pass   # header labels optional — don't let them block row building
+            pass   # header labels optional, don't let them block row building
 
         # Pre-fill rows from last issued revision if it was saved in client mode
         _prefilled = False
@@ -1507,7 +1586,7 @@ class RevTableWindow(Window):
                 _cl_m = _re_cl.search(r'CL:\s*(.*?)(?:\s*\|[^|]|$)', _last_ito)
                 if _cl_m:
                     _cl_block = _cl_m.group(1).strip()
-                    # Format: [Company — Contact]copies  or  [Company]copies
+                    # Format: [Company, Contact]copies  or  [Company]copies
                     _tokens = _re_cl.findall(r'\[([^\]]+)\](\d*)', _cl_block)
                     for _label_full, _copies in _tokens:
                         if u'\u2014' in _label_full:
@@ -1584,7 +1663,7 @@ class RevTableWindow(Window):
         dp.Margin = _SW.Thickness(0, 0, 0, 4)
         dp.LastChildFill = True
 
-        # Copies textbox — docked right
+        # Copies textbox, docked right
         copies_tb = _SWC.TextBox()
         copies_tb.Width = 46
         copies_tb.HorizontalContentAlignment = _SW.HorizontalAlignment.Center
@@ -1616,7 +1695,7 @@ class RevTableWindow(Window):
         except: pass
         grid.Children.Add(company_cb)
 
-        # Contact dropdown — left margin matches the gap between company and grid edge
+        # Contact dropdown, left margin matches the gap between company and grid edge
         contact_cb = _SWC.ComboBox()
         contact_cb.ItemsSource = ['(Select Contact)']
         contact_cb.SelectedIndex = 0
@@ -1722,7 +1801,7 @@ class RevTableWindow(Window):
             tb = getattr(self, 'export_path_tb', None)
             if tb and tb.Text: export_path = tb.Text.strip()
             if not export_path or not os.path.isdir(export_path):
-                return  # no valid export path — skip silently
+                return  # no valid export path, skip silently
 
             script_dir = os.path.dirname(os.path.abspath(__file__))
             src_layouts = os.path.join(script_dir, 'Layout', 'Layouts')
@@ -1747,7 +1826,7 @@ class RevTableWindow(Window):
                     shutil.copy2(os.path.join(src_layouts, fn),
                                  os.path.join(dest_layouts, fn))
         except Exception:
-            pass  # silent — don't break the main export if layouts fail
+            pass  # silent, don't break the main export if layouts fail
 
     def export_settings_back_click(self, sender, args):
         if self.export_ctrl: self.export_ctrl.save_config()
@@ -1755,7 +1834,7 @@ class RevTableWindow(Window):
         self._show_panel("main")
 
     def layout_assignment_changed(self, sender, args):
-        """Called when any layout combo selection changes — save immediately."""
+        """Called when any layout combo selection changes, save immediately."""
         self._save_layout_assignments()
 
     def _layouts_dir(self):
@@ -1777,7 +1856,7 @@ class RevTableWindow(Window):
     }
 
     def _on_content_rendered(self, sender, args):
-        """Called after window is fully rendered — visual tree is available."""
+        """Called after window is fully rendered, visual tree is available."""
         try:
             self._apply_green_scrollbars()
         except:
@@ -2027,21 +2106,31 @@ class RevTableWindow(Window):
             self._log_enabled  = True
             self._save_log_setting()
             self._update_log_menu_label()
-        except Exception, e:
-            forms.alert('Could not set log path: ' + str(e))
+        except Exception as e:
+            _alert('Could not set log path: ' + str(e))
 
     def menu_help_click(self, sender, args):
-        """☰ → Help: open HELP_URL in the default browser."""
+        """☰ → Support: open a pre-filled support email in the default
+        mail client, addressed to Seed43 support, with the extension
+        version and which app it came from already filled in."""
         self.OptionsPopup.IsOpen   = False
         self.options_btn.IsChecked = False
-        try:
-            import subprocess
-            subprocess.Popen(['cmd', '/c', 'start', '', HELP_URL])
-        except Exception, e:
-            forms.alert("Could not open browser:\n{}".format(str(e)), title="Help")
+        version = _find_seed43_version()
+        subject = "pyTransmit Support Ticket"
+        body = (
+            "Hi Seed43 Team,\n\n"
+            "Support Request\n\n"
+            "App: pyTransmit\n"
+            "Seed43 Version: {}\n\n"
+            "Please describe your issue below:\n\n"
+        ).format(version)
+        import urllib
+        mailto = "mailto:{}?subject={}&body={}".format(
+            SUPPORT_EMAIL, urllib.quote(subject), urllib.quote(body))
+        self._open_url(mailto, title="Support")
 
     def run_excel_export(self):
-        """Run Excel export — loads script_excel.py in a clean namespace."""
+        """Run Excel export, loads script_excel.py in a clean namespace."""
         try:
             # Read export path from the Export Settings panel (export_path_tb)
             export_path = r'C:\Temp'
@@ -2049,13 +2138,13 @@ class RevTableWindow(Window):
             if tb and tb.Text:
                 export_path = tb.Text
             if not export_path or not os.path.exists(export_path):
-                forms.alert("Excel export path does not exist:\n{}\n\nSet the path in  ☰ → Export Settings.".format(export_path))
+                _alert("Excel export path does not exist:\n{}\n\nSet the path in  ☰ → Export Settings.".format(export_path))
                 return
 
             script_dir   = os.path.dirname(os.path.abspath(__file__))
             excel_script = os.path.join(script_dir, "script_excel.py")
             if not os.path.exists(excel_script):
-                forms.alert("script_excel.py not found in:\n{}".format(script_dir))
+                _alert("script_excel.py not found in:\n{}".format(script_dir))
                 return
 
             # Pass export path and grouping params via environment variables
@@ -2091,7 +2180,7 @@ class RevTableWindow(Window):
             except:
                 pass
 
-            # Execute in isolated namespace — __name__ != '__main__' so no
+            # Execute in isolated namespace, __name__ != '__main__' so no
             # entry-point guards fire; IronPython 2 compatible (no compile())
             ns = {'__name__': 'excel_export', '__file__': excel_script,
                   '__builtins__': __builtins__}
@@ -2099,8 +2188,8 @@ class RevTableWindow(Window):
                 src = f.read()
             exec(src, ns)
 
-        except Exception, e:
-            forms.alert("Error exporting to Excel:\n{}".format(str(e)))
+        except Exception as e:
+            _alert("Error exporting to Excel:\n{}".format(str(e)))
     
     def _show_file_save_dialog(self, title, filename, ext_label, ext, initial_folder=None):
         from Dialogs import Dialogs as _D
@@ -2111,7 +2200,7 @@ class RevTableWindow(Window):
         return _D.open_file(title, message)
 
     def run_revit_export(self):
-        """Run Revit export — dispatches to the correct Publish script based on output_type."""
+        """Run Revit export, dispatches to the correct Publish script based on output_type."""
         try:
             script_dir   = os.path.dirname(os.path.abspath(__file__))
             publish_dir  = os.path.join(script_dir, 'Publish')
@@ -2318,7 +2407,7 @@ class RevTableWindow(Window):
                                 elif (r.get('label', '') or '')[:1].upper() in _lmap:
                                     r['attn'], r['copies'] = _lmap[(r.get('label', '') or '')[:1].upper()]
                         else:
-                            # client format: [Company — Contact]copies
+                            # client format: [Company, Contact]copies
                             _tokens = _re3.findall(r'\[([^\]]+)\](\d*)', _recip_block)
                             recipients = []
                             for _label_full, _copies in _tokens:
@@ -2451,7 +2540,7 @@ class RevTableWindow(Window):
                     _wrev.write_rev_param(revit.doc, publish_dir)
             except Exception as _wrev_err:
                 import traceback as _wrev_tb
-                forms.alert('ptransmit_rev write failed: ' + str(_wrev_err))
+                _alert('ptransmit_rev write failed: ' + str(_wrev_err))
 
             # ── Set up log capture if logging is enabled ──────────────────────
             _log_lines        = []
@@ -2487,7 +2576,7 @@ class RevTableWindow(Window):
                     err_label     = 'Schedule script'
 
                 if not os.path.exists(target_script):
-                    forms.alert("{} not found at:\n{}".format(err_label, target_script))
+                    _alert("{} not found at:\n{}".format(err_label, target_script))
                     _log_lines.append('[SKIP] {} not found: {}'.format(err_label, target_script))
                     continue
 
@@ -2514,14 +2603,14 @@ class RevTableWindow(Window):
                     if _ljp and _ljp not in _log_layout_paths:
                         _log_layout_paths.append(_ljp)
                 except SystemExit:
-                    # User cancelled inside the script — skip this output only
+                    # User cancelled inside the script, skip this output only
                     _log_lines.append('[CANCELLED] {}'.format(output_type.upper()))
                     continue
-                except Exception, exec_e:
+                except Exception as exec_e:
                     import traceback as _tb
                     tb_str = _tb.format_exc() or str(exec_e) or repr(exec_e)
                     _log_lines.append('[ERROR] {} : {}'.format(output_type.upper(), tb_str))
-                    forms.alert("Error running {}:\n{}".format(err_label, tb_str))
+                    _alert("Error running {}:\n{}".format(err_label, tb_str))
 
             # ── Build and write log if enabled ────────────────────────────────
             if _log_enabled and _log_zip_path:
@@ -2535,20 +2624,20 @@ class RevTableWindow(Window):
                     _ok, _result = _lmod.build_log(
                         payload, _log_lines, _log_zip_path, _log_layout_paths)
                     if _ok:
-                        forms.alert('Log saved to:\n{}'.format(_result))
+                        _alert('Log saved to:\n{}'.format(_result))
                     else:
-                        forms.alert('Log could not be saved:\n{}'.format(_result))
-                except Exception, _le:
-                    forms.alert('Log error:\n{}'.format(str(_le)))
+                        _alert('Log could not be saved:\n{}'.format(_result))
+                except Exception as _le:
+                    _alert('Log error:\n{}'.format(str(_le)))
                 finally:
                     # Always turn log off after the run
                     self._log_enabled = False
                     self._update_log_menu_label()
 
-        except Exception, e:
+        except Exception as e:
             import traceback
             tb_str = traceback.format_exc() or str(e) or repr(e)
-            forms.alert("Error exporting Revit data:\n{}".format(tb_str))
+            _alert("Error exporting Revit data:\n{}".format(tb_str))
 
 # --- generate_tables removed - this script only updates revision data ---
 
@@ -2558,7 +2647,7 @@ def main():
         window = RevTableWindow()
         window.ShowDialog()
     except Exception as ex:
-        forms.alert("Error initializing window: {}".format(str(ex)), exitscript=True)
+        _alert("Error initializing window: {}".format(str(ex)), exitscript=True)
 
 if __name__ == "__main__":
     main()

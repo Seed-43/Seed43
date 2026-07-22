@@ -23,8 +23,8 @@ class SetupSettingsController(object):
     Drives the Setup panel (embedded in pyTransmit main window).
 
     The controller deliberately does NOT call _apply_setup during
-    _load_config  — it only populates the UI controls. _apply_setup
-    is called explicitly by the host (script.py) after full init, and
+    _load_config, it only populates the UI controls. _apply_setup
+    is called explicitly by the host (pyTransmit.py) after full init, and
     again by the Checked/Unchecked event handlers so changes are
     immediate and visible behind the open Setup panel.
     """
@@ -57,7 +57,7 @@ class SetupSettingsController(object):
         Parameters
         ----------
         script_dir : str
-            Absolute path of the folder that contains script.py.
+            Absolute path of the folder that contains pyTransmit.py.
             Config file is written here.
         """
         self._script_dir    = script_dir
@@ -72,7 +72,7 @@ class SetupSettingsController(object):
         """
         Attach to the host WPFWindow.
         Call this once after WPFWindow.__init__ has registered all named elements.
-        Does NOT call load_and_apply — call that separately after full init.
+        Does NOT call load_and_apply, call that separately after full init.
         """
         self._host = host
         self._wire_events()
@@ -88,9 +88,9 @@ class SetupSettingsController(object):
         """Restore sheet grouping parameters onto the host window.
 
         Source priority:
-          1. GP: tag in the last issued revision's IssuedTo  — project-specific,
+          1. GP: tag in the last issued revision's IssuedTo, project-specific,
              always correct for this model.
-          2. pytransmit_setup.json group_params              — fallback for
+          2. pytransmit_setup.json group_params, fallback for
              projects issued before GP: tag was introduced, filtered to params
              that exist in the current model to prevent cross-project bleed.
         """
@@ -158,7 +158,7 @@ class SetupSettingsController(object):
                 cb2.SelectionChanged += h.sheet_param_selection_changed
                 combos_stack.Children.Add(cb2)
                 h.sheet_param_combos.append(cb2)
-            # Keep sheet_param_cb_1 in sync — it was cleared from the stack
+            # Keep sheet_param_cb_1 in sync, it was cleared from the stack
             # so update the host reference to point to the new first combo
             if h.sheet_param_combos:
                 try: h.sheet_param_cb_1 = h.sheet_param_combos[0]

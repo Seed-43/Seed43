@@ -1,5 +1,17 @@
 snippets:
 
+  _dialogs.py:
+    description: >
+      Themed message/confirm/text-input popups: borderless rounded dark card
+      with a green accent bar and drop shadow, no native title bar,
+      drag-movable by clicking anywhere on the card. The one popup style
+      every Seed43 tool should use instead of building its own message box.
+      Used by pySheets.
+    functions:
+      message:    Show a themed OK-only info popup.
+      confirm:    Show a themed yes/cancel popup, returns True on yes.
+      ask_string: Show a themed single-line text prompt, returns the string or None on cancel.
+
   _filters.py:
     description: >
       Shared helpers for creating and applying Revit view filters.
@@ -11,6 +23,16 @@ snippets:
       apply_filter_to_target:    Add and hide a filter on the active view or its template.
       create_parameter_filter:   Create a string-equals ParameterFilterElement.
       create_category_filter:    Create a category-only filter matching every element in a category.
+
+  _icons.py:
+    description: >
+      Vector icon rendering for Seed43 panels and scripts. Icons are drawn
+      as sharp scalable shapes from _icons.json, not bitmaps, so they stay
+      crisp at any size. Used by pyTransmit.
+    functions:
+      make_icon:            Return a Viewbox containing the named icon at a given size and color.
+      make_icon_with_label: Return a horizontal StackPanel with an icon and a text label beside it.
+      icon_keys:            Return a sorted list of all available icon key names.
 
   _revisions.py:
     description: >

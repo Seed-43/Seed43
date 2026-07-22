@@ -161,6 +161,22 @@ def _normalise_align_run(texts, cap_mm=DEFAULT_SIZE, scale=0.85):
 
 # ── TextNoteType ──────────────────────────────────────────────────────
 
+def _find_text_type_by_name(name):
+    """Return the existing project TextNoteType with this exact name,
+    or None if it's gone missing (renamed/deleted since the setting
+    was saved)."""
+    if not name:
+        return None
+    for tt in FilteredElementCollector(doc).OfClass(TextNoteType).ToElements():
+        try:
+            n = tt.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString()
+            if n == name:
+                return tt
+        except Exception:
+            continue
+    return None
+
+
 def _get_or_create_text_type(name, size_mm):
     size_ft = size_mm * MM
     all_tt  = list(FilteredElementCollector(doc)
@@ -205,7 +221,46 @@ def _get_or_create_text_type(name, size_mm):
 
 # ── View helpers ──────────────────────────────────────────────────────
 
-def _get_or_create_drafting_view(name):
+def _get_or_create_drafting_view(name, old_name=None):
+    # If this card's view was previously applied under a different
+    # name, find it by that old name and rename it in place — the
+    # naive "search by current name" approach would just create a
+    # second view and leave the old one orphaned with stale content.
+    old_view = None
+    if old_name and old_name != name:
+        for v in FilteredElementCollector(doc).OfClass(ViewDrafting):
+            try:
+                if v.IsValidObject and v.Name == old_name:
+                    old_view = v
+                    break
+            except Exception:
+                pass
+
+    if old_view is not None:
+        # A previous broken rename attempt may have already created a
+        # stray view under the *target* name (e.g. from before this
+        # rename-in-place logic existed). Revit refuses to rename into
+        # an already-used name, so clear that stray out first — don't
+        # let the rename below fail silently and quietly reuse it.
+        for v in FilteredElementCollector(doc).OfClass(ViewDrafting):
+            try:
+                if (v.IsValidObject and v.Name == name
+                        and v.Id != old_view.Id):
+                    with revit.Transaction(
+                            'pyTable Notes - remove stray duplicate view'):
+                        doc.Delete(v.Id)
+                    break
+            except Exception:
+                pass
+        try:
+            with revit.Transaction('pyTable Notes - rename view'):
+                old_view.Name = name
+            return old_view
+        except Exception as ex:
+            logger.warning(
+                'pyTable Notes: rename to "{}" failed, falling back '
+                'to search/create: {}'.format(name, ex))
+
     for v in FilteredElementCollector(doc).OfClass(ViewDrafting):
         try:
             if v.IsValidObject and v.Name == name:
@@ -229,7 +284,41 @@ def _get_or_create_drafting_view(name):
     return v
 
 
-def _get_or_create_legend_view(name):
+def _get_or_create_legend_view(name, old_name=None):
+    old_view = None
+    if old_name and old_name != name:
+        for v in FilteredElementCollector(doc).OfClass(DB.View):
+            try:
+                if (v.IsValidObject
+                        and v.ViewType == DB.ViewType.Legend
+                        and v.Name == old_name):
+                    old_view = v
+                    break
+            except Exception:
+                pass
+
+    if old_view is not None:
+        for v in FilteredElementCollector(doc).OfClass(DB.View):
+            try:
+                if (v.IsValidObject
+                        and v.ViewType == DB.ViewType.Legend
+                        and v.Name == name
+                        and v.Id != old_view.Id):
+                    with revit.Transaction(
+                            'pyTable Notes - remove stray duplicate view'):
+                        doc.Delete(v.Id)
+                    break
+            except Exception:
+                pass
+        try:
+            with revit.Transaction('pyTable Notes - rename view'):
+                old_view.Name = name
+            return old_view
+        except Exception as ex:
+            logger.warning(
+                'pyTable Notes: rename to "{}" failed, falling back '
+                'to search/create: {}'.format(name, ex))
+
     for v in FilteredElementCollector(doc).OfClass(DB.View):
         try:
             if (v.IsValidObject
@@ -405,7 +494,8 @@ def _build_column_text(sections):
 # ── Main ──────────────────────────────────────────────────────────────
 
 def run():
-    view_name  = _p.get('view_name', 'pyTable Notes')
+    view_name     = _p.get('view_name', 'pyTable Notes')
+    old_view_name = _p.get('old_view_name') or None
     view_type  = _p.get('view_type', 'Drafting View')
     sections   = _p.get('sections', [])
     sheet_size = _p.get('sheet_size', 'A3 Landscape')
@@ -422,13 +512,20 @@ def run():
     margin_ft  = MARGIN_MM * MM
 
     if 'Legend' in view_type:
-        view = _get_or_create_legend_view(view_name)
+        view = _get_or_create_legend_view(view_name, old_name=old_view_name)
     else:
-        view = _get_or_create_drafting_view(view_name)
+        view = _get_or_create_drafting_view(view_name, old_name=old_view_name)
     _clear_view(view)
 
-    type_name = 'pyTable Notes {:.1f} Arial'.format(size_mm)
-    tt = _get_or_create_text_type(type_name, size_mm)
+    type_name = _p.get('text_type_name') or 'pyTable Notes {:.1f} Arial'.format(size_mm)
+    text_type_name = _p.get('text_type_name')
+    tt = None
+    if text_type_name:
+        tt = _find_text_type_by_name(text_type_name)
+    if tt is None:
+        # Either mode's chosen type isn't in the project yet (first
+        # run, or it's been renamed/deleted since) — create it.
+        tt = _get_or_create_text_type(type_name, size_mm)
 
     by_col = {}
     for sec in sections:

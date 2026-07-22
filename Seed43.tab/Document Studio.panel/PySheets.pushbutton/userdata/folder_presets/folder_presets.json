@@ -1,0 +1,6 @@
+{
+  "Project": {
+    "root": "N:\\(N) NAGEL CONSULTANTS LTD\\#JOB", 
+    "template": "{projects_root}\\#JOB-{bucket_min}-{bucket_max}\\{job_number}{*}\\PDF\\Internal\\Revit Prints\\"
+  }
+}

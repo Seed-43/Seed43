@@ -1470,7 +1470,8 @@
                           RowStyle="{StaticResource GridRow}"
                           ColumnHeaderStyle="{StaticResource GridColHeader}"
                           CellStyle="{StaticResource GridCell}"
-                          SelectionChanged="grid_selection_changed">
+                          SelectionChanged="grid_selection_changed"
+                          Sorting="sheets_dg_sorting">
 
                                 <DataGrid.Columns>
 

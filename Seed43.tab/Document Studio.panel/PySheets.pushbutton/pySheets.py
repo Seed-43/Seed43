@@ -14,6 +14,9 @@ from pyrevit.framework import Windows, Drawing, ObjectModel, Forms, List
 from pyrevit import coreutils, forms, revit, DB, script
 from pyrevit.api import UI
 from pyrevit.compat import get_elementid_value_func
+import clr
+clr.AddReference('System')
+from System.ComponentModel import ListSortDirection
 
 # Supporting tool windows now live in tools/, add it to path before importing
 import sys as _sys
@@ -2757,11 +2760,67 @@ class PrintSheetsWindow(forms.WPFWindow):
                 self._manual_view_order = ids
                 self._view_order_mode   = 'manual'
 
+            if self._sv_mode == 'sheets':
+                self._all_sheet_items = list(self._ordered_sheets)
+            else:
+                self._all_view_items = list(self._ordered_sheets)
+
             self._sync_order_dropdown()
             self._apply_filter()
             args.Handled = True
         except Exception as ex:
             logger.error('Row drop failed: %s', ex)
+
+    def _sort_value(self, item, path):
+        """Resolve a DataGrid SortMemberPath against a row item, including
+        custom_params[key] indexer paths."""
+        if path.endswith(']') and '[' in path:
+            base, idx = path.split('[', 1)
+            idx = idx.rstrip(']').strip("'\"")
+            d = getattr(item, base, None) or {}
+            try:
+                return d.get(idx, '')
+            except Exception:
+                return ''
+        return getattr(item, path, '')
+
+    def sheets_dg_sorting(self, sender, args):
+        """Native DataGrid header-click sort. We sort _ordered_sheets
+        ourselves (instead of letting the DataGrid sort only its view)
+        so the Print Queue and export stay in sync. Marks order as manual."""
+        try:
+            col = args.Column
+            path = col.SortMemberPath
+            if not path:
+                return
+            args.Handled = True
+
+            ascending = col.SortDirection != ListSortDirection.Ascending
+            for c in self.sheets_dg.Columns:
+                c.SortDirection = None
+            col.SortDirection = (ListSortDirection.Ascending if ascending
+                                  else ListSortDirection.Descending)
+
+            def key_fn(s):
+                v = self._sort_value(s, path)
+                return (v is None, v)
+
+            sheets = sorted(self._ordered_sheets, key=key_fn, reverse=not ascending)
+            self._ordered_sheets = sheets
+            ids = [get_elementid_value(s.revit_sheet.Id) for s in sheets]
+            if self._sv_mode == 'sheets':
+                self._manual_sheet_order = ids
+                self._sheet_order_mode   = 'manual'
+                self._all_sheet_items    = list(sheets)
+            else:
+                self._manual_view_order  = ids
+                self._view_order_mode    = 'manual'
+                self._all_view_items     = list(sheets)
+
+            self._sync_order_dropdown()
+            self._apply_filter()
+        except Exception as ex:
+            logger.error('Header sort failed: %s', ex)
 
     def _window_click(self, sender, args):
         # Do NOT reset _last_row_index here — it must survive between clicks
@@ -3026,6 +3085,11 @@ class PrintSheetsWindow(forms.WPFWindow):
             self._view_order_mode = mode
             self._ordered_sheets = self._apply_order(
                 self._all_sheets, mode, self._manual_view_order, doc, False, key_fn)
+
+        if self._sv_mode == 'sheets':
+            self._all_sheet_items = list(self._ordered_sheets)
+        else:
+            self._all_view_items = list(self._ordered_sheets)
 
         self._apply_filter()
 

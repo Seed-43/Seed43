@@ -1,14 +1,13 @@
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
-        xmlns:sys="clr-namespace:System;assembly=mscorlib"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="pyTransmit"
         Width="500"
         WindowStyle="None"
         ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
-        Background="{DynamicResource BrushWindowBg}"
+        Background="#3B4553"
         TextElement.FontFamily="Segoe UI"
         Height="720"
         MinHeight="400"
@@ -24,84 +23,6 @@
         <!-- All styles below are local to this window, pulled in from the shared
              Seed43Styles.xaml so pyTransmit no longer depends on it at runtime,
              matching pySheets' fully self-contained architecture. -->
-
-        <!-- Seed43 token system: real fallback values (current dark profile) so this
-             window still looks right if UI/seed43_palette.json is ever missing.
-             apply_seed43_palette()/apply_seed43_dimensions() overwrite these at
-             runtime - see pyTransmit.py __init__. -->
-        <SolidColorBrush x:Key="BrushPrimaryGreen"        Color="#208A3C"/>
-        <SolidColorBrush x:Key="BrushPrimaryGreenHover"   Color="#32934C"/>
-        <SolidColorBrush x:Key="BrushPrimaryGreenPressed" Color="#5CAA71"/>
-        <SolidColorBrush x:Key="BrushWindowBg"            Color="#3B4553"/>
-        <SolidColorBrush x:Key="BrushCardBg"               Color="#2B3340"/>
-        <SolidColorBrush x:Key="BrushHeaderBg"             Color="#232933"/>
-        <SolidColorBrush x:Key="BrushTextPrimary"          Color="#FFFFFF"/>
-        <SolidColorBrush x:Key="BrushTextInput"            Color="#FFFFFF"/>
-        <SolidColorBrush x:Key="BrushInputBg"              Color="#1D1D20"/>
-        <SolidColorBrush x:Key="BrushInputBgHover"         Color="#2F2F32"/>
-        <SolidColorBrush x:Key="BrushInputBgPressed"       Color="#5A5A5C"/>
-        <SolidColorBrush x:Key="BrushDropdownItemHover"    Color="#3F3F41"/>
-        <SolidColorBrush x:Key="BrushBorderDefault"        Color="#208A3C"/>
-        <SolidColorBrush x:Key="BrushBorderHover"          Color="#32934C"/>
-        <SolidColorBrush x:Key="BrushBorderMuted"          Color="#208A3C"/>
-        <SolidColorBrush x:Key="BrushSecondaryBg"          Color="#48484B"/>
-        <SolidColorBrush x:Key="BrushToggleOffBg"          Color="#5E5C64"/>
-        <SolidColorBrush x:Key="BrushToggleKnob"           Color="#FFFFFF"/>
-        <SolidColorBrush x:Key="BrushDanger"                Color="#E01B24"/>
-        <SolidColorBrush x:Key="BrushDangerHover"          Color="#E22D36"/>
-        <SolidColorBrush x:Key="BrushDangerPressed"        Color="#E8595F"/>
-
-        <!-- No canonical token exists yet for these two roles (a minty "notice/info"
-             text colour, and its matching left-accent-stripe notice-bar background).
-             Kept as local named brushes rather than scattered literals so they're at
-             least centralised - worth raising with Fred as candidates to promote into
-             UI/seed43_palette.json if other tools end up wanting the same pattern. -->
-        <SolidColorBrush x:Key="LocalBrushNoticeBg"   Color="#1E2730"/>
-        <SolidColorBrush x:Key="LocalBrushNoticeText" Color="#7EC8A0"/>
-
-        <!-- Sizing tokens, same fallback-value principle as the brushes above.
-             apply_seed43_dimensions() overwrites these at runtime.
-             top_bar.caption_height (64) is NOT applied here - pyTransmit's real
-             header is 56px, a known drift documented in brush-names.md, and
-             forcing it to 64 would visibly break the header layout. -->
-        <CornerRadius x:Key="CornerRadiusCard">8</CornerRadius>
-        <Thickness    x:Key="PaddingCard">16</Thickness>
-
-        <sys:Double   x:Key="WidthToggle">40</sys:Double>
-        <sys:Double   x:Key="HeightToggle">20</sys:Double>
-        <CornerRadius x:Key="CornerRadiusToggle">10</CornerRadius>
-        <sys:Double   x:Key="SizeToggleKnob">16</sys:Double>
-        <CornerRadius x:Key="CornerRadiusToggleKnob">8</CornerRadius>
-        <sys:Double   x:Key="MarginToggleKnob">2</sys:Double>
-
-        <sys:Double   x:Key="HeightButtonSmall">24</sys:Double>
-        <CornerRadius x:Key="CornerRadiusButtonSmall">4</CornerRadius>
-        <sys:Double   x:Key="FontSizeButtonSmall">11</sys:Double>
-        <Thickness    x:Key="PaddingButtonSmall">12,4,12,4</Thickness>
-
-        <sys:Double   x:Key="HeightInput">28</sys:Double>
-        <CornerRadius x:Key="CornerRadiusInput">6</CornerRadius>
-        <Thickness    x:Key="BorderThicknessInput">1</Thickness>
-        <sys:Double   x:Key="FontSizeInput">12</sys:Double>
-        <Thickness    x:Key="PaddingInput">8,4,8,4</Thickness>
-
-        <sys:Double   x:Key="HeightCombobox">28</sys:Double>
-        <CornerRadius x:Key="CornerRadiusCombobox">14</CornerRadius>
-        <sys:Double   x:Key="FontSizeCombobox">12</sys:Double>
-        <Thickness    x:Key="PaddingCombobox">8,4,8,4</Thickness>
-        <CornerRadius x:Key="CornerRadiusDropdownPopup">14</CornerRadius>
-        <CornerRadius x:Key="CornerRadiusDropdownItem">4</CornerRadius>
-        <Thickness    x:Key="PaddingDropdownItem">8,4,8,4</Thickness>
-
-        <sys:Double   x:Key="WidthButtonClose">30</sys:Double>
-        <sys:Double   x:Key="HeightButtonClose">30</sys:Double>
-        <CornerRadius x:Key="CornerRadiusButtonClose">15</CornerRadius>
-
-        <CornerRadius x:Key="CornerRadiusWindow">10</CornerRadius>
-
-        <sys:Double   x:Key="FontSizeSectionLabel">14</sys:Double>
-        <sys:Double   x:Key="FontSizeFieldLabel">12</sys:Double>
-
         <Style x:Key="LocalHamburgerToggle" TargetType="ToggleButton">
             <Setter Property="Width"           Value="36"/>
             <Setter Property="Height"          Value="36"/>
@@ -119,10 +40,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryBg}"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#404553"/>
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#208A3C"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -131,24 +52,24 @@
         </Style>
 
         <Style x:Key="LocalCloseBtn" TargetType="Button">
-            <Setter Property="Width"           Value="{DynamicResource WidthButtonClose}"/>
-            <Setter Property="Height"          Value="{DynamicResource HeightButtonClose}"/>
+            <Setter Property="Width"           Value="32"/>
+            <Setter Property="Height"          Value="32"/>
             <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="Foreground"      Value="#F4FAFF"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bd"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="{DynamicResource CornerRadiusButtonClose}">
+                                CornerRadius="16">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushDanger}"/>
-                                <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#C53030"/>
+                                <Setter Property="Foreground" Value="White"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -160,9 +81,9 @@
              longer merges it, pySheets' architecture: fully self-contained,
              no external stylesheet dependency. -->
         <Style x:Key="CardStyle" TargetType="Border">
-                <Setter Property="Background"    Value="{DynamicResource BrushCardBg}"/>
-                <Setter Property="CornerRadius"  Value="{DynamicResource CornerRadiusCard}"/>
-                <Setter Property="Padding"       Value="{DynamicResource PaddingCard}"/>
+                <Setter Property="Background"    Value="#2B3340"/>
+                <Setter Property="CornerRadius"  Value="8"/>
+                <Setter Property="Padding"       Value="16"/>
                 <Setter Property="Margin"        Value="0,0,0,12"/>
                 <Setter Property="Effect">
                     <Setter.Value>
@@ -172,28 +93,28 @@
             </Style>
 
         <Style x:Key="SectionLabelStyle" TargetType="TextBlock">
-                <Setter Property="Foreground"  Value="{DynamicResource BrushPrimaryGreen}"/>
+                <Setter Property="Foreground"  Value="#208A3C"/>
                 <Setter Property="FontWeight"  Value="SemiBold"/>
-                <Setter Property="FontSize"    Value="{DynamicResource FontSizeSectionLabel}"/>
+                <Setter Property="FontSize"    Value="14"/>
                 <Setter Property="Margin"      Value="0,0,0,8"/>
             </Style>
 
         <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
-                <Setter Property="Foreground"  Value="{DynamicResource BrushTextPrimary}"/>
+                <Setter Property="Foreground"  Value="#F4FAFF"/>
                 <Setter Property="FontWeight"  Value="Medium"/>
-                <Setter Property="FontSize"    Value="{DynamicResource FontSizeFieldLabel}"/>
+                <Setter Property="FontSize"    Value="12"/>
                 <Setter Property="Margin"      Value="0,0,0,4"/>
                 <Setter Property="Opacity"     Value="0.9"/>
             </Style>
 
         <Style x:Key="ModernTextBoxStyle" TargetType="TextBox">
-                <Setter Property="Background"               Value="{DynamicResource BrushInputBg}"/>
-                <Setter Property="Foreground"               Value="{DynamicResource BrushTextInput}"/>
-                <Setter Property="BorderBrush"              Value="{DynamicResource BrushBorderDefault}"/>
-                <Setter Property="BorderThickness"          Value="{DynamicResource BorderThicknessInput}"/>
-                <Setter Property="Padding"                  Value="{DynamicResource PaddingInput}"/>
-                <Setter Property="FontSize"                 Value="{DynamicResource FontSizeInput}"/>
-                <Setter Property="Height"                   Value="{DynamicResource HeightInput}"/>
+                <Setter Property="Background"               Value="#F4FAFF"/>
+                <Setter Property="Foreground"               Value="#2B3340"/>
+                <Setter Property="BorderBrush"              Value="#208A3C"/>
+                <Setter Property="BorderThickness"          Value="1"/>
+                <Setter Property="Padding"                  Value="8,4"/>
+                <Setter Property="FontSize"                 Value="12"/>
+                <Setter Property="Height"                   Value="28"/>
                 <Setter Property="VerticalContentAlignment" Value="Center"/>
                 <Setter Property="Template">
                     <Setter.Value>
@@ -202,7 +123,7 @@
                                     Background="{TemplateBinding Background}"
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="{DynamicResource CornerRadiusInput}">
+                                    CornerRadius="6">
                                 <ScrollViewer x:Name="PART_ContentHost"
                                               Focusable="False"
                                               HorizontalScrollBarVisibility="Hidden"
@@ -210,12 +131,10 @@
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="MainBorder" Property="Background"   Value="{DynamicResource BrushInputBgHover}"/>
-                                    <Setter TargetName="MainBorder" Property="BorderBrush" Value="{DynamicResource BrushBorderHover}"/>
+                                    <Setter TargetName="MainBorder" Property="BorderBrush" Value="#2B933F"/>
                                 </Trigger>
                                 <Trigger Property="IsFocused" Value="True">
-                                    <Setter TargetName="MainBorder" Property="Background"      Value="{DynamicResource BrushInputBgPressed}"/>
-                                    <Setter TargetName="MainBorder" Property="BorderBrush"     Value="{DynamicResource BrushBorderHover}"/>
+                                    <Setter TargetName="MainBorder" Property="BorderBrush"     Value="#2B933F"/>
                                     <Setter TargetName="MainBorder" Property="BorderThickness" Value="2"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
@@ -226,13 +145,13 @@
 
         <Style x:Key="ModernComboBoxStyle" TargetType="ComboBox">
                 <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-                <Setter Property="Background"      Value="{DynamicResource BrushInputBg}"/>
-                <Setter Property="Foreground"      Value="{DynamicResource BrushTextInput}"/>
-                <Setter Property="BorderBrush"     Value="{DynamicResource BrushBorderDefault}"/>
-                <Setter Property="BorderThickness" Value="{DynamicResource BorderThicknessInput}"/>
-                <Setter Property="Padding"         Value="{DynamicResource PaddingCombobox}"/>
-                <Setter Property="FontSize"        Value="{DynamicResource FontSizeCombobox}"/>
-                <Setter Property="Height"          Value="{DynamicResource HeightCombobox}"/>
+                <Setter Property="Background"      Value="#F4FAFF"/>
+                <Setter Property="Foreground"      Value="#2B3340"/>
+                <Setter Property="BorderBrush"     Value="#208A3C"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Padding"         Value="8,4"/>
+                <Setter Property="FontSize"        Value="12"/>
+                <Setter Property="Height"          Value="28"/>
                 <Setter Property="Margin"          Value="0,0,0,10"/>
                 <Setter Property="Template">
                     <Setter.Value>
@@ -241,26 +160,13 @@
                                     Background="{TemplateBinding Background}"
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="{DynamicResource CornerRadiusCombobox}">
+                                    CornerRadius="6">
                                 <Grid>
                                     <ToggleButton x:Name="ToggleButton"
                                                   Background="Transparent"
                                                   BorderThickness="0"
                                                   IsChecked="{Binding Path=IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
                                                   ClickMode="Press">
-                                        <!-- Blank template: a plain ToggleButton without one falls back to
-                                             the classic Windows chrome, which (a) centres its content in a
-                                             ContentPresenter regardless of the child's own alignment, and
-                                             (b) paints its own system-blue hover/pressed highlight on top of
-                                             ours. Both were the cause of the mis-centred arrow and the wrong
-                                             hover colour/shape. -->
-                                        <ToggleButton.Template>
-                                            <ControlTemplate TargetType="ToggleButton">
-                                                <Border Background="Transparent">
-                                                    <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center"/>
-                                                </Border>
-                                            </ControlTemplate>
-                                        </ToggleButton.Template>
                                         <Path x:Name="Arrow"
                                               Fill="{TemplateBinding Foreground}"
                                               HorizontalAlignment="Right"
@@ -282,10 +188,10 @@
                                            AllowsTransparency="True"
                                            Focusable="False"
                                            PopupAnimation="Slide">
-                                        <Border Background="{DynamicResource BrushCardBg}"
-                                                BorderBrush="{DynamicResource BrushBorderDefault}"
+                                        <Border Background="#F4FAFF"
+                                                BorderBrush="#208A3C"
                                                 BorderThickness="1"
-                                                CornerRadius="{DynamicResource CornerRadiusDropdownPopup}"
+                                                CornerRadius="6"
                                                 MinWidth="{TemplateBinding ActualWidth}">
                                             <ScrollViewer>
                                                 <StackPanel IsItemsHost="True"/>
@@ -296,103 +202,42 @@
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="MainBorder" Property="Background"   Value="{DynamicResource BrushInputBgHover}"/>
-                                    <Setter TargetName="MainBorder" Property="BorderBrush" Value="{DynamicResource BrushBorderHover}"/>
+                                    <Setter TargetName="MainBorder" Property="BorderBrush" Value="#2B933F"/>
                                 </Trigger>
                                 <Trigger Property="IsFocused" Value="True">
-                                    <Setter TargetName="MainBorder" Property="Background"      Value="{DynamicResource BrushInputBgPressed}"/>
-                                    <Setter TargetName="MainBorder" Property="BorderBrush"     Value="{DynamicResource BrushBorderHover}"/>
+                                    <Setter TargetName="MainBorder" Property="BorderBrush"     Value="#2B933F"/>
                                     <Setter TargetName="MainBorder" Property="BorderThickness" Value="2"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
-                <Setter Property="ItemContainerStyle">
-                    <Setter.Value>
-                        <Style TargetType="ComboBoxItem">
-                            <Setter Property="Background"  Value="Transparent"/>
-                            <Setter Property="Foreground"  Value="{DynamicResource BrushTextInput}"/>
-                            <Setter Property="Padding"     Value="{DynamicResource PaddingDropdownItem}"/>
-                            <Setter Property="Margin"      Value="4,2,4,2"/>
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="ComboBoxItem">
-                                        <Border x:Name="ItemBorder"
-                                                Background="{TemplateBinding Background}"
-                                                CornerRadius="{DynamicResource CornerRadiusDropdownItem}"
-                                                Padding="{TemplateBinding Padding}">
-                                            <ContentPresenter/>
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource BrushDropdownItemHover}"/>
-                                            </Trigger>
-                                            <Trigger Property="IsSelected" Value="True">
-                                                <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
-                                                <Setter Property="Foreground"                          Value="{DynamicResource BrushTextPrimary}"/>
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-                    </Setter.Value>
-                </Setter>
             </Style>
 
         <Style x:Key="SmallButtonStyle" TargetType="Button">
-                <Setter Property="Background"      Value="{DynamicResource BrushPrimaryGreen}"/>
-                <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+                <Setter Property="Background"      Value="#208A3C"/>
+                <Setter Property="Foreground"      Value="#F4FAFF"/>
                 <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="Padding"         Value="{DynamicResource PaddingButtonSmall}"/>
-                <Setter Property="FontSize"        Value="{DynamicResource FontSizeButtonSmall}"/>
+                <Setter Property="Padding"         Value="12,4"/>
+                <Setter Property="FontSize"        Value="11"/>
                 <Setter Property="FontWeight"      Value="SemiBold"/>
                 <Setter Property="Cursor"          Value="Hand"/>
-                <Setter Property="Height"          Value="{DynamicResource HeightButtonSmall}"/>
+                <Setter Property="Height"          Value="24"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
                             <Border x:Name="ButtonBorder"
                                     Background="{TemplateBinding Background}"
-                                    CornerRadius="{DynamicResource CornerRadiusButtonSmall}"
+                                    CornerRadius="4"
                                     Padding="{TemplateBinding Padding}">
                                 <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                                    <Setter TargetName="ButtonBorder" Property="Background" Value="#2B933F"/>
                                 </Trigger>
                                 <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource BrushPrimaryGreenPressed}"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-        <!-- Gotcha #8: hover/pressed triggers below are hardcoded and ignore any
-             instance-level Background override, so a plain SmallButtonStyle with
-             Background="#C53030" would flash GREEN on hover. Delete buttons use
-             this real danger-coloured style instead. -->
-        <Style x:Key="SmallDangerButtonStyle" TargetType="Button" BasedOn="{StaticResource SmallButtonStyle}">
-                <Setter Property="Background" Value="{DynamicResource BrushDanger}"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="ButtonBorder"
-                                    Background="{TemplateBinding Background}"
-                                    CornerRadius="{DynamicResource CornerRadiusButtonSmall}"
-                                    Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource BrushDangerHover}"/>
-                                </Trigger>
-                                <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource BrushDangerPressed}"/>
+                                    <Setter TargetName="ButtonBorder" Property="Background" Value="#1A6E2E"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -402,7 +247,7 @@
 
         <Style x:Key="MenuItemButtonStyle" TargetType="Button">
                 <Setter Property="Background"                Value="Transparent"/>
-                <Setter Property="Foreground"                Value="{DynamicResource BrushTextPrimary}"/>
+                <Setter Property="Foreground"                Value="#F4FAFF"/>
                 <Setter Property="BorderThickness"           Value="0"/>
                 <Setter Property="Padding"                   Value="12,8"/>
                 <Setter Property="FontSize"                  Value="12"/>
@@ -420,12 +265,12 @@
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="MainBorder" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
-                                    <Setter Property="Foreground"                          Value="{DynamicResource BrushTextPrimary}"/>
+                                    <Setter TargetName="MainBorder" Property="Background" Value="#208A3C"/>
+                                    <Setter Property="Foreground"                          Value="#F4FAFF"/>
                                 </Trigger>
                                 <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="MainBorder" Property="Background" Value="{DynamicResource BrushPrimaryGreenPressed}"/>
-                                    <Setter Property="Foreground"                          Value="{DynamicResource BrushTextPrimary}"/>
+                                    <Setter TargetName="MainBorder" Property="Background" Value="#1A6B2F"/>
+                                    <Setter Property="Foreground"                          Value="#F4FAFF"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -434,8 +279,8 @@
             </Style>
 
         <Style x:Key="ModernDataGridStyle" TargetType="DataGrid">
-                <Setter Property="Background"           Value="{DynamicResource BrushCardBg}"/>
-                <Setter Property="Foreground"           Value="{DynamicResource BrushTextPrimary}"/>
+                <Setter Property="Background"           Value="#2B3340"/>
+                <Setter Property="Foreground"           Value="#F4FAFF"/>
                 <Setter Property="BorderThickness"      Value="0"/>
                 <Setter Property="GridLinesVisibility"  Value="None"/>
                 <Setter Property="HeadersVisibility"    Value="Column"/>
@@ -450,13 +295,13 @@
             </Style>
 
         <Style x:Key="DataGridColumnHeaderStyle" TargetType="DataGridColumnHeader">
-                <Setter Property="Background"                 Value="{DynamicResource BrushHeaderBg}"/>
-                <Setter Property="Foreground"                 Value="{DynamicResource BrushTextPrimary}"/>
+                <Setter Property="Background"                 Value="#232933"/>
+                <Setter Property="Foreground"                 Value="#F4FAFF"/>
                 <Setter Property="FontWeight"                 Value="SemiBold"/>
                 <Setter Property="FontSize"                   Value="12"/>
                 <Setter Property="Padding"                    Value="12,8"/>
                 <Setter Property="BorderThickness"            Value="0,0,1,0"/>
-                <Setter Property="BorderBrush"                Value="{DynamicResource BrushBorderMuted}"/>
+                <Setter Property="BorderBrush"                Value="#404553"/>
                 <Setter Property="HorizontalContentAlignment" Value="Left"/>
             </Style>
 
@@ -476,8 +321,8 @@
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsSelected" Value="True">
-                                    <Setter TargetName="CellBorder" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
-                                    <Setter Property="Foreground"                          Value="{DynamicResource BrushTextPrimary}"/>
+                                    <Setter TargetName="CellBorder" Property="Background" Value="#208A3C"/>
+                                    <Setter Property="Foreground"                          Value="White"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -486,11 +331,11 @@
             </Style>
 
         <Style x:Key="DataGridRowStyle" TargetType="DataGridRow">
-                <Setter Property="Background" Value="{DynamicResource BrushCardBg}"/>
+                <Setter Property="Background" Value="#2B3340"/>
             </Style>
 
         <Style x:Key="MacScrollBarThumb" TargetType="Thumb">
-                <Setter Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+                <Setter Property="Background" Value="#208A3C"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Thumb">
@@ -500,10 +345,10 @@
                                     Margin="2,2,2,2"/>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                                    <Setter TargetName="thumb" Property="Background" Value="#27AE60"/>
                                 </Trigger>
                                 <Trigger Property="IsDragging" Value="True">
-                                    <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushPrimaryGreenPressed}"/>
+                                    <Setter TargetName="thumb" Property="Background" Value="#2ECC71"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -572,7 +417,7 @@
     <DockPanel LastChildFill="True">
 
         <!-- Header -->
-        <Border DockPanel.Dock="Top" Background="{DynamicResource BrushHeaderBg}" 
+        <Border DockPanel.Dock="Top" Background="#232933" 
                 Height="56" 
                 VerticalAlignment="Top"
                 CornerRadius="10,10,12,12">
@@ -593,12 +438,12 @@
                     <TextBlock Text="py" 
                                FontWeight="Bold" 
                                FontSize="32" 
-                               Foreground="{DynamicResource BrushPrimaryGreen}" 
+                               Foreground="#208A3C" 
                                VerticalAlignment="Center"/>
                     <TextBlock Text="Transmit" 
                                FontWeight="SemiBold" 
                                FontSize="32" 
-                               Foreground="{DynamicResource BrushTextPrimary}" 
+                               Foreground="#F4FAFF" 
                                Margin="4,0,0,0" 
                                VerticalAlignment="Center"/>
                     <!-- Sub-title label – one shown per active panel -->
@@ -606,7 +451,7 @@
                                Text="  |  Setup"
                                FontWeight="SemiBold"
                                FontSize="20"
-                               Foreground="{DynamicResource BrushTextPrimary}"
+                               Foreground="#F4FAFF"
                                Opacity="0.75"
                                VerticalAlignment="Center"
                                Visibility="Collapsed"/>
@@ -614,7 +459,7 @@
                                Text="  |  Recipients"
                                FontWeight="SemiBold"
                                FontSize="20"
-                               Foreground="{DynamicResource BrushTextPrimary}"
+                               Foreground="#F4FAFF"
                                Opacity="0.75"
                                VerticalAlignment="Center"
                                Visibility="Collapsed"/>
@@ -622,7 +467,7 @@
                                Text="  |  Options"
                                FontWeight="SemiBold"
                                FontSize="20"
-                               Foreground="{DynamicResource BrushTextPrimary}"
+                               Foreground="#F4FAFF"
                                Opacity="0.75"
                                VerticalAlignment="Center"
                                Visibility="Collapsed"/>
@@ -630,7 +475,7 @@
                                Text="  |  Export"
                                FontWeight="SemiBold"
                                FontSize="20"
-                               Foreground="{DynamicResource BrushTextPrimary}"
+                               Foreground="#F4FAFF"
                                Opacity="0.75"
                                VerticalAlignment="Center"
                                Visibility="Collapsed"/>
@@ -638,7 +483,7 @@
                                Text="  |  Import"
                                FontWeight="SemiBold"
                                FontSize="20"
-                               Foreground="{DynamicResource BrushTextPrimary}"
+                               Foreground="#F4FAFF"
                                Opacity="0.75"
                                VerticalAlignment="Center"
                                Visibility="Collapsed"/>
@@ -646,7 +491,7 @@
                                Text="  |  Branding &amp; Styling"
                                FontWeight="SemiBold"
                                FontSize="20"
-                               Foreground="{DynamicResource BrushTextPrimary}"
+                               Foreground="#F4FAFF"
                                Opacity="0.75"
                                VerticalAlignment="Center"
                                Visibility="Collapsed"/>
@@ -654,7 +499,7 @@
                                Text="  |  File Naming"
                                FontWeight="SemiBold"
                                FontSize="20"
-                               Foreground="{DynamicResource BrushTextPrimary}"
+                               Foreground="#F4FAFF"
                                Opacity="0.75"
                                VerticalAlignment="Center"
                                Visibility="Collapsed"/>
@@ -662,7 +507,7 @@
                                Text="  |  Export Format"
                                FontWeight="SemiBold"
                                FontSize="20"
-                               Foreground="{DynamicResource BrushTextPrimary}"
+                               Foreground="#F4FAFF"
                                Opacity="0.75"
                                VerticalAlignment="Center"
                                Visibility="Collapsed"/>
@@ -691,27 +536,27 @@
                            AllowsTransparency="True"
                            StaysOpen="False"
                            IsOpen="{Binding ElementName=options_btn, Path=IsChecked}">
-                        <Border Background="{DynamicResource BrushCardBg}" 
-                                BorderBrush="{DynamicResource BrushBorderDefault}" 
+                        <Border Background="#2B3340" 
+                                BorderBrush="#208A3C" 
                                 BorderThickness="1"
-                                CornerRadius="{DynamicResource CornerRadiusDropdownPopup}"
+                                CornerRadius="6"
                                 MinWidth="200">
                             <Border.Effect>
                                 <DropShadowEffect Color="Black" Opacity="0.4" ShadowDepth="3" BlurRadius="8"/>
                             </Border.Effect>
                             
                             <StackPanel>
-                                <Button x:Name="setup_menu_btn"             Content="&#x2699;  Setup"             Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_setup_click"/>
-                                <Button x:Name="export_format_menu_btn"     Content="&#x1F4CB;  Export Format"     Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_export_format_click"/>
-                                <Button x:Name="styling_menu_btn"           Content="&#x1F3A8;  Branding &amp; Styling"  Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_styling_click"/>
-                                <Button x:Name="recipient_manager_menu_btn" Content="&#x1F465;  Recipient Manager" Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_recipient_click"/>
-                                <Button x:Name="options_manager_menu_btn"   Content="&#x1F527;  Options Manager"   Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_options_click"/>
-                                <Button x:Name="file_naming_menu_btn"       Content="&#x1F3F7;  File Naming"        Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_file_naming_click"/>
-                                <Rectangle Fill="{DynamicResource BrushBorderMuted}" Height="1" Margin="0,2"/>
-                                <Button x:Name="export_btn" Content="&#x1F4E4;  Export Settings" Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_export_click"/>
-                                <Button x:Name="import_btn" Content="&#x1F4E5;  Import Settings" Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_import_click"/>
-                                <Rectangle Fill="{DynamicResource BrushBorderMuted}" Height="1" Margin="0,2"/>
-                                <Button x:Name="log_menu_btn" Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_log_click">
+                                <Button x:Name="setup_menu_btn"             Content="&#x2699;  Setup"             Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_setup_click"/>
+                                <Button x:Name="export_format_menu_btn"     Content="&#x1F4CB;  Export Format"     Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_export_format_click"/>
+                                <Button x:Name="styling_menu_btn"           Content="&#x1F3A8;  Branding &amp; Styling"  Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_styling_click"/>
+                                <Button x:Name="recipient_manager_menu_btn" Content="&#x1F465;  Recipient Manager" Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_recipient_click"/>
+                                <Button x:Name="options_manager_menu_btn"   Content="&#x1F527;  Options Manager"   Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_options_click"/>
+                                <Button x:Name="file_naming_menu_btn"       Content="&#x1F3F7;  File Naming"        Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_file_naming_click"/>
+                                <Rectangle Fill="#404553" Height="1" Margin="0,2"/>
+                                <Button x:Name="export_btn" Content="&#x1F4E4;  Export Settings" Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_export_click"/>
+                                <Button x:Name="import_btn" Content="&#x1F4E5;  Import Settings" Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_import_click"/>
+                                <Rectangle Fill="#404553" Height="1" Margin="0,2"/>
+                                <Button x:Name="log_menu_btn" Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_log_click">
                                     <Button.Content>
                                         <StackPanel Orientation="Horizontal">
                                             <Border x:Name="log_icon_holder" Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,6,0"/>
@@ -719,11 +564,11 @@
                                         </StackPanel>
                                     </Button.Content>
                                 </Button>
-                                <Rectangle Fill="{DynamicResource BrushBorderMuted}" Height="1" Margin="0,2"/>
-                                <Button x:Name="help_btn"  Content="&#x2753;  Support"               Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_help_click"/>
-                                <Button x:Name="about_btn" Content="&#x2139;  About pyTransmit" Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_about_click"/>
-                                <Rectangle Fill="{DynamicResource BrushBorderMuted}" Height="1" Margin="0,2"/>
-                                <Button x:Name="support_btn" Content="&#x2615;  Support this project and help us grow" Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_support_click"/>
+                                <Rectangle Fill="#404553" Height="1" Margin="0,2"/>
+                                <Button x:Name="help_btn"  Content="&#x2753;  Support"               Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_help_click"/>
+                                <Button x:Name="about_btn" Content="&#x2139;  About pyTransmit" Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_about_click"/>
+                                <Rectangle Fill="#404553" Height="1" Margin="0,2"/>
+                                <Button x:Name="support_btn" Content="&#x2615;  Support this project and help us grow" Style="{StaticResource MenuItemButtonStyle}" Foreground="#F4FAFF" Click="menu_support_click"/>
                             </StackPanel>
                         </Border>
                     </Popup>
@@ -861,12 +706,12 @@
             </Grid>
         </Border>
 
-        <!-- Footer -->
-        <Border DockPanel.Dock="Bottom" Background="{DynamicResource BrushHeaderBg}" Padding="20,10,20,10">
-            <TextBlock Text="Settings are saved automatically when you close this panel."
-                       Foreground="{DynamicResource BrushTextPrimary}"
+        <!-- Footer credits -->
+        <Border DockPanel.Dock="Bottom" Background="#232933" Padding="20,10,20,10">
+            <TextBlock Text="Special thanks to Jean-Marc Couffin &amp; all pyRevit contributors for pyRevit, and to Ryan McCullough for his printFromindex tool."
+                       Foreground="#F4FAFF"
                        FontSize="10"
-                       Opacity="0.7"
+                       Opacity="0.55"
                        TextWrapping="Wrap"/>
         </Border>
 
@@ -1044,12 +889,12 @@
                         </StackPanel>
                         <DockPanel LastChildFill="False" Margin="0,0,0,8">
                             <Border x:Name="group_label_toggle" DockPanel.Dock="Left"
-                                    Width="{DynamicResource WidthToggle}" Height="{DynamicResource HeightToggle}" CornerRadius="{DynamicResource CornerRadiusToggle}"
+                                    Width="40" Height="20" CornerRadius="10"
                                     Cursor="Hand" Margin="0,0,8,0"/>
                             <TextBlock x:Name="group_label_toggle_tb" DockPanel.Dock="Left"
                                        Text="Text Off" FontSize="9"
                                        VerticalAlignment="Center"
-                                       Foreground="{DynamicResource BrushTextPrimary}"/>
+                                       Foreground="#F4FAFF"/>
                         </DockPanel>
                         <StackPanel x:Name="formatting_stack">
                             <ComboBox x:Name="sheet_param_cb_1" Style="{StaticResource ModernComboBoxStyle}" Margin="0,0,0,4"/>
@@ -1106,7 +951,7 @@
         ══════════════════════════════════════════════════════════ -->
         <Grid x:Name="SetupPanel"
               Margin="0,0,0,0"
-              Background="{DynamicResource BrushWindowBg}"
+              Background="#3B4553"
               Visibility="Collapsed"
               Panel.ZIndex="50"
               VerticalAlignment="Stretch"
@@ -1119,7 +964,7 @@
                         <StackPanel>
                             <TextBlock Text="Project Settings" Style="{StaticResource SectionLabelStyle}"/>
                             <TextBlock Text="Choose which fields appear in the main window. These settings control the main window display only and do not affect export."
-                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.65"
+                                       Foreground="#F4FAFF" FontSize="11" Opacity="0.65"
                                        TextWrapping="Wrap" Margin="0,0,0,12"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -1128,18 +973,18 @@
                                 </Grid.ColumnDefinitions>
                                 <!-- Left column: project info fields -->
                                 <StackPanel Grid.Column="0">
-                                    <CheckBox x:Name="setup_from_cb"        Content="Organisation"  Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,8"  Checked="setup_fields_changed" Unchecked="setup_fields_changed"/>
-                                    <CheckBox x:Name="setup_client_info_cb" Content="Client"        Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,8"  Checked="setup_fields_changed" Unchecked="setup_fields_changed"/>
-                                    <CheckBox x:Name="setup_projno_cb"      Content="Project No."   Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,8"  Checked="setup_fields_changed" Unchecked="setup_fields_changed"/>
-                                    <CheckBox x:Name="setup_projname_cb"    Content="Project"       Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,0"  Checked="setup_fields_changed" Unchecked="setup_fields_changed"/>
+                                    <CheckBox x:Name="setup_from_cb"        Content="Organisation"  Foreground="#F4FAFF" FontSize="12" Margin="0,0,0,8"  Checked="setup_fields_changed" Unchecked="setup_fields_changed"/>
+                                    <CheckBox x:Name="setup_client_info_cb" Content="Client"        Foreground="#F4FAFF" FontSize="12" Margin="0,0,0,8"  Checked="setup_fields_changed" Unchecked="setup_fields_changed"/>
+                                    <CheckBox x:Name="setup_projno_cb"      Content="Project No."   Foreground="#F4FAFF" FontSize="12" Margin="0,0,0,8"  Checked="setup_fields_changed" Unchecked="setup_fields_changed"/>
+                                    <CheckBox x:Name="setup_projname_cb"    Content="Project"       Foreground="#F4FAFF" FontSize="12" Margin="0,0,0,0"  Checked="setup_fields_changed" Unchecked="setup_fields_changed"/>
                                 </StackPanel>
                                 <!-- Right column: revision meta fields -->
                                 <StackPanel Grid.Column="1">
-                                    <CheckBox x:Name="setup_initials_cb"  Content="Issued By"         Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,8"  Checked="setup_fields_changed" Unchecked="setup_fields_changed"/>
-                                    <CheckBox x:Name="setup_reason_cb"   Content="Reason for Issue"  Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,8"  Checked="setup_fields_changed" Unchecked="setup_fields_changed"/>
-                                    <CheckBox x:Name="setup_method_cb"   Content="Method of Issue"   Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,8"  Checked="setup_fields_changed" Unchecked="setup_fields_changed"/>
-                                    <CheckBox x:Name="setup_format_cb"   Content="Document Type"     Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,8"  Checked="setup_fields_changed" Unchecked="setup_fields_changed"/>
-                                    <CheckBox x:Name="setup_printsize_cb" Content="Print Size"       Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,0"  Checked="setup_fields_changed" Unchecked="setup_fields_changed"/>
+                                    <CheckBox x:Name="setup_initials_cb"  Content="Issued By"         Foreground="#F4FAFF" FontSize="12" Margin="0,0,0,8"  Checked="setup_fields_changed" Unchecked="setup_fields_changed"/>
+                                    <CheckBox x:Name="setup_reason_cb"   Content="Reason for Issue"  Foreground="#F4FAFF" FontSize="12" Margin="0,0,0,8"  Checked="setup_fields_changed" Unchecked="setup_fields_changed"/>
+                                    <CheckBox x:Name="setup_method_cb"   Content="Method of Issue"   Foreground="#F4FAFF" FontSize="12" Margin="0,0,0,8"  Checked="setup_fields_changed" Unchecked="setup_fields_changed"/>
+                                    <CheckBox x:Name="setup_format_cb"   Content="Document Type"     Foreground="#F4FAFF" FontSize="12" Margin="0,0,0,8"  Checked="setup_fields_changed" Unchecked="setup_fields_changed"/>
+                                    <CheckBox x:Name="setup_printsize_cb" Content="Print Size"       Foreground="#F4FAFF" FontSize="12" Margin="0,0,0,0"  Checked="setup_fields_changed" Unchecked="setup_fields_changed"/>
                                 </StackPanel>
                             </Grid>
                         </StackPanel>
@@ -1150,39 +995,39 @@
                         <StackPanel>
                             <TextBlock Text="Recipients" Style="{StaticResource SectionLabelStyle}"/>
                             <TextBlock Text="Choose how recipients are selected in the main window."
-                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.65"
+                                       Foreground="#F4FAFF" FontSize="11" Opacity="0.65"
                                        TextWrapping="Wrap" Margin="0,0,0,12"/>
 
                             <!-- Distribution List radio-style option -->
-                            <Border Background="{DynamicResource BrushWindowBg}" CornerRadius="6" Padding="12,10" Margin="0,0,0,8">
+                            <Border Background="#3B4553" CornerRadius="6" Padding="12,10" Margin="0,0,0,8">
                                 <StackPanel>
                                     <RadioButton x:Name="setup_dist_rb"
                                                  Content="Distribution List"
                                                  GroupName="RecipientMode"
-                                                 Foreground="{DynamicResource BrushTextPrimary}"
+                                                 Foreground="#F4FAFF"
 												 FontSize="12"
 												 FontWeight="SemiBold"
                                                  Margin="0,0,0,0"
                                                  Checked="setup_mode_changed"/>
                                     <TextBlock Text="Fixed rows from your Distribution List."
-                                               Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.65"
+                                               Foreground="#F4FAFF" FontSize="11" Opacity="0.65"
                                                TextWrapping="Wrap" Margin="20,0,0,0"/>
                                 </StackPanel>
                             </Border>
 
                             <!-- Client List radio-style option -->
-                            <Border Background="{DynamicResource BrushWindowBg}" CornerRadius="6" Padding="12,10" Margin="0,0,0,0">
+                            <Border Background="#3B4553" CornerRadius="6" Padding="12,10" Margin="0,0,0,0">
                                 <StackPanel>
                                     <RadioButton x:Name="setup_client_rb"
                                                  Content="Client List"
                                                  GroupName="RecipientMode"
-                                                 Foreground="{DynamicResource BrushTextPrimary}"
+                                                 Foreground="#F4FAFF"
 												 FontSize="12"
 												 FontWeight="SemiBold"
                                                  Margin="0,0,0,0"
                                                  Checked="setup_mode_changed"/>
                                     <TextBlock Text="Dynamic dropdowns from your Client List."
-                                               Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.65"
+                                               Foreground="#F4FAFF" FontSize="11" Opacity="0.65"
                                                TextWrapping="Wrap" Margin="20,0,0,0"/>
                                 </StackPanel>
                             </Border>
@@ -1190,6 +1035,20 @@
                     </Border>
                     <!-- Transmittal Export Format section moved to ExportFormatPanel -->
 
+                    <Border Background="#1E2730" CornerRadius="6" Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="4"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Background="#208A3C" CornerRadius="3,0,0,3"/>
+                            <ContentControl Grid.Column="1" x:Name="warning_icon_1" Margin="10,8,8,8" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="Settings are saved automatically when you close this panel."
+                                       Foreground="#7EC8A0" FontSize="10" Opacity="0.9"
+                                       TextWrapping="Wrap" Margin="0,8,8,8" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
 
                 </StackPanel>
             </ScrollViewer>
@@ -1200,7 +1059,7 @@
         ══════════════════════════════════════════════════════════ -->
         <Grid x:Name="ExportFormatPanel"
               Margin="0,0,0,0"
-              Background="{DynamicResource BrushWindowBg}"
+              Background="#3B4553"
               Visibility="Collapsed"
               Panel.ZIndex="50"
               VerticalAlignment="Stretch"
@@ -1213,11 +1072,11 @@
                         <StackPanel>
                             <TextBlock Text="Transmittal Export Format" Style="{StaticResource SectionLabelStyle}"/>
                             <TextBlock Text="Choose which formats are generated when 'Export Revit Data' runs."
-                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.65"
+                                       Foreground="#F4FAFF" FontSize="11" Opacity="0.65"
                                        TextWrapping="Wrap" Margin="0,0,0,12"/>
 
                             <!-- Revit Schedule -->
-                            <Border Background="{DynamicResource BrushWindowBg}" CornerRadius="6" Padding="12,10" Margin="0,0,0,8">
+                            <Border Background="#3B4553" CornerRadius="6" Padding="12,10" Margin="0,0,0,8">
                                 <StackPanel>
                                     <Grid Margin="0,0,0,4">
                                         <Grid.ColumnDefinitions>
@@ -1227,7 +1086,7 @@
                                         <CheckBox x:Name="setup_output_schedule_cb"
                                                      IsChecked="True"
                                                      Content="Revit Schedule"
-                                                     Foreground="{DynamicResource BrushTextPrimary}"
+                                                     Foreground="#F4FAFF"
                                                      FontSize="12"
                                                      FontWeight="SemiBold"
                                                      VerticalAlignment="Center"
@@ -1245,7 +1104,7 @@
                             </Border>
 
                             <!-- Revit Drafting View -->
-                            <Border Background="{DynamicResource BrushWindowBg}" CornerRadius="6" Padding="12,10" Margin="0,0,0,8">
+                            <Border Background="#3B4553" CornerRadius="6" Padding="12,10" Margin="0,0,0,8">
                                 <StackPanel>
                                     <Grid Margin="0,0,0,4">
                                         <Grid.ColumnDefinitions>
@@ -1254,7 +1113,7 @@
                                         </Grid.ColumnDefinitions>
                                         <CheckBox x:Name="setup_output_drafting_cb"
                                                      Content="Revit Drafting View"
-                                                     Foreground="{DynamicResource BrushTextPrimary}"
+                                                     Foreground="#F4FAFF"
                                                      FontSize="12"
                                                      FontWeight="SemiBold"
                                                      VerticalAlignment="Center"
@@ -1272,7 +1131,7 @@
                             </Border>
 
                             <!-- Revit Legend -->
-                            <Border Background="{DynamicResource BrushWindowBg}" CornerRadius="6" Padding="12,10" Margin="0,0,0,8">
+                            <Border Background="#3B4553" CornerRadius="6" Padding="12,10" Margin="0,0,0,8">
                                 <StackPanel>
                                     <Grid Margin="0,0,0,4">
                                         <Grid.ColumnDefinitions>
@@ -1281,7 +1140,7 @@
                                         </Grid.ColumnDefinitions>
                                         <CheckBox x:Name="setup_output_legend_cb"
                                                      Content="Revit Legend"
-                                                     Foreground="{DynamicResource BrushTextPrimary}"
+                                                     Foreground="#F4FAFF"
                                                      FontSize="12"
                                                      FontWeight="SemiBold"
                                                      VerticalAlignment="Center"
@@ -1299,7 +1158,7 @@
                             </Border>
 
                             <!-- Excel -->
-                            <Border Background="{DynamicResource BrushWindowBg}" CornerRadius="6" Padding="12,10" Margin="0,0,0,8">
+                            <Border Background="#3B4553" CornerRadius="6" Padding="12,10" Margin="0,0,0,8">
                                 <StackPanel>
                                     <Grid Margin="0,0,0,4">
                                         <Grid.ColumnDefinitions>
@@ -1308,7 +1167,7 @@
                                         </Grid.ColumnDefinitions>
                                         <CheckBox x:Name="setup_output_excel_cb"
                                                      Content="Excel"
-                                                     Foreground="{DynamicResource BrushTextPrimary}"
+                                                     Foreground="#F4FAFF"
                                                      FontSize="12"
                                                      FontWeight="SemiBold"
                                                      VerticalAlignment="Center"
@@ -1326,7 +1185,7 @@
                             </Border>
 
                             <!-- PDF -->
-                            <Border Background="{DynamicResource BrushWindowBg}" CornerRadius="6" Padding="12,10" Margin="0,0,0,8">
+                            <Border Background="#3B4553" CornerRadius="6" Padding="12,10" Margin="0,0,0,8">
                                 <StackPanel>
                                     <Grid Margin="0,0,0,4">
                                         <Grid.ColumnDefinitions>
@@ -1335,7 +1194,7 @@
                                         </Grid.ColumnDefinitions>
                                         <CheckBox x:Name="setup_output_pdf_cb"
                                                      Content="PDF"
-                                                     Foreground="{DynamicResource BrushTextPrimary}"
+                                                     Foreground="#F4FAFF"
                                                      FontSize="12"
                                                      FontWeight="SemiBold"
                                                      VerticalAlignment="Center"
@@ -1354,6 +1213,20 @@
                         </StackPanel>
                     </Border>
 
+                    <Border Background="#1E2730" CornerRadius="6" Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="4"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Background="#208A3C" CornerRadius="3,0,0,3"/>
+                            <ContentControl Grid.Column="1" x:Name="warning_icon_2" Margin="10,8,8,8" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="Settings are saved automatically when you close this panel."
+                                       Foreground="#7EC8A0" FontSize="10" Opacity="0.9"
+                                       TextWrapping="Wrap" Margin="0,8,8,8" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
 
                 </StackPanel>
             </ScrollViewer>
@@ -1364,7 +1237,7 @@
         ══════════════════════════════════════════════════════════ -->
         <Grid x:Name="StylingPanel"
               Margin="0,0,0,0"
-              Background="{DynamicResource BrushWindowBg}"
+              Background="#3B4553"
               Visibility="Collapsed"
               Panel.ZIndex="50"
               VerticalAlignment="Stretch"
@@ -1377,12 +1250,12 @@
                         <StackPanel>
                             <TextBlock Text="Logo" Style="{StaticResource SectionLabelStyle}"/>
                             <TextBlock Text="Set the network/shared path to your logo file. pyTransmit will automatically copy it to the Settings folder when the location is reachable."
-                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.65"
+                                       Foreground="#F4FAFF" FontSize="11" Opacity="0.65"
                                        TextWrapping="Wrap" Margin="0,0,0,12"/>
 
                             <!-- Source path only — local cache is automatic (Settings/logo.ext) -->
                             <TextBlock Text="Logo Source Location (network / shared drive):"
-                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.85" Margin="0,0,0,4"/>
+                                       Foreground="#F4FAFF" FontSize="11" Opacity="0.85" Margin="0,0,0,4"/>
                             <Grid Margin="0,0,0,6">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -1393,8 +1266,8 @@
                                          Height="28"
                                          Padding="6,4"
                                          Margin="0,0,6,0"
-                                         Background="{DynamicResource BrushInputBg}" Foreground="{DynamicResource BrushTextInput}"
-                                         BorderBrush="{DynamicResource BrushBorderDefault}" BorderThickness="1"
+                                         Background="#2B3342" Foreground="#F4FAFF"
+                                         BorderBrush="#5B6A82" BorderThickness="1"
                                          FontSize="11"
                                          ToolTip="Network/UNC path to your logo. pyTransmit will copy it to the Settings folder automatically whenever this location is reachable."/>
                                 <Button x:Name="logo_source_browse_btn"
@@ -1404,7 +1277,7 @@
                             </Grid>
                             <TextBlock x:Name="logo_status_lbl"
                                        Text=""
-                                       Foreground="{DynamicResource LocalBrushNoticeText}"
+                                       Foreground="#7EC8A0"
                                        FontSize="10"
                                        Opacity="0.85"
                                        TextWrapping="Wrap"/>
@@ -1416,10 +1289,10 @@
                         <StackPanel>
                             <TextBlock Text="Title Bar Colour" Style="{StaticResource SectionLabelStyle}"/>
                             <TextBlock Text="Background and text colour of the Transmittal Document title row."
-                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.65"
+                                       Foreground="#F4FAFF" FontSize="11" Opacity="0.65"
                                        TextWrapping="Wrap" Margin="0,0,0,12"/>
                             <!-- Background -->
-                            <TextBlock Text="Background" Foreground="{DynamicResource BrushTextPrimary}" FontSize="10" Opacity="0.55" Margin="0,0,0,4"/>
+                            <TextBlock Text="Background" Foreground="#F4FAFF" FontSize="10" Opacity="0.55" Margin="0,0,0,4"/>
                             <Grid Margin="0,0,0,10">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -1432,12 +1305,12 @@
                                         CornerRadius="4"
                                         Margin="0,0,8,0"
                                         Background="#314461"
-                                        BorderBrush="{DynamicResource BrushBorderDefault}" BorderThickness="1"/>
+                                        BorderBrush="#5B6A82" BorderThickness="1"/>
                                 <TextBox x:Name="title_color_tb"
                                          Grid.Column="1"
                                          Height="28" Padding="6,4" Margin="0,0,6,0"
-                                         Background="{DynamicResource BrushInputBg}" Foreground="{DynamicResource BrushTextInput}"
-                                         BorderBrush="{DynamicResource BrushBorderDefault}" BorderThickness="1"
+                                         Background="#2B3342" Foreground="#F4FAFF"
+                                         BorderBrush="#5B6A82" BorderThickness="1"
                                          FontSize="11" Text="#314461"
                                          ToolTip="Hex colour e.g. #314461"/>
                                 <Button x:Name="title_color_reset_btn"
@@ -1446,7 +1319,7 @@
                                         Width="60" Height="28"/>
                             </Grid>
                             <!-- Text Colour -->
-                            <TextBlock Text="Text Colour" Foreground="{DynamicResource BrushTextPrimary}" FontSize="10" Opacity="0.55" Margin="0,0,0,4"/>
+                            <TextBlock Text="Text Colour" Foreground="#F4FAFF" FontSize="10" Opacity="0.55" Margin="0,0,0,4"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -1459,12 +1332,12 @@
                                         CornerRadius="4"
                                         Margin="0,0,8,0"
                                         Background="#FFFFFF"
-                                        BorderBrush="{DynamicResource BrushBorderDefault}" BorderThickness="1"/>
+                                        BorderBrush="#5B6A82" BorderThickness="1"/>
                                 <TextBox x:Name="title_fg_color_tb"
                                          Grid.Column="1"
                                          Height="28" Padding="6,4" Margin="0,0,6,0"
-                                         Background="{DynamicResource BrushInputBg}" Foreground="{DynamicResource BrushTextInput}"
-                                         BorderBrush="{DynamicResource BrushBorderDefault}" BorderThickness="1"
+                                         Background="#2B3342" Foreground="#F4FAFF"
+                                         BorderBrush="#5B6A82" BorderThickness="1"
                                          FontSize="11" Text="#FFFFFF"
                                          ToolTip="Hex colour e.g. #FFFFFF"/>
                                 <Button x:Name="title_fg_color_reset_btn"
@@ -1480,10 +1353,10 @@
                         <StackPanel>
                             <TextBlock Text="Column Header Colour" Style="{StaticResource SectionLabelStyle}"/>
                             <TextBlock Text="Background and text colour of column header rows (Sent To, Sheet, Revision etc)."
-                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.65"
+                                       Foreground="#F4FAFF" FontSize="11" Opacity="0.65"
                                        TextWrapping="Wrap" Margin="0,0,0,12"/>
                             <!-- Background -->
-                            <TextBlock Text="Background" Foreground="{DynamicResource BrushTextPrimary}" FontSize="10" Opacity="0.55" Margin="0,0,0,4"/>
+                            <TextBlock Text="Background" Foreground="#F4FAFF" FontSize="10" Opacity="0.55" Margin="0,0,0,4"/>
                             <Grid Margin="0,0,0,10">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -1496,12 +1369,12 @@
                                         CornerRadius="4"
                                         Margin="0,0,8,0"
                                         Background="#FFFFFF"
-                                        BorderBrush="{DynamicResource BrushBorderDefault}" BorderThickness="1"/>
+                                        BorderBrush="#5B6A82" BorderThickness="1"/>
                                 <TextBox x:Name="header_color_tb"
                                          Grid.Column="1"
                                          Height="28" Padding="6,4" Margin="0,0,6,0"
-                                         Background="{DynamicResource BrushInputBg}" Foreground="{DynamicResource BrushTextInput}"
-                                         BorderBrush="{DynamicResource BrushBorderDefault}" BorderThickness="1"
+                                         Background="#2B3342" Foreground="#F4FAFF"
+                                         BorderBrush="#5B6A82" BorderThickness="1"
                                          FontSize="11" Text="#FFFFFF"
                                          ToolTip="Hex colour e.g. #FFFFFF"/>
                                 <Button x:Name="header_color_reset_btn"
@@ -1510,7 +1383,7 @@
                                         Width="60" Height="28"/>
                             </Grid>
                             <!-- Text Colour -->
-                            <TextBlock Text="Text Colour" Foreground="{DynamicResource BrushTextPrimary}" FontSize="10" Opacity="0.55" Margin="0,0,0,4"/>
+                            <TextBlock Text="Text Colour" Foreground="#F4FAFF" FontSize="10" Opacity="0.55" Margin="0,0,0,4"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -1523,12 +1396,12 @@
                                         CornerRadius="4"
                                         Margin="0,0,8,0"
                                         Background="#000000"
-                                        BorderBrush="{DynamicResource BrushBorderDefault}" BorderThickness="1"/>
+                                        BorderBrush="#5B6A82" BorderThickness="1"/>
                                 <TextBox x:Name="header_fg_color_tb"
                                          Grid.Column="1"
                                          Height="28" Padding="6,4" Margin="0,0,6,0"
-                                         Background="{DynamicResource BrushInputBg}" Foreground="{DynamicResource BrushTextInput}"
-                                         BorderBrush="{DynamicResource BrushBorderDefault}" BorderThickness="1"
+                                         Background="#2B3342" Foreground="#F4FAFF"
+                                         BorderBrush="#5B6A82" BorderThickness="1"
                                          FontSize="11" Text="#000000"
                                          ToolTip="Hex colour e.g. #000000"/>
                                 <Button x:Name="header_fg_color_reset_btn"
@@ -1540,6 +1413,20 @@
                     </Border>
 
                     <!-- Info note: settings auto-save when panel is closed -->
+                    <Border Background="#1E2730" CornerRadius="6" Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="4"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Background="#208A3C" CornerRadius="3,0,0,3"/>
+                            <ContentControl Grid.Column="1" x:Name="warning_icon_3" Margin="10,8,8,8" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="Settings are saved automatically when you close this panel."
+                                       Foreground="#7EC8A0" FontSize="10" Opacity="0.9"
+                                       TextWrapping="Wrap" Margin="0,8,8,8" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
 
                 </StackPanel>
             </ScrollViewer>
@@ -1549,7 +1436,7 @@
              RECIPIENT PANEL  (two tabs: Client List | Distribution List)
         ══════════════════════════════════════════════════════════ -->
         <Grid x:Name="RecipientPanel"
-              Background="{DynamicResource BrushWindowBg}"
+              Background="#3B4553"
               Margin="0,0,0,0"
               Visibility="Collapsed"
               Panel.ZIndex="51"
@@ -1577,7 +1464,7 @@
                         </DockPanel>
                         <TextBlock Text="Column Mapping" Style="{StaticResource FieldLabelStyle}"/>
                         <TextBlock Text="Map your CSV / Excel columns to the database fields"
-                                   Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.7" Margin="0,0,0,8"/>
+                                   Foreground="#F4FAFF" FontSize="11" Opacity="0.7" Margin="0,0,0,8"/>
                         <Grid Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="180"/>
@@ -1617,7 +1504,7 @@
                     <Button x:Name="rec_dist_tab_btn"
                             Content="Distribution List"
                             Style="{StaticResource SmallButtonStyle}"
-                            Background="{DynamicResource BrushSecondaryBg}"
+                            Background="#404553"
                             Margin="0,0,0,0"/>
                 </UniformGrid>
             </Border>
@@ -1640,8 +1527,8 @@
                                 Style="{StaticResource SmallButtonStyle}"
                                 Width="80" Margin="0,0,8,0"/>
                         <Button x:Name="rec_delete_btn" Content="Delete"
-                                Style="{StaticResource SmallDangerButtonStyle}"
-                                Width="80" IsEnabled="False"/>
+                                Style="{StaticResource SmallButtonStyle}"
+                                Background="#C53030" Width="80" IsEnabled="False"/>
                     </StackPanel>
                 </Grid>
             </Border>
@@ -1735,7 +1622,7 @@
              OPTIONS PANEL
         ══════════════════════════════════════════════════════════ -->
         <Grid x:Name="OptionsPanel"
-              Background="{DynamicResource BrushWindowBg}"
+              Background="#3B4553"
               Margin="0,0,0,0"
               Visibility="Collapsed"
               Panel.ZIndex="51"
@@ -1784,17 +1671,17 @@
                     <Button x:Name="opt_method_tab_btn"
                             Content="Method"
                             Style="{StaticResource SmallButtonStyle}"
-                            Background="{DynamicResource BrushSecondaryBg}"
+                            Background="#404553"
                             Margin="0,0,6,0"/>
                     <Button x:Name="opt_format_tab_btn"
                             Content="Document"
                             Style="{StaticResource SmallButtonStyle}"
-                            Background="{DynamicResource BrushSecondaryBg}"
+                            Background="#404553"
                             Margin="0,0,6,0"/>
                     <Button x:Name="opt_printsize_tab_btn"
                             Content="Print"
                             Style="{StaticResource SmallButtonStyle}"
-                            Background="{DynamicResource BrushSecondaryBg}"/>
+                            Background="#404553"/>
                 </UniformGrid>
             </Border>
 
@@ -1818,7 +1705,8 @@
                                 Width="80" Margin="0,0,8,0"/>
                         <Button x:Name="opt_delete_btn"
                                 Content="Delete"
-                                Style="{StaticResource SmallDangerButtonStyle}"
+                                Style="{StaticResource SmallButtonStyle}"
+                                Background="#C53030"
                                 Width="80"/>
                     </StackPanel>
                 </Grid>
@@ -1971,7 +1859,7 @@
              EXPORT SETTINGS PANEL
         ══════════════════════════════════════════════════════════ -->
         <Grid x:Name="ExportSettingsPanel"
-              Background="{DynamicResource BrushWindowBg}"
+              Background="#3B4553"
               Margin="0,0,0,0"
               Visibility="Collapsed"
               Panel.ZIndex="52"
@@ -1986,7 +1874,7 @@
                             <TextBlock Text="Export Settings"
                                        Style="{StaticResource SectionLabelStyle}"/>
                             <TextBlock Text="Note: settings will be exported into a folder named  pyTransmit Settings  at the chosen location."
-                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.7"
+                                       Foreground="#F4FAFF" FontSize="11" Opacity="0.7"
                                        TextWrapping="Wrap" Margin="0,0,0,0"/>
                         </StackPanel>
                     </Border>
@@ -1996,10 +1884,10 @@
                         <StackPanel>
                             <CheckBox x:Name="export_auto_update_cb"
                                       Content="Auto update changes"
-                                      Foreground="{DynamicResource BrushTextPrimary}" FontSize="12"
+                                      Foreground="#F4FAFF" FontSize="12"
                                       Margin="0,0,0,4"/>
                             <TextBlock Text="When enabled, every Save will automatically copy updated files to the export folder, to update other user settings."
-                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.6"
+                                       Foreground="#F4FAFF" FontSize="11" Opacity="0.6"
                                        TextWrapping="Wrap" Margin="20,0,0,16"/>
 
                             <TextBlock Text="Export Folder" Style="{StaticResource FieldLabelStyle}"/>
@@ -2023,25 +1911,39 @@
                                        Style="{StaticResource SectionLabelStyle}"/>
                             <CheckBox x:Name="export_recipients_cb"
                                       Content="Recipients"
-                                      Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,8"/>
+                                      Foreground="#F4FAFF" FontSize="12" Margin="0,0,0,8"/>
                             <CheckBox x:Name="export_reason_cb"
                                       Content="Reason for Issue"
-                                      Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,8"/>
+                                      Foreground="#F4FAFF" FontSize="12" Margin="0,0,0,8"/>
                             <CheckBox x:Name="export_method_cb"
                                       Content="Method of Issue"
-                                      Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,8"/>
+                                      Foreground="#F4FAFF" FontSize="12" Margin="0,0,0,8"/>
                             <CheckBox x:Name="export_format_cb"
                                       Content="Document Type"
-                                      Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,8"/>
+                                      Foreground="#F4FAFF" FontSize="12" Margin="0,0,0,8"/>
                             <CheckBox x:Name="export_printsize_cb"
                                       Content="Print Size"
-                                      Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,8"/>
+                                      Foreground="#F4FAFF" FontSize="12" Margin="0,0,0,8"/>
                             <CheckBox x:Name="export_layouts_cb"
                                       Content="Document Layout Templates"
-                                      Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,0"/>
+                                      Foreground="#F4FAFF" FontSize="12" Margin="0,0,0,0"/>
                         </StackPanel>
                     </Border>
 
+                    <Border Background="#1E2730" CornerRadius="6" Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="4"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Background="#208A3C" CornerRadius="3,0,0,3"/>
+                            <ContentControl Grid.Column="1" x:Name="warning_icon_4" Margin="10,8,8,8" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="Settings are saved automatically when you close this panel."
+                                       Foreground="#7EC8A0" FontSize="10" Opacity="0.9"
+                                       TextWrapping="Wrap" Margin="0,8,8,8" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
 
                 </StackPanel>
             </ScrollViewer>
@@ -2051,7 +1953,7 @@
              IMPORT SETTINGS PANEL
         ══════════════════════════════════════════════════════════ -->
         <Grid x:Name="ImportSettingsPanel"
-              Background="{DynamicResource BrushWindowBg}"
+              Background="#3B4553"
               Margin="0,0,0,0"
               Visibility="Collapsed"
               Panel.ZIndex="52"
@@ -2066,7 +1968,7 @@
                             <TextBlock Text="Import Settings"
                                        Style="{StaticResource SectionLabelStyle}"/>
                             <TextBlock Text="Browse to a  pyTransmit Settings  folder to import settings from."
-                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.7"
+                                       Foreground="#F4FAFF" FontSize="11" Opacity="0.7"
                                        TextWrapping="Wrap" Margin="0,0,0,0"/>
                         </StackPanel>
                     </Border>
@@ -2076,10 +1978,10 @@
                         <StackPanel>
                             <CheckBox x:Name="import_auto_update_cb"
                                       Content="Auto update on startup"
-                                      Foreground="{DynamicResource BrushTextPrimary}" FontSize="12"
+                                      Foreground="#F4FAFF" FontSize="12"
                                       Margin="0,0,0,4"/>
                             <TextBlock Text="When enabled, the selected files are automatically imported from this folder each time pyTransmit opens."
-                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.6"
+                                       Foreground="#F4FAFF" FontSize="11" Opacity="0.6"
                                        TextWrapping="Wrap" Margin="20,0,0,16"/>
 
                             <TextBlock Text="Import Folder (pyTransmit Settings)" Style="{StaticResource FieldLabelStyle}"/>
@@ -2103,22 +2005,36 @@
                                        Style="{StaticResource SectionLabelStyle}"/>
                             <CheckBox x:Name="import_recipients_cb"
                                       Content="Recipients"
-                                      Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,8"/>
+                                      Foreground="#F4FAFF" FontSize="12" Margin="0,0,0,8"/>
                             <CheckBox x:Name="import_reason_cb"
                                       Content="Reason for Issue"
-                                      Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,8"/>
+                                      Foreground="#F4FAFF" FontSize="12" Margin="0,0,0,8"/>
                             <CheckBox x:Name="import_method_cb"
                                       Content="Method of Issue"
-                                      Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,8"/>
+                                      Foreground="#F4FAFF" FontSize="12" Margin="0,0,0,8"/>
                             <CheckBox x:Name="import_format_cb"
                                       Content="Document Type"
-                                      Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,8"/>
+                                      Foreground="#F4FAFF" FontSize="12" Margin="0,0,0,8"/>
                             <CheckBox x:Name="import_printsize_cb"
                                       Content="Print Size"
-                                      Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,0"/>
+                                      Foreground="#F4FAFF" FontSize="12" Margin="0,0,0,0"/>
                         </StackPanel>
                     </Border>
 
+                    <Border Background="#1E2730" CornerRadius="6" Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="4"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Background="#208A3C" CornerRadius="3,0,0,3"/>
+                            <ContentControl Grid.Column="1" x:Name="warning_icon_5" Margin="10,8,8,8" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="Settings are saved automatically when you close this panel."
+                                       Foreground="#7EC8A0" FontSize="10" Opacity="0.9"
+                                       TextWrapping="Wrap" Margin="0,8,8,8" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
 
                 </StackPanel>
             </ScrollViewer>
@@ -2127,7 +2043,7 @@
              FILE NAMING PANEL
         ══════════════════════════════════════════════════════════ -->
         <Grid x:Name="FileNamingPanel"
-              Background="{DynamicResource BrushWindowBg}"
+              Background="#3B4553"
               Margin="0,0,0,0"
               Visibility="Collapsed"
               Panel.ZIndex="52"
@@ -2142,7 +2058,7 @@
                             <TextBlock Text="Transmittal Naming Template"
                                        Style="{StaticResource SectionLabelStyle}"/>
                             <TextBlock TextWrapping="Wrap"
-                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.7"
+                                       Foreground="#F4FAFF" FontSize="11" Opacity="0.7"
                                        Margin="0,0,0,8">
                                 Build your file name using the tokens below. Drag a token into the template field to insert. The extension is added automatically.
                             </TextBlock>
@@ -2150,8 +2066,8 @@
                             <!-- Template input -->
                             <TextBox x:Name="filenaming_template_tb"
                                      Height="32" Padding="8,4"
-                                     Background="{DynamicResource BrushInputBg}" Foreground="{DynamicResource BrushTextInput}"
-                                     BorderBrush="{DynamicResource BrushBorderDefault}" BorderThickness="1"
+                                     Background="#F4FAFF" Foreground="#2B3340"
+                                     BorderBrush="#208A3C" BorderThickness="1"
                                      FontFamily="Consolas" FontSize="12"
                                      VerticalContentAlignment="Center"
                                      AllowDrop="True"
@@ -2161,19 +2077,19 @@
 
                             <!-- Preview -->
                             <TextBlock Text="Preview"
-                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="10"
+                                       Foreground="#F4FAFF" FontSize="10"
                                        Opacity="0.55" Margin="0,8,0,2"/>
                             <TextBox x:Name="filenaming_preview_tb"
                                      Height="28" Padding="8,4"
-                                     Background="{DynamicResource BrushHeaderBg}" Foreground="{DynamicResource LocalBrushNoticeText}"
-                                     BorderBrush="{DynamicResource BrushBorderMuted}" BorderThickness="1"
+                                     Background="#232933" Foreground="#7EC8A0"
+                                     BorderBrush="#404553" BorderThickness="1"
                                      FontFamily="Consolas" FontSize="11"
                                      VerticalContentAlignment="Center"
                                      IsReadOnly="True"/>
 
                             <!-- Token chips — populated entirely in code (IronPython 2 safe) -->
                             <TextBlock Text="Available tokens — drag into the template field above"
-                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="10" Opacity="0.55"
+                                       Foreground="#F4FAFF" FontSize="10" Opacity="0.55"
                                        Margin="0,12,0,4"/>
                             <WrapPanel x:Name="filenaming_formatters_wp"
                                        Margin="0,0,0,0"
@@ -2188,14 +2104,14 @@
                             <TextBlock Text="Project Folder Locations"
                                        Style="{StaticResource SectionLabelStyle}"/>
                             <TextBlock TextWrapping="Wrap"
-                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.7"
+                                       Foreground="#F4FAFF" FontSize="11" Opacity="0.7"
                                        Margin="0,0,0,12">
                                 Set the root folder(s) where project folders are stored. Leave Older Jobs blank if not applicable.
                             </TextBlock>
 
                             <!-- Main root -->
                             <TextBlock Text="Projects Root"
-                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.85"
+                                       Foreground="#F4FAFF" FontSize="11" Opacity="0.85"
                                        Margin="0,0,0,4"/>
                             <Grid Margin="0,0,0,12">
                                 <Grid.ColumnDefinitions>
@@ -2205,8 +2121,8 @@
                                 <TextBox x:Name="filenaming_projects_root_tb"
                                          Grid.Column="0"
                                          Height="28" Padding="6,4" Margin="0,0,6,0"
-                                         Background="{DynamicResource BrushInputBg}" Foreground="{DynamicResource BrushTextInput}"
-                                         BorderBrush="{DynamicResource BrushBorderDefault}" BorderThickness="1"
+                                         Background="#2B3342" Foreground="#F4FAFF"
+                                         BorderBrush="#5B6A82" BorderThickness="1"
                                          FontSize="11"
                                          ToolTip="Root folder containing range-bucket subfolders e.g. N:\#JOB\"/>
                                 <Button x:Name="filenaming_projects_root_browse_btn"
@@ -2218,7 +2134,7 @@
 
                             <!-- Older jobs root -->
                             <TextBlock Text="Older Jobs Root (optional)"
-                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.85"
+                                       Foreground="#F4FAFF" FontSize="11" Opacity="0.85"
                                        Margin="0,0,0,4"/>
                             <Grid Margin="0,0,0,4">
                                 <Grid.ColumnDefinitions>
@@ -2228,8 +2144,8 @@
                                 <TextBox x:Name="filenaming_older_root_tb"
                                          Grid.Column="0"
                                          Height="28" Padding="6,4" Margin="0,0,6,0"
-                                         Background="{DynamicResource BrushInputBg}" Foreground="{DynamicResource BrushTextInput}"
-                                         BorderBrush="{DynamicResource BrushBorderDefault}" BorderThickness="1"
+                                         Background="#2B3342" Foreground="#F4FAFF"
+                                         BorderBrush="#5B6A82" BorderThickness="1"
                                          FontSize="11"
                                          ToolTip="Secondary root for archived/older jobs e.g. N:\#JOB\Older Jobs\"/>
                                 <Button x:Name="filenaming_older_root_browse_btn"
@@ -2240,7 +2156,7 @@
                             </Grid>
 
                             <TextBlock TextWrapping="Wrap"
-                                       Foreground="{DynamicResource LocalBrushNoticeText}" FontSize="10" Opacity="0.85"
+                                       Foreground="#7EC8A0" FontSize="10" Opacity="0.85"
                                        Margin="0,6,0,0">
                                 Any folder structure is supported as long as range buckets
                                 are named with a -{start}-{end} suffix (e.g. #JOB-2500-2550).
@@ -2249,17 +2165,17 @@
 
                             <!-- Path template -->
                             <TextBlock Text="Output Path Template"
-                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.85"
+                                       Foreground="#F4FAFF" FontSize="11" Opacity="0.85"
                                        Margin="0,12,0,4"/>
                             <TextBlock TextWrapping="Wrap"
-                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.7"
+                                       Foreground="#F4FAFF" FontSize="11" Opacity="0.7"
                                        Margin="0,0,0,8">
                                 Build the full output folder path using tokens. Drag tokens into the template field to insert.
                             </TextBlock>
                             <TextBox x:Name="filenaming_path_template_tb"
                                      Height="32" Padding="8,4"
-                                     Background="{DynamicResource BrushInputBg}" Foreground="{DynamicResource BrushTextInput}"
-                                     BorderBrush="{DynamicResource BrushBorderDefault}" BorderThickness="1"
+                                     Background="#F4FAFF" Foreground="#2B3340"
+                                     BorderBrush="#208A3C" BorderThickness="1"
                                      FontFamily="Consolas" FontSize="11"
                                      VerticalContentAlignment="Center"
                                      AllowDrop="True"
@@ -2269,19 +2185,19 @@
 
                             <!-- Path preview -->
                             <TextBlock Text="Preview"
-                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="10"
+                                       Foreground="#F4FAFF" FontSize="10"
                                        Opacity="0.55" Margin="0,8,0,2"/>
                             <TextBox x:Name="filenaming_path_preview_tb"
                                      Height="28" Padding="8,4"
-                                     Background="{DynamicResource BrushHeaderBg}" Foreground="{DynamicResource LocalBrushNoticeText}"
-                                     BorderBrush="{DynamicResource BrushBorderMuted}" BorderThickness="1"
+                                     Background="#232933" Foreground="#7EC8A0"
+                                     BorderBrush="#404553" BorderThickness="1"
                                      FontFamily="Consolas" FontSize="11"
                                      VerticalContentAlignment="Center"
                                      IsReadOnly="True"/>
 
                             <!-- Path token chips — populated in code -->
                             <TextBlock Text="Available tokens — drag into the path field above"
-                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="10" Opacity="0.55"
+                                       Foreground="#F4FAFF" FontSize="10" Opacity="0.55"
                                        Margin="0,12,0,4"/>
                             <WrapPanel x:Name="filenaming_path_formatters_wp"
                                        Margin="0,0,0,0"
@@ -2290,6 +2206,20 @@
                         </StackPanel>
                     </Border>
 
+                    <Border Background="#1E2730" CornerRadius="6" Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="4"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Background="#208A3C" CornerRadius="3,0,0,3"/>
+                            <ContentControl Grid.Column="1" x:Name="warning_icon_6" Margin="10,8,8,8" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="Settings are saved automatically when you close this panel."
+                                       Foreground="#7EC8A0" FontSize="10" Opacity="0.9"
+                                       TextWrapping="Wrap" Margin="0,8,8,8" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
 
                 </StackPanel>
             </ScrollViewer>
@@ -2311,12 +2241,12 @@
                 HorizontalAlignment="Right" VerticalAlignment="Bottom"
                 Margin="0,0,8,6"
                 IsHitTestVisible="False">
-            <Rectangle Canvas.Left="10" Canvas.Top="10" Width="3" Height="3" Fill="{DynamicResource BrushTextPrimary}" Opacity="0.35"/>
-            <Rectangle Canvas.Left="10" Canvas.Top="5"  Width="3" Height="3" Fill="{DynamicResource BrushTextPrimary}" Opacity="0.35"/>
-            <Rectangle Canvas.Left="5"  Canvas.Top="10" Width="3" Height="3" Fill="{DynamicResource BrushTextPrimary}" Opacity="0.35"/>
-            <Rectangle Canvas.Left="10" Canvas.Top="0"  Width="3" Height="3" Fill="{DynamicResource BrushTextPrimary}" Opacity="0.35"/>
-            <Rectangle Canvas.Left="5"  Canvas.Top="5"  Width="3" Height="3" Fill="{DynamicResource BrushTextPrimary}" Opacity="0.35"/>
-            <Rectangle Canvas.Left="0"  Canvas.Top="10" Width="3" Height="3" Fill="{DynamicResource BrushTextPrimary}" Opacity="0.35"/>
+            <Rectangle Canvas.Left="10" Canvas.Top="10" Width="3" Height="3" Fill="#F4FAFF" Opacity="0.35"/>
+            <Rectangle Canvas.Left="10" Canvas.Top="5"  Width="3" Height="3" Fill="#F4FAFF" Opacity="0.35"/>
+            <Rectangle Canvas.Left="5"  Canvas.Top="10" Width="3" Height="3" Fill="#F4FAFF" Opacity="0.35"/>
+            <Rectangle Canvas.Left="10" Canvas.Top="0"  Width="3" Height="3" Fill="#F4FAFF" Opacity="0.35"/>
+            <Rectangle Canvas.Left="5"  Canvas.Top="5"  Width="3" Height="3" Fill="#F4FAFF" Opacity="0.35"/>
+            <Rectangle Canvas.Left="0"  Canvas.Top="10" Width="3" Height="3" Fill="#F4FAFF" Opacity="0.35"/>
         </Canvas>
     </Grid>
 </Window>

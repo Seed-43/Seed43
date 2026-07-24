@@ -1,10 +1,10 @@
 {
   "per_format": {
-    "NWC": "PySheets Default", 
-    "PDF": "PySheets Default", 
     "IMG": "PySheets Default", 
     "DWG": "PySheets Default", 
-    "IFC": "PySheets Default", 
-    "DGN": "PySheets Default"
+    "DGN": "PySheets Default", 
+    "PDF": "PySheets Default", 
+    "NWC": "PySheets Default", 
+    "IFC": "PySheets Default"
   }
 }

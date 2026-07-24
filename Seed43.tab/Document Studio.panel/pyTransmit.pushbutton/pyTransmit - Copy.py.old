@@ -121,18 +121,6 @@ class RevTableWindow(Window):
                 pass
             _alert("Failed to load pyTransmit.xaml:\n\n{}".format(msg), exitscript=True)
 
-        # ── Apply Seed43 theme (colours + sizing) ───────────────────────────────
-        # Must run AFTER LoadComponent (so our injected brushes win over the XAML's
-        # own fallback Setters) and BEFORE any code below that builds dynamic UI or
-        # calls TryFindResource - otherwise those lookups return None. See
-        # seed43-pyrevit-ui skill, gotchas #3/#4.
-        try:
-            from Snippets.seed43_theme import apply_seed43_palette, apply_seed43_dimensions
-            apply_seed43_palette(self, _SCRIPT_DIR_MAIN)
-            apply_seed43_dimensions(self, _SCRIPT_DIR_MAIN)
-        except Exception:
-            pass
-
         # ── Load icon ─────────────────────────────────────────────────────────
         _icon_path = os.path.join(_SCRIPT_DIR_MAIN, "icon.png")
         if os.path.exists(_icon_path):
@@ -151,7 +139,6 @@ class RevTableWindow(Window):
         # ── Set close button icons ─────────────────────────────────────────────
         try:
             from Snippets._icons import make_icon as _mi
-            _icon_color = self._theme_hex('BrushTextPrimary', '#F4FAFF')
             _close_icon_names = [
                 'setup_close_btn', 'styling_close_btn', 'export_format_close_btn',
                 'recipient_close_btn', 'options_close_btn', 'export_settings_close_btn',
@@ -160,12 +147,12 @@ class RevTableWindow(Window):
             for _btn_name in _close_icon_names:
                 _btn = self.FindName(_btn_name)
                 if _btn:
-                    _btn.Content = _mi('close', size=14, color=_icon_color)
-            self.options_btn.Content = _mi('menu', size=18, color=_icon_color)
+                    _btn.Content = _mi('close', size=14, color='#F4FAFF')
+            self.options_btn.Content = _mi('menu', size=18, color='#F4FAFF')
             # ── Log menu warning icon ─────────────────────────────────────────
             _log_holder = self.FindName('log_icon_holder')
             if _log_holder:
-                _log_holder.Child = _mi('warning', size=14, color=_icon_color)
+                _log_holder.Child = _mi('warning', size=14, color='#F4FAFF')
         except Exception:
             pass
 
@@ -275,19 +262,6 @@ class RevTableWindow(Window):
         except:
             pass
         
-    def _theme_hex(self, key, fallback_hex):
-        """Look up a palette brush live and return it as a hex string, for
-        make_icon() calls (its colour param wants a hex string, not a Brush,
-        and is baked in at build time - see seed43-pyrevit-ui gotchas #3)."""
-        try:
-            brush = self.TryFindResource(key)
-            if brush:
-                c = brush.Color
-                return "#{0:02X}{1:02X}{2:02X}".format(c.R, c.G, c.B)
-        except Exception:
-            pass
-        return fallback_hex
-
     def _init_rev_type_selector(self):
         """
         Detect distinct revision numbering types from the issued revision list.
@@ -337,33 +311,25 @@ class RevTableWindow(Window):
         """Build the on/off toggle switch for group label display."""
         import System.Windows.Media as _SWM
         import System
-        _on_brush  = self.TryFindResource('BrushPrimaryGreen') or _SWM.SolidColorBrush(_SWM.Color.FromRgb(0x20, 0x8A, 0x3C))
-        _off_brush = self.TryFindResource('BrushToggleOffBg')  or _SWM.SolidColorBrush(_SWM.Color.FromRgb(0xA0, 0xAA, 0xBB))
-        _knob_brush = self.TryFindResource('BrushToggleKnob')  or _SWM.Brushes.White
-        _track_w    = self.TryFindResource('WidthToggle')      or 40.0
-        _knob_size  = self.TryFindResource('SizeToggleKnob')   or 16.0
-        _knob_margin = self.TryFindResource('MarginToggleKnob') or 2.0
-        _knob_radius = self.TryFindResource('CornerRadiusToggleKnob') or System.Windows.CornerRadius(_knob_size / 2.0)
+        _ON_COLOR  = _SWM.Color.FromRgb(0x20, 0x8A, 0x3C)
+        _OFF_COLOR = _SWM.Color.FromRgb(0xA0, 0xAA, 0xBB)
         try:
             sw = self.group_label_toggle
-            sw.Background = _on_brush if self.group_label_on else _off_brush
+            sw.Background = _SWM.SolidColorBrush(
+                _ON_COLOR if self.group_label_on else _OFF_COLOR)
             knob                     = System.Windows.Controls.Border()
-            knob.Width               = _knob_size
-            knob.Height              = _knob_size
-            knob.CornerRadius        = _knob_radius
-            knob.Background          = _knob_brush
+            knob.Width               = 16
+            knob.Height              = 16
+            knob.CornerRadius        = System.Windows.CornerRadius(8)
+            knob.Background          = _SWM.Brushes.White
             knob.HorizontalAlignment = System.Windows.HorizontalAlignment.Left
-            _on_offset = _track_w - _knob_size - _knob_margin
-            knob.Margin = (
-                System.Windows.Thickness(_on_offset, _knob_margin, 0, _knob_margin) if self.group_label_on
-                else System.Windows.Thickness(_knob_margin, _knob_margin, 0, _knob_margin))
+            knob.Margin = System.Windows.Thickness(22, 2, 0, 2) if self.group_label_on else System.Windows.Thickness(2, 2, 0, 2)
             sw.Child = knob
             self._group_label_knob = knob
             sw.MouseLeftButtonUp += self._on_group_label_toggle
             # Set initial text colour
-            self.group_label_toggle_tb.Foreground = (
-                self.TryFindResource('BrushTextPrimary')
-                or _SWM.SolidColorBrush(_SWM.Color.FromRgb(0xF4, 0xFA, 0xFF)))
+            self.group_label_toggle_tb.Foreground = _SWM.SolidColorBrush(
+                _SWM.Color.FromRgb(0xF4, 0xFA, 0xFF))
         except Exception:
             pass
 
@@ -371,25 +337,20 @@ class RevTableWindow(Window):
         """Toggle group label on/off, updating knob position and colour directly."""
         import System.Windows.Media as _SWM
         import System
-        # Fresh lookups here (not the values captured in _setup_group_label_toggle) -
-        # this handler can fire long after window load, so re-read live (gotcha #3).
-        _on_brush  = self.TryFindResource('BrushPrimaryGreen') or _SWM.SolidColorBrush(_SWM.Color.FromRgb(0x20, 0x8A, 0x3C))
-        _off_brush = self.TryFindResource('BrushToggleOffBg')  or _SWM.SolidColorBrush(_SWM.Color.FromRgb(0xA0, 0xAA, 0xBB))
-        _on_text_brush = self.TryFindResource('BrushTextPrimary') or _SWM.SolidColorBrush(_SWM.Color.FromRgb(0xF4, 0xFA, 0xFF))
-        _track_w    = self.TryFindResource('WidthToggle')    or 40.0
-        _knob_size  = self.TryFindResource('SizeToggleKnob') or 16.0
-        _knob_margin = self.TryFindResource('MarginToggleKnob') or 2.0
+        _ON_COLOR  = _SWM.Color.FromRgb(0x20, 0x8A, 0x3C)
+        _OFF_COLOR = _SWM.Color.FromRgb(0xA0, 0xAA, 0xBB)
         self.group_label_on = not self.group_label_on
         try:
             # Set knob position directly, no animation (reliable in IronPython 2)
-            _on_offset = _track_w - _knob_size - _knob_margin
             self._group_label_knob.Margin = (
-                System.Windows.Thickness(_on_offset, _knob_margin, 0, _knob_margin) if self.group_label_on
-                else System.Windows.Thickness(_knob_margin, _knob_margin, 0, _knob_margin))
-            self.group_label_toggle.Background = _on_brush if self.group_label_on else _off_brush
+                System.Windows.Thickness(22, 2, 0, 2) if self.group_label_on
+                else System.Windows.Thickness(2, 2, 0, 2))
+            self.group_label_toggle.Background = _SWM.SolidColorBrush(
+                _ON_COLOR if self.group_label_on else _OFF_COLOR)
             self.group_label_toggle_tb.Text = "Text On" if self.group_label_on else "Text Off"
-            self.group_label_toggle_tb.Foreground = (
-                _on_text_brush if self.group_label_on else _off_brush)
+            self.group_label_toggle_tb.Foreground = _SWM.SolidColorBrush(
+                _SWM.Color.FromRgb(0xF4, 0xFA, 0xFF) if self.group_label_on
+                else _SWM.Color.FromRgb(0xA0, 0xAA, 0xBB))
         except Exception:
             pass
         self._save_sync()
@@ -1506,7 +1467,7 @@ class RevTableWindow(Window):
                     {'distribution': 'Contractor'},
                     {'distribution': 'Local Authority'}]
 
-        white = self.TryFindResource('BrushTextPrimary') or _SWM.SolidColorBrush(_SWM.Color.FromRgb(0xF4, 0xFA, 0xFF))
+        white = _SWM.SolidColorBrush(_SWM.Color.FromRgb(0xF4, 0xFA, 0xFF))
 
         for item in rows:
             label = (item.get('distribution', '')
@@ -1578,7 +1539,7 @@ class RevTableWindow(Window):
 
         # Column header row: Company | Contact | Copies
         try:
-            white = self.TryFindResource('BrushTextPrimary') or _SWM.SolidColorBrush(_SWM.Color.FromRgb(0xF4, 0xFA, 0xFF))
+            white = _SWM.SolidColorBrush(_SWM.Color.FromRgb(0xF4, 0xFA, 0xFF))
             hdr_dp = _SWC.DockPanel()
             hdr_dp.Margin = _SW.Thickness(0, 0, 0, 2)
 
@@ -1695,7 +1656,7 @@ class RevTableWindow(Window):
         if stack is None:
             return
 
-        white = self.TryFindResource('BrushTextPrimary') or _SWM.SolidColorBrush(_SWM.Color.FromRgb(0xF4, 0xFA, 0xFF))
+        white = _SWM.SolidColorBrush(_SWM.Color.FromRgb(0xF4, 0xFA, 0xFF))
 
         # Outer DockPanel: copies fixed right, company+contact fill left
         dp = _SWC.DockPanel()
@@ -1915,7 +1876,7 @@ class RevTableWindow(Window):
             thumb_border = FEF(System.Windows.Controls.Border)
             thumb_border.SetValue(
                 System.Windows.Controls.Border.BackgroundProperty,
-                self.TryFindResource('BrushPrimaryGreen') or Media.SolidColorBrush(Media.Color.FromRgb(0x20, 0x8A, 0x3C)))
+                Media.SolidColorBrush(Media.Color.FromRgb(0x20, 0x8A, 0x3C)))
             thumb_border.SetValue(
                 System.Windows.Controls.Border.CornerRadiusProperty,
                 CornerRadius(3))

@@ -1224,7 +1224,7 @@ class LayoutSettingsWindow(WPFWindow):
         # Set tab button highlight to match
         self._set_tab_active(self.pal_settings_btn, True)
         self._set_tab_active(self.pal_blocks_btn, False)
-        self._set_tab_active(self.pal_testing_btn, False)
+        self._set_tab_active(self.pal_options_btn, False)
         self._render_style_cards()
 
         # -- Load UI icons -------------------------------------------------------
@@ -1884,10 +1884,10 @@ class LayoutSettingsWindow(WPFWindow):
     def pal_tab_blocks(self, s, e):
         self.pal_blocks_scroll.Visibility    = _SW.Visibility.Visible
         self.pal_settings_scroll.Visibility  = _SW.Visibility.Collapsed
-        self.pal_testing_scroll.Visibility   = _SW.Visibility.Collapsed
+        self.pal_options_scroll.Visibility   = _SW.Visibility.Collapsed
         self._set_tab_active(self.pal_blocks_btn, True)
         self._set_tab_active(self.pal_settings_btn, False)
-        self._set_tab_active(self.pal_testing_btn, False)
+        self._set_tab_active(self.pal_options_btn, False)
         if not getattr(self, '_palette_built', False):
             self._build_palette()
             self._palette_built = True
@@ -1895,54 +1895,70 @@ class LayoutSettingsWindow(WPFWindow):
     def pal_tab_settings(self, s, e):
         self.pal_blocks_scroll.Visibility    = _SW.Visibility.Collapsed
         self.pal_settings_scroll.Visibility  = _SW.Visibility.Visible
-        self.pal_testing_scroll.Visibility   = _SW.Visibility.Collapsed
+        self.pal_options_scroll.Visibility   = _SW.Visibility.Collapsed
         self._set_tab_active(self.pal_blocks_btn, False)
         self._set_tab_active(self.pal_settings_btn, True)
-        self._set_tab_active(self.pal_testing_btn, False)
+        self._set_tab_active(self.pal_options_btn, False)
         self._render_style_cards()
 
     def _show_inspector(self, ri, ci, block):
-        # Populate and switch to the Testing tab when a block is selected -
+        # Populate and switch to the Options tab when a block is selected -
         # this is the tab whose container structure is confirmed to render
         # cards at full width; the old Inspector tab (separate container)
         # never did, even after many attempts, so it's been removed rather
         # than continuing to chase why.
-        self.pal_tab_testing(None, None)
-        self._populate_inspector_target(self.testing_dynamic_panel, ri, ci, block)
+        self.pal_tab_options(None, None)
+        try:
+            self.options_note_tb.Text = 'Click on the lines on the canvas to set borders'
+            self.options_header_tb.Text = TYPE_NAMES.get(
+                block.get('type'), block.get('type','').replace('_',' ').title())
+        except Exception:
+            pass
+        self._populate_inspector_target(self.options_dynamic_panel, ri, ci, block)
 
     def _populate_inspector_target(self, sp, ri, ci, block):
         sp.Children.Clear()
         if block is None:
             return
 
-        # Block title
-        hdr = _SWC.TextBlock()
-        hdr.Text = block.get('type','').replace('_',' ').title()
-        hdr.Foreground = BK['accent']; hdr.FontSize = 11; hdr.FontWeight = _SW.FontWeights.Bold
-        hdr.Margin = _SW.Thickness(0,0,0,8)
-        sp.Children.Add(hdr)
-
-        # Edit text button for text blocks
+        # Inline text editor, in its own card matching every other section
+        # (COLUMN SPAN, ROW SPAN, etc) - only for text-content blocks, since
+        # the block's name is now shown in the header above instead of
+        # repeated here, and non-text blocks have nothing to edit inline.
         if block.get('type') in ('text','title','heading'):
-            edit_btn = _SWC.Button()
-            edit_btn.Content = 'Edit Text'
-            _pbtn = self.TryFindResource('PBtn')
-            if _pbtn:
-                edit_btn.Style = _pbtn
-            else:
-                edit_btn.Background = BK['accent']; edit_btn.Foreground = BK['text']
-                edit_btn.BorderThickness = _SW.Thickness(0)
-            edit_btn.HorizontalAlignment = _SW.HorizontalAlignment.Stretch
-            edit_btn.Margin = _SW.Thickness(0,0,0,8); edit_btn.Cursor = _SWI.Cursors.Hand
-            edit_btn.Click += lambda s,e,r=ri,c=ci: self._edit_text_block(r,c)
-            sp.Children.Add(edit_btn)
+            title_card = _SWC.Border()
+            title_card.Background = BK['card']; title_card.CornerRadius = _SW.CornerRadius(6)
+            title_card.BorderBrush = BK['bdr']; title_card.BorderThickness = _SW.Thickness(1)
+            title_card.Padding = _SW.Thickness(10); title_card.Margin = _SW.Thickness(0,0,0,8)
+            title_body = _SWC.StackPanel()
+            title_card.Child = title_body
 
-        # -- Hint about border editing -----------------------------------
-        hint = _SWC.TextBlock()
-        hint.Text = 'Click the white lines on the canvas to set borders'
-        hint.Foreground = BK['muted']; hint.FontSize = 9
-        hint.Margin = _SW.Thickness(0, 0, 0, 8)
-        sp.Children.Add(hint)
+            lbl_grid = _SWC.Grid()
+            lbl = _SWC.TextBlock()
+            lbl.Text = 'Text'; lbl.Foreground = BK['accent']; lbl.FontSize = 11
+            lbl.FontWeight = _SW.FontWeights.SemiBold; lbl.Margin = _SW.Thickness(0,0,0,6)
+            lbl_grid.Children.Add(lbl)
+            title_body.Children.Add(lbl_grid)
+
+            text_tb = _SWC.TextBox()
+            _mtb = self.TryFindResource('MTB')
+            if _mtb:
+                text_tb.Style = _mtb
+            else:
+                text_tb.Background = BK['row']; text_tb.Foreground = BK['text']
+                text_tb.BorderBrush = BK['bdr']; text_tb.BorderThickness = _SW.Thickness(1)
+                text_tb.Padding = _SW.Thickness(6,4,6,4)
+            text_tb.Text = block.get('content', '')
+            text_tb.FontSize = 10
+            text_tb.TextWrapping = _SW.TextWrapping.Wrap
+            text_tb.AcceptsReturn = True
+            text_tb.MinHeight = 26
+            text_tb.MaxHeight = 100
+            text_tb.VerticalScrollBarVisibility = _SWC.ScrollBarVisibility.Auto
+            text_tb.TextChanged += lambda s,e,r=ri,c=ci: self._set_block_content(r,c,s.Text)
+            title_body.Children.Add(text_tb)
+
+            sp.Children.Add(title_card)
 
         # -- Block settings -------------------------------------------------
         # Compute col-span max and group membership for the span controls
@@ -1954,13 +1970,13 @@ class LayoutSettingsWindow(WPFWindow):
         _in_group = bool(_row.get('merge_down', False) or _prev_merge)
         self._make_settings_panel(sp, ri, ci, block, _mx, _in_group)
 
-    def pal_tab_testing(self, s, e):
+    def pal_tab_options(self, s, e):
         self.pal_blocks_scroll.Visibility    = _SW.Visibility.Collapsed
         self.pal_settings_scroll.Visibility  = _SW.Visibility.Collapsed
-        self.pal_testing_scroll.Visibility   = _SW.Visibility.Visible
+        self.pal_options_scroll.Visibility   = _SW.Visibility.Visible
         self._set_tab_active(self.pal_blocks_btn, False)
         self._set_tab_active(self.pal_settings_btn, False)
-        self._set_tab_active(self.pal_testing_btn, True)
+        self._set_tab_active(self.pal_options_btn, True)
 
     # -- Palette builder -------------------------------------------------------
     def _build_palette(self):
@@ -3025,7 +3041,7 @@ class LayoutSettingsWindow(WPFWindow):
 
         # -- Height (blank blocks only) ------------------------------------
         if block.get('type') == 'blank':
-            sec('HEIGHT')
+            sec('Height')
             h_row = row_sp()
             h_tb = _SWC.TextBox()
             h_tb.Text = str(block.get('height_pct') or 100)
@@ -3041,7 +3057,7 @@ class LayoutSettingsWindow(WPFWindow):
             h_row.Children.Add(h_tb); h_row.Children.Add(h_pct)
 
         # -- Col Span -------------------------------------------------------
-        sec('COL SPAN')
+        sec('Column Span')
         span = block.get('span', 1)
         span_row = row_sp()
 
@@ -3072,7 +3088,7 @@ class LayoutSettingsWindow(WPFWindow):
         if in_group:
             rs = block.get('row_span', 1)
             max_rs = self._max_row_span(ri, ci)
-            sec('ROW SPAN')
+            sec('Row Span')
             rs_row = row_sp()
 
             def make_rs_btn(icon_key, enabled, fn):
@@ -3092,7 +3108,7 @@ class LayoutSettingsWindow(WPFWindow):
             rs_row.Children.Add(make_rs_btn('arrow_down', rs < max_rs, lambda s,e,r=ri,c=ci: self._increase_row_span(r,c)))
 
         # -- Horizontal Justification -------------------------------------------------
-        sec('JUSTIFY (Horizontal)')
+        sec('Justify (Horizontal)')
         just_row = row_sp()
 
         def just_svg(jtype, active):
@@ -3109,7 +3125,7 @@ class LayoutSettingsWindow(WPFWindow):
             just_row.Children.Add(btn)
 
         # -- Vertical Justification -------------------------------------------------
-        sec('JUSTIFY (Vertical)')
+        sec('Justify (Vertical)')
         vj_row = row_sp()
 
         def vj_svg(vtype, active):
@@ -3127,7 +3143,7 @@ class LayoutSettingsWindow(WPFWindow):
             vj_row.Children.Add(btn)
 
         # -- Background colour -------------------------------------------------------
-        sec('BACKGROUND')
+        sec('Background')
         bg_row = row_sp()
 
         swatch = _SWC.Border()
@@ -3155,7 +3171,7 @@ class LayoutSettingsWindow(WPFWindow):
         bg_row.Children.Add(bg_lbl)
 
         # -- Text style -------------------------------------------------------
-        sec('TEXT STYLE')
+        sec('Text Style')
         ts_cb = _SWC.ComboBox()
         _mcb1 = self.TryFindResource('MCB')
         if _mcb1:
@@ -3187,7 +3203,7 @@ class LayoutSettingsWindow(WPFWindow):
         _has_h = block.get('type') in DATA_BLOCK_TYPES
         _has_v = block.get('type') in DATA_BLOCK_TYPES or block.get('type') in SPINE_HEADER_TYPES
         if _has_h or _has_v:
-            sec('DATA GRID LINES')
+            sec('Data Grid Lines')
             db_row = row_sp()
             db = block.get('data_borders', {'h':True,'v':True})
             # H icon: horizontal lines
@@ -3210,7 +3226,7 @@ class LayoutSettingsWindow(WPFWindow):
 
         # -- Text orientation (spine blocks only) ---------------------------------
         if block.get('type') in SPINE_HEADER_TYPES:
-            sec('TEXT ORIENTATION')
+            sec('Text Orientation')
             orient_row = row_sp()
             is_rotated = block.get('rotation', 270) == 270
             for lbl_o, rotated_val in [('Vertical', True), ('Horizontal', False)]:
@@ -3222,7 +3238,7 @@ class LayoutSettingsWindow(WPFWindow):
 
         # -- Alternate rows (data blocks) -----------------------------------------
         if block.get('type') in DATA_BLOCK_TYPES:
-            sec('ALTERNATE ROWS')
+            sec('Alternate Rows')
             alt_row_sp = row_sp()
 
             alt_toggle = self._make_icon_toggle(
@@ -3251,7 +3267,7 @@ class LayoutSettingsWindow(WPFWindow):
 
         # -- List/Row for reason/method -------------------------------------------
         if block.get('type') in ('reason_list', 'method_list'):
-            sec('DISPLAY')
+            sec('Display')
             ls_row = row_sp()
             for val, lbl in [('list','List'),('row','Row')]:
                 active = block.get('list_style','list')==val
@@ -3263,7 +3279,7 @@ class LayoutSettingsWindow(WPFWindow):
 
         # -- Page Count settings -------------------------------------------------------
         if block.get('type') == 'page_count':
-            sec('FORMAT')
+            sec('Format')
             fmt_cb = _SWC.ComboBox()
             _mcb2 = self.TryFindResource('MCB')
             if _mcb2:
@@ -3283,7 +3299,7 @@ class LayoutSettingsWindow(WPFWindow):
             fmt_cb.SelectionChanged += lambda s,e,r=ri,c=ci: self._set_block_field(r,c,'page_format',str(s.SelectedItem) if s.SelectedItem else 'Page X of Y')
             _current[0].Children.Add(fmt_cb)
 
-            sec('PREFIX')
+            sec('Prefix')
             pfx_tb = _SWC.TextBox()
             pfx_tb.Text = block.get('prefix', ''); pfx_tb.FontSize = 10; pfx_tb.Height = 24
             pfx_tb.Background = BK['row']; pfx_tb.Foreground = BK['text']
@@ -3292,7 +3308,7 @@ class LayoutSettingsWindow(WPFWindow):
             pfx_tb.LostFocus += lambda s,e,r=ri,c=ci: self._set_block_field(r,c,'prefix',s.Text)
             _current[0].Children.Add(pfx_tb)
 
-            sec('SUFFIX')
+            sec('Suffix')
             sfx_tb = _SWC.TextBox()
             sfx_tb.Text = block.get('suffix', ''); sfx_tb.FontSize = 10; sfx_tb.Height = 24
             sfx_tb.Background = BK['row']; sfx_tb.Foreground = BK['text']
@@ -3303,7 +3319,7 @@ class LayoutSettingsWindow(WPFWindow):
 
         # -- Current Issue Date settings -------------------------------------------------
         if block.get('type') == 'issue_date':
-            sec('DATE FORMAT')
+            sec('Date Format')
             dfmt_cb = _SWC.ComboBox()
             _mcb3 = self.TryFindResource('MCB')
             if _mcb3:
@@ -3323,7 +3339,7 @@ class LayoutSettingsWindow(WPFWindow):
             dfmt_cb.SelectionChanged += lambda s,e,r=ri,c=ci: self._set_block_field(r,c,'date_format',str(s.SelectedItem) if s.SelectedItem else 'dd/MM/yyyy')
             _current[0].Children.Add(dfmt_cb)
 
-            sec('PREFIX')
+            sec('Prefix')
             pfx_tb2 = _SWC.TextBox()
             pfx_tb2.Text = block.get('prefix', ''); pfx_tb2.FontSize = 10; pfx_tb2.Height = 24
             pfx_tb2.Background = BK['row']; pfx_tb2.Foreground = BK['text']
@@ -3332,7 +3348,7 @@ class LayoutSettingsWindow(WPFWindow):
             pfx_tb2.LostFocus += lambda s,e,r=ri,c=ci: self._set_block_field(r,c,'prefix',s.Text)
             _current[0].Children.Add(pfx_tb2)
 
-            sec('SUFFIX')
+            sec('Suffix')
             sfx_tb2 = _SWC.TextBox()
             sfx_tb2.Text = block.get('suffix', ''); sfx_tb2.FontSize = 10; sfx_tb2.Height = 24
             sfx_tb2.Background = BK['row']; sfx_tb2.Foreground = BK['text']
@@ -3477,6 +3493,17 @@ class LayoutSettingsWindow(WPFWindow):
         b = self._rows[ri]['blocks'][ci]
         if not b: return
         b[field] = val
+        self._render_preview()
+
+    def _set_block_content(self, ri, ci, val):
+        """Live content updates from the inline text editor - same effect as
+        _edit_text_block's popup used to have, just without the round-trip
+        through a dialog. Matches _update_block_label's lighter pattern
+        (preview only, not a full canvas rebuild) since this fires on every
+        keystroke."""
+        b = self._rows[ri]['blocks'][ci]
+        if not b: return
+        b['content'] = val
         self._render_preview()
 
     # -- Drag events -------------------------------------------------------------

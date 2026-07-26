@@ -1,35 +1,35 @@
 {
   "col_pct": [
-    11, 
-    11, 
-    33
+    22, 
+    28, 
+    20
   ], 
-  "active_template": "Revit Drafting View", 
-  "logo_path": "C:\\Users\\Fred\\AppData\\Roaming\\pyRevit\\Extensions\\Seed43.extension\\Seed43.tab\\Document Studio.panel\\pyTransmit.pushbutton\\logo.png", 
+  "active_template": "Excel", 
   "text_styles": {
-    "Data": {
-      "size_mm": 2.2999999999999998, 
-      "italic": false, 
-      "underline": false, 
+    "Title": {
+      "color": "#000000", 
+      "size_mm": 4.5, 
+      "bold": true, 
       "font": "Arial", 
-      "bold": false, 
-      "color": "#000000"
+      "underline": false, 
+      "italic": false
     }, 
     "Header": {
+      "color": "#000000", 
       "size_mm": 2.5, 
-      "italic": false, 
-      "underline": false, 
-      "font": "Arial", 
       "bold": true, 
-      "color": "#000000"
+      "font": "Arial", 
+      "underline": false, 
+      "italic": false
     }, 
-    "Title": {
-      "size_mm": 4.5, 
-      "italic": false, 
-      "underline": false, 
+    "Data": {
+      "color": "#000000", 
+      "size_mm": 2.2999999999999998, 
+      "bold": false, 
       "font": "Arial", 
-      "bold": true, 
-      "color": "#000000"
+      "underline": false, 
+      "italic": false
     }
-  }
+  }, 
+  "logo_path": ""
 }

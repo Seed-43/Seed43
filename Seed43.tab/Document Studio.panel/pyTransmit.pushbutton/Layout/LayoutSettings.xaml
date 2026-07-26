@@ -356,8 +356,8 @@ Header: rev count, page size, template, tabs, save/close
         <!-- Section label -->
         <Style x:Key="SecLbl" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
-            <Setter Property="FontSize"   Value="9"/>
-            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize"   Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Margin"     Value="0,8,0,3"/>
         </Style>
         <Style x:Key="MacScrollBarThumb" TargetType="Thumb">
@@ -557,10 +557,10 @@ Header: rev count, page size, template, tabs, save/close
                         </Grid.ColumnDefinitions>
                         <Button x:Name="pal_settings_btn"  Grid.Column="0" Content="Settings"  Style="{StaticResource TBtn}" Margin="0,0,2,0" Click="pal_tab_settings"/>
                         <Button x:Name="pal_blocks_btn"    Grid.Column="1" Content="Blocks"    Style="{StaticResource TBtn}" Margin="0,0,2,0" Click="pal_tab_blocks"/>
-                        <Button x:Name="pal_testing_btn"   Grid.Column="2" Content="Testing"   Style="{StaticResource TBtn}" Click="pal_tab_testing"/>
+                        <Button x:Name="pal_options_btn"   Grid.Column="2" Content="Options"   Style="{StaticResource TBtn}" Click="pal_tab_options"/>
                     </Grid>
 
-                    <!-- TESTING panel - one card is entirely static XAML,
+                    <!-- OPTIONS panel - one card is entirely static XAML,
                          the rest is populated by the same code that used to
                          also target a separate Inspector tab. That Inspector
                          tab (a different container) never rendered cards at
@@ -569,21 +569,21 @@ Header: rev count, page size, template, tabs, save/close
                          the only one and Inspector has been removed rather
                          than continuing to chase why the two behaved
                          differently. -->
-                    <ScrollViewer x:Name="pal_testing_scroll" Style="{StaticResource MacScrollViewer}"
+                    <ScrollViewer x:Name="pal_options_scroll" Style="{StaticResource MacScrollViewer}"
                                   VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch"
                                   Padding="0" Visibility="Collapsed">
                         <StackPanel Margin="8,4,8,4">
-                            <TextBlock Text="Testing" Style="{StaticResource SecLbl}"/>
+                            <TextBlock x:Name="options_header_tb" Text="Options" Style="{StaticResource SecLbl}"/>
                             <Border Background="{DynamicResource BgCard}" CornerRadius="8" BorderBrush="{StaticResource Bdr}" BorderThickness="1" Padding="12" Margin="0,0,0,8">
-                                <TextBlock Text="Static card, declared directly in XAML. Nothing here is built or touched by Python." Foreground="{DynamicResource TextMute}" FontSize="10" TextWrapping="Wrap"/>
+                                <TextBlock x:Name="options_note_tb" Text="Static card, declared directly in XAML. Nothing here is built or touched by Python." Foreground="{DynamicResource TextMute}" FontSize="10" TextWrapping="Wrap"/>
                             </Border>
-                            <StackPanel x:Name="testing_dynamic_panel"/>
+                            <StackPanel x:Name="options_dynamic_panel"/>
                         </StackPanel>
                     </ScrollViewer>
 
                     <ScrollViewer x:Name="pal_settings_scroll" Style="{StaticResource MacScrollViewer}" VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch" Padding="0">
                         <StackPanel Margin="8,4,8,4">
-                            <TextBlock Text="LOGO" Style="{StaticResource SecLbl}"/>
+                            <TextBlock Text="Logo" Style="{StaticResource SecLbl}"/>
                             <Border Background="{DynamicResource BgCard}" CornerRadius="6" BorderBrush="{StaticResource Bdr}" BorderThickness="1" Padding="10" Margin="0,0,0,8">
                                 <StackPanel>
                                     <TextBlock Text="Logo path / filename" Foreground="{DynamicResource TextMute}" FontSize="9" Margin="0,0,0,3"/>
@@ -608,7 +608,7 @@ Header: rev count, page size, template, tabs, save/close
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="TEXT STYLES" Style="{StaticResource SecLbl}" Margin="0"/>
+                                <TextBlock Grid.Column="0" Text="Text Styles" Style="{StaticResource SecLbl}" Margin="0"/>
                                 <Button Grid.Column="1" Content="+ Add" Style="{StaticResource PBtn}" Padding="6,2" FontSize="9" Height="20" Click="add_style_click"/>
                             </Grid>
                             <StackPanel x:Name="style_cards_stack"/>

@@ -129,6 +129,12 @@ Window-specific styles (NOT here):
     <sys:Double   x:Key="HeightButtonClose">30</sys:Double>
     <CornerRadius x:Key="CornerRadiusButtonClose">15</CornerRadius>
 
+    <!-- button_menu: square-ish (lightly rounded), distinct from button_close's
+         fully-round shape - e.g. a hamburger/options toggle, not a close button. -->
+    <sys:Double   x:Key="WidthButtonMenu">36</sys:Double>
+    <sys:Double   x:Key="HeightButtonMenu">36</sys:Double>
+    <CornerRadius x:Key="CornerRadiusButtonMenu">6</CornerRadius>
+
     <sys:Double   x:Key="HeightInput">28</sys:Double>
     <Thickness    x:Key="PaddingInput">8,4,8,4</Thickness>
     <CornerRadius x:Key="CornerRadiusInput">6</CornerRadius>
@@ -152,9 +158,7 @@ Window-specific styles (NOT here):
 
     <sys:Double   x:Key="HeightTopBar">64</sys:Double>
     <CornerRadius x:Key="CornerRadiusWindow">10</CornerRadius>
-    <sys:Double   x:Key="SizeTopBarControlBtn">32</sys:Double>
     <sys:Double   x:Key="SizeTopBarLogo">28</sys:Double>
-    <CornerRadius x:Key="CornerRadiusTopBarControlBtn">16</CornerRadius>
 
     <sys:Double   x:Key="WidthToggle">40</sys:Double>
     <sys:Double   x:Key="HeightToggle">20</sys:Double>

@@ -151,7 +151,7 @@ class RevTableWindow(Window):
         # ── Set close button icons ─────────────────────────────────────────────
         try:
             from Snippets._icons import make_icon as _mi
-            _icon_color = self._theme_hex('BrushTextPrimary', '#F4FAFF')
+            _icon_color = self._theme_hex('text_primary', '#F4FAFF')
             _close_icon_names = [
                 'setup_close_btn', 'styling_close_btn', 'export_format_close_btn',
                 'recipient_close_btn', 'options_close_btn', 'export_settings_close_btn',
@@ -213,6 +213,7 @@ class RevTableWindow(Window):
         self.param_counter = 1
         self.group_label_on = self._load_sync().get('group_label_on', True)
         self._setup_group_label_toggle()
+        self.PreviewMouseDown += self._options_popup_outside_click
         
         self.sheet_params = self.get_sheet_parameters()
         
@@ -275,18 +276,21 @@ class RevTableWindow(Window):
         except:
             pass
         
-    def _theme_hex(self, key, fallback_hex):
-        """Look up a palette brush live and return it as a hex string, for
-        make_icon() calls (its colour param wants a hex string, not a Brush,
-        and is baked in at build time - see seed43-pyrevit-ui gotchas #3)."""
+    def _theme_hex(self, semantic_key, fallback_hex):
+        """Current palette colour for a semantic key (e.g. 'text_primary'),
+        read straight from the palette JSON, for make_icon() calls (its
+        colour param wants a hex string, not a Brush, and is baked in at
+        build time - see seed43-pyrevit-ui gotchas #3). Deliberately not
+        based on self.TryFindResource(...) - going straight to disk avoids
+        any question of whether the WPF resource dictionary has actually
+        resolved by the time this runs, which was producing icons baked
+        with the wrong (dark-profile) colour when the active profile is
+        light."""
         try:
-            brush = self.TryFindResource(key)
-            if brush:
-                c = brush.Color
-                return "#{0:02X}{1:02X}{2:02X}".format(c.R, c.G, c.B)
+            from Snippets.seed43_theme import get_color
+            return get_color(_SCRIPT_DIR_MAIN, semantic_key, fallback=fallback_hex)
         except Exception:
-            pass
-        return fallback_hex
+            return fallback_hex
 
     def _init_rev_type_selector(self):
         """
@@ -406,12 +410,33 @@ class RevTableWindow(Window):
             DB.BuiltInParameter.SHEET_NUMBER,
             DB.BuiltInParameter.SHEET_NAME
         ]
+        # String params (Text-type, e.g. Sheet Number/Name) plus ElementId
+        # params (Revit's newer "Dropdown List" parameter type, e.g. the
+        # Revit 2026 Sheet Collection parameter, is backed by ElementId, not
+        # String) - Integer/Double stays excluded, those are numeric/
+        # dimensional fields like Scale or Sheet Width, not meaningful text
+        # to group sheets by. Grouping/report code elsewhere already reads
+        # any parameter's value via AsString()-or-AsValueString(), which
+        # works for ElementId too, so this just lets those show up here as
+        # selectable options as well.
+        _USABLE_STORAGE_TYPES = (DB.StorageType.String, DB.StorageType.ElementId)
+
+        def _has_usable_value(param):
+            if param.StorageType == DB.StorageType.String:
+                return True
+            try:
+                return bool(param.AsValueString())
+            except Exception:
+                return False
+
         for bip in built_in_params:
             param = sample_sheet.get_Parameter(bip)
             if param and param.StorageType == DB.StorageType.String:
                 param_names.add(param.Definition.Name)
         for param in sample_sheet.GetOrderedParameters():
-            if param.Definition and param.StorageType == DB.StorageType.String:
+            if (param.Definition
+                    and param.StorageType in _USABLE_STORAGE_TYPES
+                    and _has_usable_value(param)):
                 param_names.add(param.Definition.Name)
         return sorted(list(param_names))
     
@@ -860,6 +885,24 @@ class RevTableWindow(Window):
             show('export_format_header_lbl')
             show('export_format_close_btn')
 
+        # One shared footer, its text swapped to match the panel now showing -
+        # this is what the footer is for, instead of duplicating a note inside
+        # every panel's own content.
+        _FOOTER_TEXT = {
+            'main':            u"Visit Setup and Export Format (\u2630 Menu) to configure how pyTransmit works for your projects.",
+            'setup':           u"This panel saves automatically when you close it.",
+            'export_format':   u"This panel saves automatically when you close it.",
+            'export_settings': u"This panel saves automatically when you close it.",
+            'import_settings': u"This panel saves automatically when you close it.",
+            'recipient':       u"You'll be asked to save or discard changes when you close this panel.",
+            'options':         u"You'll be asked to save or discard changes when you close this panel.",
+            'file_naming':     u"This panel saves automatically when you close it. Thanks to Ryan McCullough for his printFromIndex tool, which this naming system is built on.",
+        }
+        try:
+            self.footer_text.Text = _FOOTER_TEXT.get(panel_name, _FOOTER_TEXT['main'])
+        except Exception:
+            pass
+
     # ── Back / close handlers ─────────────────────────────────────────────
 
     def _show_save_dialog(self, panel_label):
@@ -1088,16 +1131,50 @@ class RevTableWindow(Window):
         import threading
         threading.Thread(target=_launch).start()
 
-    def options_toggle_preview_down(self, sender, args):
-        """Explicit close-on-reclick. Popup StaysOpen=False already auto-closes
-        on any click outside it, including a second click on this same toggle
-        button, and that same click's Click event would then flip IsChecked
-        back to True, reopening it. Intercept here first so a re-click always
-        just closes, instead of closing and instantly reopening."""
-        if self.OptionsPopup.IsOpen:
+    def options_btn_click(self, sender, args):
+        """Toggle the options menu open/closed. With the Popup's own
+        StaysOpen="True" (see XAML), it never captures the mouse or
+        auto-dismisses itself, so there's no race left to guard against here
+        - this is genuinely just "closed -> open it, open -> close it".
+        Closing on an outside click is handled separately, by
+        _options_popup_outside_click below."""
+        new_state = not self.OptionsPopup.IsOpen
+        self.OptionsPopup.IsOpen = new_state
+        self.options_btn.IsChecked = new_state
+
+    def _options_popup_outside_click(self, sender, args):
+        """Wired to the window's own PreviewMouseDown. Closes the options
+        popup on a click anywhere outside it - except on the hamburger
+        button itself, which already toggles it via options_btn_click above;
+        if this handler also reacted to a click there, the popup would close
+        and then immediately reopen (or the reverse), which is exactly the
+        bug this whole approach was designed to avoid."""
+        if not self.OptionsPopup.IsOpen:
+            return
+        try:
+            source = args.OriginalSource
+            if self._is_visual_descendant(source, self.options_btn):
+                return
+            popup_content = self.OptionsPopup.Child
+            if popup_content is not None and self._is_visual_descendant(source, popup_content):
+                return
             self.OptionsPopup.IsOpen = False
             self.options_btn.IsChecked = False
-            args.Handled = True
+        except Exception:
+            pass
+
+    def _is_visual_descendant(self, element, ancestor):
+        """True if element is ancestor itself, or nested anywhere inside it."""
+        import System.Windows.Media as _M
+        node = element
+        while node is not None:
+            if node == ancestor:
+                return True
+            try:
+                node = _M.VisualTreeHelper.GetParent(node)
+            except Exception:
+                return False
+        return False
 
     def menu_about_click(self, sender, args):
         """☰ → About: open ABOUT_URL in the default browser."""
@@ -2107,7 +2184,8 @@ class RevTableWindow(Window):
             pass
 
     def _save_log_setting(self):
-        """Write log_zip_path into pytransmit_setup.json, leaving all other keys intact."""
+        """Write log_zip_path and log_folder into pytransmit_setup.json,
+        leaving all other keys intact."""
         try:
             import json as _lj
             _lcfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -2118,10 +2196,22 @@ class RevTableWindow(Window):
             except Exception:
                 _lcfg = {}
             _lcfg['log_zip_path'] = self._log_zip_path
+            _lcfg['log_folder'] = os.path.dirname(self._log_zip_path)
             with open(_lcfg_path, 'w') as _lf:
                 _lj.dump(_lcfg, _lf, indent=2)
         except Exception:
             pass
+
+    def _load_log_folder(self):
+        """Last folder the user saved a log to, or None if never set."""
+        try:
+            import json as _lj
+            _lcfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                      'Settings', 'pytransmit_setup.json')
+            with open(_lcfg_path, 'r') as _lf:
+                return _lj.load(_lf).get('log_folder')
+        except Exception:
+            return None
 
     def menu_log_click(self, sender, args):
         """☰ Enable Log: ask where to save, turn on, or cancel if already on."""
@@ -2135,13 +2225,15 @@ class RevTableWindow(Window):
 
         try:
             import datetime as _ldt
-            _default = 'pyTransmit_log_{}.zip'.format(
-                _ldt.datetime.now().strftime('%y%m%d_%H%M%S'))
+            _now = _ldt.datetime.now()
+            _filename = 'pyTransmit Log Report {} {}.zip'.format(
+                _now.strftime('%Y-%m-%d'), _now.strftime('%H-%M-%S'))
+            _default_folder = self._load_log_folder() or os.path.expanduser("~\\Desktop")
             from Dialogs import Dialogs as _D
-            _path = _D.file_save('Save Log File', _default, 'zip')
-            if not _path:
+            _folder = _D.save_log(_default_folder, _filename)
+            if not _folder:
                 return
-            self._log_zip_path = _path
+            self._log_zip_path = os.path.join(_folder, _filename)
             self._log_enabled  = True
             self._save_log_setting()
             self._update_log_menu_label()

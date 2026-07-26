@@ -101,6 +101,30 @@ def get_active_profile(start_dir):
     return data.get("active_profile", "dark")
 
 
+def get_color(start_dir, semantic_key, profile=None, fallback="#FFFFFF"):
+    """Return the hex string for a semantic palette key (e.g. 'text_primary')
+    in the active (or given) profile, read straight from the JSON file - no
+    WPF resource dictionary involved at all.
+
+    For anywhere that needs a definite colour value at one point in time
+    rather than a live DynamicResource binding - most notably make_icon(),
+    whose icons are baked-in vector graphics with a fixed Fill colour set at
+    creation time, not something that re-resolves if the palette changes
+    later. Going straight to the JSON sidesteps any question of whether
+    TryFindResource has resolved correctly yet by the time an icon is built,
+    which self._theme_hex()-style helpers (window.TryFindResource(...)) are
+    exposed to.
+    """
+    data = load_palette(start_dir)
+    if not data:
+        return fallback
+    profile = profile or data.get("active_profile", "dark")
+    colors = data.get("profiles", {}).get(profile)
+    if not colors:
+        return fallback
+    return colors.get(semantic_key, fallback)
+
+
 def _hex_to_color(hex_str):
     hex_str = hex_str.lstrip("#")
     r = int(hex_str[0:2], 16)
@@ -185,6 +209,9 @@ DIM_TO_RESOURCE = {
     "button_close.width":                  ("WidthButtonClose",          "double"),
     "button_close.height":                 ("HeightButtonClose",         "double"),
     "button_close.corner_radius":          ("CornerRadiusButtonClose",   "corner"),
+    "button_menu.width":                   ("WidthButtonMenu",           "double"),
+    "button_menu.height":                  ("HeightButtonMenu",          "double"),
+    "button_menu.corner_radius":           ("CornerRadiusButtonMenu",    "corner"),
     "input_textbox.height":                ("HeightInput",               "double"),
     "input_textbox.corner_radius":         ("CornerRadiusInput",         "corner"),
     "input_textbox.border_thickness":      ("BorderThicknessInput",      "thickness_uniform"),
@@ -201,8 +228,6 @@ DIM_TO_RESOURCE = {
     "dropdown_popup.arrow_size":           ("SizeDropdownArrow",         "double"),
     "top_bar.caption_height":              ("HeightTopBar",              "double"),
     "top_bar.corner_radius":               ("CornerRadiusWindow",        "corner"),
-    "top_bar.control_btn_size":            ("SizeTopBarControlBtn",      "double"),
-    "top_bar.control_btn_corner_radius":   ("CornerRadiusTopBarControlBtn", "corner"),
     "top_bar.logo_size":                   ("SizeTopBarLogo",            "double"),
     "toggle.width":                        ("WidthToggle",               "double"),
     "toggle.height":                       ("HeightToggle",              "double"),

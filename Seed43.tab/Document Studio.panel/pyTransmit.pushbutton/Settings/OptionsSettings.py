@@ -1072,10 +1072,7 @@ class OptionsSettingsController(object):
 
     def _show_tab(self, tab_name):
         self.current_tab = tab_name
-        import System.Windows.Media as M
         from System.Windows import Visibility
-        green = M.SolidColorBrush(M.Color.FromRgb(0x20, 0x8A, 0x3C))
-        grey  = M.SolidColorBrush(M.Color.FromRgb(0x40, 0x45, 0x53))
         tabs  = {'reason':    ('opt_reason_grid',    'opt_reason_tab_btn'),
                  'method':    ('opt_method_grid',    'opt_method_tab_btn'),
                  'format':    ('opt_format_grid',    'opt_format_tab_btn'),
@@ -1085,7 +1082,13 @@ class OptionsSettingsController(object):
             btn  = getattr(self, btn_attr,  None)
             active = (name == tab_name)
             if grid: grid.Visibility = Visibility.Visible if active else Visibility.Collapsed
-            if btn:  btn.Background  = green if active else grey
+            if btn:
+                try:
+                    style_key = 'SmallButtonStyle' if active else 'SmallSecondaryButtonStyle'
+                    style = btn.TryFindResource(style_key)
+                    if style:
+                        btn.Style = style
+                except: pass
 
     def switch_to_reason_tab(self,    sender, args): self._show_tab('reason')
     def switch_to_method_tab(self,    sender, args): self._show_tab('method')

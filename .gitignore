@@ -15,3 +15,5 @@ __pycache__/
 # Exclude temp and BreakTime
 Seed43.tab/temp/
 Seed43.tab/Seed43.panel/BreakTime.pushbutton/
+sync-start.bat
+sync-end.bat

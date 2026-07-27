@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
   "show_reason": true, 
   "group_params": [
     "Folder"
@@ -19,4 +20,24 @@
   "show_printsize": false, 
   "page_height_mm": 287, 
   "show_format": false
+=======
+  "recipient_mode": "dist", 
+  "group_params": [], 
+  "out_legend": false, 
+  "page_height_mm": 287, 
+  "show_from": true, 
+  "show_client": true, 
+  "show_projno": true, 
+  "show_printsize": true, 
+  "show_format": true, 
+  "out_pdf": false, 
+  "show_initials": true, 
+  "show_reason": true, 
+  "out_excel": false, 
+  "show_method": true, 
+  "out_schedule": true, 
+  "out_drafting": false, 
+  "show_projname": true, 
+  "page_height_mode": "a4"
+>>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
 }

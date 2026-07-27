@@ -1,10 +1,18 @@
 {
   "per_format": {
+<<<<<<< HEAD
     "PDF": "PySheets Default", 
     "NWC": "PySheets Default", 
     "DWG": "PySheets Default", 
     "DGN": "PySheets Default", 
     "IFC": "PySheets Default", 
+=======
+    "DGN": "PySheets Default", 
+    "PDF": "PySheets Default", 
+    "NWC": "PySheets Default", 
+    "IFC": "PySheets Default", 
+    "DWG": "PySheets Default", 
+>>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
     "IMG": "PySheets Default"
   }
 }

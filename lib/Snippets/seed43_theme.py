@@ -231,8 +231,11 @@ DIM_TO_RESOURCE = {
     "dropdown_popup.arrow_size":           ("SizeDropdownArrow",         "double"),
     "top_bar.caption_height":              ("HeightTopBar",              "double"),
     "top_bar.corner_radius":               ("CornerRadiusWindow",        "corner"),
+<<<<<<< HEAD
     "top_bar.corner_radius_bottom":        ("CornerRadiusTopBarBottom",  "corner"),
     "top_bar.body_margin_top":             ("MarginTopBarBody",          "double"),
+=======
+>>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
     "top_bar.logo_size":                   ("SizeTopBarLogo",            "double"),
     "menu_item.font_size":                 ("FontSizeMenuItem",          "double"),
     "toggle.width":                        ("WidthToggle",               "double"),

@@ -1347,10 +1347,7 @@ class RecipientSettingsController(object):
 
     def _show_tab(self, tab_name):
         self._current_tab = tab_name
-        import System.Windows.Media as M
         from System.Windows import Visibility as V
-        green = M.SolidColorBrush(M.Color.FromRgb(0x20, 0x8A, 0x3C))
-        grey  = M.SolidColorBrush(M.Color.FromRgb(0x40, 0x45, 0x53))
 
         # Switch which grid is visible
         for attr, active in [('recipients_grid', tab_name == 'client'),
@@ -1358,12 +1355,20 @@ class RecipientSettingsController(object):
             el = getattr(self, attr, None)
             if el: el.Visibility = V.Visible if active else V.Collapsed
 
-        # Colour tab buttons
+        # Swap tab button STYLE (not just colour) between active/inactive -
+        # each style owns its own correct hover/pressed behaviour, whereas
+        # setting .Background directly used to fight the style's hardcoded
+        # hover trigger (gotcha #8 - see SmallDangerButtonStyle comment in
+        # pyTransmit.xaml for the same issue elsewhere).
         for btn_attr, active_tab in [('rec_client_tab_btn', 'client'),
                                      ('rec_dist_tab_btn',   'dist')]:
             btn = getattr(self, btn_attr, None)
             if btn:
-                try: btn.Background = green if tab_name == active_tab else grey
+                try:
+                    style_key = 'SmallButtonStyle' if tab_name == active_tab else 'SmallSecondaryButtonStyle'
+                    style = btn.TryFindResource(style_key)
+                    if style:
+                        btn.Style = style
                 except: pass
 
         # Re-label add/delete buttons to context and reset delete enabled state

@@ -148,7 +148,7 @@ class SetupSettingsController(object):
                              if p not in saved[:i]]
                 cb2.ItemsSource = ["(None)"] + available
                 cb2.Margin = _SW2.Thickness(0, 0, 0, 4)
-                try: cb2.Style = h.FindResource("ModernComboBoxStyle")
+                try: cb2.Style = h.FindResource("ComboBoxStyle")
                 except: pass
                 if param_val and param_val in all_params:
                     try: cb2.SelectedItem = param_val

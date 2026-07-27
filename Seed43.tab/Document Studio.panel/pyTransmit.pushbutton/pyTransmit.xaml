@@ -11,6 +11,7 @@
         Background="{DynamicResource BrushWindowBg}"
         TextElement.FontFamily="Segoe UI"
         Height="720"
+        MinWidth="480"
         MinHeight="400"
         MaxHeight="900">
     <shell:WindowChrome.WindowChrome>
@@ -21,90 +22,37 @@
                              UseAeroCaptionButtons="False"/>
     </shell:WindowChrome.WindowChrome>
     <Window.Resources>
-        <!-- All styles below are local to this window, pulled in from the shared
-             Seed43Styles.xaml so pyTransmit no longer depends on it at runtime,
-             matching pySheets' fully self-contained architecture. -->
+        <!-- All Style definitions below are declared locally in this window's
+             own XAML, kept under the exact same x:Key names
+             lib/Snippets/Seed43Styles.xaml uses (PrimaryButtonStyle,
+             ComboBoxStyle, CardStyle, etc) so the two stay in sync by naming
+             convention, not by loading one from the other at runtime - each
+             window is fully self-contained, no merged dictionary dependency.
 
-        <!-- Seed43 token system: real fallback values (current dark profile) so this
-             window still looks right if UI/seed43_palette.json is ever missing.
-             apply_seed43_palette()/apply_seed43_dimensions() overwrite these at
-             runtime - see pyTransmit.py __init__. -->
-        <SolidColorBrush x:Key="BrushPrimaryGreen"        Color="#208A3C"/>
-        <SolidColorBrush x:Key="BrushPrimaryGreenHover"   Color="#32934C"/>
-        <SolidColorBrush x:Key="BrushPrimaryGreenPressed" Color="#5CAA71"/>
-        <SolidColorBrush x:Key="BrushWindowBg"            Color="#3B4553"/>
-        <SolidColorBrush x:Key="BrushCardBg"               Color="#2B3340"/>
-        <SolidColorBrush x:Key="BrushHeaderBg"             Color="#232933"/>
-        <SolidColorBrush x:Key="BrushTextPrimary"          Color="#FFFFFF"/>
-        <SolidColorBrush x:Key="BrushTextInput"            Color="#FFFFFF"/>
-        <SolidColorBrush x:Key="BrushInputBg"              Color="#1D1D20"/>
-        <SolidColorBrush x:Key="BrushInputBgHover"         Color="#2F2F32"/>
-        <SolidColorBrush x:Key="BrushInputBgPressed"       Color="#5A5A5C"/>
-        <SolidColorBrush x:Key="BrushDropdownItemHover"    Color="#3F3F41"/>
-        <SolidColorBrush x:Key="BrushBorderDefault"        Color="#208A3C"/>
-        <SolidColorBrush x:Key="BrushBorderHover"          Color="#32934C"/>
-        <SolidColorBrush x:Key="BrushBorderMuted"          Color="#208A3C"/>
-        <SolidColorBrush x:Key="BrushSecondaryBg"          Color="#48484B"/>
-        <SolidColorBrush x:Key="BrushToggleOffBg"          Color="#5E5C64"/>
-        <SolidColorBrush x:Key="BrushToggleKnob"           Color="#FFFFFF"/>
-        <SolidColorBrush x:Key="BrushDanger"                Color="#E01B24"/>
-        <SolidColorBrush x:Key="BrushDangerHover"          Color="#E22D36"/>
-        <SolidColorBrush x:Key="BrushDangerPressed"        Color="#E8595F"/>
+             The colour/size VALUES those styles reference via DynamicResource
+             (BrushPrimaryGreen, CornerRadiusCard, HeightButtonSmall, etc) are
+             NOT declared here at all - there's exactly one source for those,
+             lib/Snippets/seed43_palette.json, injected at runtime by
+             apply_seed43_palette()/apply_seed43_dimensions() in pyTransmit.py's
+             __init__ (must run after LoadComponent - see that file). If that
+             JSON is ever missing, these DynamicResource lookups simply resolve
+             to nothing rather than falling back to a second, separately-
+             maintained hardcoded copy of the same values. -->
 
         <!-- No canonical token exists yet for these two roles (a minty "notice/info"
              text colour, and its matching left-accent-stripe notice-bar background).
              Kept as local named brushes rather than scattered literals so they're at
              least centralised - worth raising with Fred as candidates to promote into
-             UI/seed43_palette.json if other tools end up wanting the same pattern. -->
+             lib/Snippets/seed43_palette.json if other tools end up wanting the same
+             pattern. Unlike the values removed above, these have no shared-token
+             equivalent to be injected at runtime at all, so they stay declared
+             here directly. -->
         <SolidColorBrush x:Key="LocalBrushNoticeBg"   Color="#1E2730"/>
         <SolidColorBrush x:Key="LocalBrushNoticeText" Color="#7EC8A0"/>
 
-        <!-- Sizing tokens, same fallback-value principle as the brushes above.
-             apply_seed43_dimensions() overwrites these at runtime.
-             top_bar.caption_height (64) is NOT applied here - pyTransmit's real
-             header is 56px, a known drift documented in brush-names.md, and
-             forcing it to 64 would visibly break the header layout. -->
-        <CornerRadius x:Key="CornerRadiusCard">8</CornerRadius>
-        <Thickness    x:Key="PaddingCard">16</Thickness>
-
-        <sys:Double   x:Key="WidthToggle">40</sys:Double>
-        <sys:Double   x:Key="HeightToggle">20</sys:Double>
-        <CornerRadius x:Key="CornerRadiusToggle">10</CornerRadius>
-        <sys:Double   x:Key="SizeToggleKnob">16</sys:Double>
-        <CornerRadius x:Key="CornerRadiusToggleKnob">8</CornerRadius>
-        <sys:Double   x:Key="MarginToggleKnob">2</sys:Double>
-
-        <sys:Double   x:Key="HeightButtonSmall">24</sys:Double>
-        <CornerRadius x:Key="CornerRadiusButtonSmall">4</CornerRadius>
-        <sys:Double   x:Key="FontSizeButtonSmall">11</sys:Double>
-        <Thickness    x:Key="PaddingButtonSmall">12,4,12,4</Thickness>
-
-        <sys:Double   x:Key="HeightInput">28</sys:Double>
-        <CornerRadius x:Key="CornerRadiusInput">6</CornerRadius>
-        <Thickness    x:Key="BorderThicknessInput">1</Thickness>
-        <sys:Double   x:Key="FontSizeInput">12</sys:Double>
-        <Thickness    x:Key="PaddingInput">8,4,8,4</Thickness>
-
-        <sys:Double   x:Key="HeightCombobox">28</sys:Double>
-        <CornerRadius x:Key="CornerRadiusCombobox">14</CornerRadius>
-        <sys:Double   x:Key="FontSizeCombobox">12</sys:Double>
-        <Thickness    x:Key="PaddingCombobox">8,4,8,4</Thickness>
-        <CornerRadius x:Key="CornerRadiusDropdownPopup">14</CornerRadius>
-        <CornerRadius x:Key="CornerRadiusDropdownItem">4</CornerRadius>
-        <Thickness    x:Key="PaddingDropdownItem">8,4,8,4</Thickness>
-
-        <sys:Double   x:Key="WidthButtonClose">30</sys:Double>
-        <sys:Double   x:Key="HeightButtonClose">30</sys:Double>
-        <CornerRadius x:Key="CornerRadiusButtonClose">15</CornerRadius>
-
-        <CornerRadius x:Key="CornerRadiusWindow">10</CornerRadius>
-
-        <sys:Double   x:Key="FontSizeSectionLabel">14</sys:Double>
-        <sys:Double   x:Key="FontSizeFieldLabel">12</sys:Double>
-
-        <Style x:Key="LocalHamburgerToggle" TargetType="ToggleButton">
-            <Setter Property="Width"           Value="36"/>
-            <Setter Property="Height"          Value="36"/>
+        <Style x:Key="IconToggleButtonStyle" TargetType="ToggleButton">
+            <Setter Property="Width"           Value="{DynamicResource WidthButtonMenu}"/>
+            <Setter Property="Height"          Value="{DynamicResource HeightButtonMenu}"/>
             <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="Background"      Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -113,8 +61,8 @@
                     <ControlTemplate TargetType="ToggleButton">
                         <Border x:Name="Bd"
                                 Background="Transparent"
-                                CornerRadius="6"
-                                Width="36" Height="36">
+                                CornerRadius="{DynamicResource CornerRadiusButtonMenu}"
+                                Width="{TemplateBinding Width}" Height="{TemplateBinding Height}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -130,7 +78,7 @@
             </Setter>
         </Style>
 
-        <Style x:Key="LocalCloseBtn" TargetType="Button">
+        <Style x:Key="CloseButtonStyle" TargetType="Button">
             <Setter Property="Width"           Value="{DynamicResource WidthButtonClose}"/>
             <Setter Property="Height"          Value="{DynamicResource HeightButtonClose}"/>
             <Setter Property="Cursor"          Value="Hand"/>
@@ -156,9 +104,11 @@
             </Setter>
         </Style>
 
-        <!-- Pulled in from the shared Seed43Styles.xaml so this window no
-             longer merges it, pySheets' architecture: fully self-contained,
-             no external stylesheet dependency. -->
+        <!-- CardStyle stays local for now: it carries a Margin and
+             DropShadowEffect the canonical Seed43Styles.xaml CardStyle
+             doesn't have yet - removing it here first would silently drop
+             both. Needs the generator fixed to include them before this
+             can safely move to the shared file. -->
         <Style x:Key="CardStyle" TargetType="Border">
                 <Setter Property="Background"    Value="{DynamicResource BrushCardBg}"/>
                 <Setter Property="CornerRadius"  Value="{DynamicResource CornerRadiusCard}"/>
@@ -171,6 +121,14 @@
                 </Setter>
             </Style>
 
+        <!-- SectionLabelStyle / FieldLabelStyle: kept local. Every real
+             usage throughout this file is Style="{StaticResource ...}",
+             which (like BasedOn) requires the target to exist at XAML
+             parse time - removing these and relying on the post-load
+             merge would make the whole window fail to load, not just
+             render unstyled. This applies to every style referenced via
+             StaticResource anywhere in this file, not just these two -
+             see the note in Window.Resources' opening comment. -->
         <Style x:Key="SectionLabelStyle" TargetType="TextBlock">
                 <Setter Property="Foreground"  Value="{DynamicResource BrushPrimaryGreen}"/>
                 <Setter Property="FontWeight"  Value="SemiBold"/>
@@ -186,7 +144,7 @@
                 <Setter Property="Opacity"     Value="0.9"/>
             </Style>
 
-        <Style x:Key="ModernTextBoxStyle" TargetType="TextBox">
+        <Style x:Key="TextBoxStyle" TargetType="TextBox">
                 <Setter Property="Background"               Value="{DynamicResource BrushInputBg}"/>
                 <Setter Property="Foreground"               Value="{DynamicResource BrushTextInput}"/>
                 <Setter Property="BorderBrush"              Value="{DynamicResource BrushBorderDefault}"/>
@@ -224,7 +182,7 @@
                 </Setter>
             </Style>
 
-        <Style x:Key="ModernComboBoxStyle" TargetType="ComboBox">
+        <Style x:Key="ComboBoxStyle" TargetType="ComboBox">
                 <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
                 <Setter Property="Background"      Value="{DynamicResource BrushInputBg}"/>
                 <Setter Property="Foreground"      Value="{DynamicResource BrushTextInput}"/>
@@ -376,8 +334,15 @@
              instance-level Background override, so a plain SmallButtonStyle with
              Background="#C53030" would flash GREEN on hover. Delete buttons use
              this real danger-coloured style instead. -->
-        <Style x:Key="SmallDangerButtonStyle" TargetType="Button" BasedOn="{StaticResource SmallButtonStyle}">
-                <Setter Property="Background" Value="{DynamicResource BrushDanger}"/>
+        <Style x:Key="SmallDangerButtonStyle" TargetType="Button">
+                <Setter Property="Background"      Value="{DynamicResource BrushDanger}"/>
+                <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding"         Value="{DynamicResource PaddingButtonSmall}"/>
+                <Setter Property="FontSize"        Value="{DynamicResource FontSizeButtonSmall}"/>
+                <Setter Property="FontWeight"      Value="SemiBold"/>
+                <Setter Property="Cursor"          Value="Hand"/>
+                <Setter Property="Height"          Value="{DynamicResource HeightButtonSmall}"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
@@ -400,7 +365,42 @@
                 </Setter>
             </Style>
 
-        <Style x:Key="MenuItemButtonStyle" TargetType="Button">
+        <!-- Same gotcha #8 fix as SmallDangerButtonStyle above, for buttons that
+             need a grey/secondary look (e.g. an inactive tab in a tab strip)
+             instead of an instance Background override fighting the hardcoded
+             green hover/pressed triggers. -->
+        <Style x:Key="SmallSecondaryButtonStyle" TargetType="Button">
+                <Setter Property="Background"      Value="{DynamicResource BrushSecondaryBg}"/>
+                <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding"         Value="{DynamicResource PaddingButtonSmall}"/>
+                <Setter Property="FontSize"        Value="{DynamicResource FontSizeButtonSmall}"/>
+                <Setter Property="FontWeight"      Value="SemiBold"/>
+                <Setter Property="Cursor"          Value="Hand"/>
+                <Setter Property="Height"          Value="{DynamicResource HeightButtonSmall}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="ButtonBorder"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="{DynamicResource CornerRadiusButtonSmall}"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource BrushSecondaryHover}"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource BrushSecondaryPressed}"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+        <Style x:Key="MenuItemStyle" TargetType="Button">
                 <Setter Property="Background"                Value="Transparent"/>
                 <Setter Property="Foreground"                Value="{DynamicResource BrushTextPrimary}"/>
                 <Setter Property="BorderThickness"           Value="0"/>
@@ -569,10 +569,15 @@
     </Window.Resources>
 
     <Grid>
-    <DockPanel LastChildFill="True">
+    <Grid x:Name="RootGrid">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
 
         <!-- Header -->
-        <Border DockPanel.Dock="Top" Background="{DynamicResource BrushHeaderBg}" 
+        <Border Grid.Row="0" Background="{DynamicResource BrushHeaderBg}" 
                 Height="56" 
                 VerticalAlignment="Top"
                 CornerRadius="10,10,12,12">
@@ -682,15 +687,14 @@
                             Margin="0,0,12,0"/>
                 <Grid>
                     <ToggleButton x:Name="options_btn" 
-                                  Style="{StaticResource LocalHamburgerToggle}"
-                                  PreviewMouseLeftButtonDown="options_toggle_preview_down"/>
+                                  Style="{StaticResource IconToggleButtonStyle}"
+                                  Click="options_btn_click"/>
                     
                     <Popup x:Name="OptionsPopup"
                            PlacementTarget="{Binding ElementName=options_btn}"
                            Placement="Bottom"
                            AllowsTransparency="True"
-                           StaysOpen="False"
-                           IsOpen="{Binding ElementName=options_btn, Path=IsChecked}">
+                           StaysOpen="True">
                         <Border Background="{DynamicResource BrushCardBg}" 
                                 BorderBrush="{DynamicResource BrushBorderDefault}" 
                                 BorderThickness="1"
@@ -701,17 +705,17 @@
                             </Border.Effect>
                             
                             <StackPanel>
-                                <Button x:Name="setup_menu_btn"             Content="&#x2699;  Setup"             Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_setup_click"/>
-                                <Button x:Name="export_format_menu_btn"     Content="&#x1F4CB;  Export Format"     Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_export_format_click"/>
-                                <Button x:Name="styling_menu_btn"           Content="&#x1F3A8;  Branding &amp; Styling"  Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_styling_click"/>
-                                <Button x:Name="recipient_manager_menu_btn" Content="&#x1F465;  Recipient Manager" Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_recipient_click"/>
-                                <Button x:Name="options_manager_menu_btn"   Content="&#x1F527;  Options Manager"   Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_options_click"/>
-                                <Button x:Name="file_naming_menu_btn"       Content="&#x1F3F7;  File Naming"        Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_file_naming_click"/>
+                                <Button x:Name="setup_menu_btn"             Content="&#x2699;  Setup"             Style="{StaticResource MenuItemStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_setup_click"/>
+                                <Button x:Name="export_format_menu_btn"     Content="&#x1F4CB;  Export Format"     Style="{StaticResource MenuItemStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_export_format_click"/>
+                                <Button x:Name="styling_menu_btn"           Content="&#x1F3A8;  Branding &amp; Styling"  Style="{StaticResource MenuItemStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_styling_click"/>
+                                <Button x:Name="recipient_manager_menu_btn" Content="&#x1F465;  Recipient Manager" Style="{StaticResource MenuItemStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_recipient_click"/>
+                                <Button x:Name="options_manager_menu_btn"   Content="&#x1F527;  Options Manager"   Style="{StaticResource MenuItemStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_options_click"/>
+                                <Button x:Name="file_naming_menu_btn"       Content="&#x1F3F7;  File Naming"        Style="{StaticResource MenuItemStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_file_naming_click"/>
                                 <Rectangle Fill="{DynamicResource BrushBorderMuted}" Height="1" Margin="0,2"/>
-                                <Button x:Name="export_btn" Content="&#x1F4E4;  Export Settings" Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_export_click"/>
-                                <Button x:Name="import_btn" Content="&#x1F4E5;  Import Settings" Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_import_click"/>
+                                <Button x:Name="export_btn" Content="&#x1F4E4;  Export Settings" Style="{StaticResource MenuItemStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_export_click"/>
+                                <Button x:Name="import_btn" Content="&#x1F4E5;  Import Settings" Style="{StaticResource MenuItemStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_import_click"/>
                                 <Rectangle Fill="{DynamicResource BrushBorderMuted}" Height="1" Margin="0,2"/>
-                                <Button x:Name="log_menu_btn" Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_log_click">
+                                <Button x:Name="log_menu_btn" Style="{StaticResource MenuItemStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_log_click">
                                     <Button.Content>
                                         <StackPanel Orientation="Horizontal">
                                             <Border x:Name="log_icon_holder" Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,6,0"/>
@@ -720,10 +724,10 @@
                                     </Button.Content>
                                 </Button>
                                 <Rectangle Fill="{DynamicResource BrushBorderMuted}" Height="1" Margin="0,2"/>
-                                <Button x:Name="help_btn"  Content="&#x2753;  Support"               Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_help_click"/>
-                                <Button x:Name="about_btn" Content="&#x2139;  About pyTransmit" Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_about_click"/>
+                                <Button x:Name="help_btn"  Content="&#x2753;  Support"               Style="{StaticResource MenuItemStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_help_click"/>
+                                <Button x:Name="about_btn" Content="&#x2139;  About pyTransmit" Style="{StaticResource MenuItemStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_about_click"/>
                                 <Rectangle Fill="{DynamicResource BrushBorderMuted}" Height="1" Margin="0,2"/>
-                                <Button x:Name="support_btn" Content="&#x2615;  Support this project and help us grow" Style="{StaticResource MenuItemButtonStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_support_click"/>
+                                <Button x:Name="support_btn" Content="&#x2615;  Support this project and help us grow" Style="{StaticResource MenuItemStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_support_click"/>
                             </StackPanel>
                         </Border>
                     </Popup>
@@ -733,7 +737,7 @@
                 <!-- RIGHT SETUP mode: just a close button -->
                 <Button x:Name="setup_close_btn"
                         
-                        Style="{StaticResource LocalCloseBtn}"
+                        Style="{StaticResource CloseButtonStyle}"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center"
                         Visibility="Collapsed"
@@ -743,7 +747,7 @@
                 <!-- RIGHT STYLING mode: just a close button -->
                 <Button x:Name="styling_close_btn"
                         
-                        Style="{StaticResource LocalCloseBtn}"
+                        Style="{StaticResource CloseButtonStyle}"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center"
                         Visibility="Collapsed"
@@ -753,7 +757,7 @@
                 <!-- RIGHT EXPORT FORMAT mode: just a close button -->
                 <Button x:Name="export_format_close_btn"
                         
-                        Style="{StaticResource LocalCloseBtn}"
+                        Style="{StaticResource CloseButtonStyle}"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center"
                         Visibility="Collapsed"
@@ -775,7 +779,7 @@
                             Click="recipient_export_click"/>
                     <Button x:Name="recipient_close_btn"
                             
-                            Style="{StaticResource LocalCloseBtn}"
+                            Style="{StaticResource CloseButtonStyle}"
                             Click="recipient_back_click"/>
                 </StackPanel>
 
@@ -794,7 +798,7 @@
                             Click="options_export_click"/>
                     <Button x:Name="options_close_btn"
                             
-                            Style="{StaticResource LocalCloseBtn}"
+                            Style="{StaticResource CloseButtonStyle}"
                             Click="options_back_click"/>
                 </StackPanel>
 
@@ -813,7 +817,7 @@
                             Click="export_execute_click"/>
                     <Button x:Name="export_settings_close_btn"
                             
-                            Style="{StaticResource LocalCloseBtn}"
+                            Style="{StaticResource CloseButtonStyle}"
                             Click="export_settings_back_click"/>
                 </StackPanel>
 
@@ -832,7 +836,7 @@
                             Click="import_execute_click"/>
                     <Button x:Name="import_settings_close_btn"
                             
-                            Style="{StaticResource LocalCloseBtn}"
+                            Style="{StaticResource CloseButtonStyle}"
                             Click="import_settings_back_click"/>
                 </StackPanel>
 
@@ -845,14 +849,14 @@
                             shell:WindowChrome.IsHitTestVisibleInChrome="True">
                     <Button x:Name="filenaming_close_btn"
                             
-                            Style="{StaticResource LocalCloseBtn}"
+                            Style="{StaticResource CloseButtonStyle}"
                             Click="filenaming_back_click"/>
                 </StackPanel>
 
                 <!-- Window control: close only, same slot/style as the panel close
                      buttons above, visible only on the main view (see _show_panel) -->
                 <Button x:Name="win_close_btn"
-                        Style="{StaticResource LocalCloseBtn}"
+                        Style="{StaticResource CloseButtonStyle}"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center"
                         Click="win_close_clicked"
@@ -861,9 +865,11 @@
             </Grid>
         </Border>
 
-        <!-- Footer -->
-        <Border DockPanel.Dock="Bottom" Background="{DynamicResource BrushHeaderBg}" Padding="20,10,20,10">
-            <TextBlock Text="Settings are saved automatically when you close this panel."
+        <!-- Footer - one shared note, its text swapped by _show_panel() to
+             match whichever panel is currently showing. -->
+        <Border Grid.Row="2" Background="{DynamicResource BrushHeaderBg}" Padding="20,10,20,10">
+            <TextBlock x:Name="footer_text"
+                       Text="Visit Setup and Export Format (☰ Menu) to configure how pyTransmit works for your projects."
                        Foreground="{DynamicResource BrushTextPrimary}"
                        FontSize="10"
                        Opacity="0.7"
@@ -871,11 +877,15 @@
         </Border>
 
         <!-- Main Content -->
-        <ScrollViewer x:Name="main_content" Margin="24,12,24,24" Style="{StaticResource MacScrollViewer}" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
+        <ScrollViewer x:Name="main_content" Grid.Row="1" Margin="24,12,24,24" Style="{StaticResource MacScrollViewer}" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
             <StackPanel HorizontalAlignment="Stretch">
 
-                <!-- Project Information Card — hidden when all rows are off -->
-                <Border x:Name="project_info_card" Style="{StaticResource CardStyle}">
+                <!-- Project Information Card — hidden when all rows are off.
+                     x:Name moved to this wrapper so SetupSettings.py's existing
+                     vis('project_info_card', ...) call hides label+card together. -->
+                <StackPanel x:Name="project_info_card">
+                    <TextBlock Text="Project Information" Style="{StaticResource SectionLabelStyle}" Margin="0,0,0,8"/>
+                    <Border Style="{StaticResource CardStyle}">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
@@ -886,11 +896,8 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
-                                   Text="Project Information" Style="{StaticResource SectionLabelStyle}"/>
-                        <StackPanel x:Name="from_row" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                        <StackPanel x:Name="from_row" Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
                                     Visibility="Collapsed">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -898,10 +905,10 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="Organisation" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,8,6"/>
-                                <TextBox   Grid.Column="1" x:Name="org_name_tb" Style="{StaticResource ModernTextBoxStyle}" Margin="0,0,0,6"/>
+                                <TextBox   Grid.Column="1" x:Name="org_name_tb" Style="{StaticResource TextBoxStyle}" Margin="0,0,0,6"/>
                             </Grid>
                         </StackPanel>
-                        <StackPanel x:Name="client_row" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+                        <StackPanel x:Name="client_row" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
                                     Visibility="Collapsed">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -909,10 +916,10 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="Client" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,8,6"/>
-                                <TextBox   Grid.Column="1" x:Name="client_name_tb" Style="{StaticResource ModernTextBoxStyle}" Margin="0,0,0,6"/>
+                                <TextBox   Grid.Column="1" x:Name="client_name_tb" Style="{StaticResource TextBoxStyle}" Margin="0,0,0,6"/>
                             </Grid>
                         </StackPanel>
-                        <StackPanel x:Name="projno_row" Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
+                        <StackPanel x:Name="projno_row" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
                                     Visibility="Collapsed">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -920,10 +927,10 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="Project No." Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,8,6"/>
-                                <TextBox   Grid.Column="1" x:Name="proj_number_tb" Style="{StaticResource ModernTextBoxStyle}" Margin="0,0,0,6"/>
+                                <TextBox   Grid.Column="1" x:Name="proj_number_tb" Style="{StaticResource TextBoxStyle}" Margin="0,0,0,6"/>
                             </Grid>
                         </StackPanel>
-                        <StackPanel x:Name="projname_row" Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
+                        <StackPanel x:Name="projname_row" Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
                                     Visibility="Collapsed">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -931,13 +938,15 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="Project" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBox   Grid.Column="1" x:Name="proj_name_tb" Style="{StaticResource ModernTextBoxStyle}"/>
+                                <TextBox   Grid.Column="1" x:Name="proj_name_tb" Style="{StaticResource TextBoxStyle}"/>
                             </Grid>
                         </StackPanel>
                     </Grid>
-                </Border>
+                    </Border>
+                </StackPanel>
 
                 <!-- Revision Selection Card -->
+                <TextBlock Text="Project Settings" Style="{StaticResource SectionLabelStyle}" Margin="0,0,0,8"/>
                 <Border Style="{StaticResource CardStyle}">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -952,18 +961,14 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
-                                   Text="Project Settings" Style="{StaticResource SectionLabelStyle}"/>
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Select Revision"
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Select Revision"
                                    Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,8,6"/>
-                        <ComboBox  Grid.Row="1" Grid.Column="1" x:Name="revision_cb"
-                                   Style="{StaticResource ModernComboBoxStyle}" Margin="0,0,0,6"/>
+                        <ComboBox  Grid.Row="0" Grid.Column="1" x:Name="revision_cb"
+                                   Style="{StaticResource ComboBoxStyle}" Margin="0,0,0,6"/>
 
                         <!-- Rev numbering type selector, shown only when multiple types exist -->
-                        <StackPanel x:Name="rev_type_row" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+                        <StackPanel x:Name="rev_type_row" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
                                     Visibility="Collapsed">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -971,11 +976,11 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="Rev Numbering" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,8,6" TextWrapping="Wrap"/>
-                                <ComboBox  Grid.Column="1" x:Name="rev_type_cb" Style="{StaticResource ModernComboBoxStyle}" Margin="0,0,0,6"/>
+                                <ComboBox  Grid.Column="1" x:Name="rev_type_cb" Style="{StaticResource ComboBoxStyle}" Margin="0,0,0,6"/>
                             </Grid>
                         </StackPanel>
                         <!-- Optional fields shown/hidden by Setup -->
-                        <StackPanel x:Name="initials_row" Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
+                        <StackPanel x:Name="initials_row" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
                                     Visibility="Collapsed">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -983,10 +988,10 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="Issued By" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,8,6"/>
-                                <TextBox   Grid.Column="1" x:Name="initials_tb" Style="{StaticResource ModernTextBoxStyle}" Margin="0,0,0,6"/>
+                                <TextBox   Grid.Column="1" x:Name="initials_tb" Style="{StaticResource TextBoxStyle}" Margin="0,0,0,6"/>
                             </Grid>
                         </StackPanel>
-                        <StackPanel x:Name="reason_row" Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
+                        <StackPanel x:Name="reason_row" Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
                                     Visibility="Collapsed">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -994,10 +999,10 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="Reason for Issue" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,8,6" TextWrapping="Wrap"/>
-                                <ComboBox  Grid.Column="1" x:Name="reason_cb" Style="{StaticResource ModernComboBoxStyle}" Margin="0,0,0,6"/>
+                                <ComboBox  Grid.Column="1" x:Name="reason_cb" Style="{StaticResource ComboBoxStyle}" Margin="0,0,0,6"/>
                             </Grid>
                         </StackPanel>
-                        <StackPanel x:Name="method_row" Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
+                        <StackPanel x:Name="method_row" Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
                                     Visibility="Collapsed">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -1005,10 +1010,10 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="Method of Issue" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,8,6" TextWrapping="Wrap"/>
-                                <ComboBox  Grid.Column="1" x:Name="method_cb" Style="{StaticResource ModernComboBoxStyle}" Margin="0,0,0,6"/>
+                                <ComboBox  Grid.Column="1" x:Name="method_cb" Style="{StaticResource ComboBoxStyle}" Margin="0,0,0,6"/>
                             </Grid>
                         </StackPanel>
-                        <StackPanel x:Name="format_row" Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2"
+                        <StackPanel x:Name="format_row" Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
                                     Visibility="Collapsed">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -1016,10 +1021,10 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="Document Format" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,8,6" TextWrapping="Wrap"/>
-                                <ComboBox  Grid.Column="1" x:Name="format_cb" Style="{StaticResource ModernComboBoxStyle}" Margin="0,0,0,6"/>
+                                <ComboBox  Grid.Column="1" x:Name="format_cb" Style="{StaticResource ComboBoxStyle}" Margin="0,0,0,6"/>
                             </Grid>
                         </StackPanel>
-                        <StackPanel x:Name="printsize_row" Grid.Row="7" Grid.Column="0" Grid.ColumnSpan="2"
+                        <StackPanel x:Name="printsize_row" Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2"
                                     Visibility="Collapsed">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -1027,21 +1032,19 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="Print Size" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <ComboBox  Grid.Column="1" x:Name="printsize_cb" Style="{StaticResource ModernComboBoxStyle}"/>
+                                <ComboBox  Grid.Column="1" x:Name="printsize_cb" Style="{StaticResource ComboBoxStyle}"/>
                             </Grid>
                         </StackPanel>
                     </Grid>
                 </Border>
 
                 <!-- Sheet Grouping Card -->
+                <TextBlock Text="Sheet Parameters" Style="{StaticResource SectionLabelStyle}" Margin="0,0,0,8"/>
                 <Border Style="{StaticResource CardStyle}">
                     <StackPanel>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,8">
-                            <TextBlock Text="Sheet Parameters" Style="{StaticResource SectionLabelStyle}"/>
-                            <TextBlock Text="Grouping Drawing Sheets by Selected Parameters"
-                                       Style="{StaticResource FieldLabelStyle}"
-                                       Margin="8,0,0,0"/>
-                        </StackPanel>
+                        <TextBlock Text="Grouping Drawing Sheets by Selected Parameters"
+                                   Style="{StaticResource FieldLabelStyle}"
+                                   Margin="0,0,0,8"/>
                         <DockPanel LastChildFill="False" Margin="0,0,0,8">
                             <Border x:Name="group_label_toggle" DockPanel.Dock="Left"
                                     Width="{DynamicResource WidthToggle}" Height="{DynamicResource HeightToggle}" CornerRadius="{DynamicResource CornerRadiusToggle}"
@@ -1052,19 +1055,19 @@
                                        Foreground="{DynamicResource BrushTextPrimary}"/>
                         </DockPanel>
                         <StackPanel x:Name="formatting_stack">
-                            <ComboBox x:Name="sheet_param_cb_1" Style="{StaticResource ModernComboBoxStyle}" Margin="0,0,0,4"/>
-                            <ComboBox x:Name="sheet_param_cb_2" Style="{StaticResource ModernComboBoxStyle}" Visibility="Collapsed"/>
-                            <ComboBox x:Name="sheet_param_cb_3" Style="{StaticResource ModernComboBoxStyle}" Visibility="Collapsed"/>
-                            <ComboBox x:Name="sheet_param_cb_4" Style="{StaticResource ModernComboBoxStyle}" Visibility="Collapsed"/>
-                            <ComboBox x:Name="sheet_param_cb_5" Style="{StaticResource ModernComboBoxStyle}" Visibility="Collapsed"/>
+                            <ComboBox x:Name="sheet_param_cb_1" Style="{StaticResource ComboBoxStyle}" Margin="0,0,0,4"/>
+                            <ComboBox x:Name="sheet_param_cb_2" Style="{StaticResource ComboBoxStyle}" Visibility="Collapsed"/>
+                            <ComboBox x:Name="sheet_param_cb_3" Style="{StaticResource ComboBoxStyle}" Visibility="Collapsed"/>
+                            <ComboBox x:Name="sheet_param_cb_4" Style="{StaticResource ComboBoxStyle}" Visibility="Collapsed"/>
+                            <ComboBox x:Name="sheet_param_cb_5" Style="{StaticResource ComboBoxStyle}" Visibility="Collapsed"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>
 
                 <!-- Recipients Card — mode controlled by Setup -->
+                <TextBlock Text="Recipients" Style="{StaticResource SectionLabelStyle}" Margin="0,0,0,8"/>
                 <Border Style="{StaticResource CardStyle}">
                     <StackPanel>
-                        <TextBlock Text="Recipients" Style="{StaticResource SectionLabelStyle}" Margin="0,0,0,10"/>
 
                         <!-- DISTRIBUTION LIST mode: fixed rows from distribution.json -->
                         <StackPanel x:Name="dist_list_section" Visibility="Collapsed">
@@ -1105,6 +1108,7 @@
              SETUP PANEL
         ══════════════════════════════════════════════════════════ -->
         <Grid x:Name="SetupPanel"
+              Grid.Row="1"
               Margin="0,0,0,0"
               Background="{DynamicResource BrushWindowBg}"
               Visibility="Collapsed"
@@ -1115,9 +1119,9 @@
                 <StackPanel Margin="24,12,24,24" HorizontalAlignment="Stretch">
 
                     <!-- Project Settings section -->
+                    <TextBlock Text="Project Settings" Style="{StaticResource SectionLabelStyle}" Margin="0,0,0,8"/>
                     <Border Style="{StaticResource CardStyle}">
                         <StackPanel>
-                            <TextBlock Text="Project Settings" Style="{StaticResource SectionLabelStyle}"/>
                             <TextBlock Text="Choose which fields appear in the main window. These settings control the main window display only and do not affect export."
                                        Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.65"
                                        TextWrapping="Wrap" Margin="0,0,0,12"/>
@@ -1146,9 +1150,9 @@
                     </Border>
 
                     <!-- Recipients section -->
+                    <TextBlock Text="Recipients" Style="{StaticResource SectionLabelStyle}" Margin="0,0,0,8"/>
                     <Border Style="{StaticResource CardStyle}">
                         <StackPanel>
-                            <TextBlock Text="Recipients" Style="{StaticResource SectionLabelStyle}"/>
                             <TextBlock Text="Choose how recipients are selected in the main window."
                                        Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.65"
                                        TextWrapping="Wrap" Margin="0,0,0,12"/>
@@ -1199,6 +1203,7 @@
              EXPORT FORMAT PANEL
         ══════════════════════════════════════════════════════════ -->
         <Grid x:Name="ExportFormatPanel"
+              Grid.Row="1"
               Margin="0,0,0,0"
               Background="{DynamicResource BrushWindowBg}"
               Visibility="Collapsed"
@@ -1209,9 +1214,9 @@
                 <StackPanel HorizontalAlignment="Stretch">
 
                     <!-- Export Format card -->
+                    <TextBlock Text="Transmittal Export Format" Style="{StaticResource SectionLabelStyle}" Margin="0,0,0,8"/>
                     <Border Style="{StaticResource CardStyle}">
                         <StackPanel>
-                            <TextBlock Text="Transmittal Export Format" Style="{StaticResource SectionLabelStyle}"/>
                             <TextBlock Text="Choose which formats are generated when 'Export Revit Data' runs."
                                        Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.65"
                                        TextWrapping="Wrap" Margin="0,0,0,12"/>
@@ -1237,7 +1242,7 @@
                                                      Unchecked="setup_fields_changed"/>
                                         <ComboBox x:Name="layout_schedule_cb"
                                                   Grid.Column="1" Height="24" FontSize="11"
-                                                  Style="{StaticResource ModernComboBoxStyle}"
+                                                  Style="{StaticResource ComboBoxStyle}"
                                                   Margin="8,0,0,0"
                                                   SelectionChanged="layout_assignment_changed"/>
                                     </Grid>
@@ -1264,7 +1269,7 @@
                                                      Unchecked="setup_fields_changed"/>
                                         <ComboBox x:Name="layout_drafting_cb"
                                                   Grid.Column="1" Height="24" FontSize="11"
-                                                  Style="{StaticResource ModernComboBoxStyle}"
+                                                  Style="{StaticResource ComboBoxStyle}"
                                                   Margin="8,0,0,0"
                                                   SelectionChanged="layout_assignment_changed"/>
                                     </Grid>
@@ -1291,7 +1296,7 @@
                                                      Unchecked="setup_fields_changed"/>
                                         <ComboBox x:Name="layout_legend_cb"
                                                   Grid.Column="1" Height="24" FontSize="11"
-                                                  Style="{StaticResource ModernComboBoxStyle}"
+                                                  Style="{StaticResource ComboBoxStyle}"
                                                   Margin="8,0,0,0"
                                                   SelectionChanged="layout_assignment_changed"/>
                                     </Grid>
@@ -1318,7 +1323,7 @@
                                                      Unchecked="setup_fields_changed"/>
                                         <ComboBox x:Name="layout_excel_cb"
                                                   Grid.Column="1" Height="24" FontSize="11"
-                                                  Style="{StaticResource ModernComboBoxStyle}"
+                                                  Style="{StaticResource ComboBoxStyle}"
                                                   Margin="8,0,0,0"
                                                   SelectionChanged="layout_assignment_changed"/>
                                     </Grid>
@@ -1345,7 +1350,7 @@
                                                      Unchecked="setup_fields_changed"/>
                                         <ComboBox x:Name="layout_pdf_cb"
                                                   Grid.Column="1" Height="24" FontSize="11"
-                                                  Style="{StaticResource ModernComboBoxStyle}"
+                                                  Style="{StaticResource ComboBoxStyle}"
                                                   Margin="8,0,0,0"
                                                   SelectionChanged="layout_assignment_changed"/>
                                     </Grid>
@@ -1363,6 +1368,7 @@
              BRANDING & STYLING PANEL
         ══════════════════════════════════════════════════════════ -->
         <Grid x:Name="StylingPanel"
+              Grid.Row="1"
               Margin="0,0,0,0"
               Background="{DynamicResource BrushWindowBg}"
               Visibility="Collapsed"
@@ -1373,9 +1379,9 @@
                 <StackPanel Margin="24,12,24,24" HorizontalAlignment="Stretch">
 
                     <!-- Logo section -->
+                    <TextBlock Text="Logo" Style="{StaticResource SectionLabelStyle}" Margin="0,0,0,8"/>
                     <Border Style="{StaticResource CardStyle}">
                         <StackPanel>
-                            <TextBlock Text="Logo" Style="{StaticResource SectionLabelStyle}"/>
                             <TextBlock Text="Set the network/shared path to your logo file. pyTransmit will automatically copy it to the Settings folder when the location is reachable."
                                        Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.65"
                                        TextWrapping="Wrap" Margin="0,0,0,12"/>
@@ -1400,7 +1406,7 @@
                                 <Button x:Name="logo_source_browse_btn"
                                         Grid.Column="1" Content="Browse&#x2026;"
                                         Style="{StaticResource SmallButtonStyle}"
-                                        Width="72" Height="28"/>
+                                        Width="72" VerticalAlignment="Center"/>
                             </Grid>
                             <TextBlock x:Name="logo_status_lbl"
                                        Text=""
@@ -1412,9 +1418,9 @@
                     </Border>
 
                     <!-- Title Bar Colour -->
+                    <TextBlock Text="Title Bar Colour" Style="{StaticResource SectionLabelStyle}" Margin="0,0,0,8"/>
                     <Border Style="{StaticResource CardStyle}" Margin="0,0,0,0">
                         <StackPanel>
-                            <TextBlock Text="Title Bar Colour" Style="{StaticResource SectionLabelStyle}"/>
                             <TextBlock Text="Background and text colour of the Transmittal Document title row."
                                        Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.65"
                                        TextWrapping="Wrap" Margin="0,0,0,12"/>
@@ -1443,7 +1449,7 @@
                                 <Button x:Name="title_color_reset_btn"
                                         Grid.Column="2" Content="Reset"
                                         Style="{StaticResource SmallButtonStyle}"
-                                        Width="60" Height="28"/>
+                                        Width="60" VerticalAlignment="Center"/>
                             </Grid>
                             <!-- Text Colour -->
                             <TextBlock Text="Text Colour" Foreground="{DynamicResource BrushTextPrimary}" FontSize="10" Opacity="0.55" Margin="0,0,0,4"/>
@@ -1470,15 +1476,15 @@
                                 <Button x:Name="title_fg_color_reset_btn"
                                         Grid.Column="2" Content="Reset"
                                         Style="{StaticResource SmallButtonStyle}"
-                                        Width="60" Height="28"/>
+                                        Width="60" VerticalAlignment="Center"/>
                             </Grid>
                         </StackPanel>
                     </Border>
 
                     <!-- Column Header Colour -->
+                    <TextBlock Text="Column Header Colour" Style="{StaticResource SectionLabelStyle}" Margin="0,0,0,8"/>
                     <Border Style="{StaticResource CardStyle}" Margin="0,12,0,24">
                         <StackPanel>
-                            <TextBlock Text="Column Header Colour" Style="{StaticResource SectionLabelStyle}"/>
                             <TextBlock Text="Background and text colour of column header rows (Sent To, Sheet, Revision etc)."
                                        Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.65"
                                        TextWrapping="Wrap" Margin="0,0,0,12"/>
@@ -1507,7 +1513,7 @@
                                 <Button x:Name="header_color_reset_btn"
                                         Grid.Column="2" Content="Reset"
                                         Style="{StaticResource SmallButtonStyle}"
-                                        Width="60" Height="28"/>
+                                        Width="60" VerticalAlignment="Center"/>
                             </Grid>
                             <!-- Text Colour -->
                             <TextBlock Text="Text Colour" Foreground="{DynamicResource BrushTextPrimary}" FontSize="10" Opacity="0.55" Margin="0,0,0,4"/>
@@ -1534,7 +1540,7 @@
                                 <Button x:Name="header_fg_color_reset_btn"
                                         Grid.Column="2" Content="Reset"
                                         Style="{StaticResource SmallButtonStyle}"
-                                        Width="60" Height="28"/>
+                                        Width="60" VerticalAlignment="Center"/>
                             </Grid>
                         </StackPanel>
                     </Border>
@@ -1549,6 +1555,7 @@
              RECIPIENT PANEL  (two tabs: Client List | Distribution List)
         ══════════════════════════════════════════════════════════ -->
         <Grid x:Name="RecipientPanel"
+              Grid.Row="1"
               Background="{DynamicResource BrushWindowBg}"
               Margin="0,0,0,0"
               Visibility="Collapsed"
@@ -1564,16 +1571,16 @@
 
             <!-- Row 0: Import from CSV / Excel — always visible, same as Options Manager -->
             <StackPanel Grid.Row="0" Margin="24,12,24,0">
+                <TextBlock Text="Import from CSV / Excel" Style="{StaticResource SectionLabelStyle}" Margin="0,0,0,8"/>
                 <Border Style="{StaticResource CardStyle}">
                     <StackPanel>
-                        <TextBlock Text="Import from CSV / Excel" Style="{StaticResource SectionLabelStyle}"/>
                         <TextBlock Text="File Path" Style="{StaticResource FieldLabelStyle}"/>
                         <DockPanel Margin="0,0,0,0">
                             <Button x:Name="rec_browse_file_btn" Content="Browse"
                                     Style="{StaticResource SmallButtonStyle}"
                                     DockPanel.Dock="Right" Margin="8,0,0,0" Width="80"/>
                             <TextBox x:Name="rec_file_path_tb"
-                                     Style="{StaticResource ModernTextBoxStyle}" IsReadOnly="True"/>
+                                     Style="{StaticResource TextBoxStyle}" IsReadOnly="True"/>
                         </DockPanel>
                         <TextBlock Text="Column Mapping" Style="{StaticResource FieldLabelStyle}"/>
                         <TextBlock Text="Map your CSV / Excel columns to the database fields"
@@ -1592,13 +1599,13 @@
                                        VerticalAlignment="Center" Margin="0,0,8,8"/>
                             <ComboBox x:Name="rec_recipient_mapping_cb"
                                       Grid.Row="0" Grid.Column="1"
-                                      Style="{StaticResource ModernComboBoxStyle}" Margin="0,0,0,8"/>
+                                      Style="{StaticResource ComboBoxStyle}" Margin="0,0,0,8"/>
                             <TextBlock Grid.Row="1" Grid.Column="0" Text="Map to Attention To:"
                                        Style="{StaticResource FieldLabelStyle}"
                                        VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <ComboBox x:Name="rec_attention_mapping_cb"
                                       Grid.Row="1" Grid.Column="1"
-                                      Style="{StaticResource ModernComboBoxStyle}"/>
+                                      Style="{StaticResource ComboBoxStyle}"/>
                         </Grid>
                         <Button x:Name="rec_import_btn" Content="Import"
                                 Style="{StaticResource SmallButtonStyle}"
@@ -1609,17 +1616,15 @@
 
             <!-- Row 1: Tab buttons — Client List | Distribution List -->
             <Border Grid.Row="1" Style="{StaticResource CardStyle}" Margin="24,0,24,0">
-                <UniformGrid Rows="1">
+                <StackPanel Orientation="Horizontal">
                     <Button x:Name="rec_client_tab_btn"
                             Content="Client List"
-                            Style="{StaticResource SmallButtonStyle}"
-                            Margin="0,0,0,0"/>
+                            Style="{StaticResource SmallButtonStyle}"/>
                     <Button x:Name="rec_dist_tab_btn"
                             Content="Distribution List"
-                            Style="{StaticResource SmallButtonStyle}"
-                            Background="{DynamicResource BrushSecondaryBg}"
-                            Margin="0,0,0,0"/>
-                </UniformGrid>
+                            Style="{StaticResource SmallSecondaryButtonStyle}"
+                            Margin="8,0,0,0"/>
+                </StackPanel>
             </Border>
 
             <!-- Row 2: Search + Add/Delete -->
@@ -1632,7 +1637,7 @@
                     <StackPanel Grid.Column="0" Margin="0,0,16,0">
                         <TextBlock Text="Search" Style="{StaticResource FieldLabelStyle}"/>
                         <TextBox x:Name="rec_search_tb"
-                                 Style="{StaticResource ModernTextBoxStyle}"
+                                 Style="{StaticResource TextBoxStyle}"
                                  HorizontalAlignment="Stretch"/>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
@@ -1735,6 +1740,7 @@
              OPTIONS PANEL
         ══════════════════════════════════════════════════════════ -->
         <Grid x:Name="OptionsPanel"
+              Grid.Row="1"
               Background="{DynamicResource BrushWindowBg}"
               Margin="0,0,0,0"
               Visibility="Collapsed"
@@ -1750,10 +1756,9 @@
 
             <!-- Import card -->
             <StackPanel Grid.Row="0" Margin="24,12,24,0">
+                <TextBlock Text="Import from CSV / Excel" Style="{StaticResource SectionLabelStyle}" Margin="0,0,0,8"/>
                 <Border Style="{StaticResource CardStyle}">
                     <StackPanel>
-                        <TextBlock Text="Import from CSV / Excel"
-                                   Style="{StaticResource SectionLabelStyle}"/>
                         <TextBlock Text="File Path" Style="{StaticResource FieldLabelStyle}"/>
                         <DockPanel Margin="0,0,0,8">
                             <Button x:Name="opt_browse_file_btn"
@@ -1763,7 +1768,7 @@
                                     Margin="8,0,0,0"
                                     Width="80"/>
                             <TextBox x:Name="opt_file_path_tb"
-                                     Style="{StaticResource ModernTextBoxStyle}"
+                                     Style="{StaticResource TextBoxStyle}"
                                      IsReadOnly="True"/>
                         </DockPanel>
                         <Button x:Name="opt_import_btn"
@@ -1776,26 +1781,23 @@
 
             <!-- Tab buttons -->
             <Border Grid.Row="1" Style="{StaticResource CardStyle}" Margin="24,0,24,0">
-                <UniformGrid Rows="1">
+                <StackPanel Orientation="Horizontal">
                     <Button x:Name="opt_reason_tab_btn"
                             Content="Reason"
-                            Style="{StaticResource SmallButtonStyle}"
-                            Margin="0,0,6,0"/>
+                            Style="{StaticResource SmallButtonStyle}"/>
                     <Button x:Name="opt_method_tab_btn"
                             Content="Method"
-                            Style="{StaticResource SmallButtonStyle}"
-                            Background="{DynamicResource BrushSecondaryBg}"
-                            Margin="0,0,6,0"/>
+                            Style="{StaticResource SmallSecondaryButtonStyle}"
+                            Margin="8,0,0,0"/>
                     <Button x:Name="opt_format_tab_btn"
                             Content="Document"
-                            Style="{StaticResource SmallButtonStyle}"
-                            Background="{DynamicResource BrushSecondaryBg}"
-                            Margin="0,0,6,0"/>
+                            Style="{StaticResource SmallSecondaryButtonStyle}"
+                            Margin="8,0,0,0"/>
                     <Button x:Name="opt_printsize_tab_btn"
                             Content="Print"
-                            Style="{StaticResource SmallButtonStyle}"
-                            Background="{DynamicResource BrushSecondaryBg}"/>
-                </UniformGrid>
+                            Style="{StaticResource SmallSecondaryButtonStyle}"
+                            Margin="8,0,0,0"/>
+                </StackPanel>
             </Border>
 
             <!-- Search & Add/Delete -->
@@ -1808,7 +1810,7 @@
                     <StackPanel Grid.Column="0" Margin="0,0,16,0">
                         <TextBlock Text="Search" Style="{StaticResource FieldLabelStyle}"/>
                         <TextBox x:Name="opt_search_tb"
-                                 Style="{StaticResource ModernTextBoxStyle}"
+                                 Style="{StaticResource TextBoxStyle}"
                                  HorizontalAlignment="Stretch"/>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
@@ -1971,6 +1973,7 @@
              EXPORT SETTINGS PANEL
         ══════════════════════════════════════════════════════════ -->
         <Grid x:Name="ExportSettingsPanel"
+              Grid.Row="1"
               Background="{DynamicResource BrushWindowBg}"
               Margin="0,0,0,0"
               Visibility="Collapsed"
@@ -1981,10 +1984,9 @@
                 <StackPanel Margin="24,12,24,24" HorizontalAlignment="Stretch">
 
                     <!-- Info card -->
+                    <TextBlock Text="Export Settings" Style="{StaticResource SectionLabelStyle}" Margin="0,0,0,8"/>
                     <Border Style="{StaticResource CardStyle}">
                         <StackPanel>
-                            <TextBlock Text="Export Settings"
-                                       Style="{StaticResource SectionLabelStyle}"/>
                             <TextBlock Text="Note: settings will be exported into a folder named  pyTransmit Settings  at the chosen location."
                                        Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.7"
                                        TextWrapping="Wrap" Margin="0,0,0,0"/>
@@ -2011,16 +2013,15 @@
                                         Width="80" Margin="8,0,0,0"
                                         Click="export_browse_click"/>
                                 <TextBox x:Name="export_path_tb"
-                                         Style="{StaticResource ModernTextBoxStyle}"/>
+                                         Style="{StaticResource TextBoxStyle}"/>
                             </DockPanel>
                         </StackPanel>
                     </Border>
 
                     <!-- What to export card -->
+                    <TextBlock Text="Select items to export" Style="{StaticResource SectionLabelStyle}" Margin="0,0,0,8"/>
                     <Border Style="{StaticResource CardStyle}">
                         <StackPanel>
-                            <TextBlock Text="Select items to export"
-                                       Style="{StaticResource SectionLabelStyle}"/>
                             <CheckBox x:Name="export_recipients_cb"
                                       Content="Recipients"
                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,8"/>
@@ -2051,6 +2052,7 @@
              IMPORT SETTINGS PANEL
         ══════════════════════════════════════════════════════════ -->
         <Grid x:Name="ImportSettingsPanel"
+              Grid.Row="1"
               Background="{DynamicResource BrushWindowBg}"
               Margin="0,0,0,0"
               Visibility="Collapsed"
@@ -2061,10 +2063,9 @@
                 <StackPanel Margin="24,12,24,24" HorizontalAlignment="Stretch">
 
                     <!-- Info card -->
+                    <TextBlock Text="Import Settings" Style="{StaticResource SectionLabelStyle}" Margin="0,0,0,8"/>
                     <Border Style="{StaticResource CardStyle}">
                         <StackPanel>
-                            <TextBlock Text="Import Settings"
-                                       Style="{StaticResource SectionLabelStyle}"/>
                             <TextBlock Text="Browse to a  pyTransmit Settings  folder to import settings from."
                                        Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.7"
                                        TextWrapping="Wrap" Margin="0,0,0,0"/>
@@ -2091,16 +2092,15 @@
                                         Width="80" Margin="8,0,0,0"
                                         Click="import_browse_click"/>
                                 <TextBox x:Name="import_path_tb"
-                                         Style="{StaticResource ModernTextBoxStyle}"/>
+                                         Style="{StaticResource TextBoxStyle}"/>
                             </DockPanel>
                         </StackPanel>
                     </Border>
 
                     <!-- What to import card -->
+                    <TextBlock Text="Select items to import" Style="{StaticResource SectionLabelStyle}" Margin="0,0,0,8"/>
                     <Border Style="{StaticResource CardStyle}">
                         <StackPanel>
-                            <TextBlock Text="Select items to import"
-                                       Style="{StaticResource SectionLabelStyle}"/>
                             <CheckBox x:Name="import_recipients_cb"
                                       Content="Recipients"
                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,8"/>
@@ -2115,6 +2115,9 @@
                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,8"/>
                             <CheckBox x:Name="import_printsize_cb"
                                       Content="Print Size"
+                                      Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,8"/>
+                            <CheckBox x:Name="import_layouts_cb"
+                                      Content="Document Layout Templates"
                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="12" Margin="0,0,0,0"/>
                         </StackPanel>
                     </Border>
@@ -2127,6 +2130,7 @@
              FILE NAMING PANEL
         ══════════════════════════════════════════════════════════ -->
         <Grid x:Name="FileNamingPanel"
+              Grid.Row="1"
               Background="{DynamicResource BrushWindowBg}"
               Margin="0,0,0,0"
               Visibility="Collapsed"
@@ -2137,10 +2141,9 @@
                 <StackPanel Margin="24,12,24,24">
 
                     <!-- ── NAMING TEMPLATE ────────────────────────────── -->
+                    <TextBlock Text="Transmittal Naming Template" Style="{StaticResource SectionLabelStyle}" Margin="0,0,0,8"/>
                     <Border Style="{StaticResource CardStyle}">
                         <StackPanel>
-                            <TextBlock Text="Transmittal Naming Template"
-                                       Style="{StaticResource SectionLabelStyle}"/>
                             <TextBlock TextWrapping="Wrap"
                                        Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.7"
                                        Margin="0,0,0,8">
@@ -2149,11 +2152,8 @@
 
                             <!-- Template input -->
                             <TextBox x:Name="filenaming_template_tb"
-                                     Height="32" Padding="8,4"
-                                     Background="{DynamicResource BrushInputBg}" Foreground="{DynamicResource BrushTextInput}"
-                                     BorderBrush="{DynamicResource BrushBorderDefault}" BorderThickness="1"
-                                     FontFamily="Consolas" FontSize="12"
-                                     VerticalContentAlignment="Center"
+                                     Style="{StaticResource TextBoxStyle}"
+                                     FontFamily="Consolas"
                                      AllowDrop="True"
                                      PreviewDrop="filenaming_stop_drag"
                                      PreviewDragOver="filenaming_preview_drag"
@@ -2164,11 +2164,10 @@
                                        Foreground="{DynamicResource BrushTextPrimary}" FontSize="10"
                                        Opacity="0.55" Margin="0,8,0,2"/>
                             <TextBox x:Name="filenaming_preview_tb"
-                                     Height="28" Padding="8,4"
+                                     Style="{StaticResource TextBoxStyle}"
                                      Background="{DynamicResource BrushHeaderBg}" Foreground="{DynamicResource LocalBrushNoticeText}"
-                                     BorderBrush="{DynamicResource BrushBorderMuted}" BorderThickness="1"
-                                     FontFamily="Consolas" FontSize="11"
-                                     VerticalContentAlignment="Center"
+                                     BorderBrush="{DynamicResource BrushBorderMuted}"
+                                     FontFamily="Consolas"
                                      IsReadOnly="True"/>
 
                             <!-- Token chips — populated entirely in code (IronPython 2 safe) -->
@@ -2183,10 +2182,9 @@
                     </Border>
 
                     <!-- ── PROJECT FOLDER LOCATIONS ───────────────────── -->
+                    <TextBlock Text="Project Folder Locations" Style="{StaticResource SectionLabelStyle}" Margin="0,0,0,8"/>
                     <Border Style="{StaticResource CardStyle}">
                         <StackPanel>
-                            <TextBlock Text="Project Folder Locations"
-                                       Style="{StaticResource SectionLabelStyle}"/>
                             <TextBlock TextWrapping="Wrap"
                                        Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.7"
                                        Margin="0,0,0,12">
@@ -2204,16 +2202,14 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBox x:Name="filenaming_projects_root_tb"
                                          Grid.Column="0"
-                                         Height="28" Padding="6,4" Margin="0,0,6,0"
-                                         Background="{DynamicResource BrushInputBg}" Foreground="{DynamicResource BrushTextInput}"
-                                         BorderBrush="{DynamicResource BrushBorderDefault}" BorderThickness="1"
-                                         FontSize="11"
+                                         Style="{StaticResource TextBoxStyle}"
+                                         Margin="0,0,6,0"
                                          ToolTip="Root folder containing range-bucket subfolders e.g. N:\#JOB\"/>
                                 <Button x:Name="filenaming_projects_root_browse_btn"
                                         Grid.Column="1"
                                         Content="Browse..."
                                         Style="{StaticResource SmallButtonStyle}"
-                                        Width="72" Height="28"/>
+                                        Width="72" VerticalAlignment="Center"/>
                             </Grid>
 
                             <!-- Older jobs root -->
@@ -2227,16 +2223,14 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBox x:Name="filenaming_older_root_tb"
                                          Grid.Column="0"
-                                         Height="28" Padding="6,4" Margin="0,0,6,0"
-                                         Background="{DynamicResource BrushInputBg}" Foreground="{DynamicResource BrushTextInput}"
-                                         BorderBrush="{DynamicResource BrushBorderDefault}" BorderThickness="1"
-                                         FontSize="11"
+                                         Style="{StaticResource TextBoxStyle}"
+                                         Margin="0,0,6,0"
                                          ToolTip="Secondary root for archived/older jobs e.g. N:\#JOB\Older Jobs\"/>
                                 <Button x:Name="filenaming_older_root_browse_btn"
                                         Grid.Column="1"
                                         Content="Browse..."
                                         Style="{StaticResource SmallButtonStyle}"
-                                        Width="72" Height="28"/>
+                                        Width="72" VerticalAlignment="Center"/>
                             </Grid>
 
                             <TextBlock TextWrapping="Wrap"
@@ -2257,11 +2251,8 @@
                                 Build the full output folder path using tokens. Drag tokens into the template field to insert.
                             </TextBlock>
                             <TextBox x:Name="filenaming_path_template_tb"
-                                     Height="32" Padding="8,4"
-                                     Background="{DynamicResource BrushInputBg}" Foreground="{DynamicResource BrushTextInput}"
-                                     BorderBrush="{DynamicResource BrushBorderDefault}" BorderThickness="1"
-                                     FontFamily="Consolas" FontSize="11"
-                                     VerticalContentAlignment="Center"
+                                     Style="{StaticResource TextBoxStyle}"
+                                     FontFamily="Consolas"
                                      AllowDrop="True"
                                      PreviewDrop="filenaming_path_stop_drag"
                                      PreviewDragOver="filenaming_path_preview_drag"
@@ -2272,11 +2263,10 @@
                                        Foreground="{DynamicResource BrushTextPrimary}" FontSize="10"
                                        Opacity="0.55" Margin="0,8,0,2"/>
                             <TextBox x:Name="filenaming_path_preview_tb"
-                                     Height="28" Padding="8,4"
+                                     Style="{StaticResource TextBoxStyle}"
                                      Background="{DynamicResource BrushHeaderBg}" Foreground="{DynamicResource LocalBrushNoticeText}"
-                                     BorderBrush="{DynamicResource BrushBorderMuted}" BorderThickness="1"
-                                     FontFamily="Consolas" FontSize="11"
-                                     VerticalContentAlignment="Center"
+                                     BorderBrush="{DynamicResource BrushBorderMuted}"
+                                     FontFamily="Consolas"
                                      IsReadOnly="True"/>
 
                             <!-- Path token chips — populated in code -->
@@ -2297,13 +2287,14 @@
 
         <!-- AboutModal shell kept for legacy close_about_click handler — content served via browser -->
         <Border x:Name="AboutModal"
+                Grid.Row="1"
                 Visibility="Collapsed"
                 Panel.ZIndex="1000">
             <Button x:Name="close_about_btn"
                     Visibility="Collapsed"
                     Click="close_about_click"/>
         </Border>
-    </DockPanel>
+    </Grid>
 
         <!-- Decorative resize-grip dots, bottom-right corner. Purely visual;
              actual resizing is handled by WindowChrome's ResizeBorderThickness. -->

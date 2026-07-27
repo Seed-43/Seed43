@@ -758,7 +758,7 @@ class ToolManager(object):
 
         label                   = TextBlock()
         label.Text              = name
-        label.Style             = self.window.FindResource("ToolText")
+        label.Style             = self.window.FindResource("FieldLabelStyle")
         label.VerticalAlignment = VerticalAlignment.Center
 
         switch              = Border()
@@ -1186,7 +1186,7 @@ class Seed43Dialog(object):
 
                 # ── Sync root files (startup.py, extension.json, etc.) ────────
                 ROOT_SKIP = {
-                    "Seed43.tab", "lib", "UI",
+                    "Seed43.tab", "lib",
                     ".git", ".gitignore", "README.md", "LICENSE",
                     "install.bat", "sync-start.bat", "sync-end.bat",
                 }

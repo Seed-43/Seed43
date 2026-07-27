@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """Seed43 shared colour palette loader/applier.
 
-Reads UI/seed43_palette.json (found by walking up from the calling
-script's own folder) and injects WPF SolidColorBrush resources into a
-window's Resources dictionary AFTER wpf.LoadComponent / forms.WPFWindow
-has already parsed the XAML.
+Reads seed43_palette.json from the same folder as this module (Snippets/),
+same convention as _icons.py's own _icons.json, and injects WPF
+SolidColorBrush resources into a window's Resources dictionary AFTER
+wpf.LoadComponent / forms.WPFWindow has already parsed the XAML.
 
 IMPORTANT - call order:
     Every window in this extension is fully self-contained (its own XAML
@@ -61,27 +61,30 @@ KEY_TO_BRUSH = {
     "danger":                   "BrushDanger",
     "danger_hover":             "BrushDangerHover",
     "danger_pressed":           "BrushDangerPressed",
+    "pill_off_bg":              "BrushPillOffBg",
+    "pill_off_border":          "BrushPillOffBorder",
 }
 
 _PALETTE_FILENAME = "seed43_palette.json"
-_MAX_WALK_UP = 6
 
 
-def _find_palette_path(start_dir):
-    """Walk up from start_dir looking for a UI/seed43_palette.json."""
-    folder = start_dir
-    for _ in range(_MAX_WALK_UP):
-        candidate = os.path.join(folder, "UI", _PALETTE_FILENAME)
-        if os.path.isfile(candidate):
-            return candidate
-        parent = os.path.dirname(folder)
-        if parent == folder:
-            break
-        folder = parent
-    return None
+def _find_palette_path(start_dir=None):
+    """seed43_palette.json now lives alongside this module in lib/Snippets/,
+    same convention _icons.py already uses for _icons.json - found directly
+    via this module's own file location, not by walking up from an
+    arbitrary caller's script directory looking for a separate UI/ folder
+    at the extension root (that folder no longer exists).
+
+    start_dir is accepted-but-unused: every existing call site across the
+    extension passes it, so the parameter stays for backward compatibility,
+    it just no longer does anything.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidate = os.path.join(here, _PALETTE_FILENAME)
+    return candidate if os.path.isfile(candidate) else None
 
 
-def load_palette(start_dir):
+def load_palette(start_dir=None):
     """Return the full parsed palette dict, or None if not found/unreadable."""
     path = _find_palette_path(start_dir)
     if not path:
@@ -99,6 +102,30 @@ def get_active_profile(start_dir):
     if not data:
         return "dark"
     return data.get("active_profile", "dark")
+
+
+def get_color(start_dir, semantic_key, profile=None, fallback="#FFFFFF"):
+    """Return the hex string for a semantic palette key (e.g. 'text_primary')
+    in the active (or given) profile, read straight from the JSON file - no
+    WPF resource dictionary involved at all.
+
+    For anywhere that needs a definite colour value at one point in time
+    rather than a live DynamicResource binding - most notably make_icon(),
+    whose icons are baked-in vector graphics with a fixed Fill colour set at
+    creation time, not something that re-resolves if the palette changes
+    later. Going straight to the JSON sidesteps any question of whether
+    TryFindResource has resolved correctly yet by the time an icon is built,
+    which self._theme_hex()-style helpers (window.TryFindResource(...)) are
+    exposed to.
+    """
+    data = load_palette(start_dir)
+    if not data:
+        return fallback
+    profile = profile or data.get("active_profile", "dark")
+    colors = data.get("profiles", {}).get(profile)
+    if not colors:
+        return fallback
+    return colors.get(semantic_key, fallback)
 
 
 def _hex_to_color(hex_str):
@@ -185,6 +212,9 @@ DIM_TO_RESOURCE = {
     "button_close.width":                  ("WidthButtonClose",          "double"),
     "button_close.height":                 ("HeightButtonClose",         "double"),
     "button_close.corner_radius":          ("CornerRadiusButtonClose",   "corner"),
+    "button_menu.width":                   ("WidthButtonMenu",           "double"),
+    "button_menu.height":                  ("HeightButtonMenu",          "double"),
+    "button_menu.corner_radius":           ("CornerRadiusButtonMenu",    "corner"),
     "input_textbox.height":                ("HeightInput",               "double"),
     "input_textbox.corner_radius":         ("CornerRadiusInput",         "corner"),
     "input_textbox.border_thickness":      ("BorderThicknessInput",      "thickness_uniform"),
@@ -201,9 +231,10 @@ DIM_TO_RESOURCE = {
     "dropdown_popup.arrow_size":           ("SizeDropdownArrow",         "double"),
     "top_bar.caption_height":              ("HeightTopBar",              "double"),
     "top_bar.corner_radius":               ("CornerRadiusWindow",        "corner"),
-    "top_bar.control_btn_size":            ("SizeTopBarControlBtn",      "double"),
-    "top_bar.control_btn_corner_radius":   ("CornerRadiusTopBarControlBtn", "corner"),
+    "top_bar.corner_radius_bottom":        ("CornerRadiusTopBarBottom",  "corner"),
+    "top_bar.body_margin_top":             ("MarginTopBarBody",          "double"),
     "top_bar.logo_size":                   ("SizeTopBarLogo",            "double"),
+    "menu_item.font_size":                 ("FontSizeMenuItem",          "double"),
     "toggle.width":                        ("WidthToggle",               "double"),
     "toggle.height":                       ("HeightToggle",              "double"),
     "toggle.corner_radius":                ("CornerRadiusToggle",        "corner"),
@@ -265,6 +296,7 @@ def apply_seed43_dimensions(window, start_dir):
         "input_textbox":    "PaddingInput",
         "input_combobox":   "PaddingCombobox",
         "dropdown_popup":   "PaddingDropdownItem",  # uses item_padding_x/y below
+        "menu_item":        "PaddingMenuItem",
     }
     for group_name, res_key in padding_pairs.items():
         group = dimensions.get(group_name)

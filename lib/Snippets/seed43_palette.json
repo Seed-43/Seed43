@@ -1,0 +1,165 @@
+{
+  "active_profile": "dark",
+  "dimensions": {
+    "button_primary": {
+      "padding_x": 15,
+      "padding_y": 7,
+      "corner_radius": 10,
+      "font_size": 12
+    },
+    "button_small": {
+      "height": 24,
+      "padding_x": 12,
+      "padding_y": 4,
+      "corner_radius": 4,
+      "font_size": 11
+    },
+    "button_secondary": {
+      "padding_x": 15,
+      "padding_y": 7,
+      "corner_radius": 10,
+      "font_size": 12
+    },
+    "button_close": {
+      "width": 30,
+      "height": 30,
+      "corner_radius": 15
+    },
+    "button_menu": {
+      "width": 36,
+      "height": 36,
+      "corner_radius": 6
+    },
+    "input_textbox": {
+      "height": 28,
+      "padding_x": 8,
+      "padding_y": 4,
+      "corner_radius": 6,
+      "border_thickness": 1,
+      "font_size": 12
+    },
+    "input_combobox": {
+      "height": 28,
+      "padding_x": 8,
+      "padding_y": 4,
+      "corner_radius": 6,
+      "border_thickness": 1,
+      "font_size": 12
+    },
+    "dropdown_filter_combo": {
+      "width": 20,
+      "height": 20,
+      "corner_radius": 4
+    },
+    "dropdown_popup": {
+      "corner_radius": 6,
+      "min_width": 160,
+      "item_padding_x": 8,
+      "item_padding_y": 4,
+      "item_corner_radius": 4,
+      "arrow_size": 10
+    },
+    "menu_item": {
+      "padding_x": 12,
+      "padding_y": 8,
+      "font_size": 12
+    },
+    "top_bar": {
+      "caption_height": 64,
+      "corner_radius": 10,
+      "corner_radius_bottom": 12,
+      "body_margin_top": 12,
+      "logo_size": 28
+    },
+    "toggle": {
+      "width": 40,
+      "height": 20,
+      "corner_radius": 10,
+      "knob_size": 16,
+      "knob_corner_radius": 8,
+      "knob_margin": 2
+    },
+    "card": {
+      "corner_radius": 8,
+      "padding": 16,
+      "margin_bottom": 12
+    },
+    "icon": {
+      "grid_size": 24,
+      "default_size": 16
+    },
+    "text": {
+      "section_label": 14,
+      "field_label": 12,
+      "heading": 13,
+      "small_button": 11,
+      "body": 12
+    }
+  },
+  "profiles": {
+    "dark": {
+      "accent": "#208A3C",
+      "accent_hover": "#32934C",
+      "accent_pressed": "#5CAA71",
+      "window_bg": "#3B4553",
+      "card_bg": "#2B3340",
+      "header_bg": "#232933",
+      "text_primary": "#FFFFFF",
+      "text_input": "#FFFFFF",
+      "input_bg": "#1d1d20",
+      "input_bg_hover": "#2F2F32",
+      "input_bg_pressed": "#5A5A5C",
+      "border_default": "#208A3C",
+      "border_hover": "#32934C",
+      "border_pressed": "#5CAA71",
+      "secondary_bg": "#48484b",
+      "secondary_hover": "#515155",
+      "secondary_pressed": "#67676c",
+      "secondary_disabled_bg": "#2e2e32",
+      "secondary_disabled_fg": "#77767b",
+      "dropdown_item_hover": "#3f3f41",
+      "border_muted": "#208A3C",
+      "toggle_off_bg": "#5e5c64",
+      "toggle_off_hover": "#6B6970",
+      "toggle_off_pressed": "#89888E",
+      "toggle_knob": "#FFFFFF",
+      "danger": "#e01b24",
+      "danger_hover": "#E22D36",
+      "danger_pressed": "#E8595F",
+      "pill_off_bg": "#2B3340",
+      "pill_off_border": "#404553"
+    },
+    "light": {
+      "accent": "#208A3C",
+      "accent_hover": "#32934C",
+      "accent_pressed": "#5CAA71",
+      "window_bg": "#ebebed",
+      "card_bg": "#ffffff",
+      "header_bg": "#ffffff",
+      "text_primary": "#1a1a1e",
+      "text_input": "#1a1a1e",
+      "input_bg": "#EBEBED",
+      "input_bg_hover": "#F2F1F0",
+      "input_bg_pressed": "#FFFFFF",
+      "border_default": "#208A3C",
+      "border_hover": "#32934C",
+      "border_pressed": "#5CAA71",
+      "secondary_bg": "#deddda",
+      "secondary_hover": "#c0bfbc",
+      "secondary_pressed": "#9a9996",
+      "secondary_disabled_bg": "#c0bfbc",
+      "secondary_disabled_fg": "#77767b",
+      "dropdown_item_hover": "#f6f5f4",
+      "border_muted": "#208A3C",
+      "toggle_off_bg": "#c0bfbc",
+      "toggle_off_hover": "#C5C4C1",
+      "toggle_off_pressed": "#D1D0CE",
+      "toggle_knob": "#FFFFFF",
+      "danger": "#e01b24",
+      "danger_hover": "#E22D36",
+      "danger_pressed": "#E8595F",
+      "pill_off_bg": "#ffffff",
+      "pill_off_border": "#deddda"
+    }
+  }
+}

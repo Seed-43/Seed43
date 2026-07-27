@@ -25,26 +25,21 @@
 
 <Window.Resources>
 
-    <sys:Double   x:Key="HeightTopBar">64</sys:Double>
-    <CornerRadius x:Key="CornerRadiusWindow">10</CornerRadius>
-    <sys:Double   x:Key="SizeTopBarLogo">28</sys:Double>
-    <sys:Double   x:Key="WidthButtonClose">30</sys:Double>
-    <sys:Double   x:Key="HeightButtonClose">30</sys:Double>
-    <CornerRadius x:Key="CornerRadiusButtonClose">15</CornerRadius>
-    <CornerRadius x:Key="CornerRadiusCard">8</CornerRadius>
-    <Thickness    x:Key="PaddingCard">16</Thickness>
-    <Thickness    x:Key="PaddingButtonSecondary">16,8,16,8</Thickness>
-    <sys:Double   x:Key="FontSizeButtonSecondary">12</sys:Double>
-    <CornerRadius x:Key="CornerRadiusButtonSecondary">6</CornerRadius>
-    <sys:Double   x:Key="WidthToggle">40</sys:Double>
-    <sys:Double   x:Key="HeightToggle">20</sys:Double>
-    <CornerRadius x:Key="CornerRadiusToggle">10</CornerRadius>
-    <sys:Double   x:Key="SizeToggleKnob">16</sys:Double>
-    <CornerRadius x:Key="CornerRadiusToggleKnob">8</CornerRadius>
-    <sys:Double   x:Key="MarginToggleKnob">2</sys:Double>
+    <!-- All Style definitions below are declared locally in this window's
+         own XAML, kept under the exact same x:Key names
+         lib/Snippets/Seed43Styles.xaml uses (CloseButtonStyle, CardStyle,
+         SecondaryButtonStyle, etc) so the two stay in sync by naming
+         convention, not by loading one from the other at runtime - each
+         window is fully self-contained, no merged dictionary dependency.
 
-    <SolidColorBrush x:Key="BrushCloseHover"   Color="#FF5555"/>
-    <SolidColorBrush x:Key="BrushClosePressed" Color="#CC4444"/>
+         The colour/size VALUES those styles reference via DynamicResource
+         are NOT declared here at all - there's exactly one source for
+         those, lib/Snippets/seed43_palette.json, injected at runtime by
+         apply_seed43_palette()/apply_seed43_dimensions() in about.py's
+         __init__ (must run after LoadComponent - see that file). If that
+         JSON is ever missing, these DynamicResource lookups simply resolve
+         to nothing rather than falling back to a second, separately-
+         maintained hardcoded copy of the same values. -->
 
     <Style x:Key="CloseButtonStyle" TargetType="Button">
         <Setter Property="Background"      Value="Transparent"/>
@@ -64,10 +59,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="MainBorder" Property="Background" Value="{DynamicResource BrushCloseHover}"/>
-                        </Trigger>
-                        <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="MainBorder" Property="Background" Value="{DynamicResource BrushClosePressed}"/>
+                            <Setter TargetName="MainBorder" Property="Background" Value="{DynamicResource BrushDanger}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -87,14 +79,9 @@
         </Setter>
     </Style>
 
-    <Style x:Key="Card" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource BrushCardBg}"/>
-        <Setter Property="CornerRadius"    Value="{DynamicResource CornerRadiusCard}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource BrushBorderDefault}"/>
-        <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Margin"          Value="0,0,0,8"/>
-        <Setter Property="Padding"         Value="4"/>
-    </Style>
+    <!-- Card (dead code, removed) - a second, unused card style used to sit
+         here, confirmed zero references anywhere in this file or in
+         about.py's TryFindResource/FindResource calls. -->
 
     <!-- Round colour swatch button - Click handled in code-behind, ring drawn
          around whichever one is currently selected. -->
@@ -124,20 +111,19 @@
         </Setter>
     </Style>
 
-    <Style x:Key="Title" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="{DynamicResource BrushPrimaryGreen}"/>
-        <Setter Property="FontSize"          Value="13"/>
-        <Setter Property="FontWeight"        Value="SemiBold"/>
-        <Setter Property="VerticalAlignment" Value="Center"/>
+    <!-- Title (dead code, removed) - confirmed zero references anywhere in
+         this file or in about.py; the only "Title" match left in this file
+         is the unrelated Window.Title="Seed43" property. -->
+
+    <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+        <Setter Property="Foreground"  Value="{DynamicResource BrushTextPrimary}"/>
+        <Setter Property="FontWeight"  Value="Medium"/>
+        <Setter Property="FontSize"    Value="12"/>
+        <Setter Property="Margin"      Value="0,0,0,4"/>
+        <Setter Property="Opacity"     Value="0.9"/>
     </Style>
 
-    <Style x:Key="ToolText" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
-        <Setter Property="FontSize"   Value="12"/>
-        <Setter Property="Opacity"    Value="0.9"/>
-    </Style>
-
-    <Style x:Key="SecondaryBtn" TargetType="Button">
+    <Style x:Key="SecondaryButtonStyle" TargetType="Button">
         <Setter Property="Background" Value="{DynamicResource BrushSecondaryBg}"/>
         <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
         <Setter Property="FontSize"        Value="{DynamicResource FontSizeButtonSecondary}"/>
@@ -412,7 +398,7 @@
                                TextWrapping="Wrap" Margin="0,0,0,16"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button x:Name="confirm_cancel_btn" Content="Cancel"
-                                Style="{StaticResource SecondaryBtn}"
+                                Style="{StaticResource SecondaryButtonStyle}"
                                 Padding="12,4" Height="24" FontSize="11"
                                 Margin="0,0,8,0"/>
                         <Button x:Name="confirm_yes_btn" Content="Yes, Update"

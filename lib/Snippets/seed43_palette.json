@@ -42,7 +42,7 @@
       "height": 28,
       "padding_x": 8,
       "padding_y": 4,
-      "corner_radius": 6,
+      "corner_radius": 14,
       "border_thickness": 1,
       "font_size": 12
     },
@@ -52,7 +52,7 @@
       "corner_radius": 4
     },
     "dropdown_popup": {
-      "corner_radius": 6,
+      "corner_radius": 14,
       "min_width": 160,
       "item_padding_x": 8,
       "item_padding_y": 4,

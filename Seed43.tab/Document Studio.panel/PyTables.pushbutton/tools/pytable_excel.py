@@ -2043,7 +2043,7 @@ class ExcelCardMixin(object):
         del_card_btn.FontSize        = 11
         del_card_btn.Foreground      = hb('#F4FAFF')
         try:
-            del_card_btn.Style = self.FindResource('LocalCloseBtn')
+            del_card_btn.Style = self.FindResource('CloseButtonStyle')
         except Exception:
             del_card_btn.Background      = hb('#2B3340')
             del_card_btn.BorderThickness = Thickness(0)

@@ -788,7 +788,7 @@ class WordCardMixin(object):
         del_card_btn.FontSize        = 11
         del_card_btn.Foreground      = hb('#F4FAFF')
         try:
-            del_card_btn.Style = self.FindResource('LocalCloseBtn')
+            del_card_btn.Style = self.FindResource('CloseButtonStyle')
         except Exception:
             del_card_btn.Background      = hb('#2B3340')
             del_card_btn.BorderThickness = Thickness(0)
@@ -1066,7 +1066,7 @@ class WordCardMixin(object):
         view_close_btn.FontSize        = 11
         view_close_btn.Foreground      = hb('#F4FAFF')
         try:
-            view_close_btn.Style = self.FindResource('LocalCloseBtn')
+            view_close_btn.Style = self.FindResource('CloseButtonStyle')
         except Exception:
             view_close_btn.Background      = hb('#2B3340')
             view_close_btn.BorderThickness = Thickness(0)
@@ -1391,7 +1391,7 @@ class WordCardMixin(object):
         db.Foreground       = hb('#F4FAFF')
         db.Background       = hb('#2B3340')
         try:
-            db.Style = self.FindResource('LocalCloseBtn')
+            db.Style = self.FindResource('CloseButtonStyle')
         except Exception:
             db.BorderThickness = Thickness(0)
         db.FocusVisualStyle = None

@@ -29,7 +29,6 @@
              convention, not by loading one from the other at runtime - each
              window is fully self-contained, no merged dictionary dependency.
 
-<<<<<<< HEAD
              The colour/size VALUES those styles reference via DynamicResource
              (BrushPrimaryGreen, CornerRadiusCard, HeightButtonSmall, etc) are
              NOT declared here at all - there's exactly one source for those,
@@ -39,35 +38,6 @@
              JSON is ever missing, these DynamicResource lookups simply resolve
              to nothing rather than falling back to a second, separately-
              maintained hardcoded copy of the same values. -->
-=======
-        <!-- Seed43 token system: real fallback values (current dark profile) so this
-             window still looks right if UI/seed43_palette.json is ever missing.
-             apply_seed43_palette()/apply_seed43_dimensions() overwrite these at
-             runtime - see pyTransmit.py __init__. -->
-        <SolidColorBrush x:Key="BrushPrimaryGreen"        Color="#208A3C"/>
-        <SolidColorBrush x:Key="BrushPrimaryGreenHover"   Color="#32934C"/>
-        <SolidColorBrush x:Key="BrushPrimaryGreenPressed" Color="#5CAA71"/>
-        <SolidColorBrush x:Key="BrushWindowBg"            Color="#3B4553"/>
-        <SolidColorBrush x:Key="BrushCardBg"               Color="#2B3340"/>
-        <SolidColorBrush x:Key="BrushHeaderBg"             Color="#232933"/>
-        <SolidColorBrush x:Key="BrushTextPrimary"          Color="#FFFFFF"/>
-        <SolidColorBrush x:Key="BrushTextInput"            Color="#FFFFFF"/>
-        <SolidColorBrush x:Key="BrushInputBg"              Color="#1D1D20"/>
-        <SolidColorBrush x:Key="BrushInputBgHover"         Color="#2F2F32"/>
-        <SolidColorBrush x:Key="BrushInputBgPressed"       Color="#5A5A5C"/>
-        <SolidColorBrush x:Key="BrushDropdownItemHover"    Color="#3F3F41"/>
-        <SolidColorBrush x:Key="BrushBorderDefault"        Color="#208A3C"/>
-        <SolidColorBrush x:Key="BrushBorderHover"          Color="#32934C"/>
-        <SolidColorBrush x:Key="BrushBorderMuted"          Color="#208A3C"/>
-        <SolidColorBrush x:Key="BrushSecondaryBg"          Color="#48484B"/>
-        <SolidColorBrush x:Key="BrushSecondaryHover"       Color="#515155"/>
-        <SolidColorBrush x:Key="BrushSecondaryPressed"     Color="#67676C"/>
-        <SolidColorBrush x:Key="BrushToggleOffBg"          Color="#5E5C64"/>
-        <SolidColorBrush x:Key="BrushToggleKnob"           Color="#FFFFFF"/>
-        <SolidColorBrush x:Key="BrushDanger"                Color="#E01B24"/>
-        <SolidColorBrush x:Key="BrushDangerHover"          Color="#E22D36"/>
-        <SolidColorBrush x:Key="BrushDangerPressed"        Color="#E8595F"/>
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
 
         <!-- No canonical token exists yet for these two roles (a minty "notice/info"
              text colour, and its matching left-accent-stripe notice-bar background).
@@ -80,60 +50,7 @@
         <SolidColorBrush x:Key="LocalBrushNoticeBg"   Color="#1E2730"/>
         <SolidColorBrush x:Key="LocalBrushNoticeText" Color="#7EC8A0"/>
 
-<<<<<<< HEAD
         <Style x:Key="IconToggleButtonStyle" TargetType="ToggleButton">
-=======
-        <!-- Sizing tokens, same fallback-value principle as the brushes above.
-             apply_seed43_dimensions() overwrites these at runtime.
-             top_bar.caption_height (64) is NOT applied here - pyTransmit's real
-             header is 56px, a known drift documented in brush-names.md, and
-             forcing it to 64 would visibly break the header layout. -->
-        <CornerRadius x:Key="CornerRadiusCard">8</CornerRadius>
-        <Thickness    x:Key="PaddingCard">16</Thickness>
-
-        <sys:Double   x:Key="WidthToggle">40</sys:Double>
-        <sys:Double   x:Key="HeightToggle">20</sys:Double>
-        <CornerRadius x:Key="CornerRadiusToggle">10</CornerRadius>
-        <sys:Double   x:Key="SizeToggleKnob">16</sys:Double>
-        <CornerRadius x:Key="CornerRadiusToggleKnob">8</CornerRadius>
-        <sys:Double   x:Key="MarginToggleKnob">2</sys:Double>
-
-        <sys:Double   x:Key="HeightButtonSmall">24</sys:Double>
-        <CornerRadius x:Key="CornerRadiusButtonSmall">4</CornerRadius>
-        <sys:Double   x:Key="FontSizeButtonSmall">11</sys:Double>
-        <Thickness    x:Key="PaddingButtonSmall">12,4,12,4</Thickness>
-
-        <sys:Double   x:Key="HeightInput">28</sys:Double>
-        <CornerRadius x:Key="CornerRadiusInput">6</CornerRadius>
-        <Thickness    x:Key="BorderThicknessInput">1</Thickness>
-        <sys:Double   x:Key="FontSizeInput">12</sys:Double>
-        <Thickness    x:Key="PaddingInput">8,4,8,4</Thickness>
-
-        <sys:Double   x:Key="HeightCombobox">28</sys:Double>
-        <CornerRadius x:Key="CornerRadiusCombobox">14</CornerRadius>
-        <sys:Double   x:Key="FontSizeCombobox">12</sys:Double>
-        <Thickness    x:Key="PaddingCombobox">8,4,8,4</Thickness>
-        <CornerRadius x:Key="CornerRadiusDropdownPopup">14</CornerRadius>
-        <CornerRadius x:Key="CornerRadiusDropdownItem">4</CornerRadius>
-        <Thickness    x:Key="PaddingDropdownItem">8,4,8,4</Thickness>
-
-        <sys:Double   x:Key="WidthButtonClose">30</sys:Double>
-        <sys:Double   x:Key="HeightButtonClose">30</sys:Double>
-        <CornerRadius x:Key="CornerRadiusButtonClose">15</CornerRadius>
-
-        <!-- button_menu: square-ish (lightly rounded), distinct from button_close's
-             fully-round shape - used for the hamburger/options toggle, not a close button. -->
-        <sys:Double   x:Key="WidthButtonMenu">36</sys:Double>
-        <sys:Double   x:Key="HeightButtonMenu">36</sys:Double>
-        <CornerRadius x:Key="CornerRadiusButtonMenu">6</CornerRadius>
-
-        <CornerRadius x:Key="CornerRadiusWindow">10</CornerRadius>
-
-        <sys:Double   x:Key="FontSizeSectionLabel">14</sys:Double>
-        <sys:Double   x:Key="FontSizeFieldLabel">12</sys:Double>
-
-        <Style x:Key="LocalHamburgerToggle" TargetType="ToggleButton">
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
             <Setter Property="Width"           Value="{DynamicResource WidthButtonMenu}"/>
             <Setter Property="Height"          Value="{DynamicResource HeightButtonMenu}"/>
             <Setter Property="Cursor"          Value="Hand"/>
@@ -452,7 +369,6 @@
              need a grey/secondary look (e.g. an inactive tab in a tab strip)
              instead of an instance Background override fighting the hardcoded
              green hover/pressed triggers. -->
-<<<<<<< HEAD
         <Style x:Key="SmallSecondaryButtonStyle" TargetType="Button">
                 <Setter Property="Background"      Value="{DynamicResource BrushSecondaryBg}"/>
                 <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
@@ -462,10 +378,6 @@
                 <Setter Property="FontWeight"      Value="SemiBold"/>
                 <Setter Property="Cursor"          Value="Hand"/>
                 <Setter Property="Height"          Value="{DynamicResource HeightButtonSmall}"/>
-=======
-        <Style x:Key="SmallSecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource SmallButtonStyle}">
-                <Setter Property="Background" Value="{DynamicResource BrushSecondaryBg}"/>
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
@@ -488,11 +400,7 @@
                 </Setter>
             </Style>
 
-<<<<<<< HEAD
         <Style x:Key="MenuItemStyle" TargetType="Button">
-=======
-        <Style x:Key="MenuItemButtonStyle" TargetType="Button">
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
                 <Setter Property="Background"                Value="Transparent"/>
                 <Setter Property="Foreground"                Value="{DynamicResource BrushTextPrimary}"/>
                 <Setter Property="BorderThickness"           Value="0"/>
@@ -779,11 +687,7 @@
                             Margin="0,0,12,0"/>
                 <Grid>
                     <ToggleButton x:Name="options_btn" 
-<<<<<<< HEAD
                                   Style="{StaticResource IconToggleButtonStyle}"
-=======
-                                  Style="{StaticResource LocalHamburgerToggle}"
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
                                   Click="options_btn_click"/>
                     
                     <Popup x:Name="OptionsPopup"
@@ -1061,11 +965,7 @@
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Select Revision"
                                    Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,8,6"/>
                         <ComboBox  Grid.Row="0" Grid.Column="1" x:Name="revision_cb"
-<<<<<<< HEAD
                                    Style="{StaticResource ComboBoxStyle}" Margin="0,0,0,6"/>
-=======
-                                   Style="{StaticResource ModernComboBoxStyle}" Margin="0,0,0,6"/>
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
 
                         <!-- Rev numbering type selector, shown only when multiple types exist -->
                         <StackPanel x:Name="rev_type_row" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
@@ -2252,11 +2152,7 @@
 
                             <!-- Template input -->
                             <TextBox x:Name="filenaming_template_tb"
-<<<<<<< HEAD
                                      Style="{StaticResource TextBoxStyle}"
-=======
-                                     Style="{StaticResource ModernTextBoxStyle}"
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
                                      FontFamily="Consolas"
                                      AllowDrop="True"
                                      PreviewDrop="filenaming_stop_drag"
@@ -2268,11 +2164,7 @@
                                        Foreground="{DynamicResource BrushTextPrimary}" FontSize="10"
                                        Opacity="0.55" Margin="0,8,0,2"/>
                             <TextBox x:Name="filenaming_preview_tb"
-<<<<<<< HEAD
                                      Style="{StaticResource TextBoxStyle}"
-=======
-                                     Style="{StaticResource ModernTextBoxStyle}"
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
                                      Background="{DynamicResource BrushHeaderBg}" Foreground="{DynamicResource LocalBrushNoticeText}"
                                      BorderBrush="{DynamicResource BrushBorderMuted}"
                                      FontFamily="Consolas"
@@ -2310,11 +2202,7 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBox x:Name="filenaming_projects_root_tb"
                                          Grid.Column="0"
-<<<<<<< HEAD
                                          Style="{StaticResource TextBoxStyle}"
-=======
-                                         Style="{StaticResource ModernTextBoxStyle}"
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
                                          Margin="0,0,6,0"
                                          ToolTip="Root folder containing range-bucket subfolders e.g. N:\#JOB\"/>
                                 <Button x:Name="filenaming_projects_root_browse_btn"
@@ -2335,11 +2223,7 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBox x:Name="filenaming_older_root_tb"
                                          Grid.Column="0"
-<<<<<<< HEAD
                                          Style="{StaticResource TextBoxStyle}"
-=======
-                                         Style="{StaticResource ModernTextBoxStyle}"
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
                                          Margin="0,0,6,0"
                                          ToolTip="Secondary root for archived/older jobs e.g. N:\#JOB\Older Jobs\"/>
                                 <Button x:Name="filenaming_older_root_browse_btn"
@@ -2367,11 +2251,7 @@
                                 Build the full output folder path using tokens. Drag tokens into the template field to insert.
                             </TextBlock>
                             <TextBox x:Name="filenaming_path_template_tb"
-<<<<<<< HEAD
                                      Style="{StaticResource TextBoxStyle}"
-=======
-                                     Style="{StaticResource ModernTextBoxStyle}"
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
                                      FontFamily="Consolas"
                                      AllowDrop="True"
                                      PreviewDrop="filenaming_path_stop_drag"
@@ -2383,11 +2263,7 @@
                                        Foreground="{DynamicResource BrushTextPrimary}" FontSize="10"
                                        Opacity="0.55" Margin="0,8,0,2"/>
                             <TextBox x:Name="filenaming_path_preview_tb"
-<<<<<<< HEAD
                                      Style="{StaticResource TextBoxStyle}"
-=======
-                                     Style="{StaticResource ModernTextBoxStyle}"
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
                                      Background="{DynamicResource BrushHeaderBg}" Foreground="{DynamicResource LocalBrushNoticeText}"
                                      BorderBrush="{DynamicResource BrushBorderMuted}"
                                      FontFamily="Consolas"

@@ -78,6 +78,23 @@ from pytable_word import (
 class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
     def __init__(self):
         forms.WPFWindow.__init__(self, 'PyTable.xaml')
+
+        # -- Apply Seed43 theme (colours + sizing) ---------------------------------
+        # This window never had this wired up at all before now - every colour
+        # and size in PyTable.xaml was a hardcoded literal, disconnected from
+        # the shared palette entirely. Must run AFTER LoadComponent (so our
+        # injected brushes win over the XAML's own Setters) and BEFORE
+        # anything below that builds dynamic UI or calls TryFindResource -
+        # otherwise those lookups return None. See seed43-pyrevit-ui skill,
+        # gotchas #3/#4, and pyTransmit.py/about.py for the same pattern.
+        try:
+            _pt_script_dir = os.path.dirname(os.path.abspath(__file__))
+            from Snippets.seed43_theme import apply_seed43_palette, apply_seed43_dimensions
+            apply_seed43_palette(self, _pt_script_dir)
+            apply_seed43_dimensions(self, _pt_script_dir)
+        except Exception as ex:
+            logger.warning('Seed43 theme apply failed: {}'.format(ex))
+
         self.Closing += self._on_window_closing
         try:
             from Snippets._icons import make_icon as _mi
@@ -173,7 +190,7 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
 
     def _combo_style(self, combo, width):
         try:
-            combo.Style = self.FindResource('ModernComboBoxStyle')
+            combo.Style = self.FindResource('GridComboBoxStyle')
             combo.DropDownOpened += self._animate_combo_open
         except Exception:
             combo.Background      = hb('#F4FAFF')
@@ -346,7 +363,7 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         db.Foreground       = hb('#F4FAFF')
         db.Background       = hb('#2B3340')
         try:
-            db.Style = self.FindResource('LocalCloseBtn')
+            db.Style = self.FindResource('CloseButtonStyle')
         except Exception:
             db.BorderThickness = Thickness(0)
         db.FocusVisualStyle = None

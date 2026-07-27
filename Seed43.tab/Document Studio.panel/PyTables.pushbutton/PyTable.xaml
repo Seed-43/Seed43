@@ -7,9 +7,9 @@
         WindowStyle="None"
         ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
-        Background="#3B4553"
+        Background="{DynamicResource BrushWindowBg}"
         TextElement.FontFamily="Segoe UI"
-        TextElement.Foreground="#F4FAFF"
+        TextElement.Foreground="{DynamicResource BrushTextPrimary}"
         FontSize="12">
 
     <shell:WindowChrome.WindowChrome>
@@ -21,6 +21,24 @@
     </shell:WindowChrome.WindowChrome>
 
     <Window.Resources>
+        <!-- Local brushes for the grid-cell "light card on dark chrome"
+             pattern (white cell background + dark text, like a real
+             spreadsheet, sitting inside this window's otherwise-dark
+             theme) - genuinely new, no canonical equivalent exists yet.
+             Where a value happens to already exist as a canonical brush
+             (white=BrushTextPrimary, dark=BrushCardBg, green=
+             BrushPrimaryGreen) that's referenced directly below instead of
+             duplicated here, even though the ROLE is different (fill, not
+             text colour) - only the values with no canonical counterpart
+             at all get their own local declaration. -->
+        <SolidColorBrush x:Key="LocalBrushGridHighlightBg" Color="#D9F0E1"/>
+        <SolidColorBrush x:Key="LocalBrushGridSelectedBg"  Color="#BFE8CE"/>
+        <SolidColorBrush x:Key="LocalBrushGridErrorBg"         Color="#FBE2E2"/>
+        <SolidColorBrush x:Key="LocalBrushGridErrorBorder"     Color="#DC2626"/>
+        <SolidColorBrush x:Key="LocalBrushGridErrorBorderHover" Color="#E53E3E"/>
+        <SolidColorBrush x:Key="LocalBrushMenuBorder"       Color="#404553"/>
+        <SolidColorBrush x:Key="LocalBrushMenuDisabledFg"   Color="#6B7280"/>
+
         <!-- These 5 styles are looked up via FindResource() throughout
              pyTable_ui.py. They used to live only in the unused
              PyTables.xaml (nothing loads that file), so every lookup
@@ -29,9 +47,9 @@
              looked inconsistent. Defined here now, in the file this
              window actually loads. -->
         <Style x:Key="CardStyle" TargetType="Border">
-                <Setter Property="Background"    Value="#2B3340"/>
-                <Setter Property="CornerRadius"  Value="8"/>
-                <Setter Property="Padding"       Value="16"/>
+                <Setter Property="Background"    Value="{DynamicResource BrushCardBg}"/>
+                <Setter Property="CornerRadius"  Value="{DynamicResource CornerRadiusCard}"/>
+                <Setter Property="Padding"       Value="{DynamicResource PaddingCard}"/>
                 <Setter Property="Margin"        Value="0,0,0,12"/>
                 <Setter Property="Effect">
                     <Setter.Value>
@@ -41,15 +59,21 @@
             </Style>
 
         <Style x:Key="SectionLabelStyle" TargetType="TextBlock">
-                <Setter Property="Foreground"  Value="#208A3C"/>
+                <Setter Property="Foreground"  Value="{DynamicResource BrushPrimaryGreen}"/>
                 <Setter Property="FontWeight"  Value="SemiBold"/>
-                <Setter Property="FontSize"    Value="14"/>
+                <Setter Property="FontSize"    Value="{DynamicResource FontSizeSectionLabel}"/>
                 <Setter Property="Margin"      Value="0,0,0,8"/>
             </Style>
 
+        <!-- Kept as its own local name rather than renamed to a canonical
+             style - it's used for accent-coloured action buttons ("+ Add
+             Tables", "Apply"), not tabs, but sized like button_small, not
+             button_primary - same situation as Layout Builder's PBtn.
+             Colours reconciled to the shared accent palette below; sizing
+             stays PyTable's own for now. -->
         <Style x:Key="SmallButtonStyle" TargetType="Button">
-                <Setter Property="Background"      Value="#208A3C"/>
-                <Setter Property="Foreground"      Value="#F4FAFF"/>
+                <Setter Property="Background"      Value="{DynamicResource BrushPrimaryGreen}"/>
+                <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
                 <Setter Property="BorderThickness" Value="0"/>
                 <Setter Property="Padding"         Value="12,4"/>
                 <Setter Property="FontSize"        Value="11"/>
@@ -68,10 +92,10 @@
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="ButtonBorder" Property="Background" Value="#2B933F"/>
+                                    <Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
                                 </Trigger>
                                 <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="ButtonBorder" Property="Background" Value="#1A6E2E"/>
+                                    <Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource BrushPrimaryGreenPressed}"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -80,9 +104,9 @@
             </Style>
 
         <Style x:Key="GridCellStyle" TargetType="TextBox">
-                <Setter Property="Background"               Value="#F4FAFF"/>
-                <Setter Property="Foreground"               Value="#2B3340"/>
-                <Setter Property="BorderBrush"              Value="#208A3C"/>
+                <Setter Property="Background"               Value="{DynamicResource BrushTextPrimary}"/>
+                <Setter Property="Foreground"               Value="{DynamicResource BrushCardBg}"/>
+                <Setter Property="BorderBrush"              Value="{DynamicResource BrushPrimaryGreen}"/>
                 <Setter Property="BorderThickness"          Value="1"/>
                 <Setter Property="Padding"                  Value="6,3"/>
                 <Setter Property="FontSize"                 Value="11"/>
@@ -104,10 +128,10 @@
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="MainBorder" Property="BorderBrush" Value="#2B933F"/>
+                                    <Setter TargetName="MainBorder" Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreenHover}"/>
                                 </Trigger>
                                 <Trigger Property="IsFocused" Value="True">
-                                    <Setter TargetName="MainBorder" Property="BorderBrush"     Value="#2B933F"/>
+                                    <Setter TargetName="MainBorder" Property="BorderBrush"     Value="{DynamicResource BrushPrimaryGreenHover}"/>
                                     <Setter TargetName="MainBorder" Property="BorderThickness" Value="2"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
@@ -124,9 +148,9 @@
              with red-family triggers instead of green ones sidesteps
              that entirely, rather than fighting the trigger from code. -->
         <Style x:Key="GridCellErrorStyle" TargetType="TextBox">
-                <Setter Property="Background"               Value="#FBE2E2"/>
-                <Setter Property="Foreground"               Value="#2B3340"/>
-                <Setter Property="BorderBrush"              Value="#DC2626"/>
+                <Setter Property="Background"               Value="{StaticResource LocalBrushGridErrorBg}"/>
+                <Setter Property="Foreground"               Value="{DynamicResource BrushCardBg}"/>
+                <Setter Property="BorderBrush"              Value="{StaticResource LocalBrushGridErrorBorder}"/>
                 <Setter Property="BorderThickness"          Value="1"/>
                 <Setter Property="Padding"                  Value="6,3"/>
                 <Setter Property="FontSize"                 Value="11"/>
@@ -148,10 +172,10 @@
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="MainBorder" Property="BorderBrush" Value="#E53E3E"/>
+                                    <Setter TargetName="MainBorder" Property="BorderBrush" Value="{StaticResource LocalBrushGridErrorBorderHover}"/>
                                 </Trigger>
                                 <Trigger Property="IsFocused" Value="True">
-                                    <Setter TargetName="MainBorder" Property="BorderBrush"     Value="#E53E3E"/>
+                                    <Setter TargetName="MainBorder" Property="BorderBrush"     Value="{StaticResource LocalBrushGridErrorBorderHover}"/>
                                     <Setter TargetName="MainBorder" Property="BorderThickness" Value="2"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
@@ -160,11 +184,16 @@
                 </Setter>
             </Style>
 
-        <Style x:Key="ModernComboBoxStyle" TargetType="ComboBox">
+        <!-- Part of the same light-on-dark grid-cell family as
+             GridCellStyle above, not the canonical dark ComboBoxStyle -
+             renamed from "GridComboBoxStyle" to make that explicit,
+             since the two behave genuinely differently (light vs dark)
+             despite the old name suggesting they might be the same thing. -->
+        <Style x:Key="GridComboBoxStyle" TargetType="ComboBox">
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-            <Setter Property="Background"      Value="#F4FAFF"/>
-            <Setter Property="Foreground"      Value="#2B3340"/>
-            <Setter Property="BorderBrush"     Value="#208A3C"/>
+            <Setter Property="Background"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushCardBg}"/>
+            <Setter Property="BorderBrush"     Value="{DynamicResource BrushPrimaryGreen}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding"         Value="8,4"/>
             <Setter Property="FontSize"        Value="12"/>
@@ -182,10 +211,10 @@
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsHighlighted" Value="True">
-                                            <Setter TargetName="ItemBd" Property="Background" Value="#D9F0E1"/>
+                                            <Setter TargetName="ItemBd" Property="Background" Value="{StaticResource LocalBrushGridHighlightBg}"/>
                                         </Trigger>
                                         <Trigger Property="IsSelected" Value="True">
-                                            <Setter TargetName="ItemBd" Property="Background" Value="#BFE8CE"/>
+                                            <Setter TargetName="ItemBd" Property="Background" Value="{StaticResource LocalBrushGridSelectedBg}"/>
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
@@ -235,8 +264,8 @@
                                        Focusable="False"
                                        PopupAnimation="None">
                                     <Border x:Name="PopupBd"
-                                            Background="#F4FAFF"
-                                            BorderBrush="#208A3C"
+                                            Background="{DynamicResource BrushTextPrimary}"
+                                            BorderBrush="{DynamicResource BrushPrimaryGreen}"
                                             BorderThickness="1"
                                             CornerRadius="6"
                                             Width="{TemplateBinding ActualWidth}"
@@ -253,8 +282,8 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="#2B933F"/>
-                                <Setter TargetName="Bd" Property="Background" Value="#D9F0E1"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource LocalBrushGridHighlightBg}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Bd" Property="Opacity" Value="0.5"/>
@@ -269,7 +298,7 @@
              (not just via FindResource in Python), missed in the first pass
              which only checked Python-side lookups. -->
         <Style x:Key="MacScrollBarThumb" TargetType="Thumb">
-                <Setter Property="Background" Value="#208A3C"/>
+                <Setter Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Thumb">
@@ -279,10 +308,10 @@
                                     Margin="2,2,2,2"/>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="thumb" Property="Background" Value="#27AE60"/>
+                                    <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
                                 </Trigger>
                                 <Trigger Property="IsDragging" Value="True">
-                                    <Setter TargetName="thumb" Property="Background" Value="#2ECC71"/>
+                                    <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushPrimaryGreenPressed}"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -346,8 +375,8 @@
             </Style>
 
         <Style x:Key="SecondaryButtonStyle" TargetType="Button">
-                <Setter Property="Background"      Value="#404553"/>
-                <Setter Property="Foreground"      Value="#F4FAFF"/>
+                <Setter Property="Background"      Value="{DynamicResource BrushSecondaryBg}"/>
+                <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
                 <Setter Property="BorderThickness" Value="0"/>
                 <Setter Property="Padding"         Value="16,8"/>
                 <Setter Property="FontSize"        Value="12"/>
@@ -364,14 +393,14 @@
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#4E5566"/>
+                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryHover}"/>
                                 </Trigger>
                                 <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#333B48"/>
+                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryPressed}"/>
                                 </Trigger>
                                 <Trigger Property="IsEnabled" Value="False">
-                                    <Setter TargetName="Bd" Property="Background" Value="#555555"/>
-                                    <Setter Property="Foreground"                  Value="#888888"/>
+                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryDisabledBg}"/>
+                                    <Setter Property="Foreground"                  Value="{DynamicResource BrushSecondaryDisabledFg}"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -379,12 +408,12 @@
                 </Setter>
             </Style>
 
-        <Style x:Key="OptionsToggleButtonStyle" TargetType="ToggleButton">
+        <Style x:Key="IconToggleButtonStyle" TargetType="ToggleButton">
             <Setter Property="Width"           Value="36"/>
             <Setter Property="Height"          Value="36"/>
             <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="FontSize"        Value="18"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Template">
@@ -398,22 +427,22 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#404553"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryBg}"/>
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#208A3C"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
-        <Style x:Key="LocalCloseBtn" TargetType="Button">
+        <Style x:Key="CloseButtonStyle" TargetType="Button">
             <Setter Property="Width"           Value="32"/>
             <Setter Property="Height"          Value="32"/>
             <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Template">
@@ -426,7 +455,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#C53030"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushDanger}"/>
                                 <Setter Property="Foreground" Value="White"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -438,7 +467,7 @@
             <Setter Property="Width"           Value="20"/>
             <Setter Property="Height"          Value="20"/>
             <Setter Property="Cursor"          Value="Hand"/>
-            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Template">
@@ -459,7 +488,7 @@
             </Setter>
         </Style>
         <Style x:Key="FilterCheckBoxStyle" TargetType="CheckBox">
-            <Setter Property="Foreground" Value="#2B3340"/>
+            <Setter Property="Foreground" Value="{DynamicResource BrushCardBg}"/>
             <Setter Property="FontSize"   Value="12"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -467,12 +496,12 @@
                         <Border x:Name="ItemBd" Background="Transparent" CornerRadius="4" Padding="6,4">
                             <StackPanel Orientation="Horizontal">
                                 <Border Width="14" Height="14"
-                                        BorderBrush="#208A3C" BorderThickness="1.5"
+                                        BorderBrush="{DynamicResource BrushPrimaryGreen}" BorderThickness="1.5"
                                         CornerRadius="3" Background="White"
                                         VerticalAlignment="Center">
                                     <Path x:Name="CheckMark"
                                           Data="M 1 4 L 4 7 L 9 1"
-                                          Stroke="#208A3C" StrokeThickness="2"
+                                          Stroke="{DynamicResource BrushPrimaryGreen}" StrokeThickness="2"
                                           StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                                           Visibility="Collapsed"/>
                                 </Border>
@@ -481,7 +510,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ItemBd" Property="Background" Value="#D9F0E1"/>
+                                <Setter TargetName="ItemBd" Property="Background" Value="{StaticResource LocalBrushGridHighlightBg}"/>
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
@@ -495,10 +524,15 @@
         <!-- Dark popup-menu chrome for every ContextMenu (Batch menus,
              etc). Without this, ContextMenu/MenuItem render with the
              default Windows light theme regardless of everything
-             else in this stylesheet being dark. -->
+             else in this stylesheet being dark. No canonical dark-menu-
+             chrome equivalent exists yet (the shared MenuItemStyle built
+             this session is for a custom Popup-based hamburger menu, a
+             different control entirely from a native ContextMenu/
+             MenuItem) - kept local, colours converted to canonical/local
+             brushes where they match. -->
         <Style x:Key="DarkContextMenuStyle" TargetType="ContextMenu">
-            <Setter Property="Background"      Value="#2B3340"/>
-            <Setter Property="BorderBrush"     Value="#404553"/>
+            <Setter Property="Background"      Value="{DynamicResource BrushCardBg}"/>
+            <Setter Property="BorderBrush"     Value="{StaticResource LocalBrushMenuBorder}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding"         Value="4"/>
             <Setter Property="Template">
@@ -521,7 +555,7 @@
 
         <Style x:Key="DarkMenuItemStyle" TargetType="MenuItem">
             <Setter Property="Background"  Value="Transparent"/>
-            <Setter Property="Foreground"  Value="#F4FAFF"/>
+            <Setter Property="Foreground"  Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="FontSize"    Value="12"/>
             <Setter Property="Padding"     Value="10,7"/>
             <Setter Property="Template">
@@ -537,10 +571,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#208A3C"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Foreground" Value="#6B7280"/>
+                                <Setter Property="Foreground" Value="{StaticResource LocalBrushMenuDisabledFg}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -549,7 +583,7 @@
         </Style>
 
         <Style x:Key="DarkMenuSeparatorStyle" TargetType="Separator">
-            <Setter Property="Background" Value="#404553"/>
+            <Setter Property="Background" Value="{StaticResource LocalBrushMenuBorder}"/>
             <Setter Property="Height"     Value="1"/>
             <Setter Property="Margin"     Value="6,4"/>
             <Setter Property="Template">
@@ -574,7 +608,7 @@
 
         <!-- ══ HEADER + TOOLBAR ══════════════════════════════════════ -->
         <Border Grid.Row="0"
-                Background="#232933"
+                Background="{DynamicResource BrushHeaderBg}"
                 CornerRadius="10,10,12,12">
             <Border.Effect>
                 <DropShadowEffect Color="Black" Opacity="0.3"
@@ -594,11 +628,11 @@
                             VerticalAlignment="Center">
                     <TextBlock Text="py"
                                FontWeight="Bold" FontSize="20"
-                               Foreground="#208A3C"
+                               Foreground="{DynamicResource BrushPrimaryGreen}"
                                VerticalAlignment="Center"/>
                     <TextBlock Text="Table"
                                FontWeight="SemiBold" FontSize="20"
-                               Foreground="#F4FAFF"
+                               Foreground="{DynamicResource BrushTextPrimary}"
                                Margin="4,0,0,0"
                                VerticalAlignment="Center"/>
                 </StackPanel>
@@ -638,36 +672,36 @@
 
                     <Border Grid.Column="6"
                             Width="1" Height="18"
-                            Background="#404553"
+                            Background="{StaticResource LocalBrushMenuBorder}"
                             VerticalAlignment="Center"/>
 
                     <Grid Grid.Column="8">
                         <ToggleButton x:Name="SourceFilterToggle"
                                       Height="24" Width="110"
-                                      Background="#F4FAFF"
+                                      Background="{DynamicResource BrushTextPrimary}"
                                       Cursor="Hand"
                                       PreviewMouseLeftButtonDown="OnFilterTogglePreviewDown">
                             <ToggleButton.Template>
                                 <ControlTemplate TargetType="ToggleButton">
                                     <Border x:Name="Bd"
                                             Background="{TemplateBinding Background}"
-                                            BorderBrush="#208A3C"
+                                            BorderBrush="{DynamicResource BrushPrimaryGreen}"
                                             BorderThickness="1"
                                             CornerRadius="6">
                                         <Grid>
-                                            <TextBlock Text="Source" Foreground="#2B3340" FontSize="12"
+                                            <TextBlock Text="Source" Foreground="{DynamicResource BrushCardBg}" FontSize="12"
                                                        Margin="8,0,0,0" VerticalAlignment="Center"/>
-                                            <Path Fill="#2B3340" IsHitTestVisible="False"
+                                            <Path Fill="{DynamicResource BrushCardBg}" IsHitTestVisible="False"
                                                   HorizontalAlignment="Right" VerticalAlignment="Center"
                                                   Margin="0,0,8,0" Data="M 0 0 L 4 4 L 8 0 Z"/>
                                         </Grid>
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bd" Property="Background" Value="#D9F0E1"/>
+                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource LocalBrushGridHighlightBg}"/>
                                         </Trigger>
                                         <Trigger Property="IsChecked" Value="True">
-                                            <Setter TargetName="Bd" Property="Background" Value="#D9F0E1"/>
+                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource LocalBrushGridHighlightBg}"/>
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
@@ -678,7 +712,7 @@
                                IsOpen="{Binding ElementName=SourceFilterToggle, Path=IsChecked}"
                                AllowsTransparency="True"
                                StaysOpen="False">
-                            <Border Background="#F4FAFF" BorderBrush="#208A3C" BorderThickness="1"
+                            <Border Background="{DynamicResource BrushTextPrimary}" BorderBrush="{DynamicResource BrushPrimaryGreen}" BorderThickness="1"
                                     CornerRadius="6" Padding="10,8">
                                 <Border.Effect>
                                     <DropShadowEffect Color="Black" Opacity="0.3" ShadowDepth="2" BlurRadius="6"/>
@@ -698,30 +732,30 @@
                     <Grid Grid.Column="10">
                         <ToggleButton x:Name="TypeFilterToggle"
                                       Height="24" Width="100"
-                                      Background="#F4FAFF"
+                                      Background="{DynamicResource BrushTextPrimary}"
                                       Cursor="Hand"
                                       PreviewMouseLeftButtonDown="OnFilterTogglePreviewDown">
                             <ToggleButton.Template>
                                 <ControlTemplate TargetType="ToggleButton">
                                     <Border x:Name="Bd"
                                             Background="{TemplateBinding Background}"
-                                            BorderBrush="#208A3C"
+                                            BorderBrush="{DynamicResource BrushPrimaryGreen}"
                                             BorderThickness="1"
                                             CornerRadius="6">
                                         <Grid>
-                                            <TextBlock Text="Type" Foreground="#2B3340" FontSize="12"
+                                            <TextBlock Text="Type" Foreground="{DynamicResource BrushCardBg}" FontSize="12"
                                                        Margin="8,0,0,0" VerticalAlignment="Center"/>
-                                            <Path Fill="#2B3340" IsHitTestVisible="False"
+                                            <Path Fill="{DynamicResource BrushCardBg}" IsHitTestVisible="False"
                                                   HorizontalAlignment="Right" VerticalAlignment="Center"
                                                   Margin="0,0,8,0" Data="M 0 0 L 4 4 L 8 0 Z"/>
                                         </Grid>
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bd" Property="Background" Value="#D9F0E1"/>
+                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource LocalBrushGridHighlightBg}"/>
                                         </Trigger>
                                         <Trigger Property="IsChecked" Value="True">
-                                            <Setter TargetName="Bd" Property="Background" Value="#D9F0E1"/>
+                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource LocalBrushGridHighlightBg}"/>
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
@@ -732,7 +766,7 @@
                                IsOpen="{Binding ElementName=TypeFilterToggle, Path=IsChecked}"
                                AllowsTransparency="True"
                                StaysOpen="False">
-                            <Border Background="#F4FAFF" BorderBrush="#208A3C" BorderThickness="1"
+                            <Border Background="{DynamicResource BrushTextPrimary}" BorderBrush="{DynamicResource BrushPrimaryGreen}" BorderThickness="1"
                                     CornerRadius="6" Padding="10,8">
                                 <Border.Effect>
                                     <DropShadowEffect Color="Black" Opacity="0.3" ShadowDepth="2" BlurRadius="6"/>
@@ -767,10 +801,10 @@
                             Click="OnApply"/>
                     <ToggleButton x:Name="MenuBtn"
                                   Content="☰"
-                                  Style="{StaticResource OptionsToggleButtonStyle}"
+                                  Style="{StaticResource IconToggleButtonStyle}"
                                   Click="OnMenuOpen"/>
                     <Button x:Name="CloseBtn"
-                            Style="{StaticResource LocalCloseBtn}"
+                            Style="{StaticResource CloseButtonStyle}"
                             Margin="6,0,0,0"
                             ToolTip="Close"
                             Click="OnCloseWindow"/>
@@ -791,7 +825,7 @@
         <ScrollViewer x:Name="RowsScroll"
                       Grid.Row="2"
                       Style="{StaticResource MacScrollViewer}"
-                      Background="#3B4553"
+                      Background="{DynamicResource BrushWindowBg}"
                       Padding="12,8,12,8">
             <StackPanel x:Name="CardsPanel"
                         Background="Transparent"/>
@@ -800,54 +834,54 @@
         <!-- Drop zone (shown when no files loaded) -->
         <Border x:Name="DropZonePanel"
                 Grid.Row="2"
-                Background="#3B4553"
+                Background="{DynamicResource BrushWindowBg}"
                 AllowDrop="True"
                 Drop="OnDrop"
                 DragOver="OnDragOver">
             <StackPanel HorizontalAlignment="Center"
                         VerticalAlignment="Center">
                 <Border Width="52" Height="52"
-                        Background="#232933"
+                        Background="{DynamicResource BrushHeaderBg}"
                         CornerRadius="10"
                         HorizontalAlignment="Center"
                         Margin="0,0,0,14">
                     <TextBlock Text="↑" FontSize="26"
-                               Foreground="#208A3C"
+                               Foreground="{DynamicResource BrushPrimaryGreen}"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"/>
                 </Border>
                 <TextBlock Text="Link documents to Revit"
                            FontSize="14" FontWeight="SemiBold"
-                           Foreground="#F4FAFF"
+                           Foreground="{DynamicResource BrushTextPrimary}"
                            HorizontalAlignment="Center"
                            Margin="0,0,0,8"/>
                 <TextBlock TextWrapping="Wrap" MaxWidth="360"
                            TextAlignment="Center" FontSize="11"
-                           Foreground="#F4FAFF" Opacity="0.55"
+                           Foreground="{DynamicResource BrushTextPrimary}" Opacity="0.55"
                            Margin="0,0,0,20">
                     Browse or drag and drop an Excel or Word file.
                 </TextBlock>
                 <StackPanel Orientation="Horizontal"
                             HorizontalAlignment="Center">
-                    <Border BorderBrush="#208A3C" BorderThickness="1"
+                    <Border BorderBrush="{DynamicResource BrushPrimaryGreen}" BorderThickness="1"
                             CornerRadius="10" Padding="10,3" Margin="0,0,6,0">
-                        <TextBlock Text=".xlsx" FontSize="10" Foreground="#F4FAFF" Opacity="0.6"/>
+                        <TextBlock Text=".xlsx" FontSize="10" Foreground="{DynamicResource BrushTextPrimary}" Opacity="0.6"/>
                     </Border>
-                    <Border BorderBrush="#208A3C" BorderThickness="1"
+                    <Border BorderBrush="{DynamicResource BrushPrimaryGreen}" BorderThickness="1"
                             CornerRadius="10" Padding="10,3" Margin="0,0,6,0">
-                        <TextBlock Text=".xls" FontSize="10" Foreground="#F4FAFF" Opacity="0.6"/>
+                        <TextBlock Text=".xls" FontSize="10" Foreground="{DynamicResource BrushTextPrimary}" Opacity="0.6"/>
                     </Border>
-                    <Border BorderBrush="#208A3C" BorderThickness="1"
+                    <Border BorderBrush="{DynamicResource BrushPrimaryGreen}" BorderThickness="1"
                             CornerRadius="10" Padding="10,3" Margin="0,0,6,0">
-                        <TextBlock Text=".docx" FontSize="10" Foreground="#F4FAFF" Opacity="0.6"/>
+                        <TextBlock Text=".docx" FontSize="10" Foreground="{DynamicResource BrushTextPrimary}" Opacity="0.6"/>
                     </Border>
-                    <Border BorderBrush="#208A3C" BorderThickness="1"
+                    <Border BorderBrush="{DynamicResource BrushPrimaryGreen}" BorderThickness="1"
                             CornerRadius="10" Padding="10,3" Margin="0,0,6,0">
-                        <TextBlock Text=".ods" FontSize="10" Foreground="#F4FAFF" Opacity="0.6"/>
+                        <TextBlock Text=".ods" FontSize="10" Foreground="{DynamicResource BrushTextPrimary}" Opacity="0.6"/>
                     </Border>
-                    <Border BorderBrush="#208A3C" BorderThickness="1"
+                    <Border BorderBrush="{DynamicResource BrushPrimaryGreen}" BorderThickness="1"
                             CornerRadius="10" Padding="10,3">
-                        <TextBlock Text=".odt" FontSize="10" Foreground="#F4FAFF" Opacity="0.6"/>
+                        <TextBlock Text=".odt" FontSize="10" Foreground="{DynamicResource BrushTextPrimary}" Opacity="0.6"/>
                     </Border>
                 </StackPanel>
             </StackPanel>
@@ -855,13 +889,13 @@
 
         <!-- ══ FOOTER ════════════════════════════════════════════════ -->
         <Border Grid.Row="3"
-                Background="#232933"
-                BorderBrush="#404553"
+                Background="{DynamicResource BrushHeaderBg}"
+                BorderBrush="{StaticResource LocalBrushMenuBorder}"
                 BorderThickness="0,1,0,0"
                 Padding="16,0">
             <TextBlock x:Name="FooterCounts"
                        Text="No files loaded"
-                       FontSize="10" Foreground="#F4FAFF"
+                       FontSize="10" Foreground="{DynamicResource BrushTextPrimary}"
                        Opacity="0.45"
                        VerticalAlignment="Center"/>
         </Border>
@@ -874,12 +908,12 @@
                 HorizontalAlignment="Right" VerticalAlignment="Bottom"
                 Margin="0,0,8,6"
                 IsHitTestVisible="False">
-            <Rectangle Canvas.Left="10" Canvas.Top="10" Width="3" Height="3" Fill="#F4FAFF" Opacity="0.35"/>
-            <Rectangle Canvas.Left="10" Canvas.Top="5"  Width="3" Height="3" Fill="#F4FAFF" Opacity="0.35"/>
-            <Rectangle Canvas.Left="5"  Canvas.Top="10" Width="3" Height="3" Fill="#F4FAFF" Opacity="0.35"/>
-            <Rectangle Canvas.Left="10" Canvas.Top="0"  Width="3" Height="3" Fill="#F4FAFF" Opacity="0.35"/>
-            <Rectangle Canvas.Left="5"  Canvas.Top="5"  Width="3" Height="3" Fill="#F4FAFF" Opacity="0.35"/>
-            <Rectangle Canvas.Left="0"  Canvas.Top="10" Width="3" Height="3" Fill="#F4FAFF" Opacity="0.35"/>
+            <Rectangle Canvas.Left="10" Canvas.Top="10" Width="3" Height="3" Fill="{DynamicResource BrushTextPrimary}" Opacity="0.35"/>
+            <Rectangle Canvas.Left="10" Canvas.Top="5"  Width="3" Height="3" Fill="{DynamicResource BrushTextPrimary}" Opacity="0.35"/>
+            <Rectangle Canvas.Left="5"  Canvas.Top="10" Width="3" Height="3" Fill="{DynamicResource BrushTextPrimary}" Opacity="0.35"/>
+            <Rectangle Canvas.Left="10" Canvas.Top="0"  Width="3" Height="3" Fill="{DynamicResource BrushTextPrimary}" Opacity="0.35"/>
+            <Rectangle Canvas.Left="5"  Canvas.Top="5"  Width="3" Height="3" Fill="{DynamicResource BrushTextPrimary}" Opacity="0.35"/>
+            <Rectangle Canvas.Left="0"  Canvas.Top="10" Width="3" Height="3" Fill="{DynamicResource BrushTextPrimary}" Opacity="0.35"/>
         </Canvas>
     </Grid>
 </Window>

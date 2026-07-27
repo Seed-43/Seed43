@@ -2,23 +2,23 @@
   "active_profile": "dark",
   "dimensions": {
     "button_primary": {
-      "padding_x": 15,
-      "padding_y": 7,
-      "corner_radius": 10,
-      "font_size": 12
+      "padding_x": 10,
+      "padding_y": 5,
+      "corner_radius": 6,
+      "font_size": 11
     },
     "button_small": {
       "height": 24,
       "padding_x": 12,
       "padding_y": 4,
-      "corner_radius": 4,
+      "corner_radius": 6,
       "font_size": 11
     },
     "button_secondary": {
-      "padding_x": 15,
-      "padding_y": 7,
-      "corner_radius": 10,
-      "font_size": 12
+      "padding_x": 10,
+      "padding_y": 5,
+      "corner_radius": 6,
+      "font_size": 11
     },
     "button_close": {
       "width": 30,
@@ -42,7 +42,7 @@
       "height": 28,
       "padding_x": 8,
       "padding_y": 4,
-      "corner_radius": 14,
+      "corner_radius": 6,
       "border_thickness": 1,
       "font_size": 12
     },
@@ -52,7 +52,7 @@
       "corner_radius": 4
     },
     "dropdown_popup": {
-      "corner_radius": 14,
+      "corner_radius": 6,
       "min_width": 160,
       "item_padding_x": 8,
       "item_padding_y": 4,

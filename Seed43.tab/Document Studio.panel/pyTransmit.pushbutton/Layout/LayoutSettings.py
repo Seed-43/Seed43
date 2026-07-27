@@ -244,11 +244,7 @@ def _hbrush(h):
 def _apply_hover_template(btn, corner_radius=4):
     """Give a manually-built Button (one whose colour is set directly, e.g.
     a colour-swatch button or an active/inactive toggle, rather than through
-<<<<<<< HEAD
     one of the standard PBtn/SecondaryButtonStyle/TabButtonStyle styles) real idle/hover/pressed
-=======
-    one of the standard PBtn/GBtn/TBtn styles) real idle/hover/pressed
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
     feedback. Uses proportional Opacity dimming on the whole button rather
     than a fixed hover colour, so it works regardless of the button's own
     (possibly dynamic) base Background - the same approach PBtn's own
@@ -1098,7 +1094,6 @@ class PreviewBuilder(object):
 class LayoutSettingsWindow(WPFWindow):
 
     def _apply_seed43_theme(self, script_dir):
-<<<<<<< HEAD
         """Wire this window into the shared Seed43 palette.
 
         This file used to have its own internal named-alias-brush system
@@ -1127,20 +1122,6 @@ class LayoutSettingsWindow(WPFWindow):
         seed43_palette.json later, if other tools end up wanting the same
         neutral-border/row-tint pattern.
         """
-=======
-        """Wire this window into the shared Seed43 palette. This file already
-        has its own internal named-brush system (BgDeep/BgCard/Accent/etc,
-        declared in LayoutSettings.xaml and mirrored in the BK dict below) -
-        rather than rename everything throughout this large file to the
-        canonical Brush* names, this aliases the local keys that have a real
-        canonical equivalent to point at the live theme brushes instead.
-        Deliberately NOT aliased: BgRow/BgHover/Bdr (no good canonical match -
-        every canonical border token is currently accent-green, and aliasing
-        would turn this file's neutral dividers green) and ColA-D/PrevBg
-        (ColA-D are intentional, distinct functional markers for the 4 layout
-        columns, not theme colours - forcing them onto one shared accent
-        colour would defeat the point of them being different colours)."""
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
         if apply_seed43_palette:
             try:
                 apply_seed43_palette(self, script_dir)
@@ -1172,32 +1153,15 @@ class LayoutSettingsWindow(WPFWindow):
         sec_hover = _find('BrushSecondaryHover',     '#515155')
         sec_dis_bg = _find('BrushSecondaryDisabledBg', '#2E2E32')
         sec_dis_fg = _find('BrushSecondaryDisabledFg', '#77767B')
-<<<<<<< HEAD
         # LocalBrushTextMuted keeps its own reduced opacity rather than
         # becoming identical to BrushTextPrimary, so the muted/main text
         # hierarchy this file relies on throughout doesn't collapse into
         # one shade.
-=======
-        # TextMute keeps its own reduced opacity rather than becoming
-        # identical to TextMain, so the muted/main text hierarchy this file
-        # relies on throughout doesn't collapse into one shade.
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
         text_mute = _SWM.SolidColorBrush(text_main.Color)
         text_mute.Opacity = 0.7
 
         try:
-<<<<<<< HEAD
             self.Resources['LocalBrushTextMuted'] = text_mute
-=======
-            self.Resources['BgWindow'] = bg_window
-            self.Resources['BgDeep']   = bg_deep
-            self.Resources['BgCard']   = bg_card
-            self.Resources['Accent']   = accent
-            self.Resources['AccentLt'] = accent_lt
-            self.Resources['TextMain'] = text_main
-            self.Resources['TextMute'] = text_mute
-            self.Resources['Danger']   = danger
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
         except Exception:
             pass
 
@@ -1917,20 +1881,12 @@ class LayoutSettingsWindow(WPFWindow):
         self.Close()
 
     def _set_tab_active(self, btn, active):
-<<<<<<< HEAD
         """Swap the whole Style, not just Background - TabButtonStyle's hover trigger
-=======
-        """Swap the whole Style, not just Background - TBtn's hover trigger
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
         is hardcoded and ignores whatever Background an instance happens to
         have, so just poking .Background (the old approach here) meant an
         inactive tab would flash the active tab's hover colour. Same fix as
         SmallSecondaryButtonStyle elsewhere in this extension."""
-<<<<<<< HEAD
         style = self.TryFindResource('PBtn' if active else 'TabButtonStyle')
-=======
-        style = self.TryFindResource('PBtn' if active else 'TBtn')
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
         if style:
             btn.Style = style
 
@@ -1995,11 +1951,7 @@ class LayoutSettingsWindow(WPFWindow):
             title_body.Children.Add(lbl_grid)
 
             text_tb = _SWC.TextBox()
-<<<<<<< HEAD
             _mtb = self.TryFindResource('TextBoxStyle')
-=======
-            _mtb = self.TryFindResource('MTB')
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
             if _mtb:
                 text_tb.Style = _mtb
             else:
@@ -2798,11 +2750,7 @@ class LayoutSettingsWindow(WPFWindow):
     def _wire_cell_hover(self, cell, base_bg):
         """Canvas blocks are plain Borders (they need drag/drop support a
         Button doesn't give), so they get no hover feedback for free the way
-<<<<<<< HEAD
         PBtn/SecondaryButtonStyle/etc do - wire it manually here instead. Restores the cell's
-=======
-        PBtn/GBtn/etc do - wire it manually here instead. Restores the cell's
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
         own base colour on leave rather than a hardcoded one, since empty vs
         filled cells already use the same BK['card'] base today but that's
         not guaranteed to always be true."""
@@ -3235,11 +3183,7 @@ class LayoutSettingsWindow(WPFWindow):
         # -- Text style -------------------------------------------------------
         sec('Text Style')
         ts_cb = _SWC.ComboBox()
-<<<<<<< HEAD
         _mcb1 = self.TryFindResource('ComboBoxStyle')
-=======
-        _mcb1 = self.TryFindResource('MCB')
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
         if _mcb1:
             ts_cb.Style = _mcb1
         else:
@@ -3347,11 +3291,7 @@ class LayoutSettingsWindow(WPFWindow):
         if block.get('type') == 'page_count':
             sec('Format')
             fmt_cb = _SWC.ComboBox()
-<<<<<<< HEAD
             _mcb2 = self.TryFindResource('ComboBoxStyle')
-=======
-            _mcb2 = self.TryFindResource('MCB')
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
             if _mcb2:
                 fmt_cb.Style = _mcb2
             else:
@@ -3391,11 +3331,7 @@ class LayoutSettingsWindow(WPFWindow):
         if block.get('type') == 'issue_date':
             sec('Date Format')
             dfmt_cb = _SWC.ComboBox()
-<<<<<<< HEAD
             _mcb3 = self.TryFindResource('ComboBoxStyle')
-=======
-            _mcb3 = self.TryFindResource('MCB')
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
             if _mcb3:
                 dfmt_cb.Style = _mcb3
             else:
@@ -3718,11 +3654,7 @@ class LayoutSettingsWindow(WPFWindow):
 
         # Font, enumerate system fonts (same set Revit uses for text styles)
         font_cb = _SWC.ComboBox()
-<<<<<<< HEAD
         _mcb_style = self.TryFindResource('ComboBoxStyle')
-=======
-        _mcb_style = self.TryFindResource('MCB')
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
         if _mcb_style:
             font_cb.Style = _mcb_style
         else:
@@ -3740,11 +3672,7 @@ class LayoutSettingsWindow(WPFWindow):
 
         # Size mm
         size_tb = _SWC.TextBox()
-<<<<<<< HEAD
         _mtb_style = self.TryFindResource('TextBoxStyle')
-=======
-        _mtb_style = self.TryFindResource('MTB')
->>>>>>> c94188c4019d682e0081f30f1b3a120e2bfa69ab
         if _mtb_style:
             size_tb.Style = _mtb_style
         else:

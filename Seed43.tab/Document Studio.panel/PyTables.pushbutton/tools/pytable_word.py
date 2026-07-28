@@ -23,8 +23,8 @@ from System.Windows.Controls import (
     ComboBox, Button, Orientation, ScrollViewer,
     Grid, ColumnDefinition
 )
+from System.Windows.Controls.Primitives import Popup, ToggleButton
 from System.Windows.Shapes import Ellipse
-from System.Windows.Media import SolidColorBrush, Color
 
 logger = script.get_logger()
 doc = revit.doc
@@ -633,11 +633,8 @@ class WordCardMixin(object):
         outer = Border()
         try:
             outer.Style = self.FindResource('CardStyle')
-        except Exception:
-            outer.Background   = hb('#2B3340')
-            outer.CornerRadius = CornerRadius(8)
-            outer.Padding      = Thickness(16)
-            outer.Margin       = Thickness(0, 0, 0, 12)
+        except Exception as e:
+            logger.warning('Failed to apply CardStyle: {}'.format(e))
 
         inner = StackPanel()
         inner.Orientation = Orientation.Vertical
@@ -660,24 +657,17 @@ class WordCardMixin(object):
         Grid.SetColumn(header_right, 1)
         header_row.Children.Add(header_right)
 
-        collapse_btn = Button()
-        collapse_btn.Background = SolidColorBrush(Color.FromArgb(0, 0, 0, 0))
+        collapse_btn = ToggleButton()
+        collapse_btn.IsChecked = True
         try:
-            collapse_btn.Style = self.FindResource('RoundToolBtnStyle')
-        except Exception:
-            collapse_btn.BorderThickness = Thickness(0)
+            collapse_btn.Style = self.FindResource('PrimarySecondaryToggleButtonStyle')
+        except Exception as e:
+            logger.warning('Failed to apply PrimarySecondaryToggleButtonStyle: {}'.format(e))
         collapse_btn.FocusVisualStyle = None
-        collapse_btn.Width  = 28
-        collapse_btn.Height = 28
         collapse_btn.HorizontalContentAlignment = HorizontalAlignment.Center
         collapse_btn.VerticalContentAlignment   = VerticalAlignment.Center
         collapse_btn.VerticalAlignment = VerticalAlignment.Center
         collapse_btn.Margin = Thickness(0, 0, 8, 0)
-        try:
-            collapse_btn.Cursor = __import__(
-                'System.Windows.Input', fromlist=['Cursors']).Cursors.Hand
-        except Exception:
-            pass
         collapse_btn.Tag     = real_path
         collapse_btn.ToolTip = 'Collapse'
         collapse_btn.Click  += self._toggle_word_group_collapse
@@ -744,10 +734,8 @@ class WordCardMixin(object):
         batch_btn.Content    = u'Batch \u25be'
         try:
             batch_btn.Style = self.FindResource('SecondaryButtonStyle')
-        except Exception:
-            batch_btn.Background      = hb('#404553')
-            batch_btn.Foreground      = hb('#F4FAFF')
-            batch_btn.BorderThickness = Thickness(0)
+        except Exception as e:
+            logger.warning('Failed to apply SecondaryButtonStyle: {}'.format(e))
         batch_btn.FocusVisualStyle = None
         batch_btn.Height      = 24
         batch_btn.Padding     = Thickness(12, 0, 12, 0)
@@ -767,10 +755,9 @@ class WordCardMixin(object):
         else:
             reload_btn.Content = u'\u21bb'
         try:
-            reload_btn.Style = self.FindResource('RoundToolBtnStyle')
-        except Exception:
-            reload_btn.Foreground      = hb('#F4FAFF')
-            reload_btn.BorderThickness = Thickness(0)
+            reload_btn.Style = self.FindResource('RoundPrimaryButtonStyle')
+        except Exception as e:
+            logger.warning('Failed to apply RoundPrimaryButtonStyle: {}'.format(e))
         reload_btn.FocusVisualStyle = None
         reload_btn.Width       = 28
         reload_btn.Height      = 28
@@ -786,12 +773,10 @@ class WordCardMixin(object):
         del_card_btn = Button()
         del_card_btn.Content         = u'\u2715'
         del_card_btn.FontSize        = 11
-        del_card_btn.Foreground      = hb('#F4FAFF')
         try:
-            del_card_btn.Style = self.FindResource('CloseButtonStyle')
-        except Exception:
-            del_card_btn.Background      = hb('#2B3340')
-            del_card_btn.BorderThickness = Thickness(0)
+            del_card_btn.Style = self.FindResource('DeleteButtonStyle')
+        except Exception as e:
+            logger.warning('Failed to apply DeleteButtonStyle: {}'.format(e))
         del_card_btn.FocusVisualStyle = None
         del_card_btn.Width            = 28
         del_card_btn.Height           = 28
@@ -896,28 +881,18 @@ class WordCardMixin(object):
         value_row.Children.Add(value_left)
 
         # Sections collapse toggle
-        sec_toggle_btn = Button()
-        if _mi is not None:
-            try:
-                sec_toggle_btn.Content = _mi(
-                    'chevron_down_circle', size=20, color='#9AA3B4')
-            except Exception:
-                sec_toggle_btn.Content = u'\u25BC'
-        else:
-            sec_toggle_btn.Content = u'\u25BC'
-        sec_toggle_btn.Background = SolidColorBrush(Color.FromArgb(0, 0, 0, 0))
+        sec_toggle_btn = ToggleButton()
+        sec_toggle_btn.IsChecked = True
         try:
-            sec_toggle_btn.Style = self.FindResource('RoundToolBtnStyle')
-        except Exception:
-            sec_toggle_btn.BorderThickness = Thickness(0)
+            sec_toggle_btn.Style = self.FindResource('PrimarySecondaryToggleButtonStyle')
+        except Exception as e:
+            logger.warning('Failed to apply PrimarySecondaryToggleButtonStyle: {}'.format(e))
         sec_toggle_btn.FocusVisualStyle = None
-        sec_toggle_btn.Width  = 28
-        sec_toggle_btn.Height = 28
         sec_toggle_btn.Tag    = path
         sec_toggle_btn.VerticalAlignment = VerticalAlignment.Center
         sec_toggle_btn.Margin = Thickness(0, 0, 8, 0)
-        sec_toggle_btn.ToolTip = 'Collapse/expand this view\u2019s sections'
         sec_toggle_btn.Click  += self._toggle_sections_collapse
+        self._set_collapse_icon(sec_toggle_btn, False)
         value_left.Children.Add(sec_toggle_btn)
         fd['sections_toggle_btn'] = sec_toggle_btn
 
@@ -930,16 +905,10 @@ class WordCardMixin(object):
         vn_box = TextBox()
         vn_box.Text          = fd['view_name']
         vn_box.Width         = 150
-        vn_box.Height        = 26
-        vn_box.FontSize      = 11
         try:
-            vn_box.Style = self.FindResource('GridCellStyle')
-        except Exception:
-            vn_box.Background      = hb('#F4FAFF')
-            vn_box.Foreground      = hb('#2B3340')
-            vn_box.BorderBrush     = hb('#208A3C')
-            vn_box.BorderThickness = Thickness(1)
-        vn_box.VerticalContentAlignment = VerticalAlignment.Center
+            vn_box.Style = self.FindResource('TextBoxStyle')
+        except Exception as e:
+            logger.warning('Failed to apply TextBoxStyle: {}'.format(e))
         vn_box.VerticalAlignment = VerticalAlignment.Center
         vn_box.Margin        = Thickness(0, 0, 4, 0)
         vn_box.Tag           = path
@@ -962,17 +931,11 @@ class WordCardMixin(object):
         cc_box = TextBox()
         cc_box.Text             = str(fd.get('col_count', 2))
         cc_box.Width            = 50
-        cc_box.Height           = 26
-        cc_box.FontSize         = 11
         cc_box.TextAlignment    = TextAlignment.Center
         try:
-            cc_box.Style = self.FindResource('GridCellStyle')
-        except Exception:
-            cc_box.Background  = hb('#F4FAFF')
-            cc_box.Foreground  = hb('#2B3340')
-            cc_box.BorderBrush = hb('#208A3C')
-            cc_box.BorderThickness = Thickness(1)
-        cc_box.VerticalContentAlignment = VerticalAlignment.Center
+            cc_box.Style = self.FindResource('TextBoxStyle')
+        except Exception as e:
+            logger.warning('Failed to apply TextBoxStyle: {}'.format(e))
         cc_box.VerticalAlignment = VerticalAlignment.Center
         cc_box.Margin           = Thickness(0, 0, 4, 0)
         cc_box.Tag              = path
@@ -1045,10 +1008,9 @@ class WordCardMixin(object):
         else:
             view_reload_btn.Content = u'\u21bb'
         try:
-            view_reload_btn.Style = self.FindResource('RoundToolBtnStyle')
-        except Exception:
-            view_reload_btn.Foreground      = hb('#F4FAFF')
-            view_reload_btn.BorderThickness = Thickness(0)
+            view_reload_btn.Style = self.FindResource('RoundPrimaryButtonStyle')
+        except Exception as e:
+            logger.warning('Failed to apply RoundPrimaryButtonStyle: {}'.format(e))
         view_reload_btn.FocusVisualStyle = None
         view_reload_btn.Width  = 28
         view_reload_btn.Height = 28
@@ -1064,12 +1026,10 @@ class WordCardMixin(object):
         view_close_btn = Button()
         view_close_btn.Content         = u'\u2715'
         view_close_btn.FontSize        = 11
-        view_close_btn.Foreground      = hb('#F4FAFF')
         try:
-            view_close_btn.Style = self.FindResource('CloseButtonStyle')
-        except Exception:
-            view_close_btn.Background      = hb('#2B3340')
-            view_close_btn.BorderThickness = Thickness(0)
+            view_close_btn.Style = self.FindResource('DeleteButtonStyle')
+        except Exception as e:
+            logger.warning('Failed to apply DeleteButtonStyle: {}'.format(e))
         view_close_btn.FocusVisualStyle = None
         view_close_btn.Width   = 28
         view_close_btn.Height  = 28
@@ -1168,15 +1128,18 @@ class WordCardMixin(object):
         self._save_persisted_state()
 
     def _toggle_word_group_collapse(self, sender, e):
-        """Collapse/expand every view in this document's shared card."""
+        """Collapse/expand every view in this document's shared card.
+        sender is a ToggleButton (PrimarySecondaryToggleButtonStyle) -
+        WPF flips IsChecked natively before Click fires, so IsChecked
+        already reflects the new state: True = now expanded."""
         real_path = sender.Tag
         group = self._card_groups.get(real_path)
         if group is None:
             return
-        collapsing = group['views_panel'].Visibility != Visibility.Collapsed
+        expanded = bool(sender.IsChecked)
         group['views_panel'].Visibility = (
-            Visibility.Collapsed if collapsing else Visibility.Visible)
-        self._set_collapse_icon(sender, collapsing)
+            Visibility.Visible if expanded else Visibility.Collapsed)
+        self._set_collapse_icon(sender, not expanded)
 
     def _group_reload_click(self, sender, e):
         """Reapply every stale section across every view in this
@@ -1198,8 +1161,10 @@ class WordCardMixin(object):
         self._update_word_group_reload_indicator(real_path)
 
     def _update_word_group_reload_indicator(self, real_path):
-        """Grey when every view in this card is in sync, blue when at
-        least one section anywhere in the card needs reapplying."""
+        """Enable (accent green) when at least one section anywhere in
+        this card needs reapplying, disable (canonical disabled look)
+        when every view is in sync - same IsEnabled-driven
+        RoundPrimaryButtonStyle as the row/card-level reload buttons."""
         group = self._card_groups.get(real_path)
         if group is None or group.get('reload_btn') is None:
             return
@@ -1210,12 +1175,9 @@ class WordCardMixin(object):
                 needs_reload = True
                 break
         btn = group['reload_btn']
-        if needs_reload:
-            btn.Background = hb('#2B6CB0')
-            btn.ToolTip     = 'Click to reload views that need updating'
-        else:
-            btn.Background = hb('#208A3C')
-            btn.ToolTip     = 'All views up to date'
+        btn.IsEnabled = needs_reload
+        btn.ToolTip = ('Click to reload views that need updating'
+                        if needs_reload else 'All views up to date')
 
     def _group_close_click(self, sender, e):
         """Remove this document's whole card — every view, every
@@ -1353,16 +1315,10 @@ class WordCardMixin(object):
         col_tb = TextBox()
         col_tb.Text          = str(row.ColNo)
         col_tb.Width         = 36
-        col_tb.Height        = 26
-        col_tb.FontSize      = 11
         try:
-            col_tb.Style = self.FindResource('GridCellStyle')
-        except Exception:
-            col_tb.Background  = hb('#F4FAFF')
-            col_tb.Foreground  = hb('#2B3340')
-            col_tb.BorderBrush = hb('#208A3C')
-            col_tb.BorderThickness = Thickness(1)
-        col_tb.VerticalContentAlignment = VerticalAlignment.Center
+            col_tb.Style = self.FindResource('TextBoxStyle')
+        except Exception as e:
+            logger.warning('Failed to apply TextBoxStyle: {}'.format(e))
         col_tb.Margin        = Thickness(0, 0, 4, 0)
         col_tb.VerticalAlignment = VerticalAlignment.Center
         col_tb.Tag           = row
@@ -1384,16 +1340,18 @@ class WordCardMixin(object):
         row._refresh_btn    = rb
         sp.Children.Add(rb)
 
-        # Delete button — same round style as the window's close button
+        # Delete button — always-red DeleteButtonStyle, not the transparent-
+        # until-hover CloseButtonStyle (this removes the row, it isn't a
+        # window/card close action). Sized smaller than the card-level
+        # delete button (24 vs the style's own 30px token) since this one
+        # sits inline in a dense row, not a card header.
         db = Button()
         db.Content          = u'✕'
         db.FontSize         = 10
-        db.Foreground       = hb('#F4FAFF')
-        db.Background       = hb('#2B3340')
         try:
-            db.Style = self.FindResource('CloseButtonStyle')
-        except Exception:
-            db.BorderThickness = Thickness(0)
+            db.Style = self.FindResource('DeleteButtonStyle')
+        except Exception as e:
+            logger.warning('Failed to apply DeleteButtonStyle: {}'.format(e))
         db.FocusVisualStyle = None
         db.Width            = 24
         db.Height           = 24
@@ -1663,9 +1621,8 @@ class WordCardMixin(object):
         cancel_btn.FontSize   = 11
         try:
             cancel_btn.Style = self.FindResource('SecondaryButtonStyle')
-        except Exception:
-            cancel_btn.Background = hb('#404553')
-            cancel_btn.Foreground = hb('#F4FAFF')
+        except Exception as e:
+            logger.warning('Failed to apply SecondaryButtonStyle: {}'.format(e))
         cancel_btn.FocusVisualStyle = None
         cancel_btn.VerticalAlignment = VerticalAlignment.Center
         cancel_btn.Margin = Thickness(8, 0, 0, 0)
@@ -1747,13 +1704,11 @@ class WordCardMixin(object):
         root.Children.Add(search_label)
 
         search_tb = TextBox()
-        search_tb.Height = 26
         search_tb.Margin = Thickness(0, 0, 0, 6)
         try:
-            search_tb.Style = self.FindResource('GridCellStyle')
-        except Exception:
-            search_tb.Background = hb('#F4FAFF')
-            search_tb.Foreground = hb('#2B3340')
+            search_tb.Style = self.FindResource('TextBoxStyle')
+        except Exception as e:
+            logger.warning('Failed to apply TextBoxStyle: {}'.format(e))
         root.Children.Add(search_tb)
 
         groups_list = _list_box(120)
@@ -1776,18 +1731,23 @@ class WordCardMixin(object):
         add_group_btn = self._green_btn(u'+ Add Group')
         add_group_btn.Margin = Thickness(0, 0, 8, 0)
 
+        # "Delete" text button - no canonical rectangular-danger style
+        # exists yet, so this stays SecondaryButtonStyle with its
+        # Background overridden to the canonical danger brush (not a
+        # hand-picked hex) rather than inventing a whole new style.
         del_group_btn = Button()
         del_group_btn.Content    = u'Delete'
         del_group_btn.Height     = 24
         del_group_btn.Padding    = Thickness(12, 0, 12, 0)
         del_group_btn.FontSize   = 11
-        del_group_btn.Foreground = hb('#F4FAFF')
-        del_group_btn.Background = hb('#C53030')
         try:
             del_group_btn.Style = self.FindResource('SecondaryButtonStyle')
-            del_group_btn.Background = hb('#C53030')
-        except Exception:
-            del_group_btn.BorderThickness = Thickness(0)
+        except Exception as e:
+            logger.warning('Failed to apply SecondaryButtonStyle: {}'.format(e))
+        try:
+            del_group_btn.Background = self.FindResource('BrushDanger')
+        except Exception as e:
+            logger.warning('Failed to apply BrushDanger: {}'.format(e))
         del_group_btn.FocusVisualStyle = None
 
         group_btn_row.Children.Add(add_group_btn)
@@ -1832,13 +1792,11 @@ class WordCardMixin(object):
 
         new_kw_tb = TextBox()
         new_kw_tb.Width  = 220
-        new_kw_tb.Height = 26
         new_kw_tb.Margin = Thickness(0, 0, 8, 0)
         try:
-            new_kw_tb.Style = self.FindResource('GridCellStyle')
-        except Exception:
-            new_kw_tb.Background = hb('#F4FAFF')
-            new_kw_tb.Foreground = hb('#2B3340')
+            new_kw_tb.Style = self.FindResource('TextBoxStyle')
+        except Exception as e:
+            logger.warning('Failed to apply TextBoxStyle: {}'.format(e))
         kw_add_row.Children.Add(new_kw_tb)
 
         add_kw_btn = self._green_btn(u'+ Add')
@@ -1852,9 +1810,8 @@ class WordCardMixin(object):
         del_kw_btn.FontSize   = 11
         try:
             del_kw_btn.Style = self.FindResource('SecondaryButtonStyle')
-        except Exception:
-            del_kw_btn.Background = hb('#404553')
-            del_kw_btn.Foreground = hb('#F4FAFF')
+        except Exception as e:
+            logger.warning('Failed to apply SecondaryButtonStyle: {}'.format(e))
         del_kw_btn.FocusVisualStyle = None
         del_kw_btn.Margin = Thickness(0, 0, 0, 16)
         root.Children.Add(del_kw_btn)
@@ -1943,9 +1900,8 @@ class WordCardMixin(object):
         cancel_btn.FontSize   = 11
         try:
             cancel_btn.Style = self.FindResource('SecondaryButtonStyle')
-        except Exception:
-            cancel_btn.Background = hb('#404553')
-            cancel_btn.Foreground = hb('#F4FAFF')
+        except Exception as e:
+            logger.warning('Failed to apply SecondaryButtonStyle: {}'.format(e))
         cancel_btn.FocusVisualStyle = None
         cancel_btn.VerticalAlignment = VerticalAlignment.Center
         cancel_btn.Margin = Thickness(8, 0, 0, 0)
@@ -2373,7 +2329,10 @@ class WordCardMixin(object):
         list), leaving the header and View Name/Sheet size/Columns/
         View Type row untouched — narrower than the whole-card
         collapse, for tucking away a long section list while still
-        seeing/editing the view's own settings."""
+        seeing/editing the view's own settings. sender is a ToggleButton
+        (PrimarySecondaryToggleButtonStyle) - WPF flips IsChecked
+        natively before Click fires, so IsChecked already reflects the
+        new state: True = now expanded."""
         path = sender.Tag
         fd = self._file_data.get(path)
         if fd is None:
@@ -2382,19 +2341,10 @@ class WordCardMixin(object):
         row_panel = fd.get('card_panel')
         if col_hdr is None or row_panel is None:
             return
-        collapsing = col_hdr.Visibility != Visibility.Collapsed
-        col_hdr.Visibility   = Visibility.Collapsed if collapsing else Visibility.Visible
-        row_panel.Visibility = Visibility.Collapsed if collapsing else Visibility.Visible
-        key   = 'chevron_right_circle' if collapsing else 'chevron_down_circle'
-        color = '#208A3C' if collapsing else '#9AA3B4'
-        if _mi is not None:
-            try:
-                sender.Content = _mi(key, size=20, color=color)
-            except Exception:
-                sender.Content = u'\u25B6' if collapsing else u'\u25BC'
-        else:
-            sender.Content = u'\u25B6' if collapsing else u'\u25BC'
-        sender.ToolTip = 'Expand sections' if collapsing else 'Collapse sections'
+        expanded = bool(sender.IsChecked)
+        col_hdr.Visibility   = Visibility.Visible if expanded else Visibility.Collapsed
+        row_panel.Visibility = Visibility.Visible if expanded else Visibility.Collapsed
+        self._set_collapse_icon(sender, not expanded)
 
     def _card_add_view(self, sender, e):
         """'+ Add Row' at the card header, Word cards only: create a

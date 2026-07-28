@@ -1,53 +1,49 @@
 {
-  "img": {
-    "image_type": "PNG", 
-    "resolution": "150 DPI", 
-    "pixel_size": 2048
-  }, 
-  "column_widths": {
-    "collection": 90.0, 
-    "check": 36.0, 
-    "revision": 80.0, 
-    "size": 86.0, 
-    "filename": 210.0, 
-    "number": 88.0
-  }, 
   "dgn": {
     "export_setup_name": "<Revit Default>"
   }, 
-  "ifc": {
-    "version": "IFC 2x3 Coordination View 2.0"
-  }, 
-  "naming": {
-    "PDF": "PySheets Default", 
-    "NWC": "PySheets Default", 
-    "DWG": "PySheets Default", 
-    "DGN": "PySheets Default", 
-    "IFC": "PySheets Default", 
-    "IMG": "PySheets Default"
-  }, 
-  "auto_overwrite": true, 
+  "column_order": [
+    "check", 
+    "number", 
+    "name", 
+    "revision", 
+    "size", 
+    "collection", 
+    "filename"
+  ], 
+  "open_after": true, 
+  "folder_preset": "Project", 
+  "dest": "file", 
+  "formats": [
+    "PDF"
+  ], 
   "nwc": {
     "shared_coords": true, 
     "convert_properties": true
   }, 
-  "subfolders": true, 
-  "viewing": "PDF", 
-  "folder": "N:\\(N) NAGEL CONSULTANTS LTD\\#JOB\\#JOB-3451-3500\\3488 - Ozone Redevelopment, 47 King Street, New Plymouth\\PDF\\Internal\\Revit Prints\\", 
-  "formats": [
-    "PDF"
-  ], 
+  "column_widths": {
+    "filename": 210.0, 
+    "check": 36.0, 
+    "revision": 80.0, 
+    "collection": 90.0, 
+    "size": 136.0, 
+    "number": 136.0
+  }, 
+  "ifc": {
+    "version": "IFC 2x3 Coordination View 2.0"
+  }, 
+  "folder": "N:\\(N) NAGEL CONSULTANTS LTD\\#JOB\\#JOB--\\Template\\PDF\\Internal\\Revit Prints\\", 
   "pdf": {
     "printer": "PDF24", 
     "print_setting_name": "", 
-    "paper_size": "A3", 
+    "paper_size": "A4", 
     "paper_source": "<default tray>", 
     "orientation": "from_sheet", 
     "placement": "center", 
     "offset_x": "0.0000", 
     "offset_y": "0.0000", 
     "zoom_fit": false, 
-    "zoom_pct": 100, 
+    "zoom_pct": 75, 
     "hidden_lines": "vector", 
     "raster_quality": "Low", 
     "colors": "Color", 
@@ -60,20 +56,24 @@
     "opt_halftone_thin": false, 
     "opt_region_edges": false
   }, 
-  "folder_preset": "Project", 
-  "dest": "file", 
-  "column_order": [
-    "check", 
-    "number", 
-    "name", 
-    "revision", 
-    "size", 
-    "collection", 
-    "filename"
-  ], 
+  "subfolders": true, 
+  "img": {
+    "image_type": "PNG", 
+    "resolution": "150 DPI", 
+    "pixel_size": 2048
+  }, 
+  "naming": {
+    "PDF": "PySheets Default", 
+    "IMG": "PySheets Default", 
+    "DGN": "PySheets Default", 
+    "IFC": "PySheets Default", 
+    "DWG": "PySheets Default", 
+    "NWC": "PySheets Default"
+  }, 
+  "viewing": "PDF", 
   "dwg": {
     "export_setup_name": "<Revit Default>", 
     "export_xrefs": false
   }, 
-  "open_after": false
+  "auto_overwrite": true
 }

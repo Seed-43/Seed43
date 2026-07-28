@@ -656,6 +656,62 @@
     color: var(--btn-fg-disabled, var(--btn-fg)) !important;
     cursor: default;
   }
+  #round-btn-row {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .round-btn-demo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pv-round-btn, .pv-round-toggle {
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.1s ease;
+  }
+  .pv-round-btn svg, .pv-round-toggle svg {
+    pointer-events: none;
+  }
+  .pv-round-btn {
+    background: var(--round-btn-bg);
+  }
+  .pv-round-btn:hover {
+    background: var(--round-btn-bg-hover, var(--round-btn-bg));
+  }
+  .pv-round-btn:active {
+    background: var(--round-btn-bg-active, var(--round-btn-bg));
+  }
+  .pv-round-btn.round-disabled {
+    background: var(--round-btn-bg-disabled) !important;
+    cursor: default;
+  }
+  /* Transparent by design - chevron_right_circle/chevron_down_circle
+     already draw their own circle (WPF's default EvenOdd fill rule turns
+     the chevron into a cutout hole in a solid disc, all from one Fill
+     colour) - see fill-rule="evenodd" on the SVG itself. A CSS background
+     here would just sit uselessly behind an icon that's already opaque
+     everywhere except its own cutout. */
+  .pv-round-toggle {
+    background: transparent;
+  }
+  .pv-round-toggle:active svg {
+    opacity: 0.8;
+  }
+  .round-btn-label {
+    font-size: 11px;
+    opacity: 0.6;
+  }
   #toggle-row {
     display: flex;
     align-items: center;
@@ -921,6 +977,20 @@
             <button class="pv-btn" id="pv-danger">Delete</button>
             <button class="pv-btn" id="pv-disabled" disabled>Disabled</button>
           </div>
+          <div id="round-btn-row">
+            <div class="round-btn-demo">
+              <button class="pv-round-btn" id="pv-round-primary"><svg id="pv-round-primary-icon" viewBox="0 0 24 24" width="14" height="14"></svg></button>
+              <span class="round-btn-label">Reload (click to toggle)</span>
+            </div>
+            <div class="round-btn-demo">
+              <button class="pv-round-toggle" id="pv-round-toggle"><svg id="pv-round-toggle-icon" viewBox="0 0 24 24" width="30" height="30"></svg></button>
+              <span class="round-btn-label" id="round-toggle-label">Sections (click to toggle)</span>
+            </div>
+            <div class="round-btn-demo">
+              <button class="pv-round-btn pv-round-delete" id="pv-round-delete"><svg id="pv-round-delete-icon" viewBox="0 0 24 24" width="14" height="14"></svg></button>
+              <span class="round-btn-label">Delete</span>
+            </div>
+          </div>
           <div id="toggle-row">
             <div class="toggle-track" id="toggle-track">
               <div class="toggle-knob" id="toggle-knob"></div>
@@ -1100,6 +1170,8 @@ let activeTab = "dark";
 let activeColorProfile = "dark";
 let toggleOn = true;
 let accordionOpen = false;
+let roundPrimaryDisabled = false;
+let roundToggleChecked = false;
 
 const DIM_META = [
   ["button_primary.padding_x", "Primary btn padding X", "Buttons"],
@@ -1634,6 +1706,18 @@ function applyEditorChrome() {
   root.setProperty("--editor-accent-pressed", c.accent_pressed);
 }
 
+// Renders an ICON_DATA path into an existing <svg> element. WPF's Path
+// element defaults to FillRule="EvenOdd", so compound icons like
+// chevron_right_circle (a circle subpath + a chevron subpath in one Data
+// string) render as a solid disc with the chevron as a cutout hole -
+// SVG defaults to fill-rule="nonzero" instead, so it has to be set
+// explicitly here to match what the real app actually renders.
+function setIcon(svgEl, iconKey, fill) {
+  const icon = ICON_DATA[iconKey];
+  if (!icon) return;
+  svgEl.innerHTML = '<path d="' + icon.path + '" fill="' + fill + '" fill-rule="evenodd"/>';
+}
+
 function renderPreview() {
   const c = DATA[activeColorProfile];
   const d = DIMENSIONS;
@@ -1732,6 +1816,44 @@ function renderPreview() {
   pvDisabled.style.setProperty("--btn-fg-disabled", c.secondary_disabled_fg);
   pvDisabled.style.padding = d.button_secondary.padding_y + "px " + d.button_secondary.padding_x + "px";
   pvDisabled.style.borderRadius = d.button_secondary.corner_radius + "px";
+
+  // RoundPrimaryButtonStyle preview - primary green normally, swaps to
+  // the shared disabled look on click (simulating "reload needed" ->
+  // "nothing to do"). Real reload icon, white fill, sits on the CSS
+  // circle background (this icon has no baked-in circle of its own).
+  const pvRoundPrimary = document.getElementById("pv-round-primary");
+  pvRoundPrimary.style.setProperty("--round-btn-bg", c.accent);
+  pvRoundPrimary.style.setProperty("--round-btn-bg-hover", c.accent_hover);
+  pvRoundPrimary.style.setProperty("--round-btn-bg-active", c.accent_pressed);
+  pvRoundPrimary.style.setProperty("--round-btn-bg-disabled", c.secondary_disabled_bg);
+  pvRoundPrimary.style.width = d.button_close.width + "px";
+  pvRoundPrimary.style.height = d.button_close.height + "px";
+  pvRoundPrimary.classList.toggle("round-disabled", roundPrimaryDisabled);
+  setIcon(document.getElementById("pv-round-primary-icon"), "reload",
+    roundPrimaryDisabled ? c.secondary_disabled_fg : "#FFFFFF");
+
+  // PrimarySecondaryToggleButtonStyle preview - primary green while
+  // unchecked (closed, can be opened), secondary grey while checked
+  // (open, can be closed). chevron_right_circle/chevron_down_circle
+  // already draw their own circle via the EvenOdd cutout, so the icon's
+  // fill color IS the button's whole visible state - no CSS background.
+  const pvRoundToggle = document.getElementById("pv-round-toggle");
+  pvRoundToggle.style.width = d.button_close.width + "px";
+  pvRoundToggle.style.height = d.button_close.height + "px";
+  setIcon(document.getElementById("pv-round-toggle-icon"),
+    roundToggleChecked ? "chevron_down_circle" : "chevron_right_circle",
+    roundToggleChecked ? c.secondary_bg : c.accent);
+
+  // Round delete button - danger tri-state (idle/hover/pressed), real
+  // close (X) icon in white, matching what PyTable's actual round
+  // delete buttons use.
+  const pvRoundDelete = document.getElementById("pv-round-delete");
+  pvRoundDelete.style.setProperty("--round-btn-bg", c.danger);
+  pvRoundDelete.style.setProperty("--round-btn-bg-hover", c.danger_hover);
+  pvRoundDelete.style.setProperty("--round-btn-bg-active", c.danger_pressed);
+  pvRoundDelete.style.width = d.button_close.width + "px";
+  pvRoundDelete.style.height = d.button_close.height + "px";
+  setIcon(document.getElementById("pv-round-delete-icon"), "close", "#FFFFFF");
   pvDisabled.style.fontSize = d.button_secondary.font_size + "px";
 
   const ddClosed = document.getElementById("dd-closed");
@@ -2288,6 +2410,92 @@ trigger, a reshaped template) need this file re-exported and re-merged.
         </Setter>
     </Style>
 
+    <!-- Round action button - primary green when IsEnabled (an action is
+         genuinely available/needed, e.g. "reload" when a source has
+         changed), the shared disabled look when not (nothing to do right
+         now). Uses the real IsEnabled property rather than a separate
+         colour-only flag, so a disabled state also means "not clickable" -
+         matching how Disabled Button already behaves everywhere else. -->
+    <Style x:Key="RoundPrimaryButtonStyle" TargetType="Button">
+        <Setter Property="Background"      Value="${br('accent')}"/>
+        <Setter Property="Foreground"      Value="#FFFFFF"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Width"           Value="${dm('button_close.width')}"/>
+        <Setter Property="Height"          Value="${dm('button_close.height')}"/>
+        <Setter Property="Cursor"          Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="bd" Background="{TemplateBinding Background}"
+                            CornerRadius="${dm('button_close.corner_radius')}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="${br('accent_hover')}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="${br('accent_pressed')}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="bd" Property="Background" Value="${br('secondary_disabled_bg')}"/>
+                            <Setter Property="Foreground" Value="${br('secondary_disabled_fg')}"/>
+                            <Setter Property="Cursor" Value="Arrow"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Round open/close toggle - primary green while unchecked (this
+         thing is currently closed, clicking will open it), secondary grey
+         while checked (currently open, clicking will close it). For a
+         collapse/expand chevron, not a menu popup - IconToggleButtonStyle
+         already covers that role with a different colour pairing
+         (transparent/accent) since a menu toggle isn't "closed vs open"
+         in quite the same visually-prominent sense. -->
+    <Style x:Key="PrimarySecondaryToggleButtonStyle" TargetType="ToggleButton">
+        <Setter Property="Background"      Value="${br('accent')}"/>
+        <Setter Property="Foreground"      Value="#FFFFFF"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Width"           Value="${dm('button_close.width')}"/>
+        <Setter Property="Height"          Value="${dm('button_close.height')}"/>
+        <Setter Property="Cursor"          Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="bd" Background="{TemplateBinding Background}"
+                            CornerRadius="${dm('button_close.corner_radius')}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="${br('secondary_bg')}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="False">
+                            <Trigger.EnterActions/>
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True"/>
+                                <Condition Property="IsChecked" Value="True"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="bd" Property="Background" Value="${br('secondary_hover')}"/>
+                        </MultiTrigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True"/>
+                                <Condition Property="IsChecked" Value="False"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="bd" Property="Background" Value="${br('accent_hover')}"/>
+                        </MultiTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ============================================================ -->
     <!-- INPUTS                                                        -->
     <!-- ============================================================ -->
@@ -2785,6 +2993,15 @@ const COMPONENT_MAP = [
   { label: "Disabled Button",   selector: "#pv-disabled",
     colorKeys: ["secondary_disabled_bg", "secondary_disabled_fg"],
     dimKeys: ["button_secondary.padding_x", "button_secondary.padding_y", "button_secondary.corner_radius", "button_secondary.font_size"] },
+  { label: "Round Primary Button", selector: "#pv-round-primary",
+    colorKeys: ["accent", "accent_hover", "accent_pressed", "secondary_disabled_bg", "secondary_disabled_fg"],
+    dimKeys: ["button_close.width", "button_close.height", "button_close.corner_radius"] },
+  { label: "Round Toggle Button",  selector: "#pv-round-toggle",
+    colorKeys: ["accent", "secondary_bg"],
+    dimKeys: ["button_close.width", "button_close.height", "button_close.corner_radius"] },
+  { label: "Round Delete Button",  selector: "#pv-round-delete",
+    colorKeys: ["danger", "danger_hover", "danger_pressed"],
+    dimKeys: ["button_close.width", "button_close.height", "button_close.corner_radius"] },
   { label: "Toggle Switch",     selector: "#toggle-row",
     colorKeys: ["accent", "accent_hover", "accent_pressed", "toggle_off_bg", "toggle_off_hover", "toggle_off_pressed", "toggle_knob"],
     dimKeys: ["toggle.width", "toggle.height", "toggle.corner_radius", "toggle.knob_size", "toggle.knob_corner_radius", "toggle.knob_margin"] },
@@ -2895,6 +3112,20 @@ document.querySelectorAll(".pv-tab").forEach(el => {
     document.querySelectorAll(".pv-tab").forEach(t => t.classList.remove("active"));
     el.classList.add("active");
   });
+});
+
+document.getElementById("pv-round-primary").addEventListener("click", (e) => {
+  e.stopPropagation();
+  roundPrimaryDisabled = !roundPrimaryDisabled;
+  renderPreview();
+});
+
+document.getElementById("pv-round-toggle").addEventListener("click", (e) => {
+  e.stopPropagation();
+  roundToggleChecked = !roundToggleChecked;
+  document.getElementById("round-toggle-label").textContent =
+    roundToggleChecked ? "Sections (click to close)" : "Sections (click to open)";
+  renderPreview();
 });
 
 document.getElementById("toggle-track").addEventListener("click", (e) => {

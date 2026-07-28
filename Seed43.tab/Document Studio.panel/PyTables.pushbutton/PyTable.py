@@ -39,8 +39,10 @@ from System.Windows.Controls import (
     ComboBox, Button, Orientation, ScrollViewer,
     Grid, ColumnDefinition
 )
-from System.Windows.Shapes import Ellipse
-from System.Windows.Media import SolidColorBrush, Color
+from System.Windows.Controls.Primitives import Popup, PlacementMode, ToggleButton
+from System.Windows.Shapes import Ellipse, Rectangle
+from System.Windows.Media import Color
+from System.Windows.Media.Effects import DropShadowEffect
 
 logger = script.get_logger()
 doc = revit.doc
@@ -118,6 +120,14 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         self._lbl_skipped  = None
         self._sync_panel   = None
         self._sync_label   = None
+        # Currently-open hand-built dropdown (MenuPopup, BatchPopup, or a
+        # per-card batch popup) + its anchor button, so a single window-
+        # level PreviewMouseDown handler can close whichever one is open
+        # on an outside click - same pattern pyTransmit uses for its
+        # hamburger OptionsPopup.
+        self._open_popup        = None
+        self._open_popup_anchor = None
+        self.PreviewMouseDown  += self._popup_outside_click
         self._update_file_combo()
         self._build_status_card()
         self._refresh_status_card()
@@ -190,19 +200,13 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
 
     def _combo_style(self, combo, width):
         try:
-            combo.Style = self.FindResource('GridComboBoxStyle')
+            combo.Style = self.FindResource('ComboBoxStyle')
             combo.DropDownOpened += self._animate_combo_open
-        except Exception:
-            combo.Background      = hb('#F4FAFF')
-            combo.Foreground      = hb('#2B3340')
-            combo.BorderBrush     = hb('#208A3C')
-            combo.BorderThickness = Thickness(1)
-            combo.FontSize        = 11
-        # Override style defaults: Height=28 and Margin="0,0,0,10"
-        combo.Width             = width
-        combo.Height            = 26
-        combo.Margin            = Thickness(0, 0, 4, 0)
-        combo.VerticalAlignment = VerticalAlignment.Center
+        except Exception as e:
+            logger.warning('Failed to apply ComboBoxStyle: {}'.format(e))
+        combo.Width              = width
+        combo.Margin             = Thickness(0, 0, 4, 0)
+        combo.VerticalAlignment  = VerticalAlignment.Center
 
     def _animate_combo_open(self, sender, e):
         """Play a slow expanding-open animation on the dropdown popup,
@@ -235,6 +239,145 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             scale.BeginAnimation(media_mod.ScaleTransform.ScaleYProperty, anim)
         except Exception:
             pass
+
+    # ── Shared hand-built dropdown popups (MenuPopup, BatchPopup, and
+    #    per-card batch popups) — matches pyTransmit's real hamburger/
+    #    OptionsPopup pattern exactly: the anchor's Click handler is
+    #    genuinely just "closed -> open it, open -> close it", the
+    #    Popup itself has StaysOpen="True" so WPF's own auto-dismiss
+    #    never races against that click, and closing on an outside
+    #    click is handled explicitly below via the window's own
+    #    PreviewMouseDown, walking up the visual tree to check whether
+    #    the click landed on the anchor or inside the popup's own
+    #    content before deciding to close it. ──
+
+    def _build_dropdown_popup(self, anchor):
+        """Build a Popup+Border+StackPanel matching MenuPopup/BatchPopup's
+        XAML structure exactly, for a dropdown anchored to a dynamically-
+        built control (e.g. a per-card Batch button) that has no static
+        XAML slot of its own. Adds the Popup as a sibling of the anchor
+        in its parent panel so DynamicResource lookups resolve and the
+        Popup positions itself correctly. Returns (popup, content_panel)."""
+        popup = Popup()
+        popup.PlacementTarget = anchor
+        popup.Placement = PlacementMode.Bottom
+        popup.AllowsTransparency = True
+        popup.StaysOpen = True
+
+        border = Border()
+        try:
+            border.Background  = self.FindResource('BrushCardBg')
+            border.BorderBrush = self.FindResource('BrushBorderDefault')
+        except Exception as e:
+            logger.warning('Failed to resolve popup chrome brushes: {}'.format(e))
+        border.BorderThickness = Thickness(1)
+        try:
+            border.CornerRadius = self.FindResource('CornerRadiusDropdownPopup')
+        except Exception as e:
+            logger.warning('Failed to resolve CornerRadiusDropdownPopup: {}'.format(e))
+        border.MinWidth = 180
+        shadow = DropShadowEffect()
+        shadow.Color = Color.FromRgb(0, 0, 0)
+        shadow.Opacity = 0.4
+        shadow.ShadowDepth = 3
+        shadow.BlurRadius = 8
+        border.Effect = shadow
+
+        panel = StackPanel()
+        border.Child = panel
+        popup.Child = border
+
+        parent = anchor.Parent
+        if parent is not None and hasattr(parent, 'Children'):
+            parent.Children.Add(popup)
+        return popup, panel
+
+
+        """Build a MenuItemStyle Button for a hand-built dropdown popup
+        (not a native MenuItem/ContextMenu)."""
+        item = Button()
+        item.Content = label
+        try:
+            item.Style = self.FindResource('MenuItemStyle')
+        except Exception as e:
+            logger.warning('Failed to apply MenuItemStyle: {}'.format(e))
+        def _click(sender, ev):
+            self._close_open_popup()
+            fn(sender, ev)
+        item.Click += _click
+        return item
+
+    def _make_menu_separator(self):
+        sep = Rectangle()
+        sep.Height = 1
+        sep.Margin = Thickness(6, 4, 6, 4)
+        try:
+            sep.Fill = self.FindResource('LocalBrushMenuBorder')
+        except Exception as e:
+            logger.warning('Failed to apply LocalBrushMenuBorder: {}'.format(e))
+        return sep
+
+    def _toggle_popup(self, popup, anchor):
+        """Open/close a dropdown popup - genuinely just 'closed -> open
+        it, open -> close it', matching pyTransmit's options_btn_click.
+        Closes whatever other popup was open first, so only one is ever
+        open at a time."""
+        if self._open_popup is not None and self._open_popup is not popup:
+            self._close_open_popup()
+        new_state = not popup.IsOpen
+        popup.IsOpen = new_state
+        if isinstance(anchor, ToggleButton):
+            anchor.IsChecked = new_state
+        if new_state:
+            self._open_popup        = popup
+            self._open_popup_anchor = anchor
+        else:
+            self._open_popup        = None
+            self._open_popup_anchor = None
+
+    def _close_open_popup(self):
+        if self._open_popup is None:
+            return
+        self._open_popup.IsOpen = False
+        if isinstance(self._open_popup_anchor, ToggleButton):
+            self._open_popup_anchor.IsChecked = False
+        self._open_popup        = None
+        self._open_popup_anchor = None
+
+    def _popup_outside_click(self, sender, args):
+        """Wired to the window's own PreviewMouseDown. Closes whichever
+        dropdown popup is currently open on a click anywhere outside it
+        - except on its own anchor button, which already toggles it via
+        _toggle_popup above; if this handler also reacted to a click
+        there, the popup would close and then immediately reopen (or
+        the reverse)."""
+        if self._open_popup is None:
+            return
+        try:
+            source = args.OriginalSource
+            if self._open_popup_anchor is not None and \
+                    self._is_visual_descendant(source, self._open_popup_anchor):
+                return
+            popup_content = self._open_popup.Child
+            if popup_content is not None and \
+                    self._is_visual_descendant(source, popup_content):
+                return
+            self._close_open_popup()
+        except Exception:
+            pass
+
+    def _is_visual_descendant(self, element, ancestor):
+        """True if element is ancestor itself, or nested anywhere inside it."""
+        import System.Windows.Media as _M
+        node = element
+        while node is not None:
+            if node == ancestor:
+                return True
+            try:
+                node = _M.VisualTreeHelper.GetParent(node)
+            except Exception:
+                return False
+        return False
 
     # ── Word row builder ──
 
@@ -274,16 +417,9 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         vn.Text  = row.ViewName
         vn.Width = 120
         try:
-            vn.Style = self.FindResource('GridCellStyle')
-        except Exception:
-            vn.Background             = hb('#F4FAFF')
-            vn.Foreground             = hb('#2B3340')
-            vn.BorderBrush            = hb('#208A3C')
-            vn.BorderThickness        = Thickness(1)
-            vn.FontSize               = 11
-            vn.Height                 = 26
-            vn.Padding                = Thickness(6, 3, 6, 3)
-            vn.VerticalContentAlignment = VerticalAlignment.Center
+            vn.Style = self.FindResource('TextBoxStyle')
+        except Exception as e:
+            logger.warning('Failed to apply TextBoxStyle: {}'.format(e))
         vn.Margin    = Thickness(0, 0, 4, 0)
         row._vn_textbox = vn
         vn.Tag       = row
@@ -356,16 +492,18 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         row._refresh_btn    = rb
         sp.Children.Add(rb)
 
-        # Delete button — same round style as the window's close button
+        # Delete button — always-red DeleteButtonStyle, not the transparent-
+        # until-hover CloseButtonStyle (this removes the row, it isn't a
+        # window/card close action). Sized smaller than the card-level
+        # delete button (24 vs the style's own 30px token) since this one
+        # sits inline in a dense row, not a card header.
         db = Button()
         db.Content          = u'\u2715'
         db.FontSize         = 10
-        db.Foreground       = hb('#F4FAFF')
-        db.Background       = hb('#2B3340')
         try:
-            db.Style = self.FindResource('CloseButtonStyle')
-        except Exception:
-            db.BorderThickness = Thickness(0)
+            db.Style = self.FindResource('DeleteButtonStyle')
+        except Exception as e:
+            logger.warning('Failed to apply DeleteButtonStyle: {}'.format(e))
         db.FocusVisualStyle = None
         db.Width            = 24
         db.Height           = 24
@@ -547,24 +685,17 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         return False
 
     def _style_view_name_conflict(self, box, is_conflict):
-        """Red border + light red fill when the typed name collides
-        with an existing view; green border + normal fill otherwise —
-        same visual language as the green combo highlight elsewhere.
-        Swaps the whole Style rather than setting BorderBrush/
-        Background directly: GridCellStyle's IsFocused/IsMouseOver
-        triggers hardcode a green border, which would silently mask
-        a red border set from code the whole time the box has focus
-        — exactly when a typed conflict most needs to be visible."""
+        """Red border when the typed name collides with an existing view,
+        normal border otherwise — swaps the whole Style rather than
+        setting BorderBrush directly: TextBoxStyle's IsFocused/IsMouseOver
+        triggers hardcode the normal border, which would silently mask
+        a red border set from code the whole time the box has focus —
+        exactly when a typed conflict most needs to be visible."""
         try:
             box.Style = self.FindResource(
-                'GridCellErrorStyle' if is_conflict else 'GridCellStyle')
-        except Exception:
-            if is_conflict:
-                box.BorderBrush = hb('#DC2626')
-                box.Background  = hb('#FBE2E2')
-            else:
-                box.BorderBrush = hb('#208A3C')
-                box.Background  = hb('#F4FAFF')
+                'TextBoxErrorStyle' if is_conflict else 'TextBoxStyle')
+        except Exception as e:
+            logger.warning('Failed to apply TextBox(Error)Style: {}'.format(e))
 
     def _remove_row_ui(self, row):
         """Remove a single row's data + UI element from whichever card
@@ -755,41 +886,50 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         self._set_status('Refreshed')
 
     def OnBatchActions(self, sender, e):
-        menu = self._styled_menu()
+        """Toggle the toolbar Batch dropdown - a real Popup anchored to
+        BatchBtn (see PyTable.xaml), not a native ContextMenu."""
+        panel = self.BatchPopupPanel
+        panel.Children.Clear()
+
         def item(label, fn):
-            return self._styled_menu_item(label, fn)
+            return self._make_menu_item(label, fn)
 
         def all_rows():
             return [r for fd in self._file_data.values() for r in fd['rows']]
 
-        menu.Items.Add(item('Select all',
+        panel.Children.Add(item('Select all',
             lambda s, ev: [setattr(r, 'Enabled', True) for r in all_rows()]))
-        menu.Items.Add(item('Deselect all',
+        panel.Children.Add(item('Deselect all',
             lambda s, ev: [setattr(r, 'Enabled', False) for r in all_rows()]))
-        menu.Items.Add(item(u'Set all \u2192 Schedule View',
+        panel.Children.Add(item(u'Set all \u2192 Schedule View',
             lambda s, ev: [setattr(r, 'ViewType', 'Schedule View')
                            for r in all_rows()]))
-        menu.Items.Add(item(u'Set all \u2192 Legend View',
+        panel.Children.Add(item(u'Set all \u2192 Legend View',
             lambda s, ev: [setattr(r, 'ViewType', 'Legend View')
                            for r in all_rows()]))
-        menu.IsOpen = True
+        self._toggle_popup(self.BatchPopup, self.BatchBtn)
 
     def OnMenuOpen(self, sender, e):
-        menu = self._styled_menu()
-        def item(label, fn):
-            return self._styled_menu_item(label, fn)
+        """Toggle the hamburger dropdown - a real Popup anchored to
+        MenuBtn (see PyTable.xaml), matching pyTransmit's hamburger/
+        OptionsPopup exactly instead of a native ContextMenu."""
+        panel = self.MenuPopupPanel
+        panel.Children.Clear()
 
-        menu.Items.Add(item(u'Edit Section Groups\u2026',
+        def item(label, fn):
+            return self._make_menu_item(label, fn)
+
+        panel.Children.Add(item(u'Edit Section Groups\u2026',
             lambda s, ev: self._open_group_settings_editor()))
-        menu.Items.Add(item(u'Word Text Size\u2026',
+        panel.Children.Add(item(u'Word Text Size\u2026',
             lambda s, ev: self._open_word_text_settings_editor()))
-        menu.Items.Add(self._styled_menu_separator())
-        menu.Items.Add(item(u'\u2753  Support', self._menu_support_click))
-        menu.Items.Add(item(u'\u2139  About pyTable', self._menu_about_click))
-        menu.Items.Add(self._styled_menu_separator())
-        menu.Items.Add(item(u'\u2615  Support this project and help us grow',
+        panel.Children.Add(self._make_menu_separator())
+        panel.Children.Add(item(u'\u2753  Support', self._menu_support_click))
+        panel.Children.Add(item(u'\u2139  About pyTable', self._menu_about_click))
+        panel.Children.Add(self._make_menu_separator())
+        panel.Children.Add(item(u'\u2615  Support this project and help us grow',
                              self._menu_donate_click))
-        menu.IsOpen = True
+        self._toggle_popup(self.MenuPopup, self.MenuBtn)
 
     _last_url_open_time = 0.0
 
@@ -1618,10 +1758,12 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             pass
 
     def _make_sync_btn(self, row):
-        """Round sync-state button shown at the end of every row.
-        Grey when the row is up to date, blue when the source has
-        changed and needs reloading. Always visible so state is
-        visible at a glance instead of only appearing when stale."""
+        """Round reload button shown at the end of every row - accent
+        green + enabled when the source has changed and needs reloading,
+        the canonical disabled look when already in sync. Uses
+        RoundPrimaryButtonStyle exactly as defined in the lib HTML
+        palette editor (IsEnabled drives the colour, not a manual
+        Background assignment)."""
         rb = Button()
         if _mi is not None:
             try:
@@ -1631,10 +1773,9 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         else:
             rb.Content = u'\u21bb'
         try:
-            rb.Style = self.FindResource('RoundToolBtnStyle')
-        except Exception:
-            rb.Foreground      = hb('#F4FAFF')
-            rb.BorderThickness = Thickness(0)
+            rb.Style = self.FindResource('RoundPrimaryButtonStyle')
+        except Exception as e:
+            logger.warning('Failed to apply RoundPrimaryButtonStyle: {}'.format(e))
         rb.FocusVisualStyle = None
         rb.Width       = 24
         rb.Height      = 24
@@ -1648,52 +1789,16 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         return rb
 
     def _set_sync_btn_state(self, rb, needs_reload):
-        """Colour + tooltip for a row's sync button. Grey = in sync,
-        blue = source changed and a reload is needed."""
+        """Enabled state + tooltip for a row's reload button.
+        RoundPrimaryButtonStyle handles the colour switch itself via
+        IsEnabled (accent green when enabled, canonical disabled look
+        when not) - no manual colour assignment needed."""
         if rb is None:
             return
         rb.Visibility = Visibility.Visible
-        if needs_reload:
-            rb.Background = hb('#2B6CB0')
-            rb.ToolTip     = 'Source changed - click to reload'
-        else:
-            rb.Background = hb('#404553')
-            rb.ToolTip     = 'Up to date'
-
-    def _styled_menu(self):
-        """Build a ContextMenu with the app's dark styling applied,
-        instead of the default Windows light-theme chrome."""
-        from System.Windows.Controls import ContextMenu
-        menu = ContextMenu()
-        try:
-            menu.Style = self.FindResource('DarkContextMenuStyle')
-        except Exception:
-            menu.Background      = hb('#2B3340')
-            menu.BorderBrush      = hb('#404553')
-            menu.BorderThickness = Thickness(1)
-        return menu
-
-    def _styled_menu_item(self, label, fn):
-        """Build a MenuItem with the app's dark styling applied."""
-        from System.Windows.Controls import MenuItem
-        mi = MenuItem()
-        mi.Header = label
-        try:
-            mi.Style = self.FindResource('DarkMenuItemStyle')
-        except Exception:
-            mi.Background = hb('#2B3340')
-            mi.Foreground = hb('#F4FAFF')
-        mi.Click += fn
-        return mi
-
-    def _styled_menu_separator(self):
-        from System.Windows.Controls import Separator
-        sep = Separator()
-        try:
-            sep.Style = self.FindResource('DarkMenuSeparatorStyle')
-        except Exception:
-            sep.Background = hb('#404553')
-        return sep
+        rb.IsEnabled = needs_reload
+        rb.ToolTip = ('Source changed - click to reload' if needs_reload
+                      else 'Up to date')
 
     def _green_btn(self, content, height=24, padding=(10,0,10,0),
                    font_size=11, width=None):
@@ -1707,29 +1812,8 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             btn.Width = width
         try:
             btn.Style = self.FindResource('SmallButtonStyle')
-        except Exception:
-            btn.Background      = hb('#208A3C')
-            btn.Foreground      = hb('#F4FAFF')
-            btn.BorderThickness = Thickness(0)
-            btn.FontWeight      = FontWeights.SemiBold
-            try:
-                from System.Windows.Markup import XamlReader
-                tmpl = (
-                    '<ControlTemplate xmlns="http://schemas.microsoft.com'
-                    '/winfx/2006/xaml/presentation" '
-                    'xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" '
-                    'TargetType="Button">'
-                    '<Border Background="{TemplateBinding Background}" '
-                    'CornerRadius="4" '
-                    'Padding="{TemplateBinding Padding}">'
-                    '<ContentPresenter HorizontalAlignment="Center" '
-                    'VerticalAlignment="Center"/>'
-                    '</Border>'
-                    '</ControlTemplate>'
-                )
-                btn.Template = XamlReader.Parse(tmpl)
-            except Exception:
-                pass
+        except Exception as e:
+            logger.warning('Failed to apply SmallButtonStyle: {}'.format(e))
         btn.FocusVisualStyle = None
         return btn
 
@@ -1776,7 +1860,11 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         self._save_persisted_state()
 
     def _toggle_card_collapse(self, sender, e):
-        """Show/hide everything in the card except its header row."""
+        """Show/hide everything in the card except its header row.
+        sender is a ToggleButton (PrimarySecondaryToggleButtonStyle) -
+        WPF flips IsChecked natively before Click fires, so IsChecked
+        already reflects the new state: True = now expanded, False =
+        now collapsed."""
         path = sender.Tag
         fd = self._file_data.get(path)
         if fd is None or fd.get('card_inner') is None:
@@ -1785,32 +1873,29 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         children = list(inner.Children)
         if not children:
             return
-        collapsing = children[1].Visibility != Visibility.Collapsed if len(children) > 1 else True
+        expanded = bool(sender.IsChecked)
         for child in children[1:]:
-            child.Visibility = Visibility.Collapsed if collapsing else Visibility.Visible
+            child.Visibility = Visibility.Visible if expanded else Visibility.Collapsed
         # header_row (children[0]) carries its own bottom margin to
         # space it from the rows below. When everything below is
         # hidden, that margin is left stacking on top of the card's
         # own bottom padding, making the collapsed card look bottom-
         # heavy — zero it out while collapsed, restore on expand.
         header_row = children[0]
-        header_row.Margin = Thickness(0, 0, 0, 0 if collapsing else 8)
-        self._set_collapse_icon(sender, collapsing)
+        header_row.Margin = Thickness(0, 0, 0, 8 if expanded else 0)
+        self._set_collapse_icon(sender, not expanded)
 
     def _set_collapse_icon(self, btn, collapsed):
-        """Set the collapse toggle's chevron-circle icon + colour and
-        tooltip to match state: green chevron-right when collapsed,
-        muted grey chevron-down when expanded. Falls back to unicode
-        triangles if the shared icon lib isn't available."""
-        key   = 'chevron_right_circle' if collapsed else 'chevron_down_circle'
-        color = '#208A3C' if collapsed else '#9AA3B4'
-        if _mi is not None:
-            try:
-                btn.Content = _mi(key, size=20, color=color)
-                btn.ToolTip = 'Expand' if collapsed else 'Collapse'
-                return
-            except Exception:
-                pass
+        """Set the collapse toggle's chevron glyph + tooltip to match
+        state. Colour comes entirely from PrimarySecondaryToggleButtonStyle's
+        own IsChecked trigger now (accent green while collapsed, secondary
+        grey while expanded) - the glyph itself stays a plain white/
+        style-Foreground chevron rather than a baked-colour compound icon,
+        since the button's own round background already carries the
+        colour and a circle-backed icon glyph on top of it would double
+        up. No canonical plain chevron_right icon exists yet (only the
+        _circle compound variants), so this uses a plain unicode
+        triangle both ways for visual consistency."""
         btn.Content = u'\u25B6' if collapsed else u'\u25BC'
         btn.ToolTip = 'Expand' if collapsed else 'Collapse'
 
@@ -1840,37 +1925,47 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
     # ── Per-card Batch menu ──
 
     def _card_batch_menu(self, sender, e):
-        """Open the per-card Batch menu, separate from the global
-        toolbar Batch menu — everything here acts on this one card."""
+        """Open the per-card Batch dropdown, separate from the global
+        toolbar Batch dropdown — everything here acts on this one card.
+        A real Popup+MenuItemStyle dropdown built once per card and
+        reused (stored on fd), same visual pattern as the toolbar
+        Batch/hamburger dropdowns, not a native ContextMenu."""
         path = sender.Tag
         fd = self._file_data.get(path, {})
 
-        def item(label, fn):
-            return self._styled_menu_item(label, fn)
+        popup_panel = fd.get('batch_popup_panel')
+        if popup_panel is None:
+            popup, popup_panel = self._build_dropdown_popup(sender)
+            fd['batch_popup']       = popup
+            fd['batch_popup_panel'] = popup_panel
+        else:
+            popup = fd['batch_popup']
+        popup_panel.Children.Clear()
 
-        menu = self._styled_menu()
-        menu.Items.Add(item('Delete selected',
+        def item(label, fn):
+            return self._make_menu_item(label, fn)
+
+        popup_panel.Children.Add(item('Delete selected',
             lambda s, ev: self._card_delete_selected(path)))
-        menu.Items.Add(self._styled_menu_separator())
-        menu.Items.Add(item('Duplicate',
+        popup_panel.Children.Add(self._make_menu_separator())
+        popup_panel.Children.Add(item('Duplicate',
             lambda s, ev: self._card_duplicate(path)))
-        menu.Items.Add(item('Absolute/Relative Path',
+        popup_panel.Children.Add(item('Absolute/Relative Path',
             lambda s, ev: self._card_toggle_path_mode(path)))
-        menu.Items.Add(self._styled_menu_separator())
-        menu.Items.Add(item('Open File',
+        popup_panel.Children.Add(self._make_menu_separator())
+        popup_panel.Children.Add(item('Open File',
             lambda s, ev: self._card_open_file(path)))
-        menu.Items.Add(item('Open Folder',
+        popup_panel.Children.Add(item('Open Folder',
             lambda s, ev: self._card_open_folder(path)))
         if fd.get('unlinked'):
-            menu.Items.Add(item('Re-link View',
+            popup_panel.Children.Add(item('Re-link View',
                 lambda s, ev: self._card_relink_view(path)))
         else:
-            menu.Items.Add(item('Unlink View',
+            popup_panel.Children.Add(item('Unlink View',
                 lambda s, ev: self._card_unlink_view(path)))
-        menu.Items.Add(item('Remove view',
+        popup_panel.Children.Add(item('Remove view',
             lambda s, ev: self._card_remove_views(path)))
-        menu.PlacementTarget = sender
-        menu.IsOpen = True
+        self._toggle_popup(popup, sender)
 
     def _card_delete_selected(self, path):
         """Delete every checked row across every view in this card
@@ -2117,23 +2212,21 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         self._update_card_reload_indicator(path)
 
     def _update_card_reload_indicator(self, path):
-        """Grey when everything in this card is in sync, blue when at
-        least one row needs reapplying. Word cards also update the
-        group-level aggregate (multiple views can share one card)."""
+        """Enable (accent green) when at least one row in this card
+        needs reapplying, disable (canonical disabled look) when
+        everything's in sync - same IsEnabled-driven RoundPrimaryButtonStyle
+        as the per-row reload button, so card-level and row-level agree.
+        Word cards also update the group-level aggregate (multiple views
+        can share one card)."""
         fd = self._file_data.get(path)
         if fd is None:
             return
         needs_reload = any(r.Status == 'sync' for r in fd.get('rows', []))
         btn = fd.get('reload_btn')
         if btn is not None:
-            if needs_reload:
-                btn.Background = hb('#2B6CB0')
-                btn.Opacity     = 1.0
-                btn.ToolTip     = 'Click to reload rows that need updating'
-            else:
-                btn.Background = hb('#208A3C')
-                btn.Opacity     = 1.0
-                btn.ToolTip     = 'All rows up to date'
+            btn.IsEnabled = needs_reload
+            btn.ToolTip = ('Click to reload rows that need updating'
+                            if needs_reload else 'All rows up to date')
         if fd.get('source_type') == 'word':
             real_path = fd.get('real_path', path)
             self._update_word_group_reload_indicator(real_path)

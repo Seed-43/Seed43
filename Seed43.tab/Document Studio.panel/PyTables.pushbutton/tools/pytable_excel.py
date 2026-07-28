@@ -23,8 +23,8 @@ from System.Windows.Controls import (
     ComboBox, Button, Orientation, ScrollViewer,
     Grid, ColumnDefinition
 )
+from System.Windows.Controls.Primitives import Popup, ToggleButton
 from System.Windows.Shapes import Ellipse
-from System.Windows.Media import SolidColorBrush, Color
 
 logger = script.get_logger()
 doc = revit.doc
@@ -102,13 +102,25 @@ def get_named_ranges_from_workbook(file_path):
          treated as global and added to ALL sheets.
     """
     result = {'named_ranges': [], 'sheets': [], 'sheet_ranges': {}}
+
+    try:
+        with _zipfile.ZipFile(file_path, 'r') as z:
+            xml_bytes = z.read('xl/workbook.xml')
+    except Exception as e:
+        # File couldn't even be opened/read as a zip - a genuinely
+        # unexpected problem (locked file, wrong extension, corrupt
+        # download), worth a real warning.
+        logger.warning(
+            'Could not read "{}" as an xlsx workbook: {}'.format(
+                os.path.basename(file_path), e
+            )
+        )
+        return result
+
     try:
         import clr
         clr.AddReference('System.Xml')
         from System.Xml import XmlDocument
-
-        with _zipfile.ZipFile(file_path, 'r') as z:
-            xml_bytes = z.read('xl/workbook.xml')
 
         xml_doc = XmlDocument()
         xml_doc.LoadXml(xml_bytes.decode('utf-8'))
@@ -173,14 +185,20 @@ def get_named_ranges_from_workbook(file_path):
         result['named_ranges'] = named_ranges
         result['sheet_ranges'] = sheet_ranges
 
-    except Exception as e:
-        logger.error(
-            'get_named_ranges_from_workbook failed for "{}": {}'.format(
-                os.path.basename(file_path), e
+    except Exception:
+        # workbook.xml existed but couldn't be parsed as XML (or had no
+        # usable defined-name data) - this is the ordinary "file has no
+        # named ranges" case, not a crash. Report it as such rather than
+        # surfacing the raw XML parser exception as an ERROR.
+        logger.debug(
+            'No named ranges found in "{}" (workbook.xml unreadable or empty)'.format(
+                os.path.basename(file_path)
             )
         )
 
     return result
+
+
 
 
 # ── Read cell data from xlsx named range ──
@@ -1867,11 +1885,8 @@ class ExcelCardMixin(object):
         outer = Border()
         try:
             outer.Style = self.FindResource('CardStyle')
-        except Exception:
-            outer.Background     = hb('#2B3340')
-            outer.CornerRadius   = CornerRadius(8)
-            outer.Padding        = Thickness(16)
-            outer.Margin         = Thickness(0, 0, 0, 12)
+        except Exception as e:
+            logger.warning('Failed to apply CardStyle: {}'.format(e))
 
         inner = StackPanel()
         inner.Orientation = Orientation.Vertical
@@ -1904,24 +1919,17 @@ class ExcelCardMixin(object):
         # chrome, so the button itself stays transparent; only the
         # icon's fill colour changes (grey while expanded, green once
         # collapsed) to match the rest of the card-state language.
-        collapse_btn = Button()
-        collapse_btn.Background      = SolidColorBrush(Color.FromArgb(0, 0, 0, 0))
+        collapse_btn = ToggleButton()
+        collapse_btn.IsChecked = True
         try:
-            collapse_btn.Style = self.FindResource('RoundToolBtnStyle')
-        except Exception:
-            collapse_btn.BorderThickness = Thickness(0)
+            collapse_btn.Style = self.FindResource('PrimarySecondaryToggleButtonStyle')
+        except Exception as e:
+            logger.warning('Failed to apply PrimarySecondaryToggleButtonStyle: {}'.format(e))
         collapse_btn.FocusVisualStyle = None
-        collapse_btn.Width    = 28
-        collapse_btn.Height   = 28
         collapse_btn.HorizontalContentAlignment = HorizontalAlignment.Center
         collapse_btn.VerticalContentAlignment   = VerticalAlignment.Center
         collapse_btn.VerticalAlignment          = VerticalAlignment.Center
         collapse_btn.Margin          = Thickness(0, 0, 8, 0)
-        try:
-            collapse_btn.Cursor = __import__(
-                'System.Windows.Input', fromlist=['Cursors']).Cursors.Hand
-        except Exception:
-            pass
         collapse_btn.Tag     = path
         collapse_btn.ToolTip = 'Collapse'
         collapse_btn.Click  += self._toggle_card_collapse
@@ -1992,10 +2000,8 @@ class ExcelCardMixin(object):
         batch_btn.Content    = u'Batch \u25be'
         try:
             batch_btn.Style = self.FindResource('SecondaryButtonStyle')
-        except Exception:
-            batch_btn.Background      = hb('#404553')
-            batch_btn.Foreground      = hb('#F4FAFF')
-            batch_btn.BorderThickness = Thickness(0)
+        except Exception as e:
+            logger.warning('Failed to apply SecondaryButtonStyle: {}'.format(e))
         batch_btn.FocusVisualStyle = None
         batch_btn.Height      = 24
         batch_btn.Padding     = Thickness(12, 0, 12, 0)
@@ -2018,10 +2024,9 @@ class ExcelCardMixin(object):
         else:
             reload_btn.Content = u'\u21bb'
         try:
-            reload_btn.Style = self.FindResource('RoundToolBtnStyle')
-        except Exception:
-            reload_btn.Foreground      = hb('#F4FAFF')
-            reload_btn.BorderThickness = Thickness(0)
+            reload_btn.Style = self.FindResource('RoundPrimaryButtonStyle')
+        except Exception as e:
+            logger.warning('Failed to apply RoundPrimaryButtonStyle: {}'.format(e))
         reload_btn.FocusVisualStyle = None
         reload_btn.Width       = 28
         reload_btn.Height      = 28
@@ -2041,12 +2046,10 @@ class ExcelCardMixin(object):
         del_card_btn = Button()
         del_card_btn.Content         = u'\u2715'
         del_card_btn.FontSize        = 11
-        del_card_btn.Foreground      = hb('#F4FAFF')
         try:
-            del_card_btn.Style = self.FindResource('CloseButtonStyle')
-        except Exception:
-            del_card_btn.Background      = hb('#2B3340')
-            del_card_btn.BorderThickness = Thickness(0)
+            del_card_btn.Style = self.FindResource('DeleteButtonStyle')
+        except Exception as e:
+            logger.warning('Failed to apply DeleteButtonStyle: {}'.format(e))
         del_card_btn.FocusVisualStyle = None
         del_card_btn.Width            = 28
         del_card_btn.Height           = 28

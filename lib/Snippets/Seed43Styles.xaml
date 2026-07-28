@@ -234,8 +234,8 @@ trigger, a reshaped template) need this file re-exported and re-merged.
         <Setter Property="Background"                 Value="Transparent"/>
         <Setter Property="Foreground"                 Value="{DynamicResource BrushTextPrimary}"/>
         <Setter Property="BorderThickness"            Value="0"/>
-        <Setter Property="Padding"                    Value="{DynamicResource undefined},{DynamicResource undefined}"/>
-        <Setter Property="FontSize"                   Value="{DynamicResource undefined}"/>
+        <Setter Property="Padding"                    Value="{DynamicResource PaddingMenuItem}"/>
+        <Setter Property="FontSize"                   Value="{DynamicResource FontSizeMenuItem}"/>
         <Setter Property="HorizontalAlignment"        Value="Stretch"/>
         <Setter Property="HorizontalContentAlignment" Value="Left"/>
         <Setter Property="Cursor"                     Value="Hand"/>
@@ -258,7 +258,8 @@ trigger, a reshaped template) need this file re-exported and re-merged.
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
-    </Style>         this window/card") and looks permanently red, not just on hover. -->
+    </Style>
+
     <Style x:Key="CloseButtonStyle" TargetType="Button">
         <Setter Property="Background"      Value="Transparent"/>
         <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
@@ -287,23 +288,98 @@ trigger, a reshaped template) need this file re-exported and re-merged.
          hover), for "delete this item" actions, e.g. removing a custom
          text style or a saved template. Opacity-dims on hover instead of
          changing colour, since it's already showing its "final" colour. -->
+    <!-- Round action-button family (delete, reload/RoundPrimaryButtonStyle,
+         collapse-toggle/PrimarySecondaryToggleButtonStyle) share their own
+         WidthButtonRound/HeightButtonRound/CornerRadiusButtonRound tokens -
+         a DIFFERENT dimension group from WidthButtonClose/HeightButtonClose/
+         CornerRadiusButtonClose, which is reserved for the window's own
+         chrome close button (CloseButtonStyle, above) only. The two used
+         to share one token group; kept separate now since the window close
+         button's size is a chrome/window-level decision, not a card/row
+         action-button one, and tuning one was silently tuning the other. -->
     <Style x:Key="DeleteButtonStyle" TargetType="Button">
         <Setter Property="Background"      Value="{DynamicResource BrushDanger}"/>
         <Setter Property="Foreground"      Value="#FFFFFF"/>
         <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Width"           Value="{DynamicResource WidthButtonClose}"/>
-        <Setter Property="Height"          Value="{DynamicResource HeightButtonClose}"/>
+        <Setter Property="Width"           Value="{DynamicResource WidthButtonRound}"/>
+        <Setter Property="Height"          Value="{DynamicResource HeightButtonRound}"/>
         <Setter Property="Cursor"          Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="bd" Background="{TemplateBinding Background}"
-                            CornerRadius="{DynamicResource CornerRadiusButtonClose}">
+                            CornerRadius="{DynamicResource CornerRadiusButtonRound}">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="bd" Property="Opacity" Value="0.8"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Round action button - accent green when IsEnabled (an action is
+         genuinely available, e.g. "reload" once a source has changed), the
+         shared disabled look when not. Uses button_round sizing, same
+         family as DeleteButtonStyle above. -->
+    <Style x:Key="RoundPrimaryButtonStyle" TargetType="Button">
+        <Setter Property="Background"      Value="{DynamicResource BrushPrimaryGreen}"/>
+        <Setter Property="Foreground"      Value="#FFFFFF"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Width"           Value="{DynamicResource WidthButtonRound}"/>
+        <Setter Property="Height"          Value="{DynamicResource HeightButtonRound}"/>
+        <Setter Property="Cursor"          Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="bd" Background="{TemplateBinding Background}"
+                            CornerRadius="{DynamicResource CornerRadiusButtonRound}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushPrimaryGreenPressed}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushSecondaryDisabledBg}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource BrushSecondaryDisabledFg}"/>
+                            <Setter Property="Cursor" Value="Arrow"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Round open/close toggle - accent green while unchecked (collapsed,
+         clicking expands), secondary grey while checked (expanded,
+         clicking collapses). Same button_round sizing family. -->
+    <Style x:Key="PrimarySecondaryToggleButtonStyle" TargetType="ToggleButton">
+        <Setter Property="Background"      Value="{DynamicResource BrushPrimaryGreen}"/>
+        <Setter Property="Foreground"      Value="#FFFFFF"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Width"           Value="{DynamicResource WidthButtonRound}"/>
+        <Setter Property="Height"          Value="{DynamicResource HeightButtonRound}"/>
+        <Setter Property="Cursor"          Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="bd" Background="{TemplateBinding Background}"
+                            CornerRadius="{DynamicResource CornerRadiusButtonRound}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Opacity" Value="0.85"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushSecondaryBg}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -347,6 +423,39 @@ trigger, a reshaped template) need this file re-exported and re-merged.
                         <Trigger Property="IsFocused" Value="True">
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushBorderPressed}"/>
                             <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushInputBgPressed}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- No canonical RadioButtonStyle existed anywhere in the lib before
+         this - same visual language as the app's other selection
+         controls: a circular outline that fills with BrushPrimaryGreen
+         when checked, matching the checkmark-style pattern used
+         elsewhere rather than the native Windows radio look. -->
+    <Style x:Key="RadioButtonStyle" TargetType="RadioButton">
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+        <Setter Property="FontSize"   Value="{DynamicResource FontSizeBody}"/>
+        <Setter Property="Cursor"     Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <StackPanel Orientation="Horizontal">
+                        <Border Width="16" Height="16"
+                                BorderBrush="{DynamicResource BrushPrimaryGreen}" BorderThickness="1.5"
+                                CornerRadius="8" Background="{DynamicResource BrushInputBg}"
+                                VerticalAlignment="Center">
+                            <Ellipse x:Name="Dot" Width="8" Height="8"
+                                     Fill="{DynamicResource BrushPrimaryGreen}"
+                                     Visibility="Collapsed"/>
+                        </Border>
+                        <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Dot" Property="Visibility" Value="Visible"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -447,6 +556,64 @@ trigger, a reshaped template) need this file re-exported and re-merged.
                             </Border>
                         </Popup>
                     </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Toggle-compatible twin of ComboBoxStyle - a Style with
+         TargetType="ComboBox" can't apply to a ToggleButton, so any
+         dropdown-shaped element that isn't a real value-selecting
+         ComboBox (a filter toggle, an action-menu trigger) still gets
+         the same canonical dropdown look: BrushInputBg family,
+         CornerRadiusCombobox, a chevron that rotates on open. This is
+         the lib's actual "Dropdown" visual language applied via a
+         ToggleButton, not a separate invented style. -->
+    <Style x:Key="DropdownToggleButtonStyle" TargetType="ToggleButton">
+        <Setter Property="Background"      Value="{DynamicResource BrushInputBg}"/>
+        <Setter Property="Foreground"      Value="{DynamicResource BrushTextInput}"/>
+        <Setter Property="BorderBrush"     Value="{DynamicResource BrushBorderDefault}"/>
+        <Setter Property="BorderThickness" Value="{DynamicResource BorderThicknessInput}"/>
+        <Setter Property="Padding"         Value="8,0"/>
+        <Setter Property="FontSize"        Value="{DynamicResource FontSizeCombobox}"/>
+        <Setter Property="Height"          Value="{DynamicResource HeightCombobox}"/>
+        <Setter Property="Cursor"          Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{DynamicResource CornerRadiusCombobox}">
+                        <Grid>
+                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"/>
+                            <Path x:Name="chev" Fill="{TemplateBinding Foreground}" IsHitTestVisible="False"
+                                  HorizontalAlignment="Right" VerticalAlignment="Center"
+                                  Margin="0,0,8,0" Data="M 0 0 L 4 4 L 8 0 Z"
+                                  RenderTransformOrigin="0.5,0.5">
+                                <Path.RenderTransform>
+                                    <RotateTransform Angle="0"/>
+                                </Path.RenderTransform>
+                            </Path>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushInputBgHover}"/>
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource BrushBorderHover}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushInputBgPressed}"/>
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource BrushBorderHover}"/>
+                            <Setter TargetName="chev" Property="RenderTransform">
+                                <Setter.Value>
+                                    <RotateTransform Angle="180"/>
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

@@ -172,6 +172,175 @@ def load_section_groups():
 
 def read_word_sections(file_path):
     """
+    Parse a .docx OR .odt file and extract sections as a list of dicts:
+        [{'heading': str, 'paragraphs': [{'text': str, 'bold': bool,
+          'italic': bool, 'underline': bool}]}, ...]
+
+    A section starts when a paragraph is detected as a heading:
+    - Word heading styles (Heading1, Heading2, etc.) / ODT text:h elements
+    - Bold-only paragraphs with all-caps or short text (<= 60 chars)
+
+    Uses zipfile + XmlDocument — no COM, no third-party libraries.
+    """
+    import zipfile
+    try:
+        with zipfile.ZipFile(file_path, 'r') as z:
+            names = z.namelist()
+    except Exception as ex:
+        logger.error('read_word_sections: cannot open {}: {}'.format(file_path, ex))
+        return []
+
+    if 'word/document.xml' in names:
+        return _read_docx_sections(file_path)
+    elif 'content.xml' in names:
+        return _read_odt_sections(file_path)
+    else:
+        logger.debug(
+            'read_word_sections: "{}" is neither a docx nor odt archive '
+            '- legacy .doc is not yet supported'.format(
+                os.path.basename(file_path)))
+        return []
+
+
+def _read_odt_sections(file_path):
+    """ODT equivalent of _read_docx_sections. ODT doesn't inline bold/
+    italic/underline the way docx's w:rPr does — text runs (text:span)
+    reference a named style instead, resolved here against
+    office:automatic-styles' style:text-properties. Formatting is
+    aggregated per paragraph (own style OR any nested span's style),
+    matching docx's own per-paragraph bold_any/italic_any/underline_any
+    aggregation rather than tracking per-run.
+    Not implemented yet for ODT: numbered/bulleted list markers (list
+    items still extract as plain paragraph text, no bullet prefix) —
+    docx's numbering.xml bullet-character lookup has no ODT equivalent
+    here yet."""
+    import zipfile
+    try:
+        import clr as _clr
+        _clr.AddReference('System.Xml')
+    except Exception:
+        pass
+    from System.Xml import XmlDocument, XmlNodeType
+
+    try:
+        with zipfile.ZipFile(file_path, 'r') as zf:
+            content_xml = zf.read('content.xml').decode('utf-8', errors='replace')
+    except Exception as ex:
+        logger.error('read_word_sections: cannot open {}: {}'.format(file_path, ex))
+        return []
+
+    try:
+        xdoc = XmlDocument()
+        xdoc.LoadXml(content_xml)
+    except Exception as ex:
+        logger.error('read_word_sections: ODT XML parse failed: {}'.format(ex))
+        return []
+
+    # style-name -> (bold, italic, underline), from every style:style
+    # with text-properties (covers both paragraph and character styles)
+    style_props = {}
+    style_nodes = xdoc.GetElementsByTagName('style:style')
+    for i in range(style_nodes.Count):
+        st = style_nodes.Item(i)
+        name = st.GetAttribute('style:name')
+        if not name:
+            continue
+        tp_nodes = st.GetElementsByTagName('style:text-properties')
+        if tp_nodes.Count == 0:
+            continue
+        tp = tp_nodes.Item(0)
+        weight = tp.GetAttribute('fo:font-weight')
+        fstyle = tp.GetAttribute('fo:font-style')
+        uline  = tp.GetAttribute('style:text-underline-style')
+        style_props[name] = (
+            weight == 'bold', fstyle == 'italic',
+            bool(uline) and uline != 'none')
+
+    def _text_of(node):
+        """Full text of a text:h/text:p node, preserving line breaks
+        and tabs as \\n / \\t — ODT stores these as empty elements,
+        not literal characters, unlike docx's w:tab (which the docx
+        reader here does the equivalent for)."""
+        parts = []
+        def _walk(n):
+            for child in list(n.ChildNodes):
+                if child.NodeType == XmlNodeType.Text:
+                    parts.append(child.Value)
+                elif child.LocalName == 'line-break':
+                    parts.append(u'\n')
+                elif child.LocalName == 'tab':
+                    parts.append(u'\t')
+                elif child.LocalName == 's':
+                    parts.append(u' ')
+                else:
+                    _walk(child)
+        _walk(node)
+        return u''.join(parts)
+
+    def _para_props(node):
+        own_style = node.GetAttribute('text:style-name')
+        bold, italic, underline = style_props.get(own_style, (False, False, False))
+        span_nodes = node.GetElementsByTagName('text:span')
+        for i in range(span_nodes.Count):
+            sp_style = span_nodes.Item(i).GetAttribute('text:style-name')
+            b, it, ul = style_props.get(sp_style, (False, False, False))
+            bold = bold or b
+            italic = italic or it
+            underline = underline or ul
+        return bold, italic, underline
+
+    def _is_heading(node, text, bold):
+        if node.LocalName == 'h':
+            return True
+        if not text or text.startswith('('):
+            return False
+        is_upper = text == text.upper() and any(c.isalpha() for c in text)
+        return bold and is_upper and len(text) <= 80
+
+    # Collect text:h / text:p blocks under office:text in document
+    # order via a single depth-first walk (GetElementsByTagName on two
+    # separate tag names would need re-sorting into document order -
+    # this walk avoids that entirely).
+    blocks = []
+    def _collect(n):
+        for child in list(n.ChildNodes):
+            if child.NodeType != XmlNodeType.Element:
+                continue
+            if child.LocalName in ('h', 'p'):
+                blocks.append(child)
+            else:
+                _collect(child)
+    body_nodes = xdoc.GetElementsByTagName('office:text')
+    if body_nodes.Count:
+        _collect(body_nodes.Item(0))
+
+    sections = []
+    current  = None
+    for node in blocks:
+        text = _text_of(node).strip()
+        bold, italic, underline = _para_props(node)
+        if _is_heading(node, text, bold):
+            if current is not None:
+                sections.append(current)
+            current = {'heading': text, 'paragraphs': []}
+        else:
+            if current is None:
+                if text:
+                    current = {'heading': '', 'paragraphs': []}
+            if current is not None and text:
+                current['paragraphs'].append({
+                    'text': text, 'bold': bold,
+                    'italic': italic, 'underline': underline,
+                    'bullet': '',
+                })
+    if current is not None:
+        sections.append(current)
+
+    return sections
+
+
+def _read_docx_sections(file_path):
+    """
     Parse a .docx file and extract sections as a list of dicts:
         [{'heading': str, 'paragraphs': [{'text': str, 'bold': bool,
           'italic': bool, 'underline': bool}]}, ...]
@@ -674,16 +843,20 @@ class WordCardMixin(object):
         self._set_collapse_icon(collapse_btn, False)
         header_left.Children.Add(collapse_btn)
 
+        # Source-type badge (W / ODT) — real_path's extension decides
+        # since .odt is routed through this same Word code path.
+        is_odt = os.path.splitext(real_path or '')[1].lower() == '.odt'
+        badge_key, badge_text = ('odt', 'ODT') if is_odt else ('word', 'W')
         src_badge = Border()
         src_badge.Width        = 24
         src_badge.Height       = 24
         src_badge.CornerRadius = CornerRadius(4)
-        src_badge.Background   = hb(SRC_COLOURS.get('word', '#2B579A'))
+        src_badge.Background   = hb(SRC_COLOURS.get(badge_key, '#2B579A'))
         src_badge.Margin       = Thickness(0, 0, 8, 0)
         src_badge.VerticalAlignment = VerticalAlignment.Center
         src_lbl = TextBlock()
-        src_lbl.Text                = 'W'
-        src_lbl.FontSize            = 9
+        src_lbl.Text                = badge_text
+        src_lbl.FontSize            = 8 if len(badge_text) > 2 else 9
         src_lbl.FontWeight          = FontWeights.Bold
         src_lbl.Foreground          = hb('#FFFFFF')
         src_lbl.HorizontalAlignment = HorizontalAlignment.Center
@@ -759,8 +932,6 @@ class WordCardMixin(object):
         except Exception as e:
             logger.warning('Failed to apply RoundPrimaryButtonStyle: {}'.format(e))
         reload_btn.FocusVisualStyle = None
-        reload_btn.Width       = 28
-        reload_btn.Height      = 28
         reload_btn.HorizontalContentAlignment = HorizontalAlignment.Center
         reload_btn.VerticalContentAlignment   = VerticalAlignment.Center
         reload_btn.VerticalAlignment          = VerticalAlignment.Center
@@ -778,8 +949,6 @@ class WordCardMixin(object):
         except Exception as e:
             logger.warning('Failed to apply DeleteButtonStyle: {}'.format(e))
         del_card_btn.FocusVisualStyle = None
-        del_card_btn.Width            = 28
-        del_card_btn.Height           = 28
         del_card_btn.HorizontalContentAlignment = HorizontalAlignment.Center
         del_card_btn.VerticalContentAlignment   = VerticalAlignment.Center
         del_card_btn.VerticalAlignment   = VerticalAlignment.Center
@@ -1012,8 +1181,6 @@ class WordCardMixin(object):
         except Exception as e:
             logger.warning('Failed to apply RoundPrimaryButtonStyle: {}'.format(e))
         view_reload_btn.FocusVisualStyle = None
-        view_reload_btn.Width  = 28
-        view_reload_btn.Height = 28
         view_reload_btn.VerticalAlignment = VerticalAlignment.Center
         view_reload_btn.Margin = Thickness(0, 0, 4, 0)
         view_reload_btn.Tag    = path
@@ -1071,9 +1238,20 @@ class WordCardMixin(object):
         col_hdr.Children.Add(_ch('',        14, 0))   # status dot
         col_hdr.Children.Add(tri_cb)                  # select-all
         col_hdr.Children.Add(_ch('Section', 204))
-        col_hdr.Children.Add(_ch('Priority', 82))
-        col_hdr.Children.Add(_ch('Group',   104))
-        col_hdr.Children.Add(_ch('Col',      40))
+        hdr_strict = fd.get('layout_mode', 'manual') == 'strict'
+        hdr_vis = Visibility.Visible if hdr_strict else Visibility.Collapsed
+        hdr_priority = _ch('Priority', 82)
+        hdr_group    = _ch('Group',   104)
+        hdr_col      = _ch('Col',      40)
+        hdr_priority.Visibility = hdr_vis
+        hdr_group.Visibility    = hdr_vis
+        hdr_col.Visibility      = hdr_vis
+        col_hdr.Children.Add(hdr_priority)
+        col_hdr.Children.Add(hdr_group)
+        col_hdr.Children.Add(hdr_col)
+        fd['hdr_priority'] = hdr_priority
+        fd['hdr_group']    = hdr_group
+        fd['hdr_col']      = hdr_col
 
         row_panel = StackPanel()
         row_panel.Orientation = Orientation.Vertical
@@ -1325,6 +1503,7 @@ class WordCardMixin(object):
         col_tb.LostFocus    += self._word_col_no_changed
         col_tb.IsEnabled     = not strict_mode
         col_tb.Opacity       = 0.5 if strict_mode else 1.0
+        col_tb.Visibility    = combo_vis
         row._col_textbox     = col_tb
         sp.Children.Add(col_tb)
 
@@ -1485,9 +1664,7 @@ class WordCardMixin(object):
         2.0 Arial', creating it if the project doesn't have one yet.
         Manual: pick an exact existing TextNoteType from a dropdown
         of everything already in the project."""
-        from System.Windows import (
-            Window, SizeToContent, WindowStartupLocation, ResizeMode,
-            TextWrapping)
+        from System.Windows import TextWrapping
         from System.Windows.Controls import RadioButton
 
         settings = load_word_text_settings()
@@ -1512,33 +1689,11 @@ class WordCardMixin(object):
             pass
         existing_types.sort(key=lambda t: t[1])
 
-        w = Window()
-        w.Title = 'Word Text Size'
-        w.Width = 380
-        w.SizeToContent = SizeToContent.Height
-        w.WindowStartupLocation = WindowStartupLocation.CenterOwner
-        try:
-            w.Owner = self
-        except Exception:
-            pass
-        w.Background = hb('#2B3340')
-        w.ResizeMode = ResizeMode.NoResize
-
-        root = StackPanel()
-        root.Margin = Thickness(16)
-        w.Content = root
-
-        title = TextBlock()
-        title.Text       = 'Word Text Size'
-        title.FontSize   = 14
-        title.FontWeight = FontWeights.Bold
-        title.Foreground = hb('#F4FAFF')
-        title.Margin     = Thickness(0, 0, 0, 4)
-        root.Children.Add(title)
+        w, root = self._build_styled_dialog('Word Text Size')
 
         hint = TextBlock()
         hint.Text = 'Which TextNoteType Word notes get placed with.'
-        hint.Foreground   = hb('#F4FAFF')
+        hint.Foreground   = w.TryFindResource('BrushTextPrimary') or hb('#F4FAFF')
         hint.Opacity      = 0.6
         hint.FontSize     = 10
         hint.TextWrapping = TextWrapping.Wrap
@@ -1548,8 +1703,10 @@ class WordCardMixin(object):
         auto_rb = RadioButton()
         auto_rb.GroupName   = 'word_text_size_mode'
         auto_rb.Content     = u'Default: {}'.format(default_name)
-        auto_rb.Foreground  = hb('#F4FAFF')
-        auto_rb.FontSize    = 12
+        try:
+            auto_rb.Style = self.FindResource('RadioButtonStyle')
+        except Exception as ex:
+            logger.warning('Failed to apply RadioButtonStyle: {}'.format(ex))
         auto_rb.Margin      = Thickness(0, 0, 0, 6)
         auto_rb.IsChecked   = settings.get('mode', 'auto') == 'auto'
         root.Children.Add(auto_rb)
@@ -1561,8 +1718,10 @@ class WordCardMixin(object):
         manual_rb = RadioButton()
         manual_rb.GroupName  = 'word_text_size_mode'
         manual_rb.Content    = 'Manual, type:'
-        manual_rb.Foreground = hb('#F4FAFF')
-        manual_rb.FontSize   = 12
+        try:
+            manual_rb.Style = self.FindResource('RadioButtonStyle')
+        except Exception as ex:
+            logger.warning('Failed to apply RadioButtonStyle: {}'.format(ex))
         manual_rb.VerticalAlignment = VerticalAlignment.Center
         manual_rb.IsChecked  = settings.get('mode', 'auto') == 'manual'
         manual_row.Children.Add(manual_rb)
@@ -1639,9 +1798,7 @@ class WordCardMixin(object):
         This is the deliberate 'go to settings' path; the per-row
         Group dropdown's '+ New group…' is the convenience path for
         tagging one section on the fly."""
-        from System.Windows import (
-            Window, SizeToContent, WindowStartupLocation, ResizeMode,
-            TextWrapping)
+        from System.Windows import TextWrapping
         from System.Windows.Controls import ListBox
 
         data = load_section_groups()
@@ -1650,35 +1807,13 @@ class WordCardMixin(object):
                 for g in data.get('groups', [])]
         selected_idx = [None]
 
-        w = Window()
-        w.Title = 'Section Groups'
-        w.Width = 460
-        w.SizeToContent = SizeToContent.Height
-        w.WindowStartupLocation = WindowStartupLocation.CenterOwner
-        try:
-            w.Owner = self
-        except Exception:
-            pass
-        w.Background = hb('#2B3340')
-        w.ResizeMode = ResizeMode.NoResize
-
-        root = StackPanel()
-        root.Margin = Thickness(16)
-        w.Content = root
-
-        title = TextBlock()
-        title.Text       = 'Section Groups'
-        title.FontSize   = 14
-        title.FontWeight = FontWeights.Bold
-        title.Foreground = hb('#F4FAFF')
-        title.Margin     = Thickness(0, 0, 0, 4)
-        root.Children.Add(title)
+        w, root = self._build_styled_dialog('Section Groups', width=460)
 
         hint = TextBlock()
         hint.Text = ('Sections whose text contains one of a group\'s '
                      'keywords are auto-tagged into it. Select a '
                      'group below to see and edit its keywords.')
-        hint.Foreground   = hb('#F4FAFF')
+        hint.Foreground   = w.TryFindResource('BrushTextPrimary') or hb('#F4FAFF')
         hint.Opacity      = 0.6
         hint.FontSize     = 10
         hint.TextWrapping = TextWrapping.Wrap
@@ -1688,16 +1823,16 @@ class WordCardMixin(object):
         def _list_box(height):
             lb = ListBox()
             lb.Height          = height
-            lb.Background      = hb('#232933')
-            lb.Foreground      = hb('#F4FAFF')
-            lb.BorderBrush     = hb('#404553')
+            lb.Background      = w.TryFindResource('BrushInputBg') or hb('#232933')
+            lb.Foreground      = w.TryFindResource('BrushTextPrimary') or hb('#F4FAFF')
+            lb.BorderBrush     = w.TryFindResource('BrushBorderDefault') or hb('#404553')
             lb.BorderThickness = Thickness(1)
             return lb
 
         # ── Groups: search + list + add/delete ──
         search_label = TextBlock()
         search_label.Text       = 'Search'
-        search_label.Foreground = hb('#F4FAFF')
+        search_label.Foreground = w.TryFindResource('BrushTextPrimary') or hb('#F4FAFF')
         search_label.Opacity    = 0.7
         search_label.FontSize   = 11
         search_label.Margin     = Thickness(0, 0, 0, 4)
@@ -1757,7 +1892,7 @@ class WordCardMixin(object):
         # ── Keywords for whichever group is selected above ──
         kw_label = TextBlock()
         kw_label.Text       = 'Keywords in this group:'
-        kw_label.Foreground = hb('#F4FAFF')
+        kw_label.Foreground = w.TryFindResource('BrushTextPrimary') or hb('#F4FAFF')
         kw_label.Opacity    = 0.7
         kw_label.FontSize   = 11
         kw_label.Margin     = Thickness(0, 0, 0, 4)
@@ -1991,21 +2126,29 @@ class WordCardMixin(object):
         self._save_persisted_state()
 
     def _apply_layout_mode_ui(self, path):
-        """Show/hide Priority+Group and lock/unlock Col for every row
-        in a card, matching its current layout_mode."""
+        """Show/hide Priority+Group+Col for every row in a card, matching
+        its current layout_mode. All three are only meaningful once
+        Strict's layout algorithm actually runs - Manual mode uses
+        drag-reorder instead, so Col has nothing useful to show there
+        either (not just dimming it - hiding it, same as Priority/Group)."""
         fd = self._file_data.get(path)
         if fd is None:
             return
         strict = fd.get('layout_mode', 'manual') == 'strict'
         vis = Visibility.Visible if strict else Visibility.Collapsed
+        for hdr_key in ('hdr_priority', 'hdr_group', 'hdr_col'):
+            hdr = fd.get(hdr_key)
+            if hdr is not None:
+                hdr.Visibility = vis
         for row in fd.get('rows', []):
             if row._priority_combo is not None:
                 row._priority_combo.Visibility = vis
             if row._group_combo is not None:
                 row._group_combo.Visibility = vis
             if row._col_textbox is not None:
-                row._col_textbox.IsEnabled = not strict
-                row._col_textbox.Opacity   = 0.5 if strict else 1.0
+                row._col_textbox.IsEnabled   = not strict
+                row._col_textbox.Opacity     = 0.5 if strict else 1.0
+                row._col_textbox.Visibility  = vis
 
     def _maybe_run_strict_layout(self, path):
         """Re-run the layout algorithm only if this card is actually

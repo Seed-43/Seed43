@@ -21,9 +21,14 @@
       "font_size": 12
     },
     "button_close": {
-      "width": 20,
-      "height": 20,
-      "corner_radius": 10
+      "width": 30,
+      "height": 30,
+      "corner_radius": 15
+    },
+    "button_round": {
+      "width": 16,
+      "height": 16,
+      "corner_radius": 8
     },
     "button_menu": {
       "width": 36,

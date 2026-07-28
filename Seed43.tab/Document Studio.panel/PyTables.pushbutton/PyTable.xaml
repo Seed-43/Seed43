@@ -173,6 +173,40 @@
                 </Setter>
             </Style>
 
+        <!-- No canonical RadioButtonStyle exists anywhere in the lib yet
+             (checked pyTransmit and Seed43Styles.xaml - neither has one).
+             Same visual language as the app's other selection controls:
+             a circular outline that fills with BrushPrimaryGreen when
+             checked, matching the checkmark-style pattern used
+             elsewhere rather than the native Windows radio look. -->
+        <Style x:Key="RadioButtonStyle" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="FontSize"   Value="{DynamicResource FontSizeBody}"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="16" Height="16"
+                                    BorderBrush="{DynamicResource BrushPrimaryGreen}" BorderThickness="1.5"
+                                    CornerRadius="8" Background="{DynamicResource BrushInputBg}"
+                                    VerticalAlignment="Center">
+                                <Ellipse x:Name="Dot" Width="8" Height="8"
+                                         Fill="{DynamicResource BrushPrimaryGreen}"
+                                         Visibility="Collapsed"/>
+                            </Border>
+                            <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Dot" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="ComboBoxStyle" TargetType="ComboBox">
                 <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
                 <Setter Property="Background"      Value="{DynamicResource BrushInputBg}"/>
@@ -400,6 +434,67 @@
                 </Setter>
             </Style>
 
+        <!-- Toggle-compatible twin of ComboBoxStyle - a Style with
+             TargetType="ComboBox" can't apply to a ToggleButton, so any
+             dropdown-shaped element that isn't a real value-selecting
+             ComboBox (a filter toggle, a menu/action trigger like Batch)
+             still needs the SAME canonical dropdown look: BrushInputBg
+             family, CornerRadiusCombobox, a chevron that rotates on open.
+             This is the actual lib "Dropdown" component's visual
+             language, not a new independent style - SecondaryButtonStyle
+             (a grey secondary BUTTON look) was the wrong element for
+             this; ComboBoxStyle's own visuals are the right one. -->
+        <Style x:Key="DropdownToggleButtonStyle" TargetType="ToggleButton">
+                <Setter Property="Background"      Value="{DynamicResource BrushInputBg}"/>
+                <Setter Property="Foreground"      Value="{DynamicResource BrushTextInput}"/>
+                <Setter Property="BorderBrush"     Value="{DynamicResource BrushBorderDefault}"/>
+                <Setter Property="BorderThickness" Value="{DynamicResource BorderThicknessInput}"/>
+                <Setter Property="Padding"         Value="8,0"/>
+                <Setter Property="FontSize"        Value="{DynamicResource FontSizeCombobox}"/>
+                <Setter Property="Height"          Value="{DynamicResource HeightCombobox}"/>
+                <Setter Property="Cursor"          Value="Hand"/>
+                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ToggleButton">
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="{DynamicResource CornerRadiusCombobox}">
+                                <Grid>
+                                    <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"
+                                                      Margin="{TemplateBinding Padding}"/>
+                                    <Path x:Name="Chevron" Fill="{TemplateBinding Foreground}" IsHitTestVisible="False"
+                                          HorizontalAlignment="Right" VerticalAlignment="Center"
+                                          Margin="0,0,8,0" Data="M 0 0 L 4 4 L 8 0 Z"
+                                          RenderTransformOrigin="0.5,0.5">
+                                        <Path.RenderTransform>
+                                            <RotateTransform Angle="0"/>
+                                        </Path.RenderTransform>
+                                    </Path>
+                                </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushInputBgHover}"/>
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushBorderHover}"/>
+                                </Trigger>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushInputBgPressed}"/>
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushBorderHover}"/>
+                                    <Setter TargetName="Chevron" Property="RenderTransform">
+                                        <Setter.Value>
+                                            <RotateTransform Angle="180"/>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
         <Style x:Key="IconToggleButtonStyle" TargetType="ToggleButton">
             <Setter Property="Width"           Value="{DynamicResource WidthButtonMenu}"/>
             <Setter Property="Height"          Value="{DynamicResource HeightButtonMenu}"/>
@@ -429,9 +524,14 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <!-- The window's own chrome close button - WidthButtonClose/
+             HeightButtonClose/CornerRadiusButtonClose are reserved for
+             this style alone now; the round action-button family below
+             (DeleteButtonStyle/RoundPrimaryButtonStyle/
+             PrimarySecondaryToggleButtonStyle) has its own separate
+             WidthButtonRound/HeightButtonRound/CornerRadiusButtonRound
+             tokens, so tuning one no longer silently tunes the other. -->
         <Style x:Key="CloseButtonStyle" TargetType="Button">
-            <Setter Property="Width"           Value="32"/>
-            <Setter Property="Height"          Value="32"/>
             <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="Background"      Value="Transparent"/>
             <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
@@ -457,18 +557,23 @@
                 </Setter.Value>
             </Setter>
         </Style>
-        <!-- Delete button - permanently danger-red (not transparent-until-
-             hover), for "delete this item" actions. Matches the canonical
-             definition in Seed43Styles.xaml/pyTransmit exactly: same
-             WidthButtonClose/HeightButtonClose/CornerRadiusButtonClose
-             tokens as CloseButtonStyle, just always-on BrushDanger with
-             an opacity dim on hover instead of a colour change. -->
+        <!-- Round action-button family: delete, reload (RoundPrimaryButtonStyle),
+             collapse-toggle (PrimarySecondaryToggleButtonStyle). All three
+             share their own WidthButtonRound/HeightButtonRound/
+             CornerRadiusButtonRound tokens - a DIFFERENT dimension group
+             from WidthButtonClose/HeightButtonClose/CornerRadiusButtonClose,
+             which stays reserved for the window's own chrome close button
+             (CloseButtonStyle, above) only. The two used to share one token
+             group; kept separate now since the window close button's size
+             is a chrome/window-level decision, not a card/row action-button
+             one, and tuning one was silently tuning the other. Matches the
+             lib reference (Seed43Styles.xaml) definition. -->
         <Style x:Key="DeleteButtonStyle" TargetType="Button">
             <Setter Property="Background"      Value="{DynamicResource BrushDanger}"/>
             <Setter Property="Foreground"      Value="#FFFFFF"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Width"           Value="{DynamicResource WidthButtonClose}"/>
-            <Setter Property="Height"          Value="{DynamicResource HeightButtonClose}"/>
+            <Setter Property="Width"           Value="{DynamicResource WidthButtonRound}"/>
+            <Setter Property="Height"          Value="{DynamicResource HeightButtonRound}"/>
             <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Template">
@@ -476,7 +581,7 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bd"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="{DynamicResource CornerRadiusButtonClose}">
+                                CornerRadius="{DynamicResource CornerRadiusButtonRound}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -500,15 +605,15 @@
             <Setter Property="Background"      Value="{DynamicResource BrushPrimaryGreen}"/>
             <Setter Property="Foreground"      Value="#FFFFFF"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Width"           Value="{DynamicResource WidthButtonClose}"/>
-            <Setter Property="Height"          Value="{DynamicResource HeightButtonClose}"/>
+            <Setter Property="Width"           Value="{DynamicResource WidthButtonRound}"/>
+            <Setter Property="Height"          Value="{DynamicResource HeightButtonRound}"/>
             <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                CornerRadius="{DynamicResource CornerRadiusButtonClose}">
+                                CornerRadius="{DynamicResource CornerRadiusButtonRound}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -531,21 +636,22 @@
 
         <!-- Round open/close toggle - accent green while unchecked (currently
              collapsed, clicking will expand it), secondary grey while
-             checked (currently expanded, clicking will collapse it). Pulled
+             checked (currently expanded, clicking will collapse it). Same
+             button_round sizing family as the two styles above. Pulled
              from the lib HTML palette editor's canonical definition. -->
         <Style x:Key="PrimarySecondaryToggleButtonStyle" TargetType="ToggleButton">
             <Setter Property="Background"      Value="{DynamicResource BrushPrimaryGreen}"/>
             <Setter Property="Foreground"      Value="#FFFFFF"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Width"           Value="{DynamicResource WidthButtonClose}"/>
-            <Setter Property="Height"          Value="{DynamicResource HeightButtonClose}"/>
+            <Setter Property="Width"           Value="{DynamicResource WidthButtonRound}"/>
+            <Setter Property="Height"          Value="{DynamicResource HeightButtonRound}"/>
             <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
                         <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                CornerRadius="{DynamicResource CornerRadiusButtonClose}">
+                                CornerRadius="{DynamicResource CornerRadiusButtonRound}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -554,41 +660,6 @@
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryBg}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="FilterCheckBoxStyle" TargetType="CheckBox">
-            <Setter Property="Foreground" Value="{DynamicResource BrushTextInput}"/>
-            <Setter Property="FontSize"   Value="{DynamicResource FontSizeBody}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="CheckBox">
-                        <Border x:Name="ItemBd" Background="Transparent"
-                                CornerRadius="{DynamicResource CornerRadiusDropdownItem}" Padding="{DynamicResource PaddingDropdownItem}">
-                            <StackPanel Orientation="Horizontal">
-                                <Border Width="14" Height="14"
-                                        BorderBrush="{DynamicResource BrushPrimaryGreen}" BorderThickness="1.5"
-                                        CornerRadius="3" Background="{DynamicResource BrushInputBg}"
-                                        VerticalAlignment="Center">
-                                    <Path x:Name="CheckMark"
-                                          Data="M 1 4 L 4 7 L 9 1"
-                                          Stroke="{DynamicResource BrushPrimaryGreen}" StrokeThickness="2"
-                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                                          Visibility="Collapsed"/>
-                                </Border>
-                                <ContentPresenter Margin="6,0,0,0" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ItemBd" Property="Background" Value="{DynamicResource BrushDropdownItemHover}"/>
-                            </Trigger>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -703,17 +774,18 @@
                             Click="OnAddTables"/>
 
                     <Grid Grid.Column="2">
-                        <Button x:Name="BatchBtn"
-                                Content="Batch ▾"
-                                Style="{StaticResource SecondaryButtonStyle}"
-                                Height="24" Padding="12,0"
-                                VerticalAlignment="Center"
-                                Click="OnBatchActions"/>
+                        <ToggleButton x:Name="BatchBtn"
+                                Content="Batch"
+                                Style="{StaticResource DropdownToggleButtonStyle}"
+                                Width="90"
+                                VerticalAlignment="Center"/>
                         <Popup x:Name="BatchPopup"
                                PlacementTarget="{Binding ElementName=BatchBtn}"
                                Placement="Bottom"
+                               IsOpen="{Binding ElementName=BatchBtn, Path=IsChecked}"
+                               Opened="OnBatchPopupOpened"
                                AllowsTransparency="True"
-                               StaysOpen="True">
+                               StaysOpen="False">
                             <Border Background="{DynamicResource BrushCardBg}"
                                     BorderBrush="{DynamicResource BrushBorderDefault}"
                                     BorderThickness="1"
@@ -734,55 +806,57 @@
 
                     <Grid Grid.Column="8">
                         <ToggleButton x:Name="SourceFilterToggle"
-                                      Height="{DynamicResource HeightCombobox}" Width="110"
-                                      Background="{DynamicResource BrushInputBg}"
-                                      Cursor="Hand"
-                                      PreviewMouseLeftButtonDown="OnFilterTogglePreviewDown">
-                            <ToggleButton.Template>
-                                <ControlTemplate TargetType="ToggleButton">
-                                    <Border x:Name="Bd"
-                                            Background="{TemplateBinding Background}"
-                                            BorderBrush="{DynamicResource BrushBorderDefault}"
-                                            BorderThickness="{DynamicResource BorderThicknessInput}"
-                                            CornerRadius="{DynamicResource CornerRadiusCombobox}">
-                                        <Grid>
-                                            <TextBlock Text="Source" Foreground="{DynamicResource BrushTextInput}" FontSize="{DynamicResource FontSizeCombobox}"
-                                                       Margin="8,0,0,0" VerticalAlignment="Center"/>
-                                            <Path Fill="{DynamicResource BrushTextInput}" IsHitTestVisible="False"
-                                                  HorizontalAlignment="Right" VerticalAlignment="Center"
-                                                  Margin="0,0,8,0" Data="M 0 0 L 4 4 L 8 0 Z"/>
-                                        </Grid>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushInputBgHover}"/>
-                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushBorderHover}"/>
-                                        </Trigger>
-                                        <Trigger Property="IsChecked" Value="True">
-                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushInputBgPressed}"/>
-                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushBorderHover}"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </ToggleButton.Template>
-                        </ToggleButton>
-                        <Popup PlacementTarget="{Binding ElementName=SourceFilterToggle}"
+                                      Content="Source"
+                                      Style="{StaticResource DropdownToggleButtonStyle}"
+                                      Width="110"/>
+                        <Popup x:Name="SourceAccordionPopup"
+                               PlacementTarget="{Binding ElementName=SourceFilterToggle}"
                                Placement="Bottom"
                                IsOpen="{Binding ElementName=SourceFilterToggle, Path=IsChecked}"
                                AllowsTransparency="True"
                                StaysOpen="False">
-                            <Border Background="{DynamicResource BrushCardBg}" BorderBrush="{DynamicResource BrushBorderDefault}" BorderThickness="1"
-                                    CornerRadius="{DynamicResource CornerRadiusDropdownPopup}" Padding="10,8">
+                            <Border x:Name="SourceAccordionBody"
+                                    Background="{DynamicResource BrushCardBg}"
+                                    BorderBrush="{DynamicResource BrushBorderMuted}"
+                                    BorderThickness="1"
+                                    CornerRadius="{DynamicResource CornerRadiusDropdownPopup}"
+                                    Padding="8" MinWidth="110">
                                 <Border.Effect>
-                                    <DropShadowEffect Color="Black" Opacity="0.3" ShadowDepth="2" BlurRadius="6"/>
+                                    <DropShadowEffect Color="Black" Opacity="0.4" ShadowDepth="3" BlurRadius="8"/>
                                 </Border.Effect>
                                 <StackPanel>
-                                    <CheckBox x:Name="SrcFilterExcel" Content="Excel" IsChecked="True"
-                                              Style="{StaticResource FilterCheckBoxStyle}" Margin="0,1"
-                                              Click="OnSourceFilterChanged"/>
-                                    <CheckBox x:Name="SrcFilterWord" Content="Word" IsChecked="True"
-                                              Style="{StaticResource FilterCheckBoxStyle}" Margin="0,1"
-                                              Click="OnSourceFilterChanged"/>
+                                    <Grid Margin="2,3">
+                                        <TextBlock Text="Excel" Foreground="{DynamicResource BrushTextPrimary}"
+                                                   FontSize="{DynamicResource FontSizeBody}" VerticalAlignment="Center"
+                                                   Margin="0,0,16,0"/>
+                                        <Border x:Name="SrcToggleExcel" HorizontalAlignment="Right"
+                                                Width="{DynamicResource WidthToggle}" Height="{DynamicResource HeightToggle}"
+                                                CornerRadius="{DynamicResource CornerRadiusToggle}" Cursor="Hand"/>
+                                    </Grid>
+                                    <Grid Margin="2,3">
+                                        <TextBlock Text="Word" Foreground="{DynamicResource BrushTextPrimary}"
+                                                   FontSize="{DynamicResource FontSizeBody}" VerticalAlignment="Center"
+                                                   Margin="0,0,16,0"/>
+                                        <Border x:Name="SrcToggleWord" HorizontalAlignment="Right"
+                                                Width="{DynamicResource WidthToggle}" Height="{DynamicResource HeightToggle}"
+                                                CornerRadius="{DynamicResource CornerRadiusToggle}" Cursor="Hand"/>
+                                    </Grid>
+                                    <Grid Margin="2,3">
+                                        <TextBlock Text="ODS" Foreground="{DynamicResource BrushTextPrimary}"
+                                                   FontSize="{DynamicResource FontSizeBody}" VerticalAlignment="Center"
+                                                   Margin="0,0,16,0"/>
+                                        <Border x:Name="SrcToggleOds" HorizontalAlignment="Right"
+                                                Width="{DynamicResource WidthToggle}" Height="{DynamicResource HeightToggle}"
+                                                CornerRadius="{DynamicResource CornerRadiusToggle}" Cursor="Hand"/>
+                                    </Grid>
+                                    <Grid Margin="2,3">
+                                        <TextBlock Text="ODT" Foreground="{DynamicResource BrushTextPrimary}"
+                                                   FontSize="{DynamicResource FontSizeBody}" VerticalAlignment="Center"
+                                                   Margin="0,0,16,0"/>
+                                        <Border x:Name="SrcToggleOdt" HorizontalAlignment="Right"
+                                                Width="{DynamicResource WidthToggle}" Height="{DynamicResource HeightToggle}"
+                                                CornerRadius="{DynamicResource CornerRadiusToggle}" Cursor="Hand"/>
+                                    </Grid>
                                 </StackPanel>
                             </Border>
                         </Popup>
@@ -790,58 +864,49 @@
 
                     <Grid Grid.Column="10">
                         <ToggleButton x:Name="TypeFilterToggle"
-                                      Height="{DynamicResource HeightCombobox}" Width="100"
-                                      Background="{DynamicResource BrushInputBg}"
-                                      Cursor="Hand"
-                                      PreviewMouseLeftButtonDown="OnFilterTogglePreviewDown">
-                            <ToggleButton.Template>
-                                <ControlTemplate TargetType="ToggleButton">
-                                    <Border x:Name="Bd"
-                                            Background="{TemplateBinding Background}"
-                                            BorderBrush="{DynamicResource BrushBorderDefault}"
-                                            BorderThickness="{DynamicResource BorderThicknessInput}"
-                                            CornerRadius="{DynamicResource CornerRadiusCombobox}">
-                                        <Grid>
-                                            <TextBlock Text="Type" Foreground="{DynamicResource BrushTextInput}" FontSize="{DynamicResource FontSizeCombobox}"
-                                                       Margin="8,0,0,0" VerticalAlignment="Center"/>
-                                            <Path Fill="{DynamicResource BrushTextInput}" IsHitTestVisible="False"
-                                                  HorizontalAlignment="Right" VerticalAlignment="Center"
-                                                  Margin="0,0,8,0" Data="M 0 0 L 4 4 L 8 0 Z"/>
-                                        </Grid>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushInputBgHover}"/>
-                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushBorderHover}"/>
-                                        </Trigger>
-                                        <Trigger Property="IsChecked" Value="True">
-                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushInputBgPressed}"/>
-                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushBorderHover}"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </ToggleButton.Template>
-                        </ToggleButton>
-                        <Popup PlacementTarget="{Binding ElementName=TypeFilterToggle}"
+                                      Content="Type"
+                                      Style="{StaticResource DropdownToggleButtonStyle}"
+                                      Width="100"/>
+                        <Popup x:Name="TypeAccordionPopup"
+                               PlacementTarget="{Binding ElementName=TypeFilterToggle}"
                                Placement="Bottom"
                                IsOpen="{Binding ElementName=TypeFilterToggle, Path=IsChecked}"
                                AllowsTransparency="True"
                                StaysOpen="False">
-                            <Border Background="{DynamicResource BrushCardBg}" BorderBrush="{DynamicResource BrushBorderDefault}" BorderThickness="1"
-                                    CornerRadius="{DynamicResource CornerRadiusDropdownPopup}" Padding="10,8">
+                            <Border x:Name="TypeAccordionBody"
+                                    Background="{DynamicResource BrushCardBg}"
+                                    BorderBrush="{DynamicResource BrushBorderMuted}"
+                                    BorderThickness="1"
+                                    CornerRadius="{DynamicResource CornerRadiusDropdownPopup}"
+                                    Padding="8" MinWidth="100">
                                 <Border.Effect>
-                                    <DropShadowEffect Color="Black" Opacity="0.3" ShadowDepth="2" BlurRadius="6"/>
+                                    <DropShadowEffect Color="Black" Opacity="0.4" ShadowDepth="3" BlurRadius="8"/>
                                 </Border.Effect>
                                 <StackPanel>
-                                    <CheckBox x:Name="TypeFilterSchedule" Content="Schedule View" IsChecked="True"
-                                              Style="{StaticResource FilterCheckBoxStyle}" Margin="0,1"
-                                              Click="OnTypeFilterChanged"/>
-                                    <CheckBox x:Name="TypeFilterLegend" Content="Legend View" IsChecked="True"
-                                              Style="{StaticResource FilterCheckBoxStyle}" Margin="0,1"
-                                              Click="OnTypeFilterChanged"/>
-                                    <CheckBox x:Name="TypeFilterDrafting" Content="Drafting View" IsChecked="True"
-                                              Style="{StaticResource FilterCheckBoxStyle}" Margin="0,1"
-                                              Click="OnTypeFilterChanged"/>
+                                    <Grid Margin="2,3">
+                                        <TextBlock Text="Schedule" Foreground="{DynamicResource BrushTextPrimary}"
+                                                   FontSize="{DynamicResource FontSizeBody}" VerticalAlignment="Center"
+                                                   Margin="0,0,16,0"/>
+                                        <Border x:Name="TypeToggleSchedule" HorizontalAlignment="Right"
+                                                Width="{DynamicResource WidthToggle}" Height="{DynamicResource HeightToggle}"
+                                                CornerRadius="{DynamicResource CornerRadiusToggle}" Cursor="Hand"/>
+                                    </Grid>
+                                    <Grid Margin="2,3">
+                                        <TextBlock Text="Legend" Foreground="{DynamicResource BrushTextPrimary}"
+                                                   FontSize="{DynamicResource FontSizeBody}" VerticalAlignment="Center"
+                                                   Margin="0,0,16,0"/>
+                                        <Border x:Name="TypeToggleLegend" HorizontalAlignment="Right"
+                                                Width="{DynamicResource WidthToggle}" Height="{DynamicResource HeightToggle}"
+                                                CornerRadius="{DynamicResource CornerRadiusToggle}" Cursor="Hand"/>
+                                    </Grid>
+                                    <Grid Margin="2,3">
+                                        <TextBlock Text="Drafting" Foreground="{DynamicResource BrushTextPrimary}"
+                                                   FontSize="{DynamicResource FontSizeBody}" VerticalAlignment="Center"
+                                                   Margin="0,0,16,0"/>
+                                        <Border x:Name="TypeToggleDrafting" HorizontalAlignment="Right"
+                                                Width="{DynamicResource WidthToggle}" Height="{DynamicResource HeightToggle}"
+                                                CornerRadius="{DynamicResource CornerRadiusToggle}" Cursor="Hand"/>
+                                    </Grid>
                                 </StackPanel>
                             </Border>
                         </Popup>
@@ -863,13 +928,14 @@
                     <Grid>
                         <ToggleButton x:Name="MenuBtn"
                                       Content="☰"
-                                      Style="{StaticResource IconToggleButtonStyle}"
-                                      Click="OnMenuOpen"/>
+                                      Style="{StaticResource IconToggleButtonStyle}"/>
                         <Popup x:Name="MenuPopup"
                                PlacementTarget="{Binding ElementName=MenuBtn}"
                                Placement="Bottom"
+                               IsOpen="{Binding ElementName=MenuBtn, Path=IsChecked}"
+                               Opened="OnMenuOpened"
                                AllowsTransparency="True"
-                               StaysOpen="True">
+                               StaysOpen="False">
                             <Border Background="{DynamicResource BrushCardBg}"
                                     BorderBrush="{DynamicResource BrushBorderDefault}"
                                     BorderThickness="1"

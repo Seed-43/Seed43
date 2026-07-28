@@ -60,7 +60,7 @@ SHEET_SIZES     = [
     'A0 Landscape', 'A0 Portrait',
 ]
 
-SRC_COLOURS    = {'xl': '#217346', 'word': '#2B579A'}
+SRC_COLOURS    = {'xl': '#217346', 'word': '#2B579A', 'ods': '#0E8C7B', 'odt': '#6B3FA0'}
 STATUS_COLOURS = {
     'pending': '#6B7280', 'success': '#16A34A',
     'error':   '#DC2626', 'skipped': '#CA8A04',
@@ -434,7 +434,7 @@ SHEET_SIZES     = [
     'A0 Landscape', 'A0 Portrait',
 ]
 
-SRC_COLOURS    = {'xl': '#217346', 'word': '#2B579A'}
+SRC_COLOURS    = {'xl': '#217346', 'word': '#2B579A', 'ods': '#0E8C7B', 'odt': '#6B3FA0'}
 STATUS_COLOURS = {
     'pending': '#6B7280', 'success': '#16A34A',
     'error':   '#DC2626', 'skipped': '#CA8A04',
@@ -514,8 +514,18 @@ class Row(object):
 
     @property
     def SourceLabel(self):
+        ext = os.path.splitext(self.FilePath or '')[1].lower()
+        if ext == '.ods':
+            return 'ODS'
+        if ext == '.odt':
+            return 'ODT'
         return {'xl': 'XL', 'word': 'W'}.get(self.SourceType, '?')
 
     @property
     def SourceColour(self):
+        ext = os.path.splitext(self.FilePath or '')[1].lower()
+        if ext == '.ods':
+            return hb(SRC_COLOURS.get('ods', '#555'))
+        if ext == '.odt':
+            return hb(SRC_COLOURS.get('odt', '#555'))
         return hb(SRC_COLOURS.get(self.SourceType, '#555'))

@@ -31,7 +31,9 @@ from System.Windows import (
     Visibility, Thickness,
     VerticalAlignment, HorizontalAlignment,
     FontWeights, CornerRadius, TextTrimming,
-    GridLength, GridUnitType
+    GridLength, GridUnitType,
+    Window, SizeToContent, WindowStartupLocation,
+    WindowStyle, ResizeMode
 )
 from System import DateTime
 from System.Windows.Controls import (
@@ -39,9 +41,9 @@ from System.Windows.Controls import (
     ComboBox, Button, Orientation, ScrollViewer,
     Grid, ColumnDefinition
 )
-from System.Windows.Controls.Primitives import Popup, PlacementMode, ToggleButton
+from System.Windows.Controls.Primitives import Popup, PlacementMode
 from System.Windows.Shapes import Ellipse, Rectangle
-from System.Windows.Media import Color
+from System.Windows.Media import Color, Brushes
 from System.Windows.Media.Effects import DropShadowEffect
 
 logger = script.get_logger()
@@ -120,14 +122,7 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         self._lbl_skipped  = None
         self._sync_panel   = None
         self._sync_label   = None
-        # Currently-open hand-built dropdown (MenuPopup, BatchPopup, or a
-        # per-card batch popup) + its anchor button, so a single window-
-        # level PreviewMouseDown handler can close whichever one is open
-        # on an outside click - same pattern pyTransmit uses for its
-        # hamburger OptionsPopup.
-        self._open_popup        = None
-        self._open_popup_anchor = None
-        self.PreviewMouseDown  += self._popup_outside_click
+        self._setup_filter_toggles()
         self._update_file_combo()
         self._build_status_card()
         self._refresh_status_card()
@@ -240,29 +235,124 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         except Exception:
             pass
 
-    # ── Shared hand-built dropdown popups (MenuPopup, BatchPopup, and
-    #    per-card batch popups) — matches pyTransmit's real hamburger/
-    #    OptionsPopup pattern exactly: the anchor's Click handler is
-    #    genuinely just "closed -> open it, open -> close it", the
-    #    Popup itself has StaysOpen="True" so WPF's own auto-dismiss
-    #    never races against that click, and closing on an outside
-    #    click is handled explicitly below via the window's own
-    #    PreviewMouseDown, walking up the visual tree to check whether
-    #    the click landed on the anchor or inside the popup's own
-    #    content before deciding to close it. ──
+    # ── Hand-built dropdown popups (MenuPopup, BatchPopup, and per-card
+    #    batch popups). The toolbar ones (MenuPopup/BatchPopup) bind
+    #    Popup.IsOpen directly to their anchor ToggleButton's own
+    #    IsChecked in XAML - the same proven pattern the Source/Type
+    #    filter dropdowns already use in this file - so there's no
+    #    manual open/close/outside-click bookkeeping needed for those at
+    #    all. Per-card popups (built fresh in code, anchored to a plain
+    #    Button with no IsChecked to bind) still open/close imperatively,
+    #    but StaysOpen="False" lets WPF's own native auto-dismiss handle
+    #    the outside-click case for them too. ──
+
+    def _build_styled_dialog(self, title, width=380):
+        """Build a secondary dialog window (Section Groups, Word Text
+        Size, etc.) that actually matches the app's theme instead of a
+        plain Window with the OS's own white title bar and default
+        control chrome. A brand-new Window has none of PyTable's own
+        Resources - two things are needed, matching the main window's
+        own setup in __init__ exactly:
+          1. apply_seed43_palette/apply_seed43_dimensions injected into
+             THIS window's own Resources (a Style's DynamicResource
+             setters resolve against the element they're applied to's
+             own resource chain, not wherever the Style itself was
+             declared - so canonical styles pulled from self.FindResource
+             below won't render correctly without this).
+          2. WindowStyle=None + AllowsTransparency, with a hand-built
+             title bar (drag via DragMove, a real CloseButtonStyle 'X'),
+             since that's how the main window avoids the OS chrome too -
+             just via WindowChrome there; plain AllowsTransparency here
+             is simpler and entirely sufficient for a fixed-size dialog.
+        Returns (window, content_panel) - add the dialog's own controls
+        to content_panel, then set window.Content indirectly by just
+        showing it (already wired) and call window.ShowDialog()."""
+        w = Window()
+        w.Title = title
+        w.Width = width
+        w.SizeToContent = SizeToContent.Height
+        w.WindowStartupLocation = WindowStartupLocation.CenterOwner
+        w.WindowStyle = getattr(WindowStyle, 'None')
+        w.AllowsTransparency = True
+        w.Background = None
+        w.ResizeMode = ResizeMode.NoResize
+        try:
+            w.Owner = self
+        except Exception:
+            pass
+
+        try:
+            _pt_script_dir = os.path.dirname(os.path.abspath(__file__))
+            from Snippets.seed43_theme import apply_seed43_palette, apply_seed43_dimensions
+            apply_seed43_palette(w, _pt_script_dir)
+            apply_seed43_dimensions(w, _pt_script_dir)
+        except Exception as ex:
+            logger.warning('Seed43 theme apply failed for dialog: {}'.format(ex))
+
+        outer = Border()
+        outer.Background   = w.TryFindResource('BrushWindowBg') or hb('#2B3340')
+        outer.BorderBrush   = w.TryFindResource('BrushBorderDefault') or hb('#208A3C')
+        outer.BorderThickness = Thickness(1)
+        outer.CornerRadius = CornerRadius(10)
+        shadow = DropShadowEffect()
+        shadow.Color = Color.FromRgb(0, 0, 0)
+        shadow.Opacity = 0.5
+        shadow.ShadowDepth = 4
+        shadow.BlurRadius = 14
+        outer.Effect = shadow
+        w.Content = outer
+
+        root = StackPanel()
+        outer.Child = root
+
+        # Hand-built title bar — drag to move, real close button
+        bar = Grid()
+        bar.Margin = Thickness(14, 12, 10, 8)
+        bar.MouseLeftButtonDown += lambda s, ev: w.DragMove()
+        col1 = ColumnDefinition()
+        col2 = ColumnDefinition()
+        col2.Width = GridLength(0, GridUnitType.Auto)
+        bar.ColumnDefinitions.Add(col1)
+        bar.ColumnDefinitions.Add(col2)
+
+        title_tb = TextBlock()
+        title_tb.Text       = title
+        title_tb.FontSize   = 14
+        title_tb.FontWeight = FontWeights.Bold
+        title_tb.Foreground = w.TryFindResource('BrushTextPrimary') or hb('#F4FAFF')
+        title_tb.VerticalAlignment = VerticalAlignment.Center
+        Grid.SetColumn(title_tb, 0)
+        bar.Children.Add(title_tb)
+
+        close_btn = Button()
+        close_btn.Content = u'\u2715'
+        try:
+            close_btn.Style = self.FindResource('CloseButtonStyle')
+        except Exception as ex:
+            logger.warning('Failed to apply CloseButtonStyle: {}'.format(ex))
+        close_btn.Click += lambda s, ev: w.Close()
+        Grid.SetColumn(close_btn, 1)
+        bar.Children.Add(close_btn)
+        root.Children.Add(bar)
+
+        content = StackPanel()
+        content.Margin = Thickness(16, 0, 16, 16)
+        root.Children.Add(content)
+
+        return w, content
 
     def _build_dropdown_popup(self, anchor):
         """Build a Popup+Border+StackPanel matching MenuPopup/BatchPopup's
-        XAML structure exactly, for a dropdown anchored to a dynamically-
-        built control (e.g. a per-card Batch button) that has no static
-        XAML slot of its own. Adds the Popup as a sibling of the anchor
-        in its parent panel so DynamicResource lookups resolve and the
-        Popup positions itself correctly. Returns (popup, content_panel)."""
+        XAML structure, for a dropdown anchored to a dynamically-built
+        control (e.g. a per-card Batch button) that has no static XAML
+        slot of its own. Adds the Popup as a sibling of the anchor in its
+        parent panel so DynamicResource lookups resolve and the Popup
+        positions itself correctly. Returns (popup, content_panel)."""
         popup = Popup()
         popup.PlacementTarget = anchor
         popup.Placement = PlacementMode.Bottom
         popup.AllowsTransparency = True
-        popup.StaysOpen = True
+        popup.StaysOpen = False
 
         border = Border()
         try:
@@ -292,9 +382,11 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             parent.Children.Add(popup)
         return popup, panel
 
-
+    def _make_menu_item(self, label, fn, popup):
         """Build a MenuItemStyle Button for a hand-built dropdown popup
-        (not a native MenuItem/ContextMenu)."""
+        (not a native MenuItem/ContextMenu). StaysOpen="False" only
+        auto-dismisses the popup on a click OUTSIDE it, so a click on
+        one of its own items needs to close it explicitly here."""
         item = Button()
         item.Content = label
         try:
@@ -302,7 +394,7 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         except Exception as e:
             logger.warning('Failed to apply MenuItemStyle: {}'.format(e))
         def _click(sender, ev):
-            self._close_open_popup()
+            popup.IsOpen = False
             fn(sender, ev)
         item.Click += _click
         return item
@@ -316,68 +408,6 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         except Exception as e:
             logger.warning('Failed to apply LocalBrushMenuBorder: {}'.format(e))
         return sep
-
-    def _toggle_popup(self, popup, anchor):
-        """Open/close a dropdown popup - genuinely just 'closed -> open
-        it, open -> close it', matching pyTransmit's options_btn_click.
-        Closes whatever other popup was open first, so only one is ever
-        open at a time."""
-        if self._open_popup is not None and self._open_popup is not popup:
-            self._close_open_popup()
-        new_state = not popup.IsOpen
-        popup.IsOpen = new_state
-        if isinstance(anchor, ToggleButton):
-            anchor.IsChecked = new_state
-        if new_state:
-            self._open_popup        = popup
-            self._open_popup_anchor = anchor
-        else:
-            self._open_popup        = None
-            self._open_popup_anchor = None
-
-    def _close_open_popup(self):
-        if self._open_popup is None:
-            return
-        self._open_popup.IsOpen = False
-        if isinstance(self._open_popup_anchor, ToggleButton):
-            self._open_popup_anchor.IsChecked = False
-        self._open_popup        = None
-        self._open_popup_anchor = None
-
-    def _popup_outside_click(self, sender, args):
-        """Wired to the window's own PreviewMouseDown. Closes whichever
-        dropdown popup is currently open on a click anywhere outside it
-        - except on its own anchor button, which already toggles it via
-        _toggle_popup above; if this handler also reacted to a click
-        there, the popup would close and then immediately reopen (or
-        the reverse)."""
-        if self._open_popup is None:
-            return
-        try:
-            source = args.OriginalSource
-            if self._open_popup_anchor is not None and \
-                    self._is_visual_descendant(source, self._open_popup_anchor):
-                return
-            popup_content = self._open_popup.Child
-            if popup_content is not None and \
-                    self._is_visual_descendant(source, popup_content):
-                return
-            self._close_open_popup()
-        except Exception:
-            pass
-
-    def _is_visual_descendant(self, element, ancestor):
-        """True if element is ancestor itself, or nested anywhere inside it."""
-        import System.Windows.Media as _M
-        node = element
-        while node is not None:
-            if node == ancestor:
-                return True
-            try:
-                node = _M.VisualTreeHelper.GetParent(node)
-            except Exception:
-                return False
-        return False
 
     # ── Word row builder ──
 
@@ -752,53 +782,139 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         separate piece and hasn't been built yet."""
         self.OnBrowse(sender, e)
 
-    def OnFilterTogglePreviewDown(self, sender, e):
-        """Explicit close-on-reclick, same fix already proven for the
-        hamburger toggles in pySheets/pyTransmit: Popup StaysOpen=False
-        already auto-closes on any click outside it, including a second
-        click on this same toggle button, and that same click's own
-        Click event would then flip IsChecked back to True, reopening
-        it. Intercept here first so a re-click always just closes,
-        instead of closing and instantly reopening."""
-        if sender.IsChecked:
-            sender.IsChecked = False
-            e.Handled = True
+    def _setup_filter_toggles(self):
+        """Build the mini toggle switches inside the Source/Type accordion
+        bodies - same bare-Border-track + Border-knob technique pyTransmit
+        uses for its own on/off switches (no animation, knob position set
+        directly - reliable in IronPython 2). All default ON, matching
+        the equivalent checkboxes' previous default."""
+        self._filter_state = {
+            'excel': True, 'word': True, 'ods': True, 'odt': True,
+            'schedule': True, 'legend': True, 'drafting': True,
+        }
+        self._filter_tracks = {
+            'excel':    self.SrcToggleExcel,
+            'word':     self.SrcToggleWord,
+            'ods':      self.SrcToggleOds,
+            'odt':      self.SrcToggleOdt,
+            'schedule': self.TypeToggleSchedule,
+            'legend':   self.TypeToggleLegend,
+            'drafting': self.TypeToggleDrafting,
+        }
+        self._filter_knobs = {}
+        source_keys = ('excel', 'word', 'ods', 'odt')
+        for key, track in self._filter_tracks.items():
+            self._build_mini_toggle(track, key)
+            changed_fn = (self._apply_source_filter if key in source_keys
+                          else self._apply_type_filter)
+            track.MouseLeftButtonUp += (
+                lambda s, ev, k=key, fn=changed_fn: self._toggle_filter(k, fn))
 
-    def OnSourceFilterChanged(self, sender, e):
-        """Show/hide cards by source type (Excel/Word). Word cards
-        share one outer group across multiple views (see
+    def _build_mini_toggle(self, track, key):
+        """Build one mini toggle switch's knob and set its initial
+        position/colour to match self._filter_state[key]."""
+        on = self._filter_state[key]
+        on_brush = (self.TryFindResource('BrushPrimaryGreen') or
+                    SolidColorBrush(Color.FromRgb(0x20, 0x8A, 0x3C)))
+        off_brush = (self.TryFindResource('BrushToggleOffBg') or
+                     SolidColorBrush(Color.FromRgb(0x5E, 0x5C, 0x64)))
+        knob_brush = self.TryFindResource('BrushToggleKnob') or Brushes.White
+        track_w = self.TryFindResource('WidthToggle') or 40.0
+        knob_size = self.TryFindResource('SizeToggleKnob') or 16.0
+        knob_margin = self.TryFindResource('MarginToggleKnob') or 2.0
+        knob_radius = (self.TryFindResource('CornerRadiusToggleKnob') or
+                        CornerRadius(knob_size / 2.0))
+
+        track.Background = on_brush if on else off_brush
+        knob = Border()
+        knob.Width = knob_size
+        knob.Height = knob_size
+        knob.CornerRadius = knob_radius
+        knob.Background = knob_brush
+        knob.HorizontalAlignment = HorizontalAlignment.Left
+        on_offset = track_w - knob_size - knob_margin
+        knob.Margin = (
+            Thickness(on_offset, knob_margin, 0, knob_margin) if on
+            else Thickness(knob_margin, knob_margin, 0, knob_margin))
+        track.Child = knob
+        self._filter_knobs[key] = knob
+
+    def _toggle_filter(self, key, changed_fn):
+        """Flip one filter toggle's on/off state, reposition its knob
+        directly (no animation - same as pyTransmit's own toggle re-read
+        of live resources here, not the values captured at setup time),
+        then re-run the corresponding filter."""
+        on_brush = (self.TryFindResource('BrushPrimaryGreen') or
+                    SolidColorBrush(Color.FromRgb(0x20, 0x8A, 0x3C)))
+        off_brush = (self.TryFindResource('BrushToggleOffBg') or
+                     SolidColorBrush(Color.FromRgb(0x5E, 0x5C, 0x64)))
+        track_w = self.TryFindResource('WidthToggle') or 40.0
+        knob_size = self.TryFindResource('SizeToggleKnob') or 16.0
+        knob_margin = self.TryFindResource('MarginToggleKnob') or 2.0
+
+        self._filter_state[key] = not self._filter_state[key]
+        on = self._filter_state[key]
+        track = self._filter_tracks[key]
+        knob = self._filter_knobs[key]
+        on_offset = track_w - knob_size - knob_margin
+        knob.Margin = (
+            Thickness(on_offset, knob_margin, 0, knob_margin) if on
+            else Thickness(knob_margin, knob_margin, 0, knob_margin))
+        track.Background = on_brush if on else off_brush
+        changed_fn()
+
+    def _source_filter_key(self, path, fd=None):
+        """Which Source accordion toggle governs this file: 'ods' for a
+        real .ods file (even though it's routed through the Excel code
+        path), 'excel' for .xlsx/.xls, 'odt' for a real .odt file (routed
+        through the Word code path), 'word' for .docx/.doc."""
+        real_path = (fd.get('real_path', path) if fd else path) or path
+        ext = os.path.splitext(real_path)[1].lower()
+        if ext == '.ods':
+            return 'ods'
+        if ext == '.odt':
+            return 'odt'
+        return 'word' if ext in ('.docx', '.doc') else 'excel'
+
+    def _apply_source_filter(self):
+        """Show/hide cards by source type (Excel/ODS/Word/ODT). Word
+        cards share one outer group across multiple views (see
         _make_word_card) — hiding the group's own outer Border is
         what actually hides the whole card; toggling each fd's
         individual view block alone would leave the shared header
         (path/date/+Add Row/reload/close) visible with nothing under
         it, which is exactly what looked broken here."""
-        show_xl   = self.SrcFilterExcel.IsChecked
-        show_word = self.SrcFilterWord.IsChecked
         for path, fd in self._file_data.items():
             if fd.get('source_type') == 'word':
                 continue
             border = fd.get('card_border')
             if border is None:
                 continue
-            border.Visibility = Visibility.Visible if show_xl else Visibility.Collapsed
+            key = self._source_filter_key(path, fd)
+            border.Visibility = (
+                Visibility.Visible if self._filter_state[key]
+                else Visibility.Collapsed)
         for real_path, group in self._card_groups.items():
             outer = group.get('outer')
-            if outer is not None:
-                outer.Visibility = (
-                    Visibility.Visible if show_word else Visibility.Collapsed)
+            if outer is None:
+                continue
+            key = self._source_filter_key(real_path)
+            outer.Visibility = (
+                Visibility.Visible if self._filter_state[key]
+                else Visibility.Collapsed)
 
-    def OnTypeFilterChanged(self, sender, e):
+    def _apply_type_filter(self):
         """Show/hide by output View Type (Schedule/Legend/Drafting).
         Excel: each row has its own ViewType, so individual rows show
         or hide. Word: each view (not each section) has one view_type,
         so this hides/shows the whole view block via fd['card_border'],
         same reference the Source filter and view-close use."""
         checked = set()
-        if self.TypeFilterSchedule.IsChecked:
+        if self._filter_state['schedule']:
             checked.add('Schedule View')
-        if self.TypeFilterLegend.IsChecked:
+        if self._filter_state['legend']:
             checked.add('Legend View')
-        if self.TypeFilterDrafting.IsChecked:
+        if self._filter_state['drafting']:
             checked.add('Drafting View')
 
         for path, fd in self._file_data.items():
@@ -885,14 +1001,15 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         self._refresh_status_card()
         self._set_status('Refreshed')
 
-    def OnBatchActions(self, sender, e):
-        """Toggle the toolbar Batch dropdown - a real Popup anchored to
-        BatchBtn (see PyTable.xaml), not a native ContextMenu."""
+    def OnBatchPopupOpened(self, sender, e):
+        """BatchPopup's own Opened event - fires right as the dropdown
+        becomes visible (Popup.IsOpen is bound to BatchBtn.IsChecked in
+        XAML, so opening/closing itself needs no code here at all)."""
         panel = self.BatchPopupPanel
         panel.Children.Clear()
 
         def item(label, fn):
-            return self._make_menu_item(label, fn)
+            return self._make_menu_item(label, fn, self.BatchPopup)
 
         def all_rows():
             return [r for fd in self._file_data.values() for r in fd['rows']]
@@ -907,17 +1024,17 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         panel.Children.Add(item(u'Set all \u2192 Legend View',
             lambda s, ev: [setattr(r, 'ViewType', 'Legend View')
                            for r in all_rows()]))
-        self._toggle_popup(self.BatchPopup, self.BatchBtn)
 
-    def OnMenuOpen(self, sender, e):
-        """Toggle the hamburger dropdown - a real Popup anchored to
-        MenuBtn (see PyTable.xaml), matching pyTransmit's hamburger/
-        OptionsPopup exactly instead of a native ContextMenu."""
+    def OnMenuOpened(self, sender, e):
+        """MenuPopup's own Opened event - fires right as the hamburger
+        dropdown becomes visible (Popup.IsOpen is bound to MenuBtn.IsChecked
+        in XAML, same pattern as the Source/Type filter dropdowns already
+        proven working in this file - no manual open/close code needed)."""
         panel = self.MenuPopupPanel
         panel.Children.Clear()
 
         def item(label, fn):
-            return self._make_menu_item(label, fn)
+            return self._make_menu_item(label, fn, self.MenuPopup)
 
         panel.Children.Add(item(u'Edit Section Groups\u2026',
             lambda s, ev: self._open_group_settings_editor()))
@@ -929,7 +1046,6 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         panel.Children.Add(self._make_menu_separator())
         panel.Children.Add(item(u'\u2615  Support this project and help us grow',
                              self._menu_donate_click))
-        self._toggle_popup(self.MenuPopup, self.MenuBtn)
 
     _last_url_open_time = 0.0
 
@@ -1896,8 +2012,9 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         up. No canonical plain chevron_right icon exists yet (only the
         _circle compound variants), so this uses a plain unicode
         triangle both ways for visual consistency."""
-        btn.Content = u'\u25B6' if collapsed else u'\u25BC'
-        btn.ToolTip = 'Expand' if collapsed else 'Collapse'
+        btn.Content  = u'\u25B6' if collapsed else u'\u25BC'
+        btn.FontSize = 11
+        btn.ToolTip  = 'Expand' if collapsed else 'Collapse'
 
     def _update_card_link_badge(self, path):
         """Refresh the card heading text to reflect unlinked state and
@@ -1929,7 +2046,10 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         toolbar Batch dropdown — everything here acts on this one card.
         A real Popup+MenuItemStyle dropdown built once per card and
         reused (stored on fd), same visual pattern as the toolbar
-        Batch/hamburger dropdowns, not a native ContextMenu."""
+        Batch/hamburger dropdowns, not a native ContextMenu. sender is a
+        plain Button (no IsChecked to bind Popup.IsOpen to), so this one
+        still opens/closes itself imperatively - StaysOpen="False" on
+        the popup still gets WPF's native outside-click dismissal."""
         path = sender.Tag
         fd = self._file_data.get(path, {})
 
@@ -1940,10 +2060,14 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             fd['batch_popup_panel'] = popup_panel
         else:
             popup = fd['batch_popup']
+
+        if popup.IsOpen:
+            popup.IsOpen = False
+            return
         popup_panel.Children.Clear()
 
         def item(label, fn):
-            return self._make_menu_item(label, fn)
+            return self._make_menu_item(label, fn, popup)
 
         popup_panel.Children.Add(item('Delete selected',
             lambda s, ev: self._card_delete_selected(path)))
@@ -1965,7 +2089,7 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                 lambda s, ev: self._card_unlink_view(path)))
         popup_panel.Children.Add(item('Remove view',
             lambda s, ev: self._card_remove_views(path)))
-        self._toggle_popup(popup, sender)
+        popup.IsOpen = True
 
     def _card_delete_selected(self, path):
         """Delete every checked row across every view in this card

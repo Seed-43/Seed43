@@ -84,7 +84,7 @@ class TableRow(object):
 
 def get_named_ranges_from_workbook(file_path):
     """
-    Read named ranges and sheet names from an xlsx file.
+    Read named ranges and sheet names from an xlsx OR ods spreadsheet.
 
     Returns:
         {
@@ -93,31 +93,63 @@ def get_named_ranges_from_workbook(file_path):
           'sheet_ranges': {sheet: [name, ...]}, # ranges per sheet
         }
 
-    Sheet assignment logic:
+    xlsx sheet assignment logic:
       1. If definedName has localSheetId attribute, it belongs to that
          sheet (0-based index into the sheets list).
       2. Otherwise parse the sheet name from the range reference formula,
          e.g. "Sheet1!$A$1" -> Sheet1.
       3. If neither applies (bare reference like "A1"), the range is
          treated as global and added to ALL sheets.
+
+    ods sheet assignment: table:named-range's own table:cell-range-address
+    attribute always includes the sheet name (e.g. "$Sheet1.$E$5:.$F$8"
+    or "$'My Sheet'.$A$1"), so there's no separate localSheetId/global
+    case to handle - every ODS named range is inherently sheet-scoped.
     """
     result = {'named_ranges': [], 'sheets': [], 'sheet_ranges': {}}
 
     try:
-        with _zipfile.ZipFile(file_path, 'r') as z:
-            xml_bytes = z.read('xl/workbook.xml')
+        z = _zipfile.ZipFile(file_path, 'r')
     except Exception as e:
-        # File couldn't even be opened/read as a zip - a genuinely
-        # unexpected problem (locked file, wrong extension, corrupt
-        # download), worth a real warning.
+        # File couldn't even be opened as a zip - a genuinely unexpected
+        # problem (locked file, wrong extension, corrupt download,
+        # legacy binary .xls - not a zip at all), worth a real warning.
         logger.warning(
-            'Could not read "{}" as an xlsx workbook: {}'.format(
+            'Could not read "{}" as a spreadsheet archive: {}'.format(
                 os.path.basename(file_path), e
             )
         )
         return result
 
     try:
+        names = z.namelist()
+        if 'xl/workbook.xml' in names:
+            _read_xlsx_named_ranges(z, result)
+        elif 'content.xml' in names:
+            _read_ods_named_ranges(z, result)
+        else:
+            # Neither a recognisable xlsx nor ods archive - most likely
+            # a legacy binary .xls, which isn't a zip/XML format at all
+            # and isn't supported here yet.
+            logger.debug(
+                'No named ranges found in "{}" (not an xlsx or ods archive - legacy .xls is not yet supported)'.format(
+                    os.path.basename(file_path)
+                )
+            )
+    finally:
+        z.close()
+
+    return result
+
+
+def _read_xlsx_named_ranges(z, result):
+    """Populate result['sheets']/['named_ranges']/['sheet_ranges'] from
+    an already-open xlsx ZipFile. Any failure here (workbook.xml present
+    but unparsable/empty) is the ordinary "file has no named ranges"
+    case, not a crash - logged at debug level, not surfaced as an error."""
+    try:
+        xml_bytes = z.read('xl/workbook.xml')
+
         import clr
         clr.AddReference('System.Xml')
         from System.Xml import XmlDocument
@@ -186,17 +218,87 @@ def get_named_ranges_from_workbook(file_path):
         result['sheet_ranges'] = sheet_ranges
 
     except Exception:
-        # workbook.xml existed but couldn't be parsed as XML (or had no
-        # usable defined-name data) - this is the ordinary "file has no
-        # named ranges" case, not a crash. Report it as such rather than
-        # surfacing the raw XML parser exception as an ERROR.
         logger.debug(
-            'No named ranges found in "{}" (workbook.xml unreadable or empty)'.format(
-                os.path.basename(file_path)
-            )
+            'No named ranges found in xlsx workbook.xml (unreadable or empty)'
         )
 
-    return result
+
+def _ods_sheet_from_ref(ref):
+    """Pull the sheet name out of an ODS table:cell-range-address /
+    table:base-cell-address value, e.g. "$Sheet1.$E$5:.$F$8" -> "Sheet1",
+    or "$'My Sheet'.$A$1" -> "My Sheet" (single-quoted when the sheet
+    name itself contains a space or other special character)."""
+    ref = (ref or '').strip()
+    if ref.startswith('$'):
+        ref = ref[1:]
+    if ref.startswith("'"):
+        end = ref.find("'", 1)
+        if end != -1:
+            return ref[1:end]
+    if '.' in ref:
+        return ref.split('.')[0]
+    return None
+
+
+def _read_ods_named_ranges(z, result):
+    """Populate result['sheets']/['named_ranges']/['sheet_ranges'] from
+    an already-open ods ZipFile's content.xml. ODS named ranges are
+    inherently sheet-scoped (the table:cell-range-address always
+    includes the sheet name), unlike xlsx's localSheetId/global split -
+    so every named range here lands in exactly one sheet's list, never
+    "all sheets"."""
+    try:
+        xml_bytes = z.read('content.xml')
+
+        import clr
+        clr.AddReference('System.Xml')
+        from System.Xml import XmlDocument
+
+        xml_doc = XmlDocument()
+        xml_doc.LoadXml(xml_bytes.decode('utf-8'))
+
+        # ── Sheets ── (table:table elements, qualified-name match works
+        # fine here since content.xml consistently uses the table: prefix)
+        sheets = []
+        table_nodes = xml_doc.GetElementsByTagName('table:table')
+        for i in range(table_nodes.Count):
+            name = table_nodes[i].GetAttribute('table:name')
+            if name:
+                sheets.append(name)
+        result['sheets'] = sheets
+
+        # ── Named ranges ──
+        sheet_ranges = {s: [] for s in sheets}
+        named_ranges = []
+
+        nr_nodes = xml_doc.GetElementsByTagName('table:named-range')
+        for i in range(nr_nodes.Count):
+            node = nr_nodes[i]
+            name = node.GetAttribute('table:name')
+            if not name:
+                continue
+            named_ranges.append(name)
+
+            ref = (node.GetAttribute('table:cell-range-address') or
+                   node.GetAttribute('table:base-cell-address'))
+            target_sheet = _ods_sheet_from_ref(ref)
+
+            if target_sheet and target_sheet in sheet_ranges:
+                sheet_ranges[target_sheet].append(name)
+            else:
+                # Sheet name didn't match any known sheet (shouldn't
+                # normally happen) - fall back to treating it as global,
+                # same as xlsx's own fallback for an unresolvable ref.
+                for s in sheets:
+                    sheet_ranges[s].append(name)
+
+        result['named_ranges'] = named_ranges
+        result['sheet_ranges'] = sheet_ranges
+
+    except Exception:
+        logger.debug(
+            'No named ranges found in ods content.xml (unreadable or empty)'
+        )
 
 
 
@@ -1936,20 +2038,29 @@ class ExcelCardMixin(object):
         self._set_collapse_icon(collapse_btn, False)
         header_left.Children.Add(collapse_btn)
 
-        # Source-type badge (W / XL) — same look as the per-row badge,
-        # a touch bigger to hold its own at card-header scale.
+        # Source-type badge (W / XL / ODS / ODT) — same look as the
+        # per-row badge, a touch bigger to hold its own at card-header
+        # scale. ODS routes through this same Excel code path as xlsx
+        # (source_type='xl'), so the real extension - not source_type -
+        # decides the label/colour; otherwise every LibreOffice Calc
+        # file would silently show as a plain Excel badge.
+        real_ext = os.path.splitext(fd.get('real_path', path) or '')[1].lower()
+        if real_ext == '.ods':
+            badge_key, badge_text = 'ods', 'ODS'
+        elif fd.get('source_type') == 'word':
+            badge_key, badge_text = 'word', 'W'
+        else:
+            badge_key, badge_text = 'xl', 'XL'
         src_badge = Border()
         src_badge.Width             = 24
         src_badge.Height            = 24
         src_badge.CornerRadius      = CornerRadius(4)
-        src_badge.Background        = hb(SRC_COLOURS.get(
-            fd.get('source_type', 'xl'), '#555'))
+        src_badge.Background        = hb(SRC_COLOURS.get(badge_key, '#555'))
         src_badge.Margin            = Thickness(0, 0, 8, 0)
         src_badge.VerticalAlignment = VerticalAlignment.Center
         src_lbl = TextBlock()
-        src_lbl.Text                = ('W' if fd.get('source_type') == 'word'
-                                        else 'XL')
-        src_lbl.FontSize            = 9
+        src_lbl.Text                = badge_text
+        src_lbl.FontSize            = 8 if len(badge_text) > 2 else 9
         src_lbl.FontWeight          = FontWeights.Bold
         src_lbl.Foreground          = hb('#FFFFFF')
         src_lbl.HorizontalAlignment = HorizontalAlignment.Center
@@ -2028,8 +2139,6 @@ class ExcelCardMixin(object):
         except Exception as e:
             logger.warning('Failed to apply RoundPrimaryButtonStyle: {}'.format(e))
         reload_btn.FocusVisualStyle = None
-        reload_btn.Width       = 28
-        reload_btn.Height      = 28
         reload_btn.HorizontalContentAlignment = HorizontalAlignment.Center
         reload_btn.VerticalContentAlignment   = VerticalAlignment.Center
         reload_btn.VerticalAlignment          = VerticalAlignment.Center
@@ -2051,8 +2160,6 @@ class ExcelCardMixin(object):
         except Exception as e:
             logger.warning('Failed to apply DeleteButtonStyle: {}'.format(e))
         del_card_btn.FocusVisualStyle = None
-        del_card_btn.Width            = 28
-        del_card_btn.Height           = 28
         del_card_btn.HorizontalContentAlignment = HorizontalAlignment.Center
         del_card_btn.VerticalContentAlignment   = VerticalAlignment.Center
         del_card_btn.VerticalAlignment   = VerticalAlignment.Center
@@ -2143,6 +2250,7 @@ class ExcelCardMixin(object):
                 row._dot.Fill = hb('#6B7280')
                 row.Status = 'pending'
             return
+        self._auto_check_row(row)
         taken = self._view_name_taken(row.ViewName, exclude_row=row)
         self._style_view_name_conflict(sender, taken)
         if taken:
@@ -2174,6 +2282,7 @@ class ExcelCardMixin(object):
                 row.ViewName = row.NamedRange
                 if row._vn_textbox is not None:
                     row._vn_textbox.Text = row.ViewName
+        self._auto_check_row(row)
 
     def _rc_changed(self, sender, e):
         if sender.SelectedItem is None:
@@ -2185,6 +2294,7 @@ class ExcelCardMixin(object):
                 row.ViewName = row.NamedRange
                 if row._vn_textbox is not None:
                     row._vn_textbox.Text = row.ViewName
+            self._auto_check_row(row)
 
     def _vt_changed(self, sender, e):
         if sender.SelectedItem is None:

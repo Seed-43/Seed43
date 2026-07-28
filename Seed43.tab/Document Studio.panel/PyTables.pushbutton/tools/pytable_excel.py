@@ -2108,15 +2108,13 @@ class ExcelCardMixin(object):
         # from the global toolbar Batch menu, which operates across all
         # cards (Enabled toggling, bulk view-type set).
         batch_btn = Button()
-        batch_btn.Content    = u'Batch \u25be'
+        batch_btn.Content    = u'Batch'
         try:
-            batch_btn.Style = self.FindResource('SecondaryButtonStyle')
+            batch_btn.Style = self.FindResource('DropdownButtonStyle')
         except Exception as e:
-            logger.warning('Failed to apply SecondaryButtonStyle: {}'.format(e))
+            logger.warning('Failed to apply DropdownButtonStyle: {}'.format(e))
         batch_btn.FocusVisualStyle = None
-        batch_btn.Height      = 24
-        batch_btn.Padding     = Thickness(12, 0, 12, 0)
-        batch_btn.FontSize    = 11
+        batch_btn.Width       = 90
         batch_btn.VerticalAlignment = VerticalAlignment.Center
         batch_btn.Margin      = Thickness(6, 0, 0, 0)
         batch_btn.Tag         = path

@@ -524,9 +524,13 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
 
         # Delete button — always-red DeleteButtonStyle, not the transparent-
         # until-hover CloseButtonStyle (this removes the row, it isn't a
-        # window/card close action). Sized smaller than the card-level
-        # delete button (24 vs the style's own 30px token) since this one
-        # sits inline in a dense row, not a card header.
+        # window/card close action). Same size as every other round
+        # button now (WidthButtonRound/HeightButtonRound/
+        # CornerRadiusButtonRound) - a hardcoded 24x24 override used to
+        # sit here for a deliberate row-vs-card size tier, but that broke
+        # both size AND shape consistency the moment corner_radius was
+        # tuned independently of a fixed pixel size (a 24px box with an
+        # 8px radius isn't a circle the way a token-matched box is).
         db = Button()
         db.Content          = u'\u2715'
         db.FontSize         = 10
@@ -535,8 +539,6 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         except Exception as e:
             logger.warning('Failed to apply DeleteButtonStyle: {}'.format(e))
         db.FocusVisualStyle = None
-        db.Width            = 24
-        db.Height           = 24
         db.Cursor           = __import__('System.Windows.Input',
                                   fromlist=['Cursors']).Cursors.Hand
         db.VerticalAlignment = VerticalAlignment.Center
@@ -1893,8 +1895,6 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         except Exception as e:
             logger.warning('Failed to apply RoundPrimaryButtonStyle: {}'.format(e))
         rb.FocusVisualStyle = None
-        rb.Width       = 24
-        rb.Height      = 24
         rb.HorizontalContentAlignment = HorizontalAlignment.Center
         rb.VerticalContentAlignment   = VerticalAlignment.Center
         rb.VerticalAlignment = VerticalAlignment.Center

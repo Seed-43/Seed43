@@ -1190,9 +1190,13 @@ const DIM_META = [
   ["button_secondary.corner_radius", "Secondary btn corner radius", "Buttons"],
   ["button_secondary.font_size", "Secondary btn font size", "Buttons"],
 
-  ["button_close.width", "Close btn width (round)", "Buttons"],
-  ["button_close.height", "Close btn height (round)", "Buttons"],
-  ["button_close.corner_radius", "Close btn corner radius (round)", "Buttons"],
+  ["button_close.width", "Close btn width (round, window chrome only)", "Buttons"],
+  ["button_close.height", "Close btn height (round, window chrome only)", "Buttons"],
+  ["button_close.corner_radius", "Close btn corner radius (round, window chrome only)", "Buttons"],
+
+  ["button_round.width", "Round action btn width (delete/reload/collapse)", "Buttons"],
+  ["button_round.height", "Round action btn height (delete/reload/collapse)", "Buttons"],
+  ["button_round.corner_radius", "Round action btn corner radius (delete/reload/collapse)", "Buttons"],
 
   ["button_menu.width", "Menu btn width (square)", "Buttons"],
   ["button_menu.height", "Menu btn height (square)", "Buttons"],
@@ -1258,6 +1262,7 @@ const DIMENSIONS = {
   button_small:     { height: 24, padding_x: 12, padding_y: 4, corner_radius: 4, font_size: 11 },
   button_secondary: { padding_x: 15, padding_y: 7, corner_radius: 10, font_size: 12 },
   button_close:     { width: 30, height: 30, corner_radius: 15 },
+  button_round:     { width: 28, height: 28, corner_radius: 14 },
   button_menu:      { width: 36, height: 36, corner_radius: 6 },
 
   input_textbox:  { height: 28, padding_x: 8, padding_y: 4, corner_radius: 6, border_thickness: 1, font_size: 12 },
@@ -1826,8 +1831,8 @@ function renderPreview() {
   pvRoundPrimary.style.setProperty("--round-btn-bg-hover", c.accent_hover);
   pvRoundPrimary.style.setProperty("--round-btn-bg-active", c.accent_pressed);
   pvRoundPrimary.style.setProperty("--round-btn-bg-disabled", c.secondary_disabled_bg);
-  pvRoundPrimary.style.width = d.button_close.width + "px";
-  pvRoundPrimary.style.height = d.button_close.height + "px";
+  pvRoundPrimary.style.width = d.button_round.width + "px";
+  pvRoundPrimary.style.height = d.button_round.height + "px";
   pvRoundPrimary.classList.toggle("round-disabled", roundPrimaryDisabled);
   setIcon(document.getElementById("pv-round-primary-icon"), "reload",
     roundPrimaryDisabled ? c.secondary_disabled_fg : "#FFFFFF");
@@ -1838,8 +1843,8 @@ function renderPreview() {
   // already draw their own circle via the EvenOdd cutout, so the icon's
   // fill color IS the button's whole visible state - no CSS background.
   const pvRoundToggle = document.getElementById("pv-round-toggle");
-  pvRoundToggle.style.width = d.button_close.width + "px";
-  pvRoundToggle.style.height = d.button_close.height + "px";
+  pvRoundToggle.style.width = d.button_round.width + "px";
+  pvRoundToggle.style.height = d.button_round.height + "px";
   setIcon(document.getElementById("pv-round-toggle-icon"),
     roundToggleChecked ? "chevron_down_circle" : "chevron_right_circle",
     roundToggleChecked ? c.secondary_bg : c.accent);
@@ -1851,8 +1856,8 @@ function renderPreview() {
   pvRoundDelete.style.setProperty("--round-btn-bg", c.danger);
   pvRoundDelete.style.setProperty("--round-btn-bg-hover", c.danger_hover);
   pvRoundDelete.style.setProperty("--round-btn-bg-active", c.danger_pressed);
-  pvRoundDelete.style.width = d.button_close.width + "px";
-  pvRoundDelete.style.height = d.button_close.height + "px";
+  pvRoundDelete.style.width = d.button_round.width + "px";
+  pvRoundDelete.style.height = d.button_round.height + "px";
   setIcon(document.getElementById("pv-round-delete-icon"), "close", "#FFFFFF");
   pvDisabled.style.fontSize = d.button_secondary.font_size + "px";
 
@@ -2070,6 +2075,7 @@ const DIM_NAME = {
   "button_small.height": "HeightButtonSmall", "button_small.corner_radius": "CornerRadiusButtonSmall", "button_small.font_size": "FontSizeButtonSmall",
   "button_secondary.corner_radius": "CornerRadiusButtonSecondary", "button_secondary.font_size": "FontSizeButtonSecondary",
   "button_close.width": "WidthButtonClose", "button_close.height": "HeightButtonClose", "button_close.corner_radius": "CornerRadiusButtonClose",
+  "button_round.width": "WidthButtonRound", "button_round.height": "HeightButtonRound", "button_round.corner_radius": "CornerRadiusButtonRound",
   "button_menu.width": "WidthButtonMenu", "button_menu.height": "HeightButtonMenu", "button_menu.corner_radius": "CornerRadiusButtonMenu",
   "input_textbox.height": "HeightInput", "input_textbox.corner_radius": "CornerRadiusInput", "input_textbox.border_thickness": "BorderThicknessInput", "input_textbox.font_size": "FontSizeInput",
   "input_combobox.height": "HeightCombobox", "input_combobox.corner_radius": "CornerRadiusCombobox", "input_combobox.font_size": "FontSizeCombobox",
@@ -2357,7 +2363,8 @@ trigger, a reshaped template) need this file re-exported and re-merged.
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
-    </Style>         this window/card") and looks permanently red, not just on hover. -->
+    </Style>
+
     <Style x:Key="CloseButtonStyle" TargetType="Button">
         <Setter Property="Background"      Value="Transparent"/>
         <Setter Property="Foreground"      Value="${br('text_primary')}"/>
@@ -2385,19 +2392,22 @@ trigger, a reshaped template) need this file re-exported and re-merged.
     <!-- Delete button - permanently danger-red (not transparent-until-
          hover), for "delete this item" actions, e.g. removing a custom
          text style or a saved template. Opacity-dims on hover instead of
-         changing colour, since it's already showing its "final" colour. -->
+         changing colour, since it's already showing its "final" colour.
+         Uses button_round sizing - a separate token group from
+         CloseButtonStyle's button_close, so tuning the window's own
+         chrome close button doesn't silently retune this too. -->
     <Style x:Key="DeleteButtonStyle" TargetType="Button">
         <Setter Property="Background"      Value="${br('danger')}"/>
         <Setter Property="Foreground"      Value="#FFFFFF"/>
         <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Width"           Value="${dm('button_close.width')}"/>
-        <Setter Property="Height"          Value="${dm('button_close.height')}"/>
+        <Setter Property="Width"           Value="${dm('button_round.width')}"/>
+        <Setter Property="Height"          Value="${dm('button_round.height')}"/>
         <Setter Property="Cursor"          Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="bd" Background="{TemplateBinding Background}"
-                            CornerRadius="${dm('button_close.corner_radius')}">
+                            CornerRadius="${dm('button_round.corner_radius')}">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
@@ -2415,19 +2425,20 @@ trigger, a reshaped template) need this file re-exported and re-merged.
          changed), the shared disabled look when not (nothing to do right
          now). Uses the real IsEnabled property rather than a separate
          colour-only flag, so a disabled state also means "not clickable" -
-         matching how Disabled Button already behaves everywhere else. -->
+         matching how Disabled Button already behaves everywhere else.
+         Same button_round sizing family as DeleteButtonStyle above. -->
     <Style x:Key="RoundPrimaryButtonStyle" TargetType="Button">
         <Setter Property="Background"      Value="${br('accent')}"/>
         <Setter Property="Foreground"      Value="#FFFFFF"/>
         <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Width"           Value="${dm('button_close.width')}"/>
-        <Setter Property="Height"          Value="${dm('button_close.height')}"/>
+        <Setter Property="Width"           Value="${dm('button_round.width')}"/>
+        <Setter Property="Height"          Value="${dm('button_round.height')}"/>
         <Setter Property="Cursor"          Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="bd" Background="{TemplateBinding Background}"
-                            CornerRadius="${dm('button_close.corner_radius')}">
+                            CornerRadius="${dm('button_round.corner_radius')}">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
@@ -2454,19 +2465,20 @@ trigger, a reshaped template) need this file re-exported and re-merged.
          collapse/expand chevron, not a menu popup - IconToggleButtonStyle
          already covers that role with a different colour pairing
          (transparent/accent) since a menu toggle isn't "closed vs open"
-         in quite the same visually-prominent sense. -->
+         in quite the same visually-prominent sense. Same button_round
+         sizing family as the two styles above. -->
     <Style x:Key="PrimarySecondaryToggleButtonStyle" TargetType="ToggleButton">
         <Setter Property="Background"      Value="${br('accent')}"/>
         <Setter Property="Foreground"      Value="#FFFFFF"/>
         <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Width"           Value="${dm('button_close.width')}"/>
-        <Setter Property="Height"          Value="${dm('button_close.height')}"/>
+        <Setter Property="Width"           Value="${dm('button_round.width')}"/>
+        <Setter Property="Height"          Value="${dm('button_round.height')}"/>
         <Setter Property="Cursor"          Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
                     <Border x:Name="bd" Background="{TemplateBinding Background}"
-                            CornerRadius="${dm('button_close.corner_radius')}">
+                            CornerRadius="${dm('button_round.corner_radius')}">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
@@ -2532,6 +2544,39 @@ trigger, a reshaped template) need this file re-exported and re-merged.
                         <Trigger Property="IsFocused" Value="True">
                             <Setter TargetName="Bd" Property="BorderBrush" Value="${br('border_pressed')}"/>
                             <Setter TargetName="Bd" Property="Background" Value="${br('input_bg_pressed')}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- No canonical RadioButtonStyle existed anywhere in the lib before
+         this - same visual language as the app's other selection
+         controls: a circular outline that fills with the accent colour
+         when checked, matching the checkmark-style pattern used
+         elsewhere rather than the native Windows radio look. -->
+    <Style x:Key="RadioButtonStyle" TargetType="RadioButton">
+        <Setter Property="Foreground" Value="${br('text_primary')}"/>
+        <Setter Property="FontSize"   Value="${dm('text.body')}"/>
+        <Setter Property="Cursor"     Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <StackPanel Orientation="Horizontal">
+                        <Border Width="16" Height="16"
+                                BorderBrush="${br('accent')}" BorderThickness="1.5"
+                                CornerRadius="8" Background="${br('input_bg')}"
+                                VerticalAlignment="Center">
+                            <Ellipse x:Name="Dot" Width="8" Height="8"
+                                     Fill="${br('accent')}"
+                                     Visibility="Collapsed"/>
+                        </Border>
+                        <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Dot" Property="Visibility" Value="Visible"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -2632,6 +2677,109 @@ trigger, a reshaped template) need this file re-exported and re-merged.
                             </Border>
                         </Popup>
                     </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Toggle-compatible twin of ComboBoxStyle - a Style with
+         TargetType="ComboBox" cannot apply to a ToggleButton, so any
+         dropdown-shaped element that is not a real value-selecting
+         ComboBox (a filter toggle, an action-menu trigger) still gets
+         the same canonical dropdown look: input_bg family,
+         input_combobox.corner_radius, a chevron that rotates on open.
+         This is the lib's actual "Dropdown" visual language applied
+         via a ToggleButton, not a separate invented style. -->
+    <Style x:Key="DropdownToggleButtonStyle" TargetType="ToggleButton">
+        <Setter Property="Background"      Value="${br('input_bg')}"/>
+        <Setter Property="Foreground"      Value="${br('text_input')}"/>
+        <Setter Property="BorderBrush"     Value="${br('border_default')}"/>
+        <Setter Property="BorderThickness" Value="${dm('input_combobox.border_thickness')}"/>
+        <Setter Property="Padding"         Value="8,0"/>
+        <Setter Property="FontSize"        Value="${dm('input_combobox.font_size')}"/>
+        <Setter Property="Height"          Value="${dm('input_combobox.height')}"/>
+        <Setter Property="Cursor"          Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="${dm('input_combobox.corner_radius')}">
+                        <Grid>
+                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"/>
+                            <Path x:Name="chev" Fill="{TemplateBinding Foreground}" IsHitTestVisible="False"
+                                  HorizontalAlignment="Right" VerticalAlignment="Center"
+                                  Margin="0,0,8,0" Data="M 0 0 L 4 4 L 8 0 Z"
+                                  RenderTransformOrigin="0.5,0.5">
+                                <Path.RenderTransform>
+                                    <RotateTransform Angle="0"/>
+                                </Path.RenderTransform>
+                            </Path>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="${br('input_bg_hover')}"/>
+                            <Setter TargetName="bd" Property="BorderBrush" Value="${br('border_hover')}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="${br('input_bg_pressed')}"/>
+                            <Setter TargetName="bd" Property="BorderBrush" Value="${br('border_hover')}"/>
+                            <Setter TargetName="chev" Property="RenderTransform">
+                                <Setter.Value>
+                                    <RotateTransform Angle="180"/>
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Plain-Button twin of DropdownToggleButtonStyle - a per-card Batch
+         trigger manages its own Popup imperatively in code, so it is a
+         Button, not a ToggleButton, but still needs the same canonical
+         dropdown look. No open/closed chevron-rotation state since a
+         plain Button has no IsChecked to trigger it from. -->
+    <Style x:Key="DropdownButtonStyle" TargetType="Button">
+        <Setter Property="Background"      Value="${br('input_bg')}"/>
+        <Setter Property="Foreground"      Value="${br('text_input')}"/>
+        <Setter Property="BorderBrush"     Value="${br('border_default')}"/>
+        <Setter Property="BorderThickness" Value="${dm('input_combobox.border_thickness')}"/>
+        <Setter Property="Padding"         Value="8,0"/>
+        <Setter Property="FontSize"        Value="${dm('input_combobox.font_size')}"/>
+        <Setter Property="Height"          Value="${dm('input_combobox.height')}"/>
+        <Setter Property="Cursor"          Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="${dm('input_combobox.corner_radius')}">
+                        <Grid>
+                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"/>
+                            <Path Fill="{TemplateBinding Foreground}" IsHitTestVisible="False"
+                                  HorizontalAlignment="Right" VerticalAlignment="Center"
+                                  Margin="0,0,8,0" Data="M 0 0 L 4 4 L 8 0 Z"/>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="${br('input_bg_hover')}"/>
+                            <Setter TargetName="bd" Property="BorderBrush" Value="${br('border_hover')}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="${br('input_bg_pressed')}"/>
+                            <Setter TargetName="bd" Property="BorderBrush" Value="${br('border_hover')}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -2995,13 +3143,13 @@ const COMPONENT_MAP = [
     dimKeys: ["button_secondary.padding_x", "button_secondary.padding_y", "button_secondary.corner_radius", "button_secondary.font_size"] },
   { label: "Round Primary Button", selector: "#pv-round-primary",
     colorKeys: ["accent", "accent_hover", "accent_pressed", "secondary_disabled_bg", "secondary_disabled_fg"],
-    dimKeys: ["button_close.width", "button_close.height", "button_close.corner_radius"] },
+    dimKeys: ["button_round.width", "button_round.height", "button_round.corner_radius"] },
   { label: "Round Toggle Button",  selector: "#pv-round-toggle",
     colorKeys: ["accent", "secondary_bg"],
-    dimKeys: ["button_close.width", "button_close.height", "button_close.corner_radius"] },
+    dimKeys: ["button_round.width", "button_round.height", "button_round.corner_radius"] },
   { label: "Round Delete Button",  selector: "#pv-round-delete",
     colorKeys: ["danger", "danger_hover", "danger_pressed"],
-    dimKeys: ["button_close.width", "button_close.height", "button_close.corner_radius"] },
+    dimKeys: ["button_round.width", "button_round.height", "button_round.corner_radius"] },
   { label: "Toggle Switch",     selector: "#toggle-row",
     colorKeys: ["accent", "accent_hover", "accent_pressed", "toggle_off_bg", "toggle_off_hover", "toggle_off_pressed", "toggle_knob"],
     dimKeys: ["toggle.width", "toggle.height", "toggle.corner_radius", "toggle.knob_size", "toggle.knob_corner_radius", "toggle.knob_margin"] },

@@ -904,15 +904,13 @@ class WordCardMixin(object):
         # Delete selected) are all document-wide, so this uses
         # template_path as the reference view, same as + Add Row above.
         batch_btn = Button()
-        batch_btn.Content    = u'Batch \u25be'
+        batch_btn.Content    = u'Batch'
         try:
-            batch_btn.Style = self.FindResource('SecondaryButtonStyle')
+            batch_btn.Style = self.FindResource('DropdownButtonStyle')
         except Exception as e:
-            logger.warning('Failed to apply SecondaryButtonStyle: {}'.format(e))
+            logger.warning('Failed to apply DropdownButtonStyle: {}'.format(e))
         batch_btn.FocusVisualStyle = None
-        batch_btn.Height      = 24
-        batch_btn.Padding     = Thickness(12, 0, 12, 0)
-        batch_btn.FontSize    = 11
+        batch_btn.Width       = 90
         batch_btn.VerticalAlignment = VerticalAlignment.Center
         batch_btn.Margin      = Thickness(6, 0, 0, 0)
         batch_btn.Tag         = template_path
@@ -1198,8 +1196,6 @@ class WordCardMixin(object):
         except Exception as e:
             logger.warning('Failed to apply DeleteButtonStyle: {}'.format(e))
         view_close_btn.FocusVisualStyle = None
-        view_close_btn.Width   = 28
-        view_close_btn.Height  = 28
         view_close_btn.VerticalAlignment = VerticalAlignment.Center
         view_close_btn.Tag     = path
         view_close_btn.ToolTip = 'Remove this view'
@@ -1521,9 +1517,12 @@ class WordCardMixin(object):
 
         # Delete button — always-red DeleteButtonStyle, not the transparent-
         # until-hover CloseButtonStyle (this removes the row, it isn't a
-        # window/card close action). Sized smaller than the card-level
-        # delete button (24 vs the style's own 30px token) since this one
-        # sits inline in a dense row, not a card header.
+        # window/card close action). Same size as every other round
+        # button now (WidthButtonRound/HeightButtonRound/
+        # CornerRadiusButtonRound) - a hardcoded 24x24 override used to
+        # sit here for a deliberate row-vs-card size tier, but that broke
+        # both size AND shape consistency the moment corner_radius was
+        # tuned independently of a fixed pixel size.
         db = Button()
         db.Content          = u'✕'
         db.FontSize         = 10
@@ -1532,8 +1531,6 @@ class WordCardMixin(object):
         except Exception as e:
             logger.warning('Failed to apply DeleteButtonStyle: {}'.format(e))
         db.FocusVisualStyle = None
-        db.Width            = 24
-        db.Height           = 24
         db.Cursor           = __import__(
             'System.Windows.Input',
             fromlist=['Cursors']).Cursors.Hand

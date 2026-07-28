@@ -619,6 +619,54 @@ trigger, a reshaped template) need this file re-exported and re-merged.
         </Setter>
     </Style>
 
+    <!-- Plain-Button twin of DropdownToggleButtonStyle, same reasoning:
+         a per-card Batch trigger manages its own Popup imperatively in
+         code (not bound to IsChecked, since it's built fresh per card
+         at runtime) so it's a Button, not a ToggleButton - but it's
+         still a dropdown, and needs the same canonical dropdown look,
+         not SecondaryButtonStyle's grey-button look. No open/closed
+         chevron-rotation state since a plain Button has no IsChecked
+         to trigger it from. -->
+    <Style x:Key="DropdownButtonStyle" TargetType="Button">
+        <Setter Property="Background"      Value="{DynamicResource BrushInputBg}"/>
+        <Setter Property="Foreground"      Value="{DynamicResource BrushTextInput}"/>
+        <Setter Property="BorderBrush"     Value="{DynamicResource BrushBorderDefault}"/>
+        <Setter Property="BorderThickness" Value="{DynamicResource BorderThicknessInput}"/>
+        <Setter Property="Padding"         Value="8,0"/>
+        <Setter Property="FontSize"        Value="{DynamicResource FontSizeCombobox}"/>
+        <Setter Property="Height"          Value="{DynamicResource HeightCombobox}"/>
+        <Setter Property="Cursor"          Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{DynamicResource CornerRadiusCombobox}">
+                        <Grid>
+                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"/>
+                            <Path Fill="{TemplateBinding Foreground}" IsHitTestVisible="False"
+                                  HorizontalAlignment="Right" VerticalAlignment="Center"
+                                  Margin="0,0,8,0" Data="M 0 0 L 4 4 L 8 0 Z"/>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushInputBgHover}"/>
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource BrushBorderHover}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushInputBgPressed}"/>
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource BrushBorderHover}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ============================================================ -->
     <!-- CARD / LABELS                                                 -->
     <!-- ============================================================ -->

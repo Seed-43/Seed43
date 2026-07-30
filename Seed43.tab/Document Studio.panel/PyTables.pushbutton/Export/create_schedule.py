@@ -99,18 +99,22 @@ _line_ids = _p.get('line_ids', {})   # rgb_tuple -> ElementId
 
 
 def _border_line_id(rgb):
-    """Return the pre-created line style ElementId for this colour."""
+    """Return the pre-created line style ElementId for this colour, or
+    None if it genuinely isn't available (never InvalidElementId - the
+    caller must treat None as 'leave this override alone', matching
+    pyTransmit's guarded pattern)."""
     key = tuple(rgb) if not isinstance(rgb, tuple) else rgb
     eid = _line_ids.get(key)
     if eid is None:
         # Fallback: try black
-        eid = _line_ids.get((0, 0, 0), ElementId.InvalidElementId)
+        eid = _line_ids.get((0, 0, 0))
     return eid
 
 
 def _border_off_id():
-    """Return the invisible (white) border line style ElementId."""
-    return _line_ids.get((255, 255, 255), ElementId.InvalidElementId)
+    """Return the invisible (white) border line style ElementId, or None
+    if it genuinely isn't available."""
+    return _line_ids.get((255, 255, 255))
 
 
 # ---------------------------------------------------------------------------
@@ -169,9 +173,32 @@ def _safe_text(sec, r, c, text):
 # the line style subcategory itself.
 # ---------------------------------------------------------------------------
 
+def _excel_rotation_to_revit(excel_rot):
+    """
+    Map Excel's alignment.textRotation convention to Revit's TableCellStyle
+    TextOrientation convention (as used by pyTransmit: 90 or 270).
+
+    Excel: 0 = horizontal, 1-90 = counter-clockwise from horizontal (reading
+    bottom-to-top), 91-180 = clockwise (stored as 90+angle, reading
+    top-to-bottom), 255 = stacked/vertical (not supported here).
+    Revit:  90 = one direction, 270 = the other (pyTransmit's proven values).
+
+    Excel's common 90 (bottom-to-top) maps to Revit's 270; anything in the
+    91-180 clockwise range maps to Revit's 90. Anything else (0, 255,
+    unrecognised) returns 0, meaning "no rotation override".
+    """
+    if not excel_rot:
+        return 0
+    if 1 <= excel_rot <= 90:
+        return 270
+    if 91 <= excel_rot <= 180:
+        return 90
+    return 0
+
+
 def _apply_style(sec, r, c,
                  bold=False, italic=False, underline=False, size_pt=8.0,
-                 bg_rgb=None, fg_rgb=None, halign='Left',
+                 bg_rgb=None, fg_rgb=None, halign='Left', rotation=0,
                  font_name='Arial', tt_id=None,
                  border_top='',    border_top_color=None,
                  border_bottom='', border_bottom_color=None,
@@ -254,18 +281,41 @@ def _apply_style(sec, r, c,
         ]
         for bstyle, bcolor, prop in sides:
             try:
-                opts_flag = prop  # same name on opts as on style
                 if bstyle and bstyle not in ('none', ''):
                     colour = bcolor if bcolor else (0, 0, 0)
                     line_id = _border_line_id(colour)
                 else:
                     line_id = _border_off_id()
-                setattr(opts,  opts_flag, True)
-                setattr(style, prop,      line_id)
+                if line_id is not None:
+                    # Only touch this side if we actually have a real,
+                    # valid line style for it (pyTransmit pattern) -
+                    # never assign InvalidElementId, which produces
+                    # undefined rendering instead of "no border".
+                    setattr(opts,  prop, True)
+                    setattr(style, prop, line_id)
+                else:
+                    setattr(opts, prop, False)
+                    logger.warning(
+                        'border {} has no valid line style - left unset'
+                        .format(prop)
+                    )
             except Exception as bex:
                 logger.warning('border {} FAILED: {}'.format(prop, bex))
 
         style.SetCellStyleOverrideOptions(opts)
+
+        # ── Text rotation (pyTransmit pattern) ───────────────────────────
+        # rotation here is already mapped to Revit's convention (90/270)
+        # by the caller — see _excel_rotation_to_revit().
+        if rotation in (90, 270):
+            try:
+                opts2 = style.GetCellStyleOverrideOptions()
+                style.TextOrientation = rotation
+                opts2.TextOrientation = True
+                style.SetCellStyleOverrideOptions(opts2)
+            except Exception as rex:
+                logger.warning('rotation FAILED: {}'.format(rex))
+
         sec.SetCellStyle(r, c, style)
 
     except Exception as ex:
@@ -380,7 +430,11 @@ sched_def.AddFilter(ScheduleFilter(
     field_asm.FieldId, ScheduleFilterType.Equal, 'ALL VALUES FOUND'
 ))
 
-# ShowGridLines controls the default grid line visibility on the schedule.
+# ShowGridLines is Revit's own blanket default gridline layer. With the
+# line-style bug above fixed, every cell now gets a real, valid override
+# on every side (either a genuine visible line or a genuine invisible
+# one) - so nothing should be left for this base layer to control either
+# way. Left True as the safer choice while that's unverified in Revit.
 # NOTE: Do NOT set ShowHeaders=False or ShowTitle=False on ScheduleDefinition.
 # Those properties collapse entire table sections and break Header rendering.
 # The Header section (SectionType.Header) is where all custom content lives —
@@ -409,15 +463,18 @@ except Exception as ex:
 
 # Hide all body borders so the collapsed row is truly invisible.
 try:
-    _bs = TableCellStyle()
-    _bo = _bs.GetCellStyleOverrideOptions()
     off_id = _border_off_id()
-    _bo.BorderTopLineStyle    = True;  _bs.BorderTopLineStyle    = off_id
-    _bo.BorderBottomLineStyle = True;  _bs.BorderBottomLineStyle = off_id
-    _bo.BorderLeftLineStyle   = True;  _bs.BorderLeftLineStyle   = off_id
-    _bo.BorderRightLineStyle  = True;  _bs.BorderRightLineStyle  = off_id
-    _bs.SetCellStyleOverrideOptions(_bo)
-    body.SetCellStyle(_bs)
+    if off_id is not None:
+        _bs = TableCellStyle()
+        _bo = _bs.GetCellStyleOverrideOptions()
+        _bo.BorderTopLineStyle    = True;  _bs.BorderTopLineStyle    = off_id
+        _bo.BorderBottomLineStyle = True;  _bs.BorderBottomLineStyle = off_id
+        _bo.BorderLeftLineStyle   = True;  _bs.BorderLeftLineStyle   = off_id
+        _bo.BorderRightLineStyle  = True;  _bs.BorderRightLineStyle  = off_id
+        _bs.SetCellStyleOverrideOptions(_bo)
+        body.SetCellStyle(_bs)
+    else:
+        logger.warning('body border suppression: no off_id available, skipped')
 except Exception as ex:
     logger.debug('body border suppression: {}'.format(ex))
 
@@ -533,6 +590,8 @@ for ri, row_data in enumerate(all_rows):
         halign   = cs.get('halign', 'Center' if ri == 0 else 'Left')
         fill_rgb = cs.get('fill_rgb', (220, 220, 220) if ri == 0 else None)
         fg_rgb   = cs.get('color_rgb', None)
+        # Rotation only matters on the header row - body data isn't rotated
+        rotation = _excel_rotation_to_revit(cs.get('rotation', 0)) if ri == 0 else 0
 
         _safe_text(hdr, ri, ci, cell)
         _apply_style(
@@ -544,6 +603,7 @@ for ri, row_data in enumerate(all_rows):
             bg_rgb=fill_rgb,
             fg_rgb=fg_rgb,
             halign=halign,
+            rotation=rotation,
             font_name=fn,
             tt_id=hdr_tt_id if ri == 0 else dat_tt_id,
             border_top=cs.get('border_top', ''),

@@ -488,6 +488,7 @@ def read_range_formatting(file_path, named_range, sheet_name):
             'bold': bool,
             'italic': bool,
             'halign': str,       # 'Left', 'Center', 'Right'
+            'rotation': int,     # Excel textRotation: 0=horizontal, 1-90=CCW, 91-180=CW (90+angle), 255=stacked
             'fill_rgb': tuple or None,  # (r, g, b)
             'border_top': str,
             'border_bottom': str,
@@ -691,6 +692,7 @@ def read_range_formatting(file_path, named_range, sheet_name):
                 border_idx = xf.get('borderId', 0)
                 halign     = xf.get('align', '') or 'Left'
                 halign     = halign.capitalize() if halign else 'Left'
+                rotation   = xf.get('rotation', 0)
 
                 font   = fonts[font_idx]     if font_idx   < len(fonts)   else {}
                 fill   = fills[fill_idx]     if fill_idx   < len(fills)   else None
@@ -704,6 +706,7 @@ def read_range_formatting(file_path, named_range, sheet_name):
                     'underline':          font.get('underline', False),
                     'color_rgb':          font.get('color_rgb', None),
                     'halign':             halign,
+                    'rotation':           rotation,
                     'fill_rgb':           fill if fill else None,
                     'border_top':         border.get('top', ''),
                     'border_top_color':   border.get('top_color', None),
@@ -1237,6 +1240,7 @@ def _parse_xfs(xml_doc):
             'fillId':   fill_id,
             'borderId': border_id,
             'align':    '',
+            'rotation': 0,
         }
 
         align_nodes = node.GetElementsByTagName('alignment')
@@ -1245,6 +1249,14 @@ def _parse_xfs(xml_doc):
         if align_nodes.Count > 0:
             h = align_nodes[0].Attributes.GetNamedItem('horizontal')
             xf['align'] = h.Value if h else ''
+            # textRotation: 0-90 = counter-clockwise from horizontal,
+            # 91-180 = clockwise (stored as 90 + actual angle), 255 = stacked/vertical.
+            r = align_nodes[0].Attributes.GetNamedItem('textRotation')
+            if r:
+                try:
+                    xf['rotation'] = int(r.Value)
+                except Exception:
+                    xf['rotation'] = 0
 
         xfs.append(xf)
     return xfs
@@ -1806,61 +1818,74 @@ def place_table_in_view(view, fields, records):
 
 def _get_or_create_line_style(name, rgb):
     """
-    Return the ElementId of a Lines subcategory with the given name/colour.
-    Must be called OUTSIDE any open transaction — creates a subcategory
-    which requires its own transaction context in Revit.
+    Return the ElementId of a Lines subcategory with the given name/colour,
+    or None if creation genuinely failed.
+
+    Mirrors pyTransmit's _get_or_create_line_style exactly (proven pattern):
+    explicitly sets a line weight (a fresh subcategory's default weight is
+    not guaranteed to render visibly at schedule scale), and returns None
+    on any failure instead of letting an exception or a half-built
+    GraphicsStyle leak out as a usable-looking ElementId.
+
+    Must be called INSIDE the transaction the caller wraps around it.
     """
-    lines_cat = doc.Settings.Categories.get_Item('Lines')
-    existing = None
-    for sub in lines_cat.SubCategories:
-        if sub.Name == name:
-            existing = sub
-            break
-    if existing is None:
-        with revit.Transaction('pyTable - Line style: {}'.format(name)):
+    try:
+        lines_cat = doc.Settings.Categories.get_Item('Lines')
+        if lines_cat is None:
+            return None
+        existing = None
+        for sub in lines_cat.SubCategories:
+            if sub.Name == name:
+                existing = sub
+                break
+        if existing is None:
             existing = doc.Settings.Categories.NewSubcategory(lines_cat, name)
-            existing.LineColor = DB.Color(rgb[0], rgb[1], rgb[2])
-    else:
-        # Update colour in case it changed
-        with revit.Transaction('pyTable - Line style colour: {}'.format(name)):
-            existing.LineColor = DB.Color(rgb[0], rgb[1], rgb[2])
-    gs = existing.GetGraphicsStyle(
-        DB.GraphicsStyleType.Projection
-    )
-    return gs.Id
+        existing.LineColor = DB.Color(rgb[0], rgb[1], rgb[2])
+        try:
+            existing.SetLineWeight(1, DB.GraphicsStyleType.Projection)
+        except Exception:
+            pass
+        gs = existing.GetGraphicsStyle(DB.GraphicsStyleType.Projection)
+        return gs.Id if gs else None
+    except Exception as ex:
+        logger.error('Line style {} failed: {}'.format(name, ex))
+        return None
 
 def _pre_create_line_styles(cell_styles):
     """
     Pre-create all line style subcategories needed for borders in
-    cell_styles, plus the invisible 'pyT Off' style.
-    Returns a dict mapping rgb tuple -> ElementId.
+    cell_styles, plus the always-needed 'pyT On' (black) and 'pyT Off'
+    (invisible) styles.
+    Returns a dict mapping rgb tuple -> ElementId. A colour that failed to
+    create is simply absent from the dict — callers must treat a missing
+    key as "no override available", never fall back to an invalid id.
 
-    Must be called before the main schedule transaction.
+    Must be called before the main schedule transaction, in its own
+    transaction (mirrors pyTransmit: one transaction for all line styles,
+    not one per style, and (0,0,0)/(255,255,255) are ALWAYS created
+    regardless of what's actually in cell_styles - they're not optional
+    extras, the border system depends on both existing).
     """
-    needed = {(255, 255, 255)}   # always need the off/invisible style
+    needed = {(0, 0, 0), (255, 255, 255)}   # always needed, unconditionally
     for cs in cell_styles.values():
         for side in ('border_top_color', 'border_bottom_color',
                      'border_left_color', 'border_right_color'):
             c = cs.get(side)
             if c:
                 needed.add(tuple(c))
-        # Default black border colour when style is set but no colour given
-        for side in ('border_top', 'border_bottom',
-                     'border_left', 'border_right'):
-            if cs.get(side) and cs.get(side) not in ('', 'none'):
-                needed.add((0, 0, 0))
-                break
 
     line_ids = {}
-    for rgb in needed:
-        if rgb == (255, 255, 255):
-            name = 'pyT Off'
-        else:
-            name = 'pyT {:02X}{:02X}{:02X}'.format(rgb[0], rgb[1], rgb[2])
-        try:
-            line_ids[rgb] = _get_or_create_line_style(name, rgb)
-        except Exception as ex:
-            logger.error('Line style {} failed: {}'.format(name, ex))
+    with revit.Transaction('pyTable - Line Styles'):
+        for rgb in needed:
+            if rgb == (255, 255, 255):
+                name = 'pyT Off'
+            elif rgb == (0, 0, 0):
+                name = 'pyT On'
+            else:
+                name = 'pyT {:02X}{:02X}{:02X}'.format(rgb[0], rgb[1], rgb[2])
+            eid = _get_or_create_line_style(name, rgb)
+            if eid is not None:
+                line_ids[rgb] = eid
     return line_ids
 
 def _type_name(el):

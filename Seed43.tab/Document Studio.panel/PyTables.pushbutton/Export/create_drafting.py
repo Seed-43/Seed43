@@ -46,8 +46,9 @@ from Autodesk.Revit.DB import (
     HorizontalTextAlignment, FilledRegion, FilledRegionType,
     CurveLoop, Line, XYZ, ElementId, Color,
     CurveElement, ImageInstance, OverrideGraphicSettings,
-    BuiltInCategory, GraphicsStyleType,
+    BuiltInCategory, GraphicsStyleType, ElementTransformUtils,
 )
+import math
 
 logger = script.get_logger()
 doc = revit.doc
@@ -239,7 +240,32 @@ def _override_color(element_id, rgb, weight=None):
         logger.debug('Override colour on {}: {}'.format(element_id, ex))
 
 
-def _draw_text(view, x, y, text, tt_id, color_rgb):
+def _excel_rotation_to_radians(excel_rot):
+    """
+    Map Excel's alignment.textRotation convention to a Revit rotation
+    angle in radians, for use with ElementTransformUtils.RotateElement.
+
+    Excel: 0 = horizontal, 1-90 = counter-clockwise from horizontal
+    (reading bottom-to-top), 91-180 = clockwise (stored as 90+angle,
+    reading top-to-bottom), 255 = stacked/vertical (not supported here).
+
+    Revit's ElementTransformUtils.RotateElement angle is positive =
+    counter-clockwise about the given axis (standard math convention
+    when viewed from the +Z side, i.e. looking straight down at the
+    view in plan). Excel's 90 (bottom-to-top) is a +90 degree turn in
+    that same sense, so it maps straight across; the 91-180 range
+    (top-to-bottom) maps to the mirrored angle in the other direction.
+    """
+    if not excel_rot:
+        return 0.0
+    if 1 <= excel_rot <= 90:
+        return math.radians(excel_rot)
+    if 91 <= excel_rot <= 180:
+        return -math.radians(excel_rot - 90)
+    return 0.0
+
+
+def _draw_text(view, x, y, text, tt_id, color_rgb, rotation_rad=0.0):
     """Place a TextNote at (x, y) — (x, y) is the cell's top-left corner."""
     if not str(text).strip():
         return
@@ -250,6 +276,12 @@ def _draw_text(view, x, y, text, tt_id, color_rgb):
         tn = TextNote.Create(doc, view.Id, pt, str(text), opts)
         if color_rgb:
             _override_color(tn.Id, color_rgb)
+        if rotation_rad:
+            try:
+                axis = Line.CreateBound(pt, pt + XYZ.BasisZ)
+                ElementTransformUtils.RotateElement(doc, tn.Id, axis, rotation_rad)
+            except Exception as rex:
+                logger.debug('TextNote rotate ({},{}) {}'.format(x, y, rex))
     except Exception as ex:
         logger.debug('TextNote ({},{}) {}'.format(x, y, ex))
 
@@ -470,8 +502,10 @@ for r in range(n_total_rows):
             text = record[c] if c < len(record) else ''
         tt_id = hdr_txt_id if is_header else dat_txt_id
         color_rgb = style.get('color_rgb')
+        rotation_rad = _excel_rotation_to_radians(style.get('rotation', 0)) if is_header else 0.0
         _draw_text(view, x, y, text, tt_id,
-                   tuple(color_rgb) if color_rgb else None)
+                   tuple(color_rgb) if color_rgb else None,
+                   rotation_rad)
 
 logger.debug(
     'create_drafting: "{}" {}r x {}c'.format(

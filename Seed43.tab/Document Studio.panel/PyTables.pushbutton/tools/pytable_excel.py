@@ -52,7 +52,7 @@ import sys as _sys
 _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pytable_shared import (
     hb, Row, VIEW_TYPES, SRC_COLOURS, STATUS_COLOURS,
-    _run_export_script, _confirm, _alert,
+    _run_export_script, _confirm, _alert, set_view_pytable_data,
 )
 
 
@@ -62,6 +62,16 @@ VIEW_TYPE_LEGEND   = 'Legend View'
 
 MM     = 1.0 / 304.8   # millimetres to Revit internal feet
 PREFIX = 'pyTable Table '
+
+
+def _eid_int(eid):
+    """ElementId as a plain int, across Revit API versions - Revit
+    2024+ removed .IntegerValue in favour of .Value (Int64)."""
+    try:
+        return eid.IntegerValue
+    except AttributeError:
+        return int(eid.Value)
+
 
 
 class TableRow(object):
@@ -78,6 +88,14 @@ class TableRow(object):
         self.font        = 'Arial'    # used for pyTable text type lookup
         self.size_hdr_mm = 2.5        # header row font size in mm
         self.size_dat_mm = 2.3        # data row font size in mm
+        # The Revit view name this row's UI counterpart previously
+        # created (if any) — apply_row() uses this to refuse
+        # overwriting a same-named view it doesn't actually own.
+        self.applied_view_name = None
+        # Same idea but by ElementId — the authoritative ownership
+        # proof, since it survives the view being renamed outside
+        # pyTable (unlike applied_view_name, which goes stale on rename).
+        self.applied_view_id = None
 
 
 # ── Read xlsx metadata (named ranges + sheet names) ──
@@ -1356,7 +1374,10 @@ def _read_fingerprint(tt):
 
 def get_or_create_text_type(font='Arial', size_mm=2.3, bold=False):
     """
-    Return a TextNoteType matching font/size/bold.
+    Return a TextNoteType matching font/size/bold. Always plain black -
+    per-cell text colour is applied separately as a view-specific
+    graphic override on each TextNote instance (Override Graphics in
+    View > By Element), not by creating a new Type per colour.
     Searches existing 'pyTable Table XX' types first.
     Creates a new one if none match.
 
@@ -1411,7 +1432,12 @@ def get_or_create_text_type(font='Arial', size_mm=2.3, bold=False):
             (DB.BuiltInParameter.TEXT_SIZE,          size_ft),
             (DB.BuiltInParameter.TEXT_STYLE_BOLD,    1 if bold else 0),
             (DB.BuiltInParameter.TEXT_STYLE_ITALIC,  0),
-            (DB.BuiltInParameter.TEXT_BACKGROUND,    1),  # opaque
+            # Black, and transparent rather than opaque — an opaque
+            # text background would sit on top of and hide a cell's
+            # fill colour, drawn separately as a FilledRegion behind
+            # the text.
+            (DB.BuiltInParameter.LINE_COLOR,         0),
+            (DB.BuiltInParameter.TEXT_BACKGROUND,    0),
         ]:
             try:
                 p = new_tt.get_Parameter(bip)
@@ -1837,6 +1863,94 @@ def _pre_create_line_styles(cell_styles):
             logger.error('Line style {} failed: {}'.format(name, ex))
     return line_ids
 
+def _type_name(el):
+    """Safely read an ElementType's name. Reading .Name directly on
+    Type-derived classes (FilledRegionType, TextNoteType, etc.) can
+    throw in IronPython - this is why get_or_create_text_type above
+    reads TextNoteType's name via SYMBOL_NAME_PARAM instead of .Name
+    directly. Same fix, generalised for reuse here."""
+    try:
+        p = el.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM)
+        if p:
+            return p.AsString()
+    except Exception:
+        pass
+    try:
+        return DB.Element.Name.GetValue(el)
+    except Exception:
+        return None
+
+def _get_or_create_pytable_fill_type():
+    """
+    Return the ElementId of a single reusable solid-fill FilledRegionType
+    ('pyTable Fill') used for every cell background in drafting/legend
+    views. Each cell's actual colour is applied afterwards as a
+    view-specific graphic override on that FilledRegion instance
+    (Override Graphics in View > By Element) rather than by creating a
+    separate Type per colour — one Type total, not one per colour.
+    Must be called OUTSIDE any open transaction — creating a type
+    requires its own transaction context in Revit.
+
+    Never raises — on any failure this returns InvalidElementId and
+    logs the reason, rather than letting a type-creation problem take
+    down the whole Apply run. The drawing code already treats a
+    missing fill type as "skip the background for this run", same as
+    a cell with no fill colour at all.
+    """
+    name = 'pyTable Fill'
+    try:
+        for frt in DB.FilteredElementCollector(doc).OfClass(DB.FilledRegionType):
+            if _type_name(frt) == name:
+                return frt.Id
+    except Exception as ex:
+        logger.error('Fill type lookup failed: {}'.format(ex))
+        return DB.ElementId.InvalidElementId
+
+    # Find an actual "solid fill" drafting pattern to base the type on
+    solid_pattern_id = DB.ElementId.InvalidElementId
+    for fp in DB.FilteredElementCollector(doc).OfClass(DB.FillPatternElement):
+        try:
+            if fp.GetFillPattern().IsSolidFill:
+                solid_pattern_id = fp.Id
+                break
+        except Exception:
+            continue
+
+    candidates = list(
+        DB.FilteredElementCollector(doc).OfClass(DB.FilledRegionType)
+    )
+    if not candidates:
+        logger.error('No FilledRegionType found to duplicate')
+        return DB.ElementId.InvalidElementId
+
+    # Try every candidate in turn — the first one Revit hands back from
+    # the collector isn't guaranteed to be duplicable (e.g. a built-in
+    # Masking Region type can refuse), so don't give up after one try.
+    for base in candidates:
+        try:
+            with revit.Transaction('pyTable - Fill type: {}'.format(name)):
+                new_frt = base.Duplicate(name)
+                try:
+                    if solid_pattern_id != DB.ElementId.InvalidElementId:
+                        new_frt.ForegroundPatternId = solid_pattern_id
+                    new_frt.IsMasking = False
+                except Exception as ex:
+                    logger.debug('Fill type props {} {}'.format(name, ex))
+            return new_frt.Id
+        except Exception as ex:
+            logger.debug(
+                'Fill type duplicate from "{}" failed: {}'.format(
+                    _type_name(base), ex
+                )
+            )
+            continue
+
+    logger.error(
+        'Fill type "{}" could not be created from any candidate — '
+        'cell backgrounds will be skipped this run.'.format(name)
+    )
+    return DB.ElementId.InvalidElementId
+
 def apply_row(row):
     """
     Process one UI row:
@@ -1876,7 +1990,56 @@ def apply_row(row):
         result['message'] = 'Named range has no header row.'
         return result
 
-    # Pre-create text types outside any transaction
+    # Ownership guard — never silently overwrite a view pyTable itself
+    # didn't create. ElementId is the authoritative proof (survives the
+    # view being renamed outside pyTable); the old name-match proof is
+    # only a fallback for a row that hasn't recorded an id yet (first
+    # apply under this version, or state saved before this existed).
+    try:
+        existing_view = None
+        for v in DB.FilteredElementCollector(revit.doc).OfClass(DB.View):
+            try:
+                if v.IsValidObject and v.Name == row.view_name:
+                    existing_view = v
+                    break
+            except Exception:
+                continue
+        if existing_view is not None:
+            owns_by_id = (
+                getattr(row, 'applied_view_id', None) is not None
+                and _eid_int(existing_view.Id) == row.applied_view_id
+            )
+            owns_by_name_fallback = (
+                getattr(row, 'applied_view_id', None) is None
+                and row.view_name == row.applied_view_name
+            )
+            if not (owns_by_id or owns_by_name_fallback):
+                result['message'] = (
+                    'A view named "{}" already exists and was not '
+                    'created by this pyTable row - refusing to '
+                    'overwrite it. Rename either the existing '
+                    'view or this row.'.format(row.view_name)
+                )
+                return result
+    except Exception as ex:
+        logger.warning(
+            'Ownership check failed, proceeding cautiously: {}'.format(ex)
+        )
+
+    # Read cell formatting from xlsx first - text type creation below
+    # needs it to know each cell's actual color.
+    fmt = read_range_formatting(
+        row.file_path,
+        row.named_range,
+        row.sheet_name
+    )
+    cell_styles = fmt.get('cell_styles', {})
+
+    # Pre-create text types outside any transaction. Size/bold only,
+    # always black — per-cell text colour is applied afterwards as a
+    # view-specific graphic override on each TextNote instance
+    # (Override Graphics in View > By Element) rather than by creating
+    # a new Type per colour.
     hdr_tt = get_or_create_text_type(
         font=row.font, size_mm=row.size_hdr_mm, bold=True
     )
@@ -1886,15 +2049,14 @@ def apply_row(row):
     hdr_tt_id = hdr_tt.Id if hdr_tt else DB.ElementId.InvalidElementId
     dat_tt_id = dat_tt.Id if dat_tt else DB.ElementId.InvalidElementId
 
-    # Read cell formatting from xlsx
-    fmt = read_range_formatting(
-        row.file_path,
-        row.named_range,
-        row.sheet_name
-    )
-
-    # Pre-create line styles outside any transaction (Revit requirement)
-    line_ids = _pre_create_line_styles(fmt.get('cell_styles', {}))
+    # Pre-create types outside any transaction (Revit requires new
+    # types/subcategories to have their own transaction, separate from
+    # the drafting/legend/schedule transaction). line_ids is still used
+    # by create_schedule.py's own (unrelated) cell-style API. The
+    # drafting/legend fill uses a single reusable type, coloured per
+    # instance via view overrides rather than one Type per colour.
+    line_ids     = _pre_create_line_styles(cell_styles)
+    fill_type_id = _get_or_create_pytable_fill_type()
 
     # Build payload for export script
     payload = {
@@ -1907,12 +2069,13 @@ def apply_row(row):
         'hdr_tt_id':          hdr_tt_id,
         'dat_tt_id':          dat_tt_id,
         'view_scale':         row.view_scale,
-        'cell_styles':        fmt.get('cell_styles', {}),
+        'cell_styles':        cell_styles,
         'merges':             fmt.get('merges', []),
         'row_heights':        fmt.get('row_heights', {}),
         'col_widths':         fmt.get('col_widths', {}),
         'default_row_height': fmt.get('default_row_height', 14.0),
         'line_ids':           line_ids,
+        'fill_type_id':       fill_type_id,
     }
 
     # Map view type to export script
@@ -1928,9 +2091,27 @@ def apply_row(row):
         return result
 
     try:
-        _run_export_script(export_script, payload)
+        export_result = _run_export_script(export_script, payload)
         result['status']  = 'success'
         result['message'] = 'Created'
+        view_id = None
+        if export_result and export_result.get('view_id') is not None:
+            view_id = export_result['view_id']
+            result['view_id'] = view_id
+            try:
+                view = doc.GetElement(DB.ElementId(view_id))
+                if view:
+                    set_view_pytable_data(
+                        view,
+                        FP=row.file_path,
+                        SH=row.sheet_name,
+                        RG=row.named_range,
+                        VT=row.view_type,
+                        H=_hash_range(row.file_path, row.named_range,
+                                      row.sheet_name),
+                    )
+            except Exception as ex:
+                logger.debug('View tag failed: {}'.format(ex))
     except Exception as e:
         import traceback
         result['message'] = str(e)
@@ -2210,6 +2391,7 @@ class ExcelCardMixin(object):
         col_hdr.Children.Add(_ch('Range',     134))
         col_hdr.Children.Add(_ch('Modified',   96))
         col_hdr.Children.Add(_ch('View Type', 134))
+        col_hdr.Children.Add(_ch('Scale',      50))
 
         inner.Children.Add(col_hdr)
         inner.Children.Add(row_panel)
@@ -2300,6 +2482,18 @@ class ExcelCardMixin(object):
         row = sender.Tag
         if row:
             row.ViewType = sender.SelectedItem
+
+    def _view_scale_changed(self, sender, e):
+        row = sender.Tag
+        if not row:
+            return
+        try:
+            val = int(sender.Text.strip())
+            row.ViewScale = val if val > 0 else 1
+        except Exception:
+            row.ViewScale = 1
+        sender.Text = str(row.ViewScale)
+        self._save_persisted_state()
 
     def _parse_excel(self, path):
         real_path = path

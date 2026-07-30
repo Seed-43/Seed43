@@ -518,6 +518,23 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         vtc.SelectionChanged += self._vt_changed
         sp.Children.Add(vtc)
 
+        # View scale — Legend/Drafting views place text/lines to
+        # scale, so this needs to be user-settable per row (Schedule
+        # rows can leave it at the 1 default, it's harmless there).
+        sctb = TextBox()
+        sctb.Text     = str(getattr(row, 'ViewScale', 1))
+        sctb.Width    = 50
+        try:
+            sctb.Style = self.FindResource('TextBoxStyle')
+        except Exception as e:
+            logger.warning('Failed to apply TextBoxStyle: {}'.format(e))
+        sctb.Margin              = Thickness(0, 0, 4, 0)
+        sctb.VerticalAlignment   = VerticalAlignment.Center
+        sctb.Tag                 = row
+        sctb.ToolTip             = 'View scale (e.g. 50 for 1:50) - Legend/Drafting views only.'
+        sctb.LostFocus          += self._view_scale_changed
+        sp.Children.Add(sctb)
+
         rb = self._make_sync_btn(row)
         row._refresh_btn    = rb
         sp.Children.Add(rb)
@@ -1281,9 +1298,11 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             tr.named_range = row.NamedRange
             tr.sheet_name  = row.Sheet
             tr.view_type   = row.ViewType
-            tr.view_scale  = 1
+            tr.view_scale  = getattr(row, 'ViewScale', 1)
             tr.file_path   = row.FilePath
             tr.auto_sync   = False
+            tr.applied_view_name = row._applied_view_name
+            tr.applied_view_id   = getattr(row, '_applied_view_id', None)
             result = apply_row(tr)
             results.append(result)
             row.Status = result.get('status', 'error')
@@ -1293,6 +1312,8 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                     row._applied_hash = _hash_range(
                         row.FilePath, row.NamedRange, row.Sheet)
                     row._applied_at = _time.time()
+                    row._applied_view_name = row.ViewName
+                    row._applied_view_id   = result.get('view_id')
                     if row._modified_label is not None:
                         row._modified_label.Text = format_applied_at(row._applied_at)
                 except Exception:
@@ -1641,6 +1662,32 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                 row._applied_mtime  = rdata.get('applied_mtime', None)
                 row._applied_hash   = rdata.get('applied_hash', None)
                 row._applied_at     = rdata.get('applied_at', None)
+                row._applied_view_name = rdata.get('applied_view_name', None)
+                row.ViewScale       = int(rdata.get('view_scale', 1) or 1)
+                row._applied_view_id = rdata.get('applied_view_id', None)
+
+                # ElementId is the authoritative link — if we have one,
+                # check whether the view still exists and whether it's
+                # been renamed outside pyTable since the last apply, so
+                # the UI shows the view's real current name rather than
+                # a stale label.
+                if row._applied_view_id is not None:
+                    try:
+                        v = doc.GetElement(DB.ElementId(row._applied_view_id))
+                        if v and v.IsValidObject:
+                            live_name = v.Name
+                            if live_name and live_name != row.ViewName:
+                                row.ViewName           = live_name
+                                row._applied_view_name = live_name
+                        else:
+                            # View no longer exists - this row's
+                            # ownership record is stale, clear it so it
+                            # doesn't wrongly refuse to (re)create a view
+                            # under this name later.
+                            row._applied_view_id   = None
+                            row._applied_view_name = None
+                    except Exception:
+                        pass
 
                 # ── Check Revit view existence and sync status ──
                 row.Status = self._check_row_status(row, path)
@@ -1832,9 +1879,11 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                 tr.named_range = row.NamedRange
                 tr.sheet_name  = row.Sheet
                 tr.view_type   = row.ViewType
-                tr.view_scale  = 1
+                tr.view_scale  = getattr(row, 'ViewScale', 1)
                 tr.file_path   = row.FilePath
                 tr.auto_sync   = False
+                tr.applied_view_name = row._applied_view_name
+                tr.applied_view_id   = getattr(row, '_applied_view_id', None)
                 result = apply_row(tr)
                 row.Status = result.get('status', 'error')
                 if row.Status == 'success':
@@ -1843,6 +1892,8 @@ class PyTableWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                         row._applied_hash  = _hash_range(
                             row.FilePath, row.NamedRange, row.Sheet)
                         row._applied_at = _time.time()
+                        row._applied_view_name = row.ViewName
+                        row._applied_view_id   = result.get('view_id')
                         if row._modified_label is not None:
                             row._modified_label.Text = format_applied_at(row._applied_at)
                     except Exception:

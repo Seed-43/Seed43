@@ -1,77 +1,80 @@
 # -*- coding: utf-8 -*-
-"""Find which sheet(s) the selected group(s) are placed on."""
+"""
+pyTable diagnostic - run this once via pyRevit (e.g. pyRevit > Python
+Console, or as a temporary one-off script/button) to find the exact
+ElementId of the "<Lines>" style in THIS project.
 
-from pyrevit import revit, DB, script, forms
+Prints every GraphicsStyle under the "Lines" category, plus a couple
+of alternate name-reading methods per entry, so we can see exactly
+what's really there instead of guessing.
+"""
+from pyrevit import revit, DB, script
 
 doc = revit.doc
 output = script.get_output()
 
-# ---------------------------------------------------------------------------
-# 1. Get selected groups (model or detail)
-# ---------------------------------------------------------------------------
-selection = revit.get_selection()
-groups = [el for el in selection if isinstance(el, DB.Group)]
+def safe_name(el):
+    try:
+        p = el.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM)
+        if p:
+            return p.AsString()
+    except Exception:
+        pass
+    return None
 
-if not groups:
-    forms.alert("Select one or more Groups first.", exitscript=True)
+def safe_name2(el):
+    try:
+        return DB.Element.Name.GetValue(el)
+    except Exception:
+        return None
 
-# ---------------------------------------------------------------------------
-# 2. Collect every (sheet, view) pair from actual viewports on sheets
-# ---------------------------------------------------------------------------
-all_sheets = DB.FilteredElementCollector(doc)\
-               .OfClass(DB.ViewSheet)\
-               .WhereElementIsNotElementType()\
-               .ToElements()
+def safe_name3(el):
+    try:
+        return el.Name
+    except Exception:
+        return None
 
-placed_views = []  # list of (ViewSheet, View)
-for sheet in all_sheets:
-    viewports = DB.FilteredElementCollector(doc, sheet.Id)\
-                   .OfClass(DB.Viewport)\
-                   .ToElements()
-    for vp in viewports:
-        view = doc.GetElement(vp.ViewId)
-        if view:
-            placed_views.append((sheet, view))
+print("=== Lines category subcategories ===")
+lines_cat = doc.Settings.Categories.get_Item(DB.BuiltInCategory.OST_Lines)
+for sub in lines_cat.SubCategories:
+    try:
+        gs = sub.GetGraphicsStyle(DB.GraphicsStyleType.Projection)
+        gs_id = gs.Id if gs else None
+    except Exception as ex:
+        gs_id = 'ERROR: {}'.format(ex)
+    print("Subcategory raw obj -> SYMBOL_NAME_PARAM={!r}  Element.Name.GetValue={!r}  .Name={!r}  GraphicsStyleId={}".format(
+        safe_name(sub), safe_name2(sub), safe_name3(sub), gs_id
+    ))
 
-# ---------------------------------------------------------------------------
-# 3. Cache visible element ids per view, so each view is only collected once
-#    even when checking multiple selected groups.
-# ---------------------------------------------------------------------------
-view_visible_ids = {}
+print("")
+print("=== Lines category's own top-level default GraphicsStyle ===")
+try:
+    gs = lines_cat.GetGraphicsStyle(DB.GraphicsStyleType.Projection)
+    print("Id={}  SYMBOL_NAME_PARAM={!r}  Element.Name.GetValue={!r}  .Name={!r}".format(
+        gs.Id if gs else None, safe_name(gs), safe_name2(gs), safe_name3(gs)
+    ))
+except Exception as ex:
+    print("ERROR: {}".format(ex))
 
-def get_visible_ids(view):
-    if view.Id not in view_visible_ids:
-        try:
-            ids = set(DB.FilteredElementCollector(doc, view.Id).ToElementIds())
-        except Exception:
-            ids = set()
-        view_visible_ids[view.Id] = ids
-    return view_visible_ids[view.Id]
+print("")
+print("=== ALL GraphicsStyle elements in document whose category is 'Lines' ===")
+for gs in DB.FilteredElementCollector(doc).OfClass(DB.GraphicsStyle):
+    try:
+        cat = gs.GraphicsStyleCategory
+        cat_name = safe_name3(cat) if cat else None
+    except Exception:
+        cat_name = 'ERROR'
+    if cat_name == 'Lines' or (cat_name and 'ine' in str(cat_name)):
+        print("Id={}  category_name={!r}  SYMBOL_NAME_PARAM={!r}  Element.Name.GetValue={!r}  .Name={!r}".format(
+            gs.Id, cat_name, safe_name(gs), safe_name2(gs), safe_name3(gs)
+        ))
 
-# ---------------------------------------------------------------------------
-# 4. Match each selected group against every placed view
-# ---------------------------------------------------------------------------
-results = {}
-for group in groups:
-    hits = []
-    for sheet, view in placed_views:
-        if group.Id in get_visible_ids(view):
-            hits.append((sheet.SheetNumber, sheet.Name, view.Name))
-    results[group.Id] = hits
-
-# ---------------------------------------------------------------------------
-# 5. Report
-# ---------------------------------------------------------------------------
-output.print_md("## Group Sheet Lookup")
-
-for group in groups:
-    group_name = group.Name if hasattr(group, "Name") else "Group"
-    output.print_md("**{}** (id {})".format(group_name, output.linkify(group.Id)))
-
-    hits = results[group.Id]
-    if not hits:
-        output.print_md("- Not placed on any sheet")
-    else:
-        for sheet_number, sheet_name, view_name in hits:
-            output.print_md("- Sheet **{}** - {} (via view {})".format(
-                sheet_number, sheet_name, view_name))
+print("")
+print("=== EVERY GraphicsStyle in the document (id + all 3 name reads) ===")
+for gs in DB.FilteredElementCollector(doc).OfClass(DB.GraphicsStyle):
+    n1, n2, n3 = safe_name(gs), safe_name2(gs), safe_name3(gs)
+    if n1 == '<Lines>' or n2 == '<Lines>' or n3 == '<Lines>' or \
+       n1 == 'Lines' or n2 == 'Lines' or n3 == 'Lines':
+        print("*** MATCH *** Id={}  SYMBOL_NAME_PARAM={!r}  Element.Name.GetValue={!r}  .Name={!r}".format(
+            gs.Id, n1, n2, n3
+        ))

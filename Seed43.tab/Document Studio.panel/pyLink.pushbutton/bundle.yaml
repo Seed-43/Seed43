@@ -1,0 +1,10 @@
+title: "PyLink"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  _____________________________________________________________________
+  Description:
+  Export model categories and schedule parameters to Excel or
+  LibreOffice Calc, edit them externally, then import the changes
+  back into the model with a full preview before anything is written.
+  _____________________________________________________________________
+

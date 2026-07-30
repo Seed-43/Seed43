@@ -1236,12 +1236,13 @@ class WordCardMixin(object):
         col_hdr.Children.Add(_ch('Section', 204))
         hdr_strict = fd.get('layout_mode', 'manual') == 'strict'
         hdr_vis = Visibility.Visible if hdr_strict else Visibility.Collapsed
+        col_hdr_vis = Visibility.Collapsed if hdr_strict else Visibility.Visible
         hdr_priority = _ch('Priority', 82)
         hdr_group    = _ch('Group',   104)
         hdr_col      = _ch('Col',      40)
         hdr_priority.Visibility = hdr_vis
         hdr_group.Visibility    = hdr_vis
-        hdr_col.Visibility      = hdr_vis
+        hdr_col.Visibility      = col_hdr_vis
         col_hdr.Children.Add(hdr_priority)
         col_hdr.Children.Add(hdr_group)
         col_hdr.Children.Add(hdr_col)
@@ -1485,7 +1486,13 @@ class WordCardMixin(object):
         row._group_combo      = gr_combo
         sp.Children.Add(gr_combo)
 
-        # Col number textbox
+        # Col number textbox — this is the manual-mode column
+        # assignment (which column a section goes into when the card
+        # is in Manual layout, not Strict). Priority/Group only matter
+        # in Strict mode, but Column is the inverse: needed and
+        # editable in Manual, irrelevant once Strict auto-places
+        # everything - so it gets its own visibility, not combo_vis.
+        col_vis = Visibility.Collapsed if strict_mode else Visibility.Visible
         col_tb = TextBox()
         col_tb.Text          = str(row.ColNo)
         col_tb.Width         = 36
@@ -1499,7 +1506,8 @@ class WordCardMixin(object):
         col_tb.LostFocus    += self._word_col_no_changed
         col_tb.IsEnabled     = not strict_mode
         col_tb.Opacity       = 0.5 if strict_mode else 1.0
-        col_tb.Visibility    = combo_vis
+        col_tb.Visibility    = col_vis
+        col_tb.ToolTip       = 'Which column this section is placed in (Manual layout).'
         row._col_textbox     = col_tb
         sp.Children.Add(col_tb)
 
@@ -2124,19 +2132,25 @@ class WordCardMixin(object):
 
     def _apply_layout_mode_ui(self, path):
         """Show/hide Priority+Group+Col for every row in a card, matching
-        its current layout_mode. All three are only meaningful once
-        Strict's layout algorithm actually runs - Manual mode uses
-        drag-reorder instead, so Col has nothing useful to show there
-        either (not just dimming it - hiding it, same as Priority/Group)."""
+        its current layout_mode. Priority/Group are only meaningful once
+        Strict's layout algorithm actually runs. Col is the opposite -
+        it's the manual column assignment used when Applying, and
+        nothing (drag-reorder included) sets it automatically, so it
+        has to stay visible and editable in Manual mode; Strict shows
+        it read-only instead, reflecting what the algorithm chose."""
         fd = self._file_data.get(path)
         if fd is None:
             return
         strict = fd.get('layout_mode', 'manual') == 'strict'
         vis = Visibility.Visible if strict else Visibility.Collapsed
-        for hdr_key in ('hdr_priority', 'hdr_group', 'hdr_col'):
+        col_vis = Visibility.Collapsed if strict else Visibility.Visible
+        for hdr_key in ('hdr_priority', 'hdr_group'):
             hdr = fd.get(hdr_key)
             if hdr is not None:
                 hdr.Visibility = vis
+        hdr_col = fd.get('hdr_col')
+        if hdr_col is not None:
+            hdr_col.Visibility = col_vis
         for row in fd.get('rows', []):
             if row._priority_combo is not None:
                 row._priority_combo.Visibility = vis
@@ -2145,7 +2159,7 @@ class WordCardMixin(object):
             if row._col_textbox is not None:
                 row._col_textbox.IsEnabled   = not strict
                 row._col_textbox.Opacity     = 0.5 if strict else 1.0
-                row._col_textbox.Visibility  = vis
+                row._col_textbox.Visibility  = col_vis
 
     def _maybe_run_strict_layout(self, path):
         """Re-run the layout algorithm only if this card is actually

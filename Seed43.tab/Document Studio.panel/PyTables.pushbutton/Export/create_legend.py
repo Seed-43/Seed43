@@ -121,6 +121,20 @@ for el in FilteredElementCollector(doc, temp_view.Id).ToElements():
 if not elements_to_copy:
     raise Exception('Temp drafting view is empty — nothing to copy')
 
+# Record each element's view-specific override on the temp view BEFORE
+# copying — CopyElements does not carry these over on its own (an
+# override is stored against the (view, elementId) pair, not the
+# element), so without this every colour create_drafting.py just
+# applied would be silently lost the moment these land in the legend.
+overrides_by_old_id = {}
+for el_id in elements_to_copy:
+    try:
+        ogs = temp_view.GetElementOverrides(el_id)
+        if ogs is not None:
+            overrides_by_old_id[el_id] = ogs
+    except Exception as ex:
+        logger.debug('Read override {}: {}'.format(el_id, ex))
+
 # ---------------------------------------------------------------------------
 # Step 5 — Copy into legend, delete temp
 # ---------------------------------------------------------------------------
@@ -160,13 +174,29 @@ with revit.Transaction('pyTable - Create Legend: {}'.format(view_name)):
     opts = CopyPasteOptions()
     opts.SetDuplicateTypeNamesHandler(_UseDestination())
 
-    ElementTransformUtils.CopyElements(
+    new_ids = ElementTransformUtils.CopyElements(
         temp_view,
         List[DB.ElementId](elements_to_copy),
         dest,
         None,
         opts
     )
+
+    # Re-apply each element's recorded override onto its new copy in
+    # the legend view. CopyElements returns the new ids in the same
+    # order as the input collection, so old/new pair up by position.
+    new_ids_list = list(new_ids)
+    for old_id, new_id in zip(elements_to_copy, new_ids_list):
+        ogs = overrides_by_old_id.get(old_id)
+        if ogs is not None:
+            try:
+                dest.SetElementOverrides(new_id, ogs)
+            except Exception as ex:
+                logger.debug(
+                    'Reapply override {} -> {}: {}'.format(
+                        old_id, new_id, ex
+                    )
+                )
 
 # Delete temp in its own transaction (same as pyTransmit)
 with revit.Transaction('pyTable - Delete temp view'):
@@ -178,3 +208,9 @@ with revit.Transaction('pyTable - Delete temp view'):
 logger.debug(
     'create_legend: "{}" complete'.format(view_name)
 )
+
+try:
+    _view_id_int = dest.Id.IntegerValue
+except AttributeError:
+    _view_id_int = int(dest.Id.Value)
+PYTABLE_RESULT = {'view_id': _view_id_int}

@@ -1,0 +1,383 @@
+<Window
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:sys="clr-namespace:System;assembly=mscorlib"
+        Title="PyLink" Height="640" Width="980" MinHeight="480" MinWidth="760"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.Resources>
+
+        <!-- ── Colour fallbacks (canonical keys - see seed43-pyrevit-ui skill) ── -->
+        <!-- Real values come from apply_seed43_palette() at runtime; these are
+             only what renders if the palette file is ever missing. -->
+        <SolidColorBrush x:Key="BrushPrimaryGreen" Color="#208A3C"/>
+        <SolidColorBrush x:Key="BrushPrimaryGreenHover" Color="#2B9B4A"/>
+        <SolidColorBrush x:Key="BrushPrimaryGreenPressed" Color="#1B7530"/>
+        <SolidColorBrush x:Key="BrushWindowBg" Color="#3B4553"/>
+        <SolidColorBrush x:Key="BrushCardBg" Color="#2B3340"/>
+        <SolidColorBrush x:Key="BrushHeaderBg" Color="#232933"/>
+        <SolidColorBrush x:Key="BrushTextPrimary" Color="#F4FAFF"/>
+        <SolidColorBrush x:Key="BrushTextInput" Color="#F4FAFF"/>
+        <SolidColorBrush x:Key="BrushInputBg" Color="#323B48"/>
+        <SolidColorBrush x:Key="BrushInputBgHover" Color="#3A4451"/>
+        <SolidColorBrush x:Key="BrushInputBgPressed" Color="#404B59"/>
+        <SolidColorBrush x:Key="BrushBorderDefault" Color="#4A5563"/>
+        <SolidColorBrush x:Key="BrushBorderHover" Color="#5A6675"/>
+        <SolidColorBrush x:Key="BrushBorderPressed" Color="#208A3C"/>
+        <SolidColorBrush x:Key="BrushBorderMuted" Color="#208A3C"/>
+        <SolidColorBrush x:Key="BrushSecondaryBg" Color="#4A5563"/>
+        <SolidColorBrush x:Key="BrushSecondaryHover" Color="#565F6E"/>
+        <SolidColorBrush x:Key="BrushSecondaryPressed" Color="#3E4753"/>
+        <SolidColorBrush x:Key="BrushSecondaryDisabledBg" Color="#3A414C"/>
+        <SolidColorBrush x:Key="BrushSecondaryDisabledFg" Color="#7C8794"/>
+        <SolidColorBrush x:Key="BrushDropdownItemHover" Color="#3A4451"/>
+        <SolidColorBrush x:Key="BrushDanger" Color="#C0392B"/>
+        <SolidColorBrush x:Key="BrushDangerHover" Color="#D14634"/>
+        <SolidColorBrush x:Key="BrushDangerPressed" Color="#A5301F"/>
+
+        <!-- ── Dimension fallbacks ── -->
+        <CornerRadius x:Key="CornerRadiusButton">10</CornerRadius>
+        <sys:Double x:Key="FontSizeButton">13</sys:Double>
+        <Thickness x:Key="PaddingButtonPrimary">15,7,15,7</Thickness>
+        <CornerRadius x:Key="CornerRadiusButtonSecondary">10</CornerRadius>
+        <sys:Double x:Key="FontSizeButtonSecondary">13</sys:Double>
+        <Thickness x:Key="PaddingButtonSecondary">15,7,15,7</Thickness>
+        <sys:Double x:Key="HeightInput">28</sys:Double>
+        <CornerRadius x:Key="CornerRadiusInput">8</CornerRadius>
+        <Thickness x:Key="BorderThicknessInput">1</Thickness>
+        <sys:Double x:Key="FontSizeInput">13</sys:Double>
+        <Thickness x:Key="PaddingInput">8,4,8,4</Thickness>
+        <sys:Double x:Key="HeightCombobox">28</sys:Double>
+        <CornerRadius x:Key="CornerRadiusCombobox">14</CornerRadius>
+        <sys:Double x:Key="FontSizeCombobox">13</sys:Double>
+        <Thickness x:Key="PaddingCombobox">8,4,8,4</Thickness>
+        <CornerRadius x:Key="CornerRadiusCard">12</CornerRadius>
+        <Thickness x:Key="PaddingCard">16</Thickness>
+        <sys:Double x:Key="FontSizeSectionLabel">11</sys:Double>
+        <sys:Double x:Key="FontSizeFieldLabel">12</sys:Double>
+        <sys:Double x:Key="FontSizeHeading">16</sys:Double>
+        <sys:Double x:Key="FontSizeBody">13</sys:Double>
+
+        <!-- ── Styles ── -->
+        <Style x:Key="ButtonPrimaryStyle" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeButton}"/>
+            <Setter Property="Padding" Value="{DynamicResource PaddingButtonPrimary}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                CornerRadius="{DynamicResource CornerRadiusButton}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushPrimaryGreenPressed}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushSecondaryDisabledBg}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource BrushSecondaryDisabledFg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ButtonSecondaryStyle" TargetType="Button" BasedOn="{StaticResource ButtonPrimaryStyle}">
+            <Setter Property="Background" Value="{DynamicResource BrushSecondaryBg}"/>
+            <Setter Property="Padding" Value="{DynamicResource PaddingButtonSecondary}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                CornerRadius="{DynamicResource CornerRadiusButtonSecondary}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushSecondaryHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushSecondaryPressed}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushSecondaryDisabledBg}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource BrushSecondaryDisabledFg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource BrushCardBg}"/>
+            <Setter Property="CornerRadius" Value="{DynamicResource CornerRadiusCard}"/>
+            <Setter Property="Padding" Value="{DynamicResource PaddingCard}"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="14" ShadowDepth="2" Opacity="0.25" Color="#000000"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SectionLabelStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeSectionLabel}"/>
+            <Setter Property="Foreground" Value="{DynamicResource BrushPrimaryGreen}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="2,0,0,6"/>
+        </Style>
+
+        <Style x:Key="FormatComboStyle" TargetType="ComboBox">
+            <Setter Property="Height" Value="{DynamicResource HeightCombobox}"/>
+            <Setter Property="Background" Value="{DynamicResource BrushInputBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextInput}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BrushBorderDefault}"/>
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeCombobox}"/>
+            <Setter Property="Padding" Value="{DynamicResource PaddingCombobox}"/>
+            <Setter Property="MinWidth" Value="120"/>
+        </Style>
+
+        <Style x:Key="SearchTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Height" Value="{DynamicResource HeightInput}"/>
+            <Setter Property="Background" Value="{DynamicResource BrushInputBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextInput}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BrushBorderDefault}"/>
+            <Setter Property="BorderThickness" Value="{DynamicResource BorderThicknessInput}"/>
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeInput}"/>
+            <Setter Property="Padding" Value="{DynamicResource PaddingInput}"/>
+        </Style>
+
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeBody}"/>
+            <Setter Property="Padding" Value="12,6"/>
+        </Style>
+
+        <Style TargetType="DataGrid">
+            <Setter Property="Background" Value="{DynamicResource BrushCardBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="RowBackground" Value="{DynamicResource BrushCardBg}"/>
+            <Setter Property="AlternatingRowBackground" Value="{DynamicResource BrushInputBg}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="GridLinesVisibility" Value="None"/>
+            <Setter Property="HeadersVisibility" Value="Column"/>
+            <Setter Property="AutoGenerateColumns" Value="False"/>
+            <Setter Property="CanUserAddRows" Value="False"/>
+        </Style>
+
+    </Window.Resources>
+
+    <Border Background="{DynamicResource BrushWindowBg}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <!-- header -->
+                <RowDefinition Height="*"/>
+                <!-- body -->
+                <RowDefinition Height="Auto"/>
+                <!-- footer -->
+            </Grid.RowDefinitions>
+
+            <!-- ══ HEADER ══ -->
+            <Border Grid.Row="0" Background="{DynamicResource BrushHeaderBg}" Padding="16,10">
+                <TextBlock Text="PyLink" FontSize="{DynamicResource FontSizeHeading}"
+                           Foreground="{DynamicResource BrushTextPrimary}" FontWeight="Bold"/>
+            </Border>
+
+            <!-- ══ BODY ══ -->
+            <Grid Grid.Row="1" Margin="16">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <!-- source-scope radios -->
+                    <RowDefinition Height="*"/>
+                    <!-- tab control -->
+                    <RowDefinition Height="Auto"/>
+                    <!-- action bar -->
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                    <RadioButton x:Name="scope_whole_model" Content="Whole Model" IsChecked="True"
+                                 Foreground="{DynamicResource BrushTextPrimary}" Margin="0,0,16,0"/>
+                    <RadioButton x:Name="scope_active_view" Content="Active View"
+                                 Foreground="{DynamicResource BrushTextPrimary}" Margin="0,0,16,0"/>
+                    <RadioButton x:Name="scope_current_selection" Content="Current Selection"
+                                 Foreground="{DynamicResource BrushTextPrimary}"/>
+                </StackPanel>
+
+                <TabControl x:Name="main_tabs" Grid.Row="1" Background="Transparent" BorderThickness="0">
+
+                    <!-- ── Model Categories tab ── -->
+                    <TabItem Header="Model Categories">
+                        <Border Style="{StaticResource CardStyle}" Margin="0,10,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                    <TextBlock Text="SELECT CATEGORIES" Style="{StaticResource SectionLabelStyle}"/>
+                                    <ListBox x:Name="categories_list" Height="380"
+                                             SelectionMode="Extended"
+                                             Background="{DynamicResource BrushInputBg}"
+                                             Foreground="{DynamicResource BrushTextPrimary}"
+                                             BorderBrush="{DynamicResource BrushBorderDefault}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="8,0,8,0">
+                                    <TextBlock Text="AVAILABLE PARAMETERS" Style="{StaticResource SectionLabelStyle}"/>
+                                    <ListBox x:Name="available_params_categories" Height="380"
+                                             SelectionMode="Extended"
+                                             Background="{DynamicResource BrushInputBg}"
+                                             Foreground="{DynamicResource BrushTextPrimary}"
+                                             BorderBrush="{DynamicResource BrushBorderDefault}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="4,20,4,0">
+                                    <Button x:Name="cat_params_add_btn" Content="&#9654;" Width="32" Height="32"
+                                            Style="{StaticResource ButtonSecondaryStyle}" Margin="0,0,0,6"/>
+                                    <Button x:Name="cat_params_remove_btn" Content="&#9664;" Width="32" Height="32"
+                                            Style="{StaticResource ButtonSecondaryStyle}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="3" Margin="8,0,0,0">
+                                    <TextBlock Text="SELECTED PARAMETERS" Style="{StaticResource SectionLabelStyle}"/>
+                                    <ListBox x:Name="selected_params_categories" Height="380"
+                                             SelectionMode="Extended"
+                                             Background="{DynamicResource BrushInputBg}"
+                                             Foreground="{DynamicResource BrushTextPrimary}"
+                                             BorderBrush="{DynamicResource BrushBorderDefault}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </TabItem>
+
+                    <!-- ── Schedules tab ── -->
+                    <TabItem Header="Schedules">
+                        <Border Style="{StaticResource CardStyle}" Margin="0,10,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                    <TextBlock Text="SELECT SCHEDULES" Style="{StaticResource SectionLabelStyle}"/>
+                                    <TextBox x:Name="schedules_search" Style="{StaticResource SearchTextBoxStyle}" Margin="0,0,0,6"/>
+                                    <ListBox x:Name="schedules_list" Height="340"
+                                             SelectionMode="Extended"
+                                             Background="{DynamicResource BrushInputBg}"
+                                             Foreground="{DynamicResource BrushTextPrimary}"
+                                             BorderBrush="{DynamicResource BrushBorderDefault}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="8,0,8,0">
+                                    <TextBlock Text="AVAILABLE PARAMETERS" Style="{StaticResource SectionLabelStyle}"/>
+                                    <ListBox x:Name="available_params_schedules" Height="374"
+                                             SelectionMode="Extended"
+                                             Background="{DynamicResource BrushInputBg}"
+                                             Foreground="{DynamicResource BrushTextPrimary}"
+                                             BorderBrush="{DynamicResource BrushBorderDefault}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="4,20,4,0">
+                                    <Button x:Name="sched_params_add_btn" Content="&#9654;" Width="32" Height="32"
+                                            Style="{StaticResource ButtonSecondaryStyle}" Margin="0,0,0,6"/>
+                                    <Button x:Name="sched_params_remove_btn" Content="&#9664;" Width="32" Height="32"
+                                            Style="{StaticResource ButtonSecondaryStyle}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="3" Margin="8,0,0,0">
+                                    <TextBlock Text="SELECTED PARAMETERS" Style="{StaticResource SectionLabelStyle}"/>
+                                    <ListBox x:Name="selected_params_schedules" Height="374"
+                                             SelectionMode="Extended"
+                                             Background="{DynamicResource BrushInputBg}"
+                                             Foreground="{DynamicResource BrushTextPrimary}"
+                                             BorderBrush="{DynamicResource BrushBorderDefault}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </TabItem>
+
+                    <!-- ── Preview/Edit tab (populated after Import) ── -->
+                    <TabItem x:Name="preview_tab" Header="Preview/Edit" IsEnabled="False">
+                        <Border Style="{StaticResource CardStyle}" Margin="0,10,0,0">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" x:Name="diff_summary_label"
+                                           Text="0 changes found" Style="{StaticResource SectionLabelStyle}"/>
+                                <DataGrid x:Name="diff_grid" Grid.Row="1">
+                                    <DataGrid.Columns>
+                                        <DataGridCheckBoxColumn Header="Apply" Binding="{Binding Include}" Width="50"/>
+                                        <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="110" IsReadOnly="True"/>
+                                        <DataGridTextColumn Header="Kind" Binding="{Binding Kind}" Width="70" IsReadOnly="True"/>
+                                        <DataGridTextColumn Header="Element" Binding="{Binding ElementLabel}" Width="150" IsReadOnly="True"/>
+                                        <DataGridTextColumn Header="Parameter" Binding="{Binding ParamName}" Width="130" IsReadOnly="True"/>
+                                        <DataGridTextColumn Header="Old Value" Binding="{Binding OldValue}" Width="*" IsReadOnly="True"/>
+                                        <DataGridTextColumn Header="New Value" Binding="{Binding NewValue}" Width="*" IsReadOnly="True"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </Border>
+                    </TabItem>
+
+                </TabControl>
+
+                <!-- ══ ACTION BAR ══ -->
+                <Grid Grid.Row="2" Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <!-- format label -->
+                        <ColumnDefinition Width="Auto"/>
+                        <!-- format combo -->
+                        <ColumnDefinition Width="*"/>
+                        <!-- spacer -->
+                        <ColumnDefinition Width="Auto"/>
+                        <!-- reset -->
+                        <ColumnDefinition Width="Auto"/>
+                        <!-- import -->
+                        <ColumnDefinition Width="Auto"/>
+                        <!-- export -->
+                        <ColumnDefinition Width="Auto"/>
+                        <!-- confirm changes -->
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Format:" VerticalAlignment="Center"
+                               Foreground="{DynamicResource BrushTextPrimary}" Margin="0,0,6,0"/>
+
+                    <!-- Single choice - Excel or LibreOffice Calc (.ods), no "both" option -->
+                    <ComboBox x:Name="format_combo" Grid.Column="1" Style="{StaticResource FormatComboStyle}"
+                              SelectedIndex="0">
+                        <ComboBoxItem Content="Excel (.xlsx)"/>
+                        <ComboBoxItem Content="LibreOffice Calc (.ods)"/>
+                    </ComboBox>
+
+                    <Button x:Name="reset_btn" Grid.Column="4" Content="Reset Values"
+                            Style="{StaticResource ButtonSecondaryStyle}" Margin="0,0,8,0"/>
+                    <Button x:Name="import_btn" Grid.Column="5" Content="Import"
+                            Style="{StaticResource ButtonSecondaryStyle}" Margin="0,0,8,0"/>
+                    <Button x:Name="export_btn" Grid.Column="6" Content="Export"
+                            Style="{StaticResource ButtonPrimaryStyle}" Margin="0,0,8,0"/>
+                    <Button x:Name="confirm_btn" Grid.Column="7" Content="Confirm Changes"
+                            Style="{StaticResource ButtonPrimaryStyle}" IsEnabled="False"/>
+                </Grid>
+            </Grid>
+
+            <!-- ══ FOOTER ══ -->
+            <Border Grid.Row="2" Background="{DynamicResource BrushHeaderBg}" Padding="16,8">
+                <TextBlock x:Name="status_label" Text="Ready"
+                           Foreground="{DynamicResource BrushTextPrimary}" FontSize="{DynamicResource FontSizeBody}"/>
+            </Border>
+
+        </Grid>
+    </Border>
+</Window>

@@ -34,29 +34,63 @@
     "NWC": "PySheets Default", 
     "IMG": "PySheets Default"
   }, 
+  "sheet_sel": {
+    "PDF": [
+      2642327, 
+      2758195, 
+      2787441, 
+      3429369, 
+      3443087, 
+      3492150, 
+      3495627, 
+      3728913, 
+      3729173, 
+      4001815, 
+      4001829, 
+      4001843, 
+      4037514, 
+      4037635, 
+      4044634, 
+      4044648, 
+      4044662, 
+      4044983, 
+      4045399, 
+      4045413, 
+      4045717, 
+      4047846, 
+      4080356, 
+      4081965, 
+      4098764, 
+      4106254, 
+      4176298, 
+      4185813, 
+      4254839, 
+      4264702, 
+      4268721, 
+      4324633, 
+      4336886, 
+      4353129
+    ], 
+    "DGN": [], 
+    "IFC": [], 
+    "DWG": [], 
+    "NWC": [], 
+    "IMG": []
+  }, 
+  "view_sel": {
+    "PDF": [], 
+    "DGN": [], 
+    "IFC": [], 
+    "DWG": [], 
+    "NWC": [], 
+    "IMG": []
+  }, 
   "auto_overwrite": true, 
-  "column_order": [
-    "check", 
-    "number", 
-    "name", 
-    "collection", 
-    "revision", 
-    "size", 
-    "filename"
-  ], 
   "dest": "file", 
   "open_after": true, 
   "dwg": {
     "export_setup_name": "<Revit Default>", 
     "export_xrefs": false
-  }, 
-  "column_widths": {
-    "check": 36.0, 
-    "revision": 80.0, 
-    "collection": 90.0, 
-    "filename": 210.0, 
-    "size": 136.0, 
-    "number": 136.0
   }, 
   "dgn": {
     "export_setup_name": "<Revit Default>"

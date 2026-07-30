@@ -152,20 +152,23 @@ def _run_export_script(script_name, payload):
         ):
             exec(src, ns)
 
-def _get_pytable_param():
+    # Export scripts may leave a PYTABLE_RESULT dict in their own
+    # namespace (e.g. {'view_id': view.Id.IntegerValue}) so the caller
+    # can tag the actual view that was created — used for the
+    # ElementId-based ownership tracking.
+    return ns.get('PYTABLE_RESULT')
+
+def _ensure_pytable_param_bound():
     """
-    Get or create the pyTable shared parameter on ProjectInfo.
-    Returns the Parameter object or None.
+    Ensure the pyTable shared parameter is bound to BOTH Project
+    Information (the punch list of everything pyTable manages) and
+    Views (Drafting/Legend/Schedule all fall under this one binding
+    category) — same parameter definition, one independent value slot
+    per element instance. Expands an existing binding in place if it
+    was only ever bound to Project Information from an earlier version.
+    Returns the Definition object, or None on failure.
     """
     try:
-        proj_info = doc.ProjectInformation
-        if proj_info is None:
-            return None
-        # Try to find existing parameter
-        p = proj_info.LookupParameter(PYTABLE_PARAM_NAME)
-        if p is not None:
-            return p
-        # Need to load shared parameter file and bind
         app = revit.HOST_APP.app
         orig_file = app.SharedParametersFilename
         try:
@@ -173,7 +176,6 @@ def _get_pytable_param():
             sp_file = app.OpenSharedParameterFile()
             if sp_file is None:
                 return None
-            # Find or create group
             grp = None
             for g in sp_file.Groups:
                 if g.Name == 'Seed43':
@@ -181,7 +183,6 @@ def _get_pytable_param():
                     break
             if grp is None:
                 return None
-            # Find definition
             defn = None
             for d in grp.Definitions:
                 if d.Name == PYTABLE_PARAM_NAME:
@@ -189,16 +190,105 @@ def _get_pytable_param():
                     break
             if defn is None:
                 return None
-            # Bind to ProjectInfo
-            cats = DB.CategorySet()
-            cats.Insert(doc.Settings.Categories.get_Item(
-                DB.BuiltInCategory.OST_ProjectInformation))
-            binding = DB.InstanceBinding(cats)
+
+            wanted_cats = [
+                doc.Settings.Categories.get_Item(
+                    DB.BuiltInCategory.OST_ProjectInformation),
+                doc.Settings.Categories.get_Item(
+                    DB.BuiltInCategory.OST_Views),
+            ]
+
+            existing_binding = doc.ParameterBindings.get_Item(defn)
             with revit.Transaction('pyTable - bind parameter'):
-                doc.ParameterBindings.Insert(defn, binding)
-            return proj_info.LookupParameter(PYTABLE_PARAM_NAME)
+                if existing_binding is None:
+                    cats = DB.CategorySet()
+                    for c in wanted_cats:
+                        cats.Insert(c)
+                    binding = DB.InstanceBinding(cats)
+                    doc.ParameterBindings.Insert(defn, binding)
+                else:
+                    existing_cats = existing_binding.Categories
+                    changed = False
+                    for c in wanted_cats:
+                        if not existing_cats.Contains(c):
+                            existing_cats.Insert(c)
+                            changed = True
+                    if changed:
+                        doc.ParameterBindings.ReInsert(defn, existing_binding)
+            return defn
         finally:
             app.SharedParametersFilename = orig_file
+    except Exception as ex:
+        logger.warning('pyTable param bind failed: {}'.format(ex))
+        return None
+
+def get_view_pytable_data(view):
+    """
+    Read a view's own pyTable record (sheet/range/hash/scale/etc) from
+    its per-view parameter — the authoritative record for that one
+    view, as opposed to Project Information's punch list, which is
+    just an index of which views to go look up. Returns a dict of
+    whatever tokens are present, or None if the view has no record
+    (never touched by pyTable, or the parameter can't be read).
+    """
+    try:
+        p = view.LookupParameter(PYTABLE_PARAM_NAME)
+        if p is None:
+            return None
+        text = p.AsString()
+        if not text:
+            return None
+        parts = {}
+        for seg in text.split('|'):
+            if '-' in seg:
+                k, v = seg.split('-', 1)
+                parts[k] = v
+        return parts
+    except Exception:
+        return None
+
+def set_view_pytable_data(view, **kwargs):
+    """
+    Write this view's own pyTable record. Keyword args become K-V
+    tokens on the view's per-view parameter, e.g.
+    set_view_pytable_data(view, SH='Sheet1', RG='Temp', H=hash_str).
+    Creates/expands the parameter binding on first use. Returns True
+    on success.
+    """
+    try:
+        p = view.LookupParameter(PYTABLE_PARAM_NAME)
+        if p is None:
+            _ensure_pytable_param_bound()
+            p = view.LookupParameter(PYTABLE_PARAM_NAME)
+        if p is None:
+            return False
+        text = '|'.join(
+            '{}-{}'.format(k, v) for k, v in kwargs.items() if v is not None
+        )
+        with revit.Transaction('pyTable - tag view'):
+            p.Set(text)
+        return True
+    except Exception as ex:
+        logger.warning('pyTable view tag failed: {}'.format(ex))
+        return False
+
+def _get_pytable_param():
+    """
+    Get or create the pyTable shared parameter on ProjectInfo — this
+    is the punch list: an index of what pyTable manages, not the
+    per-view records themselves (see get_view_pytable_data /
+    set_view_pytable_data for those). Returns the Parameter object or
+    None.
+    """
+    try:
+        proj_info = doc.ProjectInformation
+        if proj_info is None:
+            return None
+        p = proj_info.LookupParameter(PYTABLE_PARAM_NAME)
+        if p is not None:
+            return p
+        _ensure_pytable_param_bound()
+        return proj_info.LookupParameter(PYTABLE_PARAM_NAME)
     except Exception as ex:
         logger.warning('pyTable param get failed: {}'.format(ex))
         return None
@@ -286,11 +376,15 @@ def save_pytable_state(file_data):
             except Exception:
                 pass
             cn = getattr(row, 'ColNo', 1)
+            vs = getattr(row, 'ViewScale', 1)
             pr = getattr(row, 'Priority', 'Medium')
             gr = getattr(row, 'Group', '')
-            lines.append('VN-{}|S-{}|R-{}|VT-{}|MT-{}|H-{}|CN-{}|PR-{}|GR-{}|AT-{}'.format(
+            avn = getattr(row, '_applied_view_name', '') or ''
+            vid = getattr(row, '_applied_view_id', None)
+            vid = '' if vid is None else str(vid)
+            lines.append('VN-{}|S-{}|R-{}|VT-{}|MT-{}|H-{}|CN-{}|PR-{}|GR-{}|AT-{}|AVN-{}|VS-{}|VID-{}'.format(
                 row.ViewName, row.Sheet, row.NamedRange,
-                row.ViewType, mt, h, cn, pr, gr, at))
+                row.ViewType, mt, h, cn, pr, gr, at, avn, vs, vid))
         # Card-level word settings
         ss = fd.get('sheet_size', '')
         cc = fd.get('col_count', '')
@@ -411,6 +505,11 @@ def load_pytable_state():
                     'col_no':       int(parts.get('CN', 1)),
                     'priority':     parts.get('PR', 'Medium'),
                     'group':        parts.get('GR', ''),
+                    'applied_view_name': parts.get('AVN') or None,
+                    'view_scale':   int(parts.get('VS', 1) or 1),
+                    'applied_view_id': (
+                        int(parts['VID']) if parts.get('VID') else None
+                    ),
                 })
         # Resolve any relative path/real_path back to absolute now
         # that we know the current doc's location.
@@ -486,9 +585,15 @@ class Row(object):
         self._applied_mtime   = None   # source file's mtime when last applied (staleness check)
         self._applied_hash    = None   # MD5 of range content at last apply
         self._applied_at      = None   # wall-clock time this row was last synced into Revit
+        self._applied_view_name = None # the Revit view name this row actually created/owns —
+                                        # lets _view_name_taken() recognise "this is my own
+                                        # view" instead of flagging it as a conflict with itself
+        self._applied_view_id   = None # ElementId (int) of the same view — the authoritative
+                                        # ownership proof, survives the view being renamed
         self._modified_label  = None   # TextBlock showing _applied_at, live-updated on sync
         # Word-specific
         self.ColNo            = 1        # column assignment (1-based)
+        self.ViewScale        = 1        # Excel Legend/Drafting view scale
         self.Priority          = 'Medium' # High/Medium/Low - layout algo reorder freedom
         self.Group             = ''       # section group name, packs with same-group rows
         self._col_textbox     = None   # TextBox for col number

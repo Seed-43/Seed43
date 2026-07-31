@@ -269,118 +269,102 @@ def _excel_rotation_to_radians(excel_rot):
 _TEXT_MARGIN = 1.5 * MM
 
 
-def _set_vertical_align(tn, which):
-    """
-    Set this TextNote's Vertical Align to Top/Middle/Bottom. This is a
-    true ANCHOR, not just justification: it changes which edge/center
-    of the box's (content-driven) height is pinned to the insertion
-    point - confirmed against the Revit API docs and a real inspected
-    pyLink TextNote instance (Element ID 4303419) showing Vertical
-    Align as a genuine, populated instance parameter. Must be set
-    AFTER creation (TextNoteOptions has no vertical-align field), but
-    BEFORE any rotation, so the box reflows around the same origin
-    per the new setting first. Tries the strongly-typed property,
-    falls back to the raw parameter - either can be missing depending
-    on Revit API version.
-    """
-    try:
-        from Autodesk.Revit.DB import VerticalAlignment
-        tn.VerticalAlignment = getattr(VerticalAlignment, which, VerticalAlignment.Top)
-        return
-    except Exception as ex:
-        logger.debug('VerticalAlignment property set failed: {}'.format(ex))
-    try:
-        p = tn.get_Parameter(BuiltInParameter.TEXT_ALIGN_VERT)
-        if p and not p.IsReadOnly:
-            p.Set({'Top': 0, 'Middle': 1, 'Bottom': 2}.get(which, 0))
-    except Exception as ex:
-        logger.debug('TEXT_ALIGN_VERT parameter set failed: {}'.format(ex))
-
-
 def _draw_text(view, x, y, w, h, text, tt_id, color_rgb,
                 rotation_rad=0.0, halign='Left', valign='Bottom'):
     """
-    Place a TextNote so it always exactly fills the cell's available
-    width (or height, for rotated text) and sits against the correct
-    edge/center of the other dimension - with no bounding-box probing.
+    Place a TextNote inside the cell (x, y, w, h) — (x, y) top-left —
+    per Excel's halign/valign, by MEASURING where Revit actually puts
+    a probe note rather than assuming what any alignment property
+    does. Three separate assumptions about Revit's anchor/justification
+    behaviour have each turned out wrong in practice (double-applying
+    HorizontalAlignment on top of our own math; assuming a Top default;
+    assuming VerticalAlignment actually takes effect as an anchor) - so
+    this stops guessing and corrects for whatever the real behaviour is:
 
-    Two Revit facts make this possible without measuring anything:
-      - Horizontal Align is pure intra-box text JUSTIFICATION - it
-        never moves the box itself. Given an explicit Width, the box
-        always spans exactly [origin, origin+Width]. So the axis we
-        set Width for is "trivial": origin = that cell edge, done.
-      - Vertical Align is a true ANCHOR: Top/Middle/Bottom changes
-        which edge/center of the box's (otherwise unknown,
-        content-driven) height is pinned to the origin point. So the
-        *other* axis is solved by picking the matching Vertical Align
-        and cell edge/center for the origin - Revit does the rest.
+      1. Create a probe with the EXACT same options/Width/text at a
+         scratch origin (0,0,0).
+      2. Regenerate, then read its real bounding box - this captures
+         wherever Revit actually placed the box relative to that
+         origin, whatever mechanism caused it.
+      3. Work out, via the same rotation math as before, what origin
+         WOULD have produced a box landing exactly on the target cell
+         edge/center - using the probe's measured offsets, not an
+         assumed corner.
+      4. Discard the probe, recreate at that corrected origin, rotate.
 
-    A 90 rotation swaps which screen axis each property ends up
-    controlling (rotating the local box swaps its two local axes'
-    roles on screen). So for rotated header text: Excel's halign is
-    achieved via Revit's Vertical Align (the anchor), and Excel's
-    valign via Revit's Horizontal Align (the justification) - the
-    reverse of the unrotated case.
+    Width is always set to the cell's full trivial-axis dimension
+    (matching the filled region exactly, not a separately-inset one).
 
-    rotation_rad: 0, or the drafting rotation for Excel textRotation
-    (see _excel_rotation_to_radians) - positive (CCW, Excel 1-90,
-    "bottom-to-top") or negative (CW, Excel 91-180, "top-to-bottom").
+    rotation_rad: 0, or the drafting rotation for Excel textRotation -
+    positive (CCW, Excel 1-90) or negative (CW, Excel 91-180).
     """
     if not str(text).strip():
         return
     try:
-        # Shrink the working rect by the margin on every side so text
-        # never touches the border lines.
-        mx, my = x + _TEXT_MARGIN, y - _TEXT_MARGIN
-        mw, mh = max(w - 2 * _TEXT_MARGIN, 0), max(h - 2 * _TEXT_MARGIN, 0)
-
         opts = TextNoteOptions(tt_id)
-
-        if rotation_rad == 0:
-            width = mw
-            opts.HorizontalAlignment = getattr(
-                HorizontalTextAlignment, halign, HorizontalTextAlignment.Left
-            )
-            ox = mx
-            v_anchor, oy = {
-                'Top':    ('Top',    my),
-                'Center': ('Middle', my - mh / 2.0),
-                'Bottom': ('Bottom', my - mh),
-            }.get(valign, ('Bottom', my - mh))
-        elif rotation_rad > 0:
-            # +90 CCW
-            width = mh
-            opts.HorizontalAlignment = getattr(
-                HorizontalTextAlignment,
-                {'Top': 'Left', 'Center': 'Center', 'Bottom': 'Right'}.get(valign, 'Left'),
-                HorizontalTextAlignment.Left
-            )
-            v_anchor, ox = {
-                'Left':   ('Top',    mx),
-                'Center': ('Middle', mx + mw / 2.0),
-                'Right':  ('Bottom', mx + mw),
-            }.get(halign, ('Top', mx))
-            oy = my - mh
-        else:
-            # -90 CW
-            width = mh
-            opts.HorizontalAlignment = getattr(
-                HorizontalTextAlignment,
-                {'Top': 'Left', 'Center': 'Center', 'Bottom': 'Right'}.get(valign, 'Left'),
-                HorizontalTextAlignment.Left
-            )
-            v_anchor, ox = {
-                'Left':   ('Bottom', mx),
-                'Center': ('Middle', mx + mw / 2.0),
-                'Right':  ('Top',    mx + mw),
-            }.get(halign, ('Bottom', mx))
-            oy = my
-
+        opts.HorizontalAlignment = getattr(
+            HorizontalTextAlignment, halign, HorizontalTextAlignment.Left
+        )
+        width = h if rotation_rad else w
         if width <= 0:
             return
+
+        # ── Probe: measure exactly where Revit puts this box for
+        # these exact settings, relative to a scratch origin.
+        scratch = XYZ(0, 0, 0)
+        probe = TextNote.Create(doc, view.Id, scratch, width, str(text), opts)
+        doc.Regenerate()  # bbox is unreliable until regeneration
+        bbox = probe.get_BoundingBox(view)
+        if bbox is None:
+            doc.Delete(probe.Id)
+            logger.debug('TextNote bbox None for "{}" - skipped'.format(text))
+            return
+        bminx, bmaxx = bbox.Min.X, bbox.Max.X
+        bminy, bmaxy = bbox.Min.Y, bbox.Max.Y
+        doc.Delete(probe.Id)
+
+        # Margin only applies to the axis perpendicular to Width, to
+        # keep text off the border line on that side.
+        my, mh = y - _TEXT_MARGIN, max(h - 2 * _TEXT_MARGIN, 0)
+        mx, mw = x + _TEXT_MARGIN, max(w - 2 * _TEXT_MARGIN, 0)
+
+        if rotation_rad == 0:
+            box_h = bmaxy - bminy
+            target_left = x  # Width axis matches the fill exactly
+            target_top = {
+                'Top':    my,
+                'Center': my - (mh - box_h) / 2.0,
+                'Bottom': my - mh + box_h,
+            }.get(valign, my)
+            ox = target_left - bminx
+            oy = target_top - bmaxy
+        elif rotation_rad > 0:
+            # +90 CCW: local (dx,dy) -> screen (-dy, dx) relative to
+            # origin, so post-rotation footprint (relative to origin)
+            # is X:[-bmaxy,-bminy], Y:[bminx,bmaxx].
+            box_h = bmaxy - bminy  # -> screen X extent (halign axis)
+            target_x_min = {
+                'Left':   mx,
+                'Center': mx + (mw - box_h) / 2.0,
+                'Right':  mx + mw - box_h,
+            }.get(halign, mx)
+            ox = target_x_min + bmaxy
+            oy = (y - h) - bminx  # Width axis matches the fill exactly
+        else:
+            # -90 CW: local (dx,dy) -> screen (dy, -dx) relative to
+            # origin, so post-rotation footprint (relative to origin)
+            # is X:[bminy,bmaxy], Y:[-bmaxx,-bminx].
+            box_h = bmaxy - bminy  # -> screen X extent (halign axis)
+            target_x_min = {
+                'Left':   mx,
+                'Center': mx + (mw - box_h) / 2.0,
+                'Right':  mx + mw - box_h,
+            }.get(halign, mx)
+            ox = target_x_min - bminy
+            oy = (y - h) + bmaxx  # Width axis matches the fill exactly
+
         pt = XYZ(ox, oy, 0)
         tn = TextNote.Create(doc, view.Id, pt, width, str(text), opts)
-        _set_vertical_align(tn, v_anchor)
 
         if color_rgb:
             _override_color(tn.Id, color_rgb)

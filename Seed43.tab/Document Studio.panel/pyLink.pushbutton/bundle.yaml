@@ -1,10 +1,14 @@
-title: "PyLink"
+title: "pyLink"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
 tooltip: |
   _____________________________________________________________________
   Description:
-  Export model categories and schedule parameters to Excel or
-  LibreOffice Calc, edit them externally, then import the changes
-  back into the model with a full preview before anything is written.
+  Links Excel and Word documents to Revit views. Drop a file in and each named range or document section becomes a Legend, Schedule, or Drafting view inside your project, built from real Revit data, not an image.
+  Excel named ranges become Schedule, Legend, or Drafting views,carrying over the cell values, fonts, colours, and borders.
+  Word documents are split by heading into sections, each one becomes a
+  Legend or Drafting view arranged into columns you choose.
+  Set the view name, type, and column layout for each row, then apply.
+  Views that already exist by the same name prompt to overwrite or skip, and any row whose source content changes after being applied is flagged so you know it needs reapplying.
   _____________________________________________________________________
-
+min_revit_ver: 2022
+max_revit_ver: 2026

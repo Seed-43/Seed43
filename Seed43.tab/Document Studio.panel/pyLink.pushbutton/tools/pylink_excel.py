@@ -41,18 +41,18 @@ except Exception:
     _mi = None
 
 """
-pytable_excel.py -- everything specific to the Excel side of pyTable:
+pylink_excel.py -- everything specific to the Excel side of pyLink:
 reading .xlsx named ranges/formatting directly from the zip (no COM),
 building native Schedule/Legend/Drafting views from that data, and
 the ExcelCardMixin providing the Excel-specific parts of the row/card
-UI (mixed into PyTableWindow alongside WordCardMixin in PyTable.py).
+UI (mixed into PyLinkWindow alongside WordCardMixin in PyLink.py).
 """
 
 import sys as _sys
 _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from pytable_shared import (
+from pylink_shared import (
     hb, Row, VIEW_TYPES, SRC_COLOURS, STATUS_COLOURS,
-    _run_export_script, _confirm, _alert, set_view_pytable_data,
+    _run_export_script, _confirm, _alert, set_view_pylink_data,
 )
 
 
@@ -61,7 +61,7 @@ VIEW_TYPE_DRAFTING = 'Drafting View'
 VIEW_TYPE_LEGEND   = 'Legend View'
 
 MM     = 1.0 / 304.8   # millimetres to Revit internal feet
-PREFIX = 'pyTable Table '
+PREFIX = 'pyLink Table '
 
 
 def _eid_int(eid):
@@ -85,7 +85,7 @@ class TableRow(object):
         self.view_scale  = 1
         self.file_path   = ''
         self.auto_sync   = False
-        self.font        = 'Arial'    # used for pyTable text type lookup
+        self.font        = 'Arial'    # used for pyLink text type lookup
         self.size_hdr_mm = 2.5        # header row font size in mm
         self.size_dat_mm = 2.3        # data row font size in mm
         # The Revit view name this row's UI counterpart previously
@@ -94,7 +94,7 @@ class TableRow(object):
         self.applied_view_name = None
         # Same idea but by ElementId — the authoritative ownership
         # proof, since it survives the view being renamed outside
-        # pyTable (unlike applied_view_name, which goes stale on rename).
+        # pyLink (unlike applied_view_name, which goes stale on rename).
         self.applied_view_id = None
 
 
@@ -488,6 +488,8 @@ def read_range_formatting(file_path, named_range, sheet_name):
             'bold': bool,
             'italic': bool,
             'halign': str,       # 'Left', 'Center', 'Right'
+            'valign': str,       # 'Top', 'Center', 'Bottom' (Excel default when unset is Bottom)
+            'wrap': bool,        # Excel alignment/@wrapText
             'rotation': int,     # Excel textRotation: 0=horizontal, 1-90=CCW, 91-180=CW (90+angle), 255=stacked
             'fill_rgb': tuple or None,  # (r, g, b)
             'border_top': str,
@@ -692,6 +694,9 @@ def read_range_formatting(file_path, named_range, sheet_name):
                 border_idx = xf.get('borderId', 0)
                 halign     = xf.get('align', '') or 'Left'
                 halign     = halign.capitalize() if halign else 'Left'
+                valign     = xf.get('valign', '') or 'bottom'
+                valign     = valign.capitalize()
+                wrap       = xf.get('wrap', False)
                 rotation   = xf.get('rotation', 0)
 
                 font   = fonts[font_idx]     if font_idx   < len(fonts)   else {}
@@ -706,6 +711,8 @@ def read_range_formatting(file_path, named_range, sheet_name):
                     'underline':          font.get('underline', False),
                     'color_rgb':          font.get('color_rgb', None),
                     'halign':             halign,
+                    'valign':             valign,
+                    'wrap':               wrap,
                     'rotation':           rotation,
                     'fill_rgb':           fill if fill else None,
                     'border_top':         border.get('top', ''),
@@ -1240,6 +1247,8 @@ def _parse_xfs(xml_doc):
             'fillId':   fill_id,
             'borderId': border_id,
             'align':    '',
+            'valign':   '',
+            'wrap':     False,
             'rotation': 0,
         }
 
@@ -1249,6 +1258,14 @@ def _parse_xfs(xml_doc):
         if align_nodes.Count > 0:
             h = align_nodes[0].Attributes.GetNamedItem('horizontal')
             xf['align'] = h.Value if h else ''
+            # Excel's own default vertical alignment (when the attribute
+            # is absent) is 'bottom' - matches Demo.xlsx's D/G/J columns
+            # (v=None in openpyxl) which visually sit at the cell bottom.
+            v = align_nodes[0].Attributes.GetNamedItem('vertical')
+            xf['valign'] = v.Value if v else 'bottom'
+            w = align_nodes[0].Attributes.GetNamedItem('wrapText')
+            if w:
+                xf['wrap'] = w.Value in ('1', 'true', 'True')
             # textRotation: 0-90 = counter-clockwise from horizontal,
             # 91-180 = clockwise (stored as 90 + actual angle), 255 = stacked/vertical.
             r = align_nodes[0].Attributes.GetNamedItem('textRotation')
@@ -1346,12 +1363,12 @@ def _extract_rows(ws_xml, shared_strings,
 
 MM = 1.0 / 304.8   # millimetres to Revit internal feet
 
-# ── pyTable text type manager ──
-# Text types are named "pyTable Table XX" and matched by font/size/bold.
+# ── pyLink text type manager ──
+# Text types are named "pyLink Table XX" and matched by font/size/bold.
 # If an existing type matches the fingerprint it is reused.
 # If not, a new one is created with the next available number.
 
-PREFIX = 'pyTable Table '
+PREFIX = 'pyLink Table '
 
 def _text_type_fingerprint(font, size_mm, bold):
     """
@@ -1390,10 +1407,10 @@ def get_or_create_text_type(font='Arial', size_mm=2.3, bold=False):
     per-cell text colour is applied separately as a view-specific
     graphic override on each TextNote instance (Override Graphics in
     View > By Element), not by creating a new Type per colour.
-    Searches existing 'pyTable Table XX' types first.
+    Searches existing 'pyLink Table XX' types first.
     Creates a new one if none match.
 
-    All pyTable types are named 'pyTable Table 01', '02', etc.
+    All pyLink types are named 'pyLink Table 01', '02', etc.
     so they stay grouped in the Type Selector and are easy to manage.
     """
     target_fp = _text_type_fingerprint(font, size_mm, bold)
@@ -1404,8 +1421,8 @@ def get_or_create_text_type(font='Arial', size_mm=2.3, bold=False):
         .ToElements()
     )
 
-    # Collect all existing pyTable types and check for a match
-    pytable_types = []
+    # Collect all existing pyLink types and check for a match
+    pylink_types = []
     for tt in all_tt:
         try:
             name = tt.get_Parameter(
@@ -1415,16 +1432,30 @@ def get_or_create_text_type(font='Arial', size_mm=2.3, bold=False):
             continue
 
         if name and name.startswith(PREFIX):
-            pytable_types.append((name, tt))
+            pylink_types.append((name, tt))
             fp = _read_fingerprint(tt)
             if fp == target_fp:
                 logger.debug(
                     'Reusing text type "{}": {}'.format(name, target_fp)
                 )
+                # Background isn't part of the fingerprint, so a type
+                # created before transparency was added here would
+                # otherwise stay opaque forever on reuse. Check and fix.
+                try:
+                    bg_p = tt.get_Parameter(DB.BuiltInParameter.TEXT_BACKGROUND)
+                    if bg_p and not bg_p.IsReadOnly and bg_p.AsInteger() != 0:
+                        with revit.Transaction(
+                            'pyLink - Make text type transparent: {}'.format(name)
+                        ):
+                            bg_p.Set(0)
+                except Exception as ex:
+                    logger.debug(
+                        'Transparent-background fixup on "{}": {}'.format(name, ex)
+                    )
                 return tt
 
     # No match — create a new one
-    next_num = len(pytable_types) + 1
+    next_num = len(pylink_types) + 1
     new_name = '{}{:02d}'.format(PREFIX, next_num)
 
     # Duplicate from any existing TextNoteType as a base
@@ -1436,7 +1467,7 @@ def get_or_create_text_type(font='Arial', size_mm=2.3, bold=False):
     size_ft = size_mm * MM
 
     with revit.Transaction(
-        'pyTable - Create text type: {}'.format(new_name)
+        'pyLink - Create text type: {}'.format(new_name)
     ):
         new_tt = base.Duplicate(new_name)
         for bip, val in [
@@ -1489,7 +1520,7 @@ def _apply_style(hdr, r, c, bold=False, size_mm=2.5,
                  font='Arial', tt_id=None):
     """
     Apply font and background style to a header cell.
-    Uses a pre-resolved pyTable TextNoteType ID (tt_id) when provided
+    Uses a pre-resolved pyLink TextNoteType ID (tt_id) when provided
     so no transaction is opened inside the schedule transaction.
     Falls back to raw font/size if no type ID is given.
     """
@@ -1503,7 +1534,7 @@ def _apply_style(hdr, r, c, bold=False, size_mm=2.5,
         style.IsFontBold   = bold
         style.IsFontItalic = False
 
-        # Resolve font name from the pre-created pyTable type
+        # Resolve font name from the pre-created pyLink type
         resolved_font = font
         if tt_id and tt_id != DB.ElementId.InvalidElementId:
             try:
@@ -1875,7 +1906,7 @@ def _pre_create_line_styles(cell_styles):
                 needed.add(tuple(c))
 
     line_ids = {}
-    with revit.Transaction('pyTable - Line Styles'):
+    with revit.Transaction('pyLink - Line Styles'):
         for rgb in needed:
             if rgb == (255, 255, 255):
                 name = 'pyT Off'
@@ -1905,10 +1936,10 @@ def _type_name(el):
     except Exception:
         return None
 
-def _get_or_create_pytable_fill_type():
+def _get_or_create_pylink_fill_type():
     """
     Return the ElementId of a single reusable solid-fill FilledRegionType
-    ('pyTable Fill') used for every cell background in drafting/legend
+    ('pyLink Fill') used for every cell background in drafting/legend
     views. Each cell's actual colour is applied afterwards as a
     view-specific graphic override on that FilledRegion instance
     (Override Graphics in View > By Element) rather than by creating a
@@ -1922,7 +1953,7 @@ def _get_or_create_pytable_fill_type():
     missing fill type as "skip the background for this run", same as
     a cell with no fill colour at all.
     """
-    name = 'pyTable Fill'
+    name = 'pyLink Fill'
     try:
         for frt in DB.FilteredElementCollector(doc).OfClass(DB.FilledRegionType):
             if _type_name(frt) == name:
@@ -1953,7 +1984,7 @@ def _get_or_create_pytable_fill_type():
     # Masking Region type can refuse), so don't give up after one try.
     for base in candidates:
         try:
-            with revit.Transaction('pyTable - Fill type: {}'.format(name)):
+            with revit.Transaction('pyLink - Fill type: {}'.format(name)):
                 new_frt = base.Duplicate(name)
                 try:
                     if solid_pattern_id != DB.ElementId.InvalidElementId:
@@ -1980,7 +2011,7 @@ def apply_row(row):
     """
     Process one UI row:
     1. Read data from the Excel named range
-    2. Pre-create pyTable text types (before any transaction)
+    2. Pre-create pyLink text types (before any transaction)
     3. Call the appropriate Export/ script via exec()
 
     Returns {'view_name', 'status', 'message'}
@@ -1991,7 +2022,7 @@ def apply_row(row):
         'message':   ''
     }
 
-    logger.debug('pyTable: {} | {} | {}/{}'.format(
+    logger.debug('pyLink: {} | {} | {}/{}'.format(
         row.view_name, row.file_path, row.sheet_name, row.named_range))
 
     # Read data from xlsx
@@ -2015,9 +2046,9 @@ def apply_row(row):
         result['message'] = 'Named range has no header row.'
         return result
 
-    # Ownership guard — never silently overwrite a view pyTable itself
+    # Ownership guard — never silently overwrite a view pyLink itself
     # didn't create. ElementId is the authoritative proof (survives the
-    # view being renamed outside pyTable); the old name-match proof is
+    # view being renamed outside pyLink); the old name-match proof is
     # only a fallback for a row that hasn't recorded an id yet (first
     # apply under this version, or state saved before this existed).
     try:
@@ -2041,7 +2072,7 @@ def apply_row(row):
             if not (owns_by_id or owns_by_name_fallback):
                 result['message'] = (
                     'A view named "{}" already exists and was not '
-                    'created by this pyTable row - refusing to '
+                    'created by this pyLink row - refusing to '
                     'overwrite it. Rename either the existing '
                     'view or this row.'.format(row.view_name)
                 )
@@ -2081,7 +2112,7 @@ def apply_row(row):
     # drafting/legend fill uses a single reusable type, coloured per
     # instance via view overrides rather than one Type per colour.
     line_ids     = _pre_create_line_styles(cell_styles)
-    fill_type_id = _get_or_create_pytable_fill_type()
+    fill_type_id = _get_or_create_pylink_fill_type()
 
     # Build payload for export script
     payload = {
@@ -2126,7 +2157,7 @@ def apply_row(row):
             try:
                 view = doc.GetElement(DB.ElementId(view_id))
                 if view:
-                    set_view_pytable_data(
+                    set_view_pylink_data(
                         view,
                         FP=row.file_path,
                         SH=row.sheet_name,
@@ -2183,7 +2214,7 @@ def _hash_range(file_path, named_range, sheet_name):
 
 class ExcelCardMixin(object):
     """Excel-specific card/row UI methods, mixed into
-    PyTableWindow. Everything here assumes fd.get('source_type') == 'xl'."""
+    PyLinkWindow. Everything here assumes fd.get('source_type') == 'xl'."""
 
     def _make_excel_card(self, path):
         """Build the flat, single-card layout Excel cards use --

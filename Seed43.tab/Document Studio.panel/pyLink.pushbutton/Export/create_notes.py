@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-create_notes.py  —  pyTable Word notes export.
+create_notes.py  —  pyLink Word notes export.
 
 One TextNote per column. All sections in a column are assembled into a
 single plain-text string, then FormattedText overrides apply bold
@@ -20,7 +20,7 @@ Column width = sheet_width / col_count, 5 mm gap between columns.
 
 import re as _re
 
-_p = globals().get('PYTABLE_PAYLOAD', {})
+_p = globals().get('PYLINK_PAYLOAD', {})
 
 from pyrevit import revit, script, DB
 from Autodesk.Revit.DB import (
@@ -191,7 +191,7 @@ def _get_or_create_text_type(name, size_mm):
                 break
         except Exception:
             pass
-    with revit.Transaction('pyTable Notes - type: {}'.format(name)):
+    with revit.Transaction('pyLink Notes - type: {}'.format(name)):
         new_tt = existing if existing else all_tt[0].Duplicate(name)
         for bip, val in [
             (DB.BuiltInParameter.TEXT_SIZE,        size_ft),
@@ -247,18 +247,18 @@ def _get_or_create_drafting_view(name, old_name=None):
                 if (v.IsValidObject and v.Name == name
                         and v.Id != old_view.Id):
                     with revit.Transaction(
-                            'pyTable Notes - remove stray duplicate view'):
+                            'pyLink Notes - remove stray duplicate view'):
                         doc.Delete(v.Id)
                     break
             except Exception:
                 pass
         try:
-            with revit.Transaction('pyTable Notes - rename view'):
+            with revit.Transaction('pyLink Notes - rename view'):
                 old_view.Name = name
             return old_view
         except Exception as ex:
             logger.warning(
-                'pyTable Notes: rename to "{}" failed, falling back '
+                'pyLink Notes: rename to "{}" failed, falling back '
                 'to search/create: {}'.format(name, ex))
 
     for v in FilteredElementCollector(doc).OfClass(ViewDrafting):
@@ -274,7 +274,7 @@ def _get_or_create_drafting_view(name, old_name=None):
             break
     if not vft:
         raise RuntimeError('No Drafting ViewFamilyType found.')
-    with revit.Transaction('pyTable Notes - create view'):
+    with revit.Transaction('pyLink Notes - create view'):
         v = ViewDrafting.Create(doc, vft.Id)
         v.Name = name
         try:
@@ -305,18 +305,18 @@ def _get_or_create_legend_view(name, old_name=None):
                         and v.Name == name
                         and v.Id != old_view.Id):
                     with revit.Transaction(
-                            'pyTable Notes - remove stray duplicate view'):
+                            'pyLink Notes - remove stray duplicate view'):
                         doc.Delete(v.Id)
                     break
             except Exception:
                 pass
         try:
-            with revit.Transaction('pyTable Notes - rename view'):
+            with revit.Transaction('pyLink Notes - rename view'):
                 old_view.Name = name
             return old_view
         except Exception as ex:
             logger.warning(
-                'pyTable Notes: rename to "{}" failed, falling back '
+                'pyLink Notes: rename to "{}" failed, falling back '
                 'to search/create: {}'.format(name, ex))
 
     for v in FilteredElementCollector(doc).OfClass(DB.View):
@@ -337,7 +337,7 @@ def _get_or_create_legend_view(name, old_name=None):
             pass
     if not src:
         raise RuntimeError('No existing Legend view to duplicate from.')
-    with revit.Transaction('pyTable Notes - create legend view'):
+    with revit.Transaction('pyLink Notes - create legend view'):
         new_id = src.Duplicate(DB.ViewDuplicateOption.Duplicate)
         new_v  = doc.GetElement(new_id)
         new_v.Name = name
@@ -349,7 +349,7 @@ def _get_or_create_legend_view(name, old_name=None):
 
 
 def _clear_view(view):
-    with revit.Transaction('pyTable Notes - clear view'):
+    with revit.Transaction('pyLink Notes - clear view'):
         for cls in (CurveElement, TextNote, ImageInstance):
             for el in list(FilteredElementCollector(doc, view.Id)
                            .OfClass(cls).ToElements()):
@@ -494,7 +494,7 @@ def _build_column_text(sections):
 # ── Main ──────────────────────────────────────────────────────────────
 
 def run():
-    view_name     = _p.get('view_name', 'pyTable Notes')
+    view_name     = _p.get('view_name', 'pyLink Notes')
     old_view_name = _p.get('old_view_name') or None
     view_type  = _p.get('view_type', 'Drafting View')
     sections   = _p.get('sections', [])
@@ -517,7 +517,7 @@ def run():
         view = _get_or_create_drafting_view(view_name, old_name=old_view_name)
     _clear_view(view)
 
-    type_name = _p.get('text_type_name') or 'pyTable Notes {:.1f} Arial'.format(size_mm)
+    type_name = _p.get('text_type_name') or 'pyLink Notes {:.1f} Arial'.format(size_mm)
     text_type_name = _p.get('text_type_name')
     tt = None
     if text_type_name:
@@ -532,7 +532,7 @@ def run():
         col_no = max(1, min(col_count, int(sec.get('col', 1))))
         by_col.setdefault(col_no, []).append(sec)
 
-    with revit.Transaction('pyTable Notes - place'):
+    with revit.Transaction('pyLink Notes - place'):
         for col_no in range(1, col_count + 1):
             col_sections = by_col.get(col_no, [])
             if not col_sections:

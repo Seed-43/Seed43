@@ -41,18 +41,18 @@ except Exception:
     _mi = None
 
 """
-pytable_word.py -- everything specific to the Word side of pyTable:
+pylink_word.py -- everything specific to the Word side of pyLink:
 parsing .docx headings/paragraphs directly from the zip, building
 native Legend/Drafting views of TextNotes from that data, the Strict-
 layout packing algorithm, section-group settings (userdata/
 section_groups.json), and WordCardMixin providing the Word-specific
-parts of the row/card UI (mixed into PyTableWindow alongside
-ExcelCardMixin in PyTable.py).
+parts of the row/card UI (mixed into PyLinkWindow alongside
+ExcelCardMixin in PyLink.py).
 """
 
 import sys as _sys
 _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from pytable_shared import (
+from pylink_shared import (
     hb, Row, WORD_VIEW_TYPES, SHEET_SIZES, SRC_COLOURS, STATUS_COLOURS,
     _run_export_script, _confirm, _alert, format_applied_at,
 )
@@ -66,7 +66,7 @@ DEFAULT_SECTION_GROUPS = {'groups': []}
 
 # -- Strict-layout height-estimate constants --
 # Duplicated from Export/create_notes.py rather than imported -- that
-# module reads PYTABLE_PAYLOAD from globals() at import time and is
+# module reads PYLINK_PAYLOAD from globals() at import time and is
 # only ever loaded via exec() with the payload injected, so a normal
 # import here would break. Keep these in sync by hand if the export
 # geometry ever changes.
@@ -115,15 +115,15 @@ WORD_TEXT_SETTINGS_PATH = os.path.join(
     'userdata', 'word_text_settings.json')
 
 DEFAULT_WORD_TEXT_SETTINGS = {
-    'mode': 'auto', 'size_mm': 2.0, 'text_type_name': 'pyTable Notes 2.0 Arial',
+    'mode': 'auto', 'size_mm': 2.0, 'text_type_name': 'pyLink Notes 2.0 Arial',
 }
 
 
 def load_word_text_settings():
-    """'auto' (default): pyTable reuses whichever existing project
+    """'auto' (default): pyLink reuses whichever existing project
     TextNoteType is closest to 2mm or 3mm, rather than always making
     its own. 'manual': always use the given size_mm, creating/reusing
-    a pyTable-named type at that exact size."""
+    a pyLink-named type at that exact size."""
     try:
         if os.path.exists(WORD_TEXT_SETTINGS_PATH):
             with open(WORD_TEXT_SETTINGS_PATH, 'r') as f:
@@ -158,7 +158,7 @@ def save_section_groups(data):
 def load_section_groups():
     """Read the user-editable section-grouping settings. Missing file
     or bad JSON both fall back to an empty group list rather than
-    crashing pyTable — grouping is a convenience feature, never a
+    crashing pyLink — grouping is a convenience feature, never a
     hard dependency."""
     try:
         if os.path.exists(SECTION_GROUPS_PATH):
@@ -686,7 +686,7 @@ def apply_notes_row(rows, view_name, view_type, sheet_size,
 
     Returns {'view_name', 'status', 'message'}.
     """
-    logger.debug('pyTable Notes: {}'.format(view_name))
+    logger.debug('pyLink Notes: {}'.format(view_name))
 
     if text_mode is None or size_mm is None or text_type_name is None:
         settings = load_word_text_settings()
@@ -761,7 +761,7 @@ def _hash_word_section(file_path, heading):
 
 class WordCardMixin(object):
     """Word-specific card/row UI methods, mixed into
-    PyTableWindow. Everything here assumes fd.get('source_type') == 'word'."""
+    PyLinkWindow. Everything here assumes fd.get('source_type') == 'word'."""
 
     # ── Grouped-card rendering ──
     # All fd entries sharing the same real_path (the original card
@@ -1587,7 +1587,7 @@ class WordCardMixin(object):
         try:
             headings = get_word_headings(real_path)
         except Exception as ex:
-            logger.warning('pyTable word parse: {}'.format(ex))
+            logger.warning('pyLink word parse: {}'.format(ex))
         if not headings:
             headings = ['(no headings found)']
         srmap = {'Document': headings}
@@ -1665,7 +1665,7 @@ class WordCardMixin(object):
                     self._populate_group_combo(row._group_combo, row.Group)
 
     def _open_word_text_settings_editor(self):
-        """Default: pyTable uses its own named type, 'pyTable Notes
+        """Default: pyLink uses its own named type, 'pyLink Notes
         2.0 Arial', creating it if the project doesn't have one yet.
         Manual: pick an exact existing TextNoteType from a dropdown
         of everything already in the project."""
@@ -1673,7 +1673,7 @@ class WordCardMixin(object):
         from System.Windows.Controls import RadioButton
 
         settings = load_word_text_settings()
-        default_name = 'pyTable Notes 2.0 Arial'
+        default_name = 'pyLink Notes 2.0 Arial'
         default_size = 2.0
 
         # Fetch existing project TextNoteTypes live, sorted by size —
@@ -2505,7 +2505,7 @@ class WordCardMixin(object):
         new independent VIEW for this same document — same underlying
         file, its own View Name/Sheet size/Columns/View Type, and its
         own empty section list ready for '+ Add Section'. A View, in
-        pyTable terms, is the layout (one Legend/Drafting view); a
+        pyLink terms, is the layout (one Legend/Drafting view); a
         Section is a heading placed into it. This reuses the exact
         same real_path-keyed duplicate-card mechanism as the Batch
         menu's Duplicate action — a second independent card IS a

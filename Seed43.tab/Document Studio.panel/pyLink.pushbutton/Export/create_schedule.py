@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 # v3-no-fontname
 """
-pyTable - Export/create_schedule.py
+pyLink - Export/create_schedule.py
 
 Creates a dumb ViewSchedule from arbitrary tabular data.
-Called by script.py via exec() with PYTABLE_PAYLOAD injected.
+Called by script.py via exec() with PYLINK_PAYLOAD injected.
 
 Payload keys:
     view_name          : str   - schedule name in Revit
@@ -13,8 +13,8 @@ Payload keys:
     font               : str   - font name, e.g. 'Arial'
     size_hdr_mm        : float - header row font size in mm (used as fallback only)
     size_dat_mm        : float - data row font size in mm (used as fallback only)
-    hdr_tt_id          : DB.ElementId - pre-created pyTable header TextNoteType id
-    dat_tt_id          : DB.ElementId - pre-created pyTable data TextNoteType id
+    hdr_tt_id          : DB.ElementId - pre-created pyLink header TextNoteType id
+    dat_tt_id          : DB.ElementId - pre-created pyLink data TextNoteType id
     cell_styles        : dict  - {(r,c): style_dict} per-cell Excel formatting
     merges             : list  - [(r1,c1,r2,c2), ...] merged cell ranges
     row_heights        : dict  - {row_idx: pts} Excel row heights in points
@@ -45,7 +45,7 @@ Merged cells:
     to pick up background and text colour from the anchor style.
 """
 
-_p = globals().get('PYTABLE_PAYLOAD', {})
+_p = globals().get('PYLINK_PAYLOAD', {})
 
 from pyrevit import revit, DB, script
 from Autodesk.Revit.DB import (
@@ -71,7 +71,7 @@ ROW_H_FACTOR = 1.1339
 # Payload
 # ---------------------------------------------------------------------------
 
-view_name   = _p.get('view_name',   'pyTable Schedule')
+view_name   = _p.get('view_name',   'pyLink Schedule')
 fields      = _p.get('fields',      [])
 records     = _p.get('records',     [])
 font        = _p.get('font',        'Arial')
@@ -198,7 +198,8 @@ def _excel_rotation_to_revit(excel_rot):
 
 def _apply_style(sec, r, c,
                  bold=False, italic=False, underline=False, size_pt=8.0,
-                 bg_rgb=None, fg_rgb=None, halign='Left', rotation=0,
+                 bg_rgb=None, fg_rgb=None, halign='Left', valign='Bottom',
+                 rotation=0,
                  font_name='Arial', tt_id=None,
                  border_top='',    border_top_color=None,
                  border_bottom='', border_bottom_color=None,
@@ -216,7 +217,7 @@ def _apply_style(sec, r, c,
         style = TableCellStyle()
 
         # Font name — resolve from TextNoteType when available so the
-        # schedule inherits the pre-created pyTable type's font exactly.
+        # schedule inherits the pre-created pyLink type's font exactly.
         resolved_font = font_name
         if tt_id and tt_id != ElementId.InvalidElementId:
             try:
@@ -251,7 +252,13 @@ def _apply_style(sec, r, c,
             HorizontalAlignmentStyle, halign,
             HorizontalAlignmentStyle.Left
         )
-        style.FontVerticalAlignment = VerticalAlignmentStyle.Middle
+        # Excel 'Center' -> Revit 'Middle'; everything else (Top/Bottom)
+        # maps straight across by name.
+        _valign_name = 'Middle' if valign == 'Center' else valign
+        style.FontVerticalAlignment = getattr(
+            VerticalAlignmentStyle, _valign_name,
+            VerticalAlignmentStyle.Bottom
+        )
 
         # ── Override options ──────────────────────────────────────────────
         opts = style.GetCellStyleOverrideOptions()
@@ -430,17 +437,21 @@ sched_def.AddFilter(ScheduleFilter(
     field_asm.FieldId, ScheduleFilterType.Equal, 'ALL VALUES FOUND'
 ))
 
-# ShowGridLines is Revit's own blanket default gridline layer. With the
-# line-style bug above fixed, every cell now gets a real, valid override
-# on every side (either a genuine visible line or a genuine invisible
-# one) - so nothing should be left for this base layer to control either
-# way. Left True as the safer choice while that's unverified in Revit.
+# ShowGridLines is Revit's own blanket default gridline layer, drawn
+# underneath/independent of per-cell border overrides. Any cell whose
+# override lookup didn't succeed (or was never set) still fell back to
+# this layer, which is why data cells with no Excel border were
+# showing a border anyway. Confirmed via user report: Excel only has
+# borders on the header row and under the last data row, but every
+# cell was rendering bordered. Turned off - borders now come *only*
+# from real per-cell TableCellStyle overrides (Excel-driven for the
+# header, explicitly suppressed for data rows below).
 # NOTE: Do NOT set ShowHeaders=False or ShowTitle=False on ScheduleDefinition.
 # Those properties collapse entire table sections and break Header rendering.
 # The Header section (SectionType.Header) is where all custom content lives —
 # it is always visible regardless of ShowHeaders/ShowTitle.
 try:
-    sched_def.ShowGridLines = True
+    sched_def.ShowGridLines = False
 except Exception as ex:
     logger.debug('ShowGridLines: {}'.format(ex))
 
@@ -521,7 +532,7 @@ from pyrevit import output as _out_mod
 _out = _out_mod.get_output()
 
 _out.print_md('---')
-_out.print_md('## pyTable Report: `{}`'.format(view_name))
+_out.print_md('## pyLink Report: `{}`'.format(view_name))
 
 # -- Schedule state after setup --
 _out.print_md('### Schedule grid')
@@ -588,12 +599,28 @@ for ri, row_data in enumerate(all_rows):
         italic   = cs.get('italic', False)
         underline = cs.get('underline', False)
         halign   = cs.get('halign', 'Center' if ri == 0 else 'Left')
+        valign   = cs.get('valign', 'Bottom')
         fill_rgb = cs.get('fill_rgb', (220, 220, 220) if ri == 0 else None)
         fg_rgb   = cs.get('color_rgb', None)
         # Rotation only matters on the header row - body data isn't rotated
         rotation = _excel_rotation_to_revit(cs.get('rotation', 0)) if ri == 0 else 0
 
         _safe_text(hdr, ri, ci, cell)
+        # Data rows never get borders, regardless of what Excel's own
+        # per-cell formatting says - all visible content lives in this
+        # Header section (the Body is deliberately kept empty), and
+        # borders are only wanted on the header row itself. Only the
+        # header row (ri == 0) reads Excel's actual border formatting.
+        if ri == 0:
+            bt, bt_c = cs.get('border_top', ''),    cs.get('border_top_color', None)
+            bb, bb_c = cs.get('border_bottom', ''), cs.get('border_bottom_color', None)
+            bl, bl_c = cs.get('border_left', ''),   cs.get('border_left_color', None)
+            br, br_c = cs.get('border_right', ''),  cs.get('border_right_color', None)
+        else:
+            bt, bt_c = '', None
+            bb, bb_c = '', None
+            bl, bl_c = '', None
+            br, br_c = '', None
         _apply_style(
             hdr, ri, ci,
             bold=bold,
@@ -603,17 +630,14 @@ for ri, row_data in enumerate(all_rows):
             bg_rgb=fill_rgb,
             fg_rgb=fg_rgb,
             halign=halign,
+            valign=valign,
             rotation=rotation,
             font_name=fn,
             tt_id=hdr_tt_id if ri == 0 else dat_tt_id,
-            border_top=cs.get('border_top', ''),
-            border_top_color=cs.get('border_top_color', None),
-            border_bottom=cs.get('border_bottom', ''),
-            border_bottom_color=cs.get('border_bottom_color', None),
-            border_left=cs.get('border_left', ''),
-            border_left_color=cs.get('border_left_color', None),
-            border_right=cs.get('border_right', ''),
-            border_right_color=cs.get('border_right_color', None),
+            border_top=bt,       border_top_color=bt_c,
+            border_bottom=bb,    border_bottom_color=bb_c,
+            border_left=bl,      border_left_color=bl_c,
+            border_right=br,     border_right_color=br_c,
         )
 
 # ── Force background and font colour on non-anchor merged cells ───────────────

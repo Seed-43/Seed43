@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-pyTable - Export/create_drafting.py
+pyLink - Export/create_drafting.py
 
 Creates a Drafting View from arbitrary tabular data.
-Called by script.py via exec() with PYTABLE_PAYLOAD injected.
+Called by script.py via exec() with PYLINK_PAYLOAD injected.
 
 Payload keys:
     view_name    : str   - drafting view name in Revit
@@ -37,7 +37,7 @@ Pattern:
     approach, extended with real per-cell formatting.
 """
 
-_p = globals().get('PYTABLE_PAYLOAD', {})
+_p = globals().get('PYLINK_PAYLOAD', {})
 
 from pyrevit import revit, DB, script
 from Autodesk.Revit.DB import (
@@ -47,6 +47,7 @@ from Autodesk.Revit.DB import (
     CurveLoop, Line, XYZ, ElementId, Color,
     CurveElement, ImageInstance, OverrideGraphicSettings,
     BuiltInCategory, GraphicsStyleType, ElementTransformUtils,
+    BuiltInParameter,
 )
 import math
 
@@ -60,7 +61,7 @@ PT_MM = 0.352778      # mm per point (1pt = 1/72 in = 25.4/72 mm)
 # Payload
 # ---------------------------------------------------------------------------
 
-view_name     = _p.get('view_name',   'pyTable Drafting View')
+view_name     = _p.get('view_name',   'pyLink Drafting View')
 fields        = _p.get('fields',      [])
 records       = _p.get('records',     [])
 font          = _p.get('font',        'Arial')
@@ -265,17 +266,176 @@ def _excel_rotation_to_radians(excel_rot):
     return 0.0
 
 
-def _draw_text(view, x, y, text, tt_id, color_rgb, rotation_rad=0.0):
-    """Place a TextNote at (x, y) — (x, y) is the cell's top-left corner."""
+_TEXT_MARGIN = 1.5 * MM
+
+
+def _force_top_anchor(tn):
+    """
+    Force this TextNote's vertical anchor to Top - i.e. the insertion
+    point represents the box's TOP edge, staying put as text height
+    changes. Every position calculation in _draw_text assumes this
+    (origin = box's top-left corner); previously this was only ever
+    assumed from an unverified default, never actually set. Try the
+    strongly-typed property first, fall back to the raw parameter -
+    either can be missing depending on Revit API version.
+    """
+    try:
+        from Autodesk.Revit.DB import VerticalAlignment
+        tn.VerticalAlignment = VerticalAlignment.Top
+        return
+    except Exception as ex:
+        logger.debug('VerticalAlignment property set failed: {}'.format(ex))
+    try:
+        p = tn.get_Parameter(BuiltInParameter.TEXT_ALIGN_VERT)
+        if p and not p.IsReadOnly:
+            p.Set(0)  # 0 = Top in the TEXT_ALIGN_VERT built-in enum
+    except Exception as ex:
+        logger.debug('TEXT_ALIGN_VERT parameter set failed: {}'.format(ex))
+
+
+def _draw_text(view, x, y, w, h, text, tt_id, color_rgb,
+                rotation_rad=0.0, halign='Left', valign='Bottom',
+                wrap=False):
+    """
+    Place a TextNote so its (possibly rotated) box lands inside the
+    cell rectangle (x, y, w, h) — (x, y) is the cell's top-left corner
+    — positioned per Excel's own horizontal/vertical alignment, with
+    optional wrapping.
+
+    General approach:
+      1. Create the note UNROTATED at a scratch point, with Width set
+         to the wrap constraint (only if Excel's wrap_text was on) so
+         Revit computes real line breaks off actual font metrics.
+      2. Read back its real (unrotated) box size from its bounding box
+         — wrapping can produce more/fewer lines than guessed.
+      3. Excel keeps halign/valign meaning literal screen X/Y even when
+         rotated (halign -> horizontal position in the cell, valign ->
+         vertical), so work out where the UNROTATED box's origin needs
+         to sit such that, after rotating 90 around that origin, the
+         rotated footprint lands where halign/valign says it should.
+      4. Discard that probe note, recreate the real one at the correct
+         origin, then rotate around that same point.
+
+    rotation_rad: 0, or the drafting rotation for Excel textRotation
+    (see _excel_rotation_to_radians) - positive (CCW, Excel 1-90,
+    "bottom-to-top") or negative (CW, Excel 91-180, "top-to-bottom").
+    """
     if not str(text).strip():
         return
     try:
+        # Shrink the working rect by the margin on every side so text
+        # never touches the border lines.
+        mx, my  = x + _TEXT_MARGIN, y - _TEXT_MARGIN
+        mw, mh  = max(w - 2 * _TEXT_MARGIN, 0), max(h - 2 * _TEXT_MARGIN, 0)
+
         opts = TextNoteOptions(tt_id)
+        # Always Left - our own ox/oy math below is solely responsible
+        # for halign/valign positioning. If Revit's own justification
+        # is also set to Center/Right, it shifts what the insertion
+        # point means relative to the box (left edge vs. center vs.
+        # right edge), which double-applies alignment on top of ours
+        # and throws the box off by about half its size.
         opts.HorizontalAlignment = HorizontalTextAlignment.Left
-        pt = XYZ(x + 1.5 * MM, y - 1.5 * MM, 0)
-        tn = TextNote.Create(doc, view.Id, pt, str(text), opts)
+
+        # ── Pass 1: create unrotated at a scratch point purely to
+        # measure the real wrapped box size, then discard it. Safer
+        # than creating once and relocating via tn.Coord, whose setter
+        # reliability isn't confirmed - recreating at the right spot
+        # from the start avoids depending on it.
+        scratch = XYZ(0, 0, 0)
+        wrap_width = mh if rotation_rad else mw
+        if wrap and wrap_width > 0:
+            probe = TextNote.Create(doc, view.Id, scratch, wrap_width, str(text), opts)
+        else:
+            probe = TextNote.Create(doc, view.Id, scratch, str(text), opts)
+        _force_top_anchor(probe)
+        # A TextNote's bounding box is not reliable until the document
+        # regenerates after creation - without this, get_BoundingBox()
+        # can return None (silently dropping the text below, since
+        # that's caught by this function's own try/except).
+        doc.Regenerate()
+        bbox = probe.get_BoundingBox(view)
+        if bbox is None:
+            # Extremely defensive fallback - should not happen after
+            # Regenerate(), but better a plain top-left-anchored note
+            # than no text at all.
+            logger.warning(
+                'TextNote bbox still None after Regenerate for "{}" - '
+                'falling back to plain top-left placement'.format(text)
+            )
+            doc.Delete(probe.Id)
+            fallback_pt = XYZ(mx, my, 0)
+            if wrap and wrap_width > 0:
+                tn = TextNote.Create(doc, view.Id, fallback_pt, wrap_width, str(text), opts)
+            else:
+                tn = TextNote.Create(doc, view.Id, fallback_pt, str(text), opts)
+            _force_top_anchor(tn)
+            if color_rgb:
+                _override_color(tn.Id, color_rgb)
+            if rotation_rad:
+                try:
+                    axis = Line.CreateBound(fallback_pt, fallback_pt + XYZ.BasisZ)
+                    ElementTransformUtils.RotateElement(doc, tn.Id, axis, rotation_rad)
+                except Exception as rex:
+                    logger.debug('TextNote rotate ({},{}) {}'.format(x, y, rex))
+            return
+        box_w = bbox.Max.X - bbox.Min.X
+        box_h = bbox.Max.Y - bbox.Min.Y
+        doc.Delete(probe.Id)
+
+        # ── Work out the pre-rotation origin (top-left, as authored) ─
+        # so that after rotating, the box lands per halign/valign.
+        # See module docstring math: unrotated footprint is
+        # X:[ox, ox+box_w], Y:[oy-box_h, oy] before rotation.
+        if rotation_rad > 0:
+            # +90 CCW: post-rotation footprint becomes
+            # X:[ox, ox+box_h] (halign axis), Y:[oy, oy+box_w] (valign axis)
+            ox = {
+                'Left':   mx,
+                'Center': mx + (mw - box_h) / 2.0,
+                'Right':  mx + mw - box_h,
+            }.get(halign, mx)
+            oy = {
+                'Top':    my - box_w,
+                'Center': my - mh / 2.0 - box_w / 2.0,
+                'Bottom': my - mh,
+            }.get(valign, my - mh)
+        elif rotation_rad < 0:
+            # -90 CW: post-rotation footprint becomes
+            # X:[ox-box_h, ox] (halign axis), Y:[oy-box_w, oy] (valign axis)
+            ox = {
+                'Left':   mx + box_h,
+                'Center': mx + (mw + box_h) / 2.0,
+                'Right':  mx + mw,
+            }.get(halign, mx + box_h)
+            oy = {
+                'Top':    my,
+                'Center': my - mh / 2.0 + box_w / 2.0,
+                'Bottom': my - mh + box_w,
+            }.get(valign, my)
+        else:
+            # No rotation: standard top-left-anchored box.
+            ox = {
+                'Left':   mx,
+                'Center': mx + (mw - box_w) / 2.0,
+                'Right':  mx + mw - box_w,
+            }.get(halign, mx)
+            oy = {
+                'Top':    my,
+                'Center': my - (mh - box_h) / 2.0,
+                'Bottom': my - mh + box_h,
+            }.get(valign, my)
+
+        pt = XYZ(ox, oy, 0)
+        if wrap and wrap_width > 0:
+            tn = TextNote.Create(doc, view.Id, pt, wrap_width, str(text), opts)
+        else:
+            tn = TextNote.Create(doc, view.Id, pt, str(text), opts)
+        _force_top_anchor(tn)
+
         if color_rgb:
             _override_color(tn.Id, color_rgb)
+
         if rotation_rad:
             try:
                 axis = Line.CreateBound(pt, pt + XYZ.BasisZ)
@@ -368,7 +528,7 @@ for c in range(n_cols):
 
 # ── Row y positions/heights, from Excel's own row heights ──────────────
 # Still floored to a minimum so the chosen font size never gets clipped,
-# even if Excel's row was set shorter than what pyTable's font needs.
+# even if Excel's row was set shorter than what pyLink's font needs.
 min_row_h_mm = [
     (max(6.0, size_hdr_mm * 3.0) if r == 0 else max(5.0, size_dat_mm * 2.5))
     for r in range(n_total_rows)
@@ -434,7 +594,7 @@ if view is None:
     if vft is None:
         raise Exception(
             'No Drafting View family type found. '
-            'Create any Drafting View manually first, then re-run pyTable.'
+            'Create any Drafting View manually first, then re-run pyLink.'
         )
     view = ViewDrafting.Create(doc, vft.Id)
     view.Name = _final_name
@@ -503,9 +663,21 @@ for r in range(n_total_rows):
         tt_id = hdr_txt_id if is_header else dat_txt_id
         color_rgb = style.get('color_rgb')
         rotation_rad = _excel_rotation_to_radians(style.get('rotation', 0)) if is_header else 0.0
-        _draw_text(view, x, y, text, tt_id,
+        if is_header:
+            halign = style.get('halign', 'Center')
+            valign = style.get('valign', 'Bottom')
+            wrap   = style.get('wrap', False)
+        else:
+            # Data rows: fixed Left/Top, ignoring Excel's actual
+            # halign/valign/wrap (often Center/Center) - matches the
+            # original pre-containment-fix look, which read better for
+            # a plain data table than true centering does.
+            halign = 'Left'
+            valign = 'Top'
+            wrap   = False
+        _draw_text(view, x, y, w, h, text, tt_id,
                    tuple(color_rgb) if color_rgb else None,
-                   rotation_rad)
+                   rotation_rad, halign, valign, wrap)
 
 logger.debug(
     'create_drafting: "{}" {}r x {}c'.format(
@@ -517,4 +689,4 @@ try:
     _view_id_int = view.Id.IntegerValue
 except AttributeError:
     _view_id_int = int(view.Id.Value)
-PYTABLE_RESULT = {'view_id': _view_id_int}
+PYLINK_RESULT = {'view_id': _view_id_int}

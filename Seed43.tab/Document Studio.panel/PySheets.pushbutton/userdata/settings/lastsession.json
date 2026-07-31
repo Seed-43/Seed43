@@ -1,4 +1,36 @@
 {
+  "img": {
+    "image_type": "PNG", 
+    "resolution": "150 DPI", 
+    "pixel_size": 2048
+  }, 
+  "dest": "file", 
+  "viewing": "PDF", 
+  "open_after": true, 
+  "dgn": {
+    "export_setup_name": "<Revit Default>"
+  }, 
+  "auto_overwrite": true, 
+  "formats": [
+    "PDF"
+  ], 
+  "nwc": {
+    "shared_coords": true, 
+    "convert_properties": true
+  }, 
+  "folder_preset": null, 
+  "naming": {
+    "NWC": "PySheets Default", 
+    "DGN": "PySheets Default", 
+    "PDF": "PySheets Default", 
+    "IFC": "PySheets Default", 
+    "DWG": "PySheets Default", 
+    "IMG": "PySheets Default"
+  }, 
+  "folder": "C:\\Users\\Fred\\Desktop", 
+  "ifc": {
+    "version": "IFC 2x3 Coordination View 2.0"
+  }, 
   "pdf": {
     "printer": "PDF24", 
     "print_setting_name": "", 
@@ -22,19 +54,14 @@
     "opt_halftone_thin": false, 
     "opt_region_edges": false
   }, 
-  "subfolders": true, 
-  "ifc": {
-    "version": "IFC 2x3 Coordination View 2.0"
+  "column_widths": {
+    "revision": 80.0, 
+    "check": 36.0, 
+    "filename": 210.0, 
+    "collection": 90.0, 
+    "number": 136.0, 
+    "size": 136.0
   }, 
-  "naming": {
-    "PDF": "PySheets Default", 
-    "DGN": "PySheets Default", 
-    "IFC": "PySheets Default", 
-    "DWG": "PySheets Default", 
-    "NWC": "PySheets Default", 
-    "IMG": "PySheets Default"
-  }, 
-  "auto_overwrite": true, 
   "column_order": [
     "check", 
     "number", 
@@ -44,36 +71,9 @@
     "size", 
     "filename"
   ], 
-  "dest": "file", 
-  "open_after": true, 
+  "subfolders": true, 
   "dwg": {
     "export_setup_name": "<Revit Default>", 
     "export_xrefs": false
-  }, 
-  "column_widths": {
-    "check": 36.0, 
-    "revision": 80.0, 
-    "collection": 90.0, 
-    "filename": 210.0, 
-    "size": 136.0, 
-    "number": 136.0
-  }, 
-  "dgn": {
-    "export_setup_name": "<Revit Default>"
-  }, 
-  "nwc": {
-    "shared_coords": true, 
-    "convert_properties": true
-  }, 
-  "formats": [
-    "PDF"
-  ], 
-  "folder_preset": "Project", 
-  "img": {
-    "image_type": "PNG", 
-    "resolution": "150 DPI", 
-    "pixel_size": 2048
-  }, 
-  "viewing": "PDF", 
-  "folder": "N:\\(N) NAGEL CONSULTANTS LTD\\#JOB\\#JOB-3451-3500\\3488 - Ozone Redevelopment, 47 King Street, New Plymouth\\PDF\\Internal\\Revit Prints\\"
+  }
 }

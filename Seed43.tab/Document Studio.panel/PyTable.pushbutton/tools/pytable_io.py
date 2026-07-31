@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Format-agnostic export/import I/O for PyLink.
+Format-agnostic export/import I/O for PyTable.
 
 Deliberately has ZERO third-party dependencies. xlsx and ods are both just
 zip archives of XML - this reads/writes that XML directly via zipfile and
@@ -58,9 +58,9 @@ back into one row list (each row still carries "_category" from its
 original tab) - there's no single fixed "data sheet name" any more now
 that categories get their own tabs.
 
-Lives in PyLink.pushbutton/tools/ alongside the rest of this tool's own
+Lives in PyTable.pushbutton/tools/ alongside the rest of this tool's own
 code - not in the shared lib/Snippets, since this I/O format is specific
-to PyLink (same pattern as PyTable's tools/pytable_excel.py).
+to PyTable (same pattern as your existing PyTable's tools/pytable_excel.py).
 
 ODS limitation: tab colour and Legend gridline removal are XLSX-only.
 ODF has no standard per-sheet gridline attribute (LibreOffice treats grid
@@ -190,7 +190,7 @@ def _group_rows_by_category(rows):
 
 
 LEGEND_INTRO_ROWS = [
-    (None, u"PyLink Export \u2014 Column Colour Legend"),
+    (None, u"PyTable Export \u2014 Column Colour Legend"),
     ("type", u"Type Parameter \u2014 editing this value updates every element sharing this Type"),
     ("readonly", u"Read-only \u2014 shown for reference only, will not be written back on import"),
     ("na", u"Not Applicable \u2014 this parameter doesn't exist on this particular element"),

@@ -41,12 +41,12 @@ except Exception:
     _mi = None
 
 """
-pytable_shared.py -- genuinely cross-cutting pieces used by BOTH the
-Excel and Word sides of pyTable: the Row class, colour/status
+pylink_shared.py -- genuinely cross-cutting pieces used by BOTH the
+Excel and Word sides of pyLink: the Row class, colour/status
 constants, the hb() colour helper, and Revit shared-parameter state
 persistence (save/load). Deliberately has NO dependency on
-pytable_excel.py or pytable_word.py, so both of those (and the main
-PyTable.py) can import from here with zero circularity risk.
+pylink_excel.py or pylink_word.py, so both of those (and the main
+PyLink.py) can import from here with zero circularity risk.
 """
 
 
@@ -67,10 +67,10 @@ STATUS_COLOURS = {
     'sync':    '#3B82F6',
 }
 
-PYTABLE_PARAM_GUID = 'f0a46d4c-c148-4ff4-95c8-9750eec5d480'
-PYTABLE_PARAM_NAME = 'pyTable'
-PYTABLE_PARAM_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), '..', 'pyTable.txt')
+PYLINK_PARAM_GUID = 'f0a46d4c-c148-4ff4-95c8-9750eec5d480'
+PYLINK_PARAM_NAME = 'pyLink'
+PYLINK_PARAM_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), '..', 'pyLink.txt')
 
 
 def _alert(message, title='', exitscript=False):
@@ -118,7 +118,7 @@ VIEW_TYPE_DRAFTING = 'Drafting View'
 
 def _run_export_script(script_name, payload):
     """
-    Run one of the Export/ scripts via exec() with PYTABLE_PAYLOAD injected.
+    Run one of the Export/ scripts via exec() with PYLINK_PAYLOAD injected.
     Wraps execution in a transaction since export scripts modify the document.
     Legend script manages its own transactions internally so is run without
     the outer wrapper to avoid nesting.
@@ -136,7 +136,7 @@ def _run_export_script(script_name, payload):
         '__name__':        script_name,
         '__file__':        script_path,
         '__builtins__':    __builtins__,
-        'PYTABLE_PAYLOAD': payload,
+        'PYLINK_PAYLOAD': payload,
     }
 
     src = open(script_path, 'r').read()
@@ -146,22 +146,22 @@ def _run_export_script(script_name, payload):
         exec(src, ns)
     else:
         with revit.Transaction(
-            'pyTable - {}'.format(
+            'pyLink - {}'.format(
                 payload.get('view_name', script_name)
             )
         ):
             exec(src, ns)
 
-    # Export scripts may leave a PYTABLE_RESULT dict in their own
+    # Export scripts may leave a PYLINK_RESULT dict in their own
     # namespace (e.g. {'view_id': view.Id.IntegerValue}) so the caller
     # can tag the actual view that was created — used for the
     # ElementId-based ownership tracking.
-    return ns.get('PYTABLE_RESULT')
+    return ns.get('PYLINK_RESULT')
 
-def _ensure_pytable_param_bound():
+def _ensure_pylink_param_bound():
     """
-    Ensure the pyTable shared parameter is bound to BOTH Project
-    Information (the punch list of everything pyTable manages) and
+    Ensure the pyLink shared parameter is bound to BOTH Project
+    Information (the punch list of everything pyLink manages) and
     Views (Drafting/Legend/Schedule all fall under this one binding
     category) — same parameter definition, one independent value slot
     per element instance. Expands an existing binding in place if it
@@ -172,7 +172,7 @@ def _ensure_pytable_param_bound():
         app = revit.HOST_APP.app
         orig_file = app.SharedParametersFilename
         try:
-            app.SharedParametersFilename = PYTABLE_PARAM_FILE
+            app.SharedParametersFilename = PYLINK_PARAM_FILE
             sp_file = app.OpenSharedParameterFile()
             if sp_file is None:
                 return None
@@ -185,7 +185,7 @@ def _ensure_pytable_param_bound():
                 return None
             defn = None
             for d in grp.Definitions:
-                if d.Name == PYTABLE_PARAM_NAME:
+                if d.Name == PYLINK_PARAM_NAME:
                     defn = d
                     break
             if defn is None:
@@ -199,7 +199,7 @@ def _ensure_pytable_param_bound():
             ]
 
             existing_binding = doc.ParameterBindings.get_Item(defn)
-            with revit.Transaction('pyTable - bind parameter'):
+            with revit.Transaction('pyLink - bind parameter'):
                 if existing_binding is None:
                     cats = DB.CategorySet()
                     for c in wanted_cats:
@@ -219,20 +219,20 @@ def _ensure_pytable_param_bound():
         finally:
             app.SharedParametersFilename = orig_file
     except Exception as ex:
-        logger.warning('pyTable param bind failed: {}'.format(ex))
+        logger.warning('pyLink param bind failed: {}'.format(ex))
         return None
 
-def get_view_pytable_data(view):
+def get_view_pylink_data(view):
     """
-    Read a view's own pyTable record (sheet/range/hash/scale/etc) from
+    Read a view's own pyLink record (sheet/range/hash/scale/etc) from
     its per-view parameter — the authoritative record for that one
     view, as opposed to Project Information's punch list, which is
     just an index of which views to go look up. Returns a dict of
     whatever tokens are present, or None if the view has no record
-    (never touched by pyTable, or the parameter can't be read).
+    (never touched by pyLink, or the parameter can't be read).
     """
     try:
-        p = view.LookupParameter(PYTABLE_PARAM_NAME)
+        p = view.LookupParameter(PYLINK_PARAM_NAME)
         if p is None:
             return None
         text = p.AsString()
@@ -247,50 +247,50 @@ def get_view_pytable_data(view):
     except Exception:
         return None
 
-def set_view_pytable_data(view, **kwargs):
+def set_view_pylink_data(view, **kwargs):
     """
-    Write this view's own pyTable record. Keyword args become K-V
+    Write this view's own pyLink record. Keyword args become K-V
     tokens on the view's per-view parameter, e.g.
-    set_view_pytable_data(view, SH='Sheet1', RG='Temp', H=hash_str).
+    set_view_pylink_data(view, SH='Sheet1', RG='Temp', H=hash_str).
     Creates/expands the parameter binding on first use. Returns True
     on success.
     """
     try:
-        p = view.LookupParameter(PYTABLE_PARAM_NAME)
+        p = view.LookupParameter(PYLINK_PARAM_NAME)
         if p is None:
-            _ensure_pytable_param_bound()
-            p = view.LookupParameter(PYTABLE_PARAM_NAME)
+            _ensure_pylink_param_bound()
+            p = view.LookupParameter(PYLINK_PARAM_NAME)
         if p is None:
             return False
         text = '|'.join(
             '{}-{}'.format(k, v) for k, v in kwargs.items() if v is not None
         )
-        with revit.Transaction('pyTable - tag view'):
+        with revit.Transaction('pyLink - tag view'):
             p.Set(text)
         return True
     except Exception as ex:
-        logger.warning('pyTable view tag failed: {}'.format(ex))
+        logger.warning('pyLink view tag failed: {}'.format(ex))
         return False
 
-def _get_pytable_param():
+def _get_pylink_param():
     """
-    Get or create the pyTable shared parameter on ProjectInfo — this
-    is the punch list: an index of what pyTable manages, not the
-    per-view records themselves (see get_view_pytable_data /
-    set_view_pytable_data for those). Returns the Parameter object or
+    Get or create the pyLink shared parameter on ProjectInfo — this
+    is the punch list: an index of what pyLink manages, not the
+    per-view records themselves (see get_view_pylink_data /
+    set_view_pylink_data for those). Returns the Parameter object or
     None.
     """
     try:
         proj_info = doc.ProjectInformation
         if proj_info is None:
             return None
-        p = proj_info.LookupParameter(PYTABLE_PARAM_NAME)
+        p = proj_info.LookupParameter(PYLINK_PARAM_NAME)
         if p is not None:
             return p
-        _ensure_pytable_param_bound()
-        return proj_info.LookupParameter(PYTABLE_PARAM_NAME)
+        _ensure_pylink_param_bound()
+        return proj_info.LookupParameter(PYLINK_PARAM_NAME)
     except Exception as ex:
-        logger.warning('pyTable param get failed: {}'.format(ex))
+        logger.warning('pyLink param get failed: {}'.format(ex))
         return None
 
 def _doc_base_dir():
@@ -319,7 +319,7 @@ def _to_absolute(p, base_dir):
     """Resolve a possibly-relative stored path back to absolute using
     the given base_dir. Absolute paths pass through unchanged. A
     relative path with no base_dir available (doc never saved, or
-    was saved somewhere pyTable can't see) is returned as-is — the
+    was saved somewhere pyLink can't see) is returned as-is — the
     caller's file-exists check will simply fail, same as a genuinely
     missing file."""
     if not p or os.path.isabs(p):
@@ -331,9 +331,9 @@ def _to_absolute(p, base_dir):
     except Exception:
         return p
 
-def save_pytable_state(file_data):
+def save_pylink_state(file_data):
     """
-    Serialise pyTable UI state to the shared parameter on ProjectInfo.
+    Serialise pyLink UI state to the shared parameter on ProjectInfo.
 
     file_data: {path: {rows: [Row, ...], ...}}
 
@@ -413,17 +413,17 @@ def save_pytable_state(file_data):
                 rp_stored, ul, pm, lm, avn, card_at))
     text = '\n'.join(lines)
     try:
-        p = _get_pytable_param()
+        p = _get_pylink_param()
         if p is not None:
-            with revit.Transaction('pyTable - save state'):
+            with revit.Transaction('pyLink - save state'):
                 p.Set(text)
-            logger.debug('pyTable state saved ({} chars)'.format(len(text)))
+            logger.debug('pyLink state saved ({} chars)'.format(len(text)))
     except Exception as ex:
-        logger.warning('pyTable save failed: {}'.format(ex))
+        logger.warning('pyLink save failed: {}'.format(ex))
 
-def load_pytable_state():
+def load_pylink_state():
     """
-    Read pyTable state from the shared parameter.
+    Read pyLink state from the shared parameter.
 
     Returns list of dicts:
         [{'path': str, 'rows': [{'view_name', 'sheet', 'named_range', 'view_type'}]}]
@@ -433,7 +433,7 @@ def load_pytable_state():
     folder, before the caller ever sees it.
     """
     try:
-        p = _get_pytable_param()
+        p = _get_pylink_param()
         if p is None:
             return []
         text = p.AsString()
@@ -520,7 +520,7 @@ def load_pytable_state():
                     card['real_path'] = _to_absolute(card['real_path'], base_dir)
         return cards
     except Exception as ex:
-        logger.warning('pyTable load failed: {}'.format(ex))
+        logger.warning('pyLink load failed: {}'.format(ex))
         return []
 
 VIEW_TYPES      = ['Schedule View', 'Legend View', 'Drafting View']

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-pyTable - Export/create_legend.py
+pyLink - Export/create_legend.py
 
 Creates a Legend View from arbitrary tabular data.
 Mirrors pyTransmit's script_create_legend.py exactly:
@@ -8,10 +8,10 @@ Mirrors pyTransmit's script_create_legend.py exactly:
   2. Copy all elements from the temp view into a Legend View
   3. Delete the temp Drafting View
 
-Called by script.py via exec() with PYTABLE_PAYLOAD injected.
+Called by script.py via exec() with PYLINK_PAYLOAD injected.
 """
 
-_p = globals().get('PYTABLE_PAYLOAD', {})
+_p = globals().get('PYLINK_PAYLOAD', {})
 
 from pyrevit.framework import List
 from pyrevit import revit, DB, script, forms
@@ -31,8 +31,8 @@ doc = revit.doc
 # Payload
 # ---------------------------------------------------------------------------
 
-view_name  = _p.get('view_name', 'pyTable Legend')
-TEMP_NAME  = '__pyTable_TEMP__'
+view_name  = _p.get('view_name', 'pyLink Legend')
+TEMP_NAME  = '__pyLink_TEMP__'
 
 # ---------------------------------------------------------------------------
 # Step 1 — Run create_drafting.py to build the temp drafting view
@@ -53,13 +53,13 @@ _ns = {
     '__name__':         'drafting_for_legend',
     '__file__':         _drafting_path,
     '__builtins__':     __builtins__,
-    'PYTABLE_PAYLOAD':  _payload_for_drafting,
+    'PYLINK_PAYLOAD':  _payload_for_drafting,
 }
 with open(_drafting_path, 'r') as _f:
     _src = _f.read()
 
 # create_drafting.py modifies the document so needs a transaction
-with revit.Transaction('pyTable - Temp drafting for legend'):
+with revit.Transaction('pyLink - Temp drafting for legend'):
     exec(_src, _ns)
 
 # ---------------------------------------------------------------------------
@@ -102,7 +102,7 @@ if not base_legend:
     forms.alert(
         'No Legend view found in this project. '
         'Create one first via View tab > New > Legend, '
-        'then run pyTable again.',
+        'then run pyLink again.',
         exitscript=True
     )
 
@@ -143,7 +143,7 @@ class _UseDestination(DB.IDuplicateTypeNamesHandler):
     def OnDuplicateTypeNamesFound(self, args):
         return DB.DuplicateTypeAction.UseDestinationTypes
 
-with revit.Transaction('pyTable - Create Legend: {}'.format(view_name)):
+with revit.Transaction('pyLink - Create Legend: {}'.format(view_name)):
 
     if existing_legend:
         dest = existing_legend
@@ -164,7 +164,7 @@ with revit.Transaction('pyTable - Create Legend: {}'.format(view_name)):
         try:
             dest.Name = view_name
         except Exception:
-            dest.Name = view_name + ' (pyTable)'
+            dest.Name = view_name + ' (pyLink)'
 
     try:
         dest.Scale = int(_p.get('view_scale', 1))
@@ -199,7 +199,7 @@ with revit.Transaction('pyTable - Create Legend: {}'.format(view_name)):
                 )
 
 # Delete temp in its own transaction (same as pyTransmit)
-with revit.Transaction('pyTable - Delete temp view'):
+with revit.Transaction('pyLink - Delete temp view'):
     try:
         doc.Delete(temp_view.Id)
     except Exception as ex:
@@ -213,4 +213,4 @@ try:
     _view_id_int = dest.Id.IntegerValue
 except AttributeError:
     _view_id_int = int(dest.Id.Value)
-PYTABLE_RESULT = {'view_id': _view_id_int}
+PYLINK_RESULT = {'view_id': _view_id_int}

@@ -269,52 +269,58 @@ def _excel_rotation_to_radians(excel_rot):
 _TEXT_MARGIN = 1.5 * MM
 
 
-def _force_top_anchor(tn):
+def _set_vertical_align(tn, which):
     """
-    Force this TextNote's vertical anchor to Top - i.e. the insertion
-    point represents the box's TOP edge, staying put as text height
-    changes. Every position calculation in _draw_text assumes this
-    (origin = box's top-left corner); previously this was only ever
-    assumed from an unverified default, never actually set. Try the
-    strongly-typed property first, fall back to the raw parameter -
-    either can be missing depending on Revit API version.
+    Set this TextNote's Vertical Align to Top/Middle/Bottom. This is a
+    true ANCHOR, not just justification: it changes which edge/center
+    of the box's (content-driven) height is pinned to the insertion
+    point - confirmed against the Revit API docs and a real inspected
+    pyLink TextNote instance (Element ID 4303419) showing Vertical
+    Align as a genuine, populated instance parameter. Must be set
+    AFTER creation (TextNoteOptions has no vertical-align field), but
+    BEFORE any rotation, so the box reflows around the same origin
+    per the new setting first. Tries the strongly-typed property,
+    falls back to the raw parameter - either can be missing depending
+    on Revit API version.
     """
     try:
         from Autodesk.Revit.DB import VerticalAlignment
-        tn.VerticalAlignment = VerticalAlignment.Top
+        tn.VerticalAlignment = getattr(VerticalAlignment, which, VerticalAlignment.Top)
         return
     except Exception as ex:
         logger.debug('VerticalAlignment property set failed: {}'.format(ex))
     try:
         p = tn.get_Parameter(BuiltInParameter.TEXT_ALIGN_VERT)
         if p and not p.IsReadOnly:
-            p.Set(0)  # 0 = Top in the TEXT_ALIGN_VERT built-in enum
+            p.Set({'Top': 0, 'Middle': 1, 'Bottom': 2}.get(which, 0))
     except Exception as ex:
         logger.debug('TEXT_ALIGN_VERT parameter set failed: {}'.format(ex))
 
 
 def _draw_text(view, x, y, w, h, text, tt_id, color_rgb,
-                rotation_rad=0.0, halign='Left', valign='Bottom',
-                wrap=False):
+                rotation_rad=0.0, halign='Left', valign='Bottom'):
     """
-    Place a TextNote so its (possibly rotated) box lands inside the
-    cell rectangle (x, y, w, h) — (x, y) is the cell's top-left corner
-    — positioned per Excel's own horizontal/vertical alignment, with
-    optional wrapping.
+    Place a TextNote so it always exactly fills the cell's available
+    width (or height, for rotated text) and sits against the correct
+    edge/center of the other dimension - with no bounding-box probing.
 
-    General approach:
-      1. Create the note UNROTATED at a scratch point, with Width set
-         to the wrap constraint (only if Excel's wrap_text was on) so
-         Revit computes real line breaks off actual font metrics.
-      2. Read back its real (unrotated) box size from its bounding box
-         — wrapping can produce more/fewer lines than guessed.
-      3. Excel keeps halign/valign meaning literal screen X/Y even when
-         rotated (halign -> horizontal position in the cell, valign ->
-         vertical), so work out where the UNROTATED box's origin needs
-         to sit such that, after rotating 90 around that origin, the
-         rotated footprint lands where halign/valign says it should.
-      4. Discard that probe note, recreate the real one at the correct
-         origin, then rotate around that same point.
+    Two Revit facts make this possible without measuring anything:
+      - Horizontal Align is pure intra-box text JUSTIFICATION - it
+        never moves the box itself. Given an explicit Width, the box
+        always spans exactly [origin, origin+Width]. So the axis we
+        set Width for is "trivial": origin = that cell edge, done.
+      - Vertical Align is a true ANCHOR: Top/Middle/Bottom changes
+        which edge/center of the box's (otherwise unknown,
+        content-driven) height is pinned to the origin point. So the
+        *other* axis is solved by picking the matching Vertical Align
+        and cell edge/center for the origin - Revit does the rest.
+
+    A 90 rotation swaps which screen axis each property ends up
+    controlling (rotating the local box swaps its two local axes'
+    roles on screen). So for rotated header text: Excel's halign is
+    achieved via Revit's Vertical Align (the anchor), and Excel's
+    valign via Revit's Horizontal Align (the justification) - the
+    reverse of the unrotated case.
 
     rotation_rad: 0, or the drafting rotation for Excel textRotation
     (see _excel_rotation_to_radians) - positive (CCW, Excel 1-90,
@@ -325,113 +331,56 @@ def _draw_text(view, x, y, w, h, text, tt_id, color_rgb,
     try:
         # Shrink the working rect by the margin on every side so text
         # never touches the border lines.
-        mx, my  = x + _TEXT_MARGIN, y - _TEXT_MARGIN
-        mw, mh  = max(w - 2 * _TEXT_MARGIN, 0), max(h - 2 * _TEXT_MARGIN, 0)
+        mx, my = x + _TEXT_MARGIN, y - _TEXT_MARGIN
+        mw, mh = max(w - 2 * _TEXT_MARGIN, 0), max(h - 2 * _TEXT_MARGIN, 0)
 
         opts = TextNoteOptions(tt_id)
-        # Always Left - our own ox/oy math below is solely responsible
-        # for halign/valign positioning. If Revit's own justification
-        # is also set to Center/Right, it shifts what the insertion
-        # point means relative to the box (left edge vs. center vs.
-        # right edge), which double-applies alignment on top of ours
-        # and throws the box off by about half its size.
-        opts.HorizontalAlignment = HorizontalTextAlignment.Left
 
-        # ── Pass 1: create unrotated at a scratch point purely to
-        # measure the real wrapped box size, then discard it. Safer
-        # than creating once and relocating via tn.Coord, whose setter
-        # reliability isn't confirmed - recreating at the right spot
-        # from the start avoids depending on it.
-        scratch = XYZ(0, 0, 0)
-        wrap_width = mh if rotation_rad else mw
-        if wrap and wrap_width > 0:
-            probe = TextNote.Create(doc, view.Id, scratch, wrap_width, str(text), opts)
-        else:
-            probe = TextNote.Create(doc, view.Id, scratch, str(text), opts)
-        _force_top_anchor(probe)
-        # A TextNote's bounding box is not reliable until the document
-        # regenerates after creation - without this, get_BoundingBox()
-        # can return None (silently dropping the text below, since
-        # that's caught by this function's own try/except).
-        doc.Regenerate()
-        bbox = probe.get_BoundingBox(view)
-        if bbox is None:
-            # Extremely defensive fallback - should not happen after
-            # Regenerate(), but better a plain top-left-anchored note
-            # than no text at all.
-            logger.warning(
-                'TextNote bbox still None after Regenerate for "{}" - '
-                'falling back to plain top-left placement'.format(text)
+        if rotation_rad == 0:
+            width = mw
+            opts.HorizontalAlignment = getattr(
+                HorizontalTextAlignment, halign, HorizontalTextAlignment.Left
             )
-            doc.Delete(probe.Id)
-            fallback_pt = XYZ(mx, my, 0)
-            if wrap and wrap_width > 0:
-                tn = TextNote.Create(doc, view.Id, fallback_pt, wrap_width, str(text), opts)
-            else:
-                tn = TextNote.Create(doc, view.Id, fallback_pt, str(text), opts)
-            _force_top_anchor(tn)
-            if color_rgb:
-                _override_color(tn.Id, color_rgb)
-            if rotation_rad:
-                try:
-                    axis = Line.CreateBound(fallback_pt, fallback_pt + XYZ.BasisZ)
-                    ElementTransformUtils.RotateElement(doc, tn.Id, axis, rotation_rad)
-                except Exception as rex:
-                    logger.debug('TextNote rotate ({},{}) {}'.format(x, y, rex))
+            ox = mx
+            v_anchor, oy = {
+                'Top':    ('Top',    my),
+                'Center': ('Middle', my - mh / 2.0),
+                'Bottom': ('Bottom', my - mh),
+            }.get(valign, ('Bottom', my - mh))
+        elif rotation_rad > 0:
+            # +90 CCW
+            width = mh
+            opts.HorizontalAlignment = getattr(
+                HorizontalTextAlignment,
+                {'Top': 'Left', 'Center': 'Center', 'Bottom': 'Right'}.get(valign, 'Left'),
+                HorizontalTextAlignment.Left
+            )
+            v_anchor, ox = {
+                'Left':   ('Top',    mx),
+                'Center': ('Middle', mx + mw / 2.0),
+                'Right':  ('Bottom', mx + mw),
+            }.get(halign, ('Top', mx))
+            oy = my - mh
+        else:
+            # -90 CW
+            width = mh
+            opts.HorizontalAlignment = getattr(
+                HorizontalTextAlignment,
+                {'Top': 'Left', 'Center': 'Center', 'Bottom': 'Right'}.get(valign, 'Left'),
+                HorizontalTextAlignment.Left
+            )
+            v_anchor, ox = {
+                'Left':   ('Bottom', mx),
+                'Center': ('Middle', mx + mw / 2.0),
+                'Right':  ('Top',    mx + mw),
+            }.get(halign, ('Bottom', mx))
+            oy = my
+
+        if width <= 0:
             return
-        box_w = bbox.Max.X - bbox.Min.X
-        box_h = bbox.Max.Y - bbox.Min.Y
-        doc.Delete(probe.Id)
-
-        # ── Work out the pre-rotation origin (top-left, as authored) ─
-        # so that after rotating, the box lands per halign/valign.
-        # See module docstring math: unrotated footprint is
-        # X:[ox, ox+box_w], Y:[oy-box_h, oy] before rotation.
-        if rotation_rad > 0:
-            # +90 CCW: post-rotation footprint becomes
-            # X:[ox, ox+box_h] (halign axis), Y:[oy, oy+box_w] (valign axis)
-            ox = {
-                'Left':   mx,
-                'Center': mx + (mw - box_h) / 2.0,
-                'Right':  mx + mw - box_h,
-            }.get(halign, mx)
-            oy = {
-                'Top':    my - box_w,
-                'Center': my - mh / 2.0 - box_w / 2.0,
-                'Bottom': my - mh,
-            }.get(valign, my - mh)
-        elif rotation_rad < 0:
-            # -90 CW: post-rotation footprint becomes
-            # X:[ox-box_h, ox] (halign axis), Y:[oy-box_w, oy] (valign axis)
-            ox = {
-                'Left':   mx + box_h,
-                'Center': mx + (mw + box_h) / 2.0,
-                'Right':  mx + mw,
-            }.get(halign, mx + box_h)
-            oy = {
-                'Top':    my,
-                'Center': my - mh / 2.0 + box_w / 2.0,
-                'Bottom': my - mh + box_w,
-            }.get(valign, my)
-        else:
-            # No rotation: standard top-left-anchored box.
-            ox = {
-                'Left':   mx,
-                'Center': mx + (mw - box_w) / 2.0,
-                'Right':  mx + mw - box_w,
-            }.get(halign, mx)
-            oy = {
-                'Top':    my,
-                'Center': my - (mh - box_h) / 2.0,
-                'Bottom': my - mh + box_h,
-            }.get(valign, my)
-
         pt = XYZ(ox, oy, 0)
-        if wrap and wrap_width > 0:
-            tn = TextNote.Create(doc, view.Id, pt, wrap_width, str(text), opts)
-        else:
-            tn = TextNote.Create(doc, view.Id, pt, str(text), opts)
-        _force_top_anchor(tn)
+        tn = TextNote.Create(doc, view.Id, pt, width, str(text), opts)
+        _set_vertical_align(tn, v_anchor)
 
         if color_rgb:
             _override_color(tn.Id, color_rgb)
@@ -666,18 +615,16 @@ for r in range(n_total_rows):
         if is_header:
             halign = style.get('halign', 'Center')
             valign = style.get('valign', 'Bottom')
-            wrap   = style.get('wrap', False)
         else:
             # Data rows: fixed Left/Top, ignoring Excel's actual
-            # halign/valign/wrap (often Center/Center) - matches the
+            # halign/valign (often Center/Center) - matches the
             # original pre-containment-fix look, which read better for
             # a plain data table than true centering does.
             halign = 'Left'
             valign = 'Top'
-            wrap   = False
         _draw_text(view, x, y, w, h, text, tt_id,
                    tuple(color_rgb) if color_rgb else None,
-                   rotation_rad, halign, valign, wrap)
+                   rotation_rad, halign, valign)
 
 logger.debug(
     'create_drafting: "{}" {}r x {}c'.format(

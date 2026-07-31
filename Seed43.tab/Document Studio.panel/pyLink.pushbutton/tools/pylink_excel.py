@@ -11,6 +11,7 @@ import time as _time
 import threading as _threading
 import wpf
 from System import Action as _Action
+from System import Int64 as _Int64
 from System.Windows import (
     Visibility, Thickness,
     VerticalAlignment, HorizontalAlignment,
@@ -53,6 +54,7 @@ _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pylink_shared import (
     hb, Row, VIEW_TYPES, SRC_COLOURS, STATUS_COLOURS,
     _run_export_script, _confirm, _alert, set_view_pylink_data,
+    load_excel_font_settings, _is_font_installed,
 )
 
 
@@ -61,7 +63,6 @@ VIEW_TYPE_DRAFTING = 'Drafting View'
 VIEW_TYPE_LEGEND   = 'Legend View'
 
 MM     = 1.0 / 304.8   # millimetres to Revit internal feet
-PREFIX = 'pyLink Table '
 
 
 def _eid_int(eid):
@@ -692,12 +693,23 @@ def read_range_formatting(file_path, named_range, sheet_name):
                 font_idx   = xf.get('fontId',   0)
                 fill_idx   = xf.get('fillId',   0)
                 border_idx = xf.get('borderId', 0)
-                halign     = xf.get('align', '') or 'Left'
-                halign     = halign.capitalize() if halign else 'Left'
+                rotation   = xf.get('rotation', 0)
+                raw_align  = xf.get('align', '')
+                if raw_align:
+                    halign = raw_align.capitalize()
+                elif rotation:
+                    # Excel's own default rendering for ROTATED text
+                    # with no explicit horizontal alignment set is
+                    # visually centered in the column - "General"/
+                    # unset does not mean Left once rotation is
+                    # involved, unlike unrotated text where Left IS
+                    # the right default for General.
+                    halign = 'Center'
+                else:
+                    halign = 'Left'
                 valign     = xf.get('valign', '') or 'bottom'
                 valign     = valign.capitalize()
                 wrap       = xf.get('wrap', False)
-                rotation   = xf.get('rotation', 0)
 
                 font   = fonts[font_idx]     if font_idx   < len(fonts)   else {}
                 fill   = fills[fill_idx]     if fill_idx   < len(fills)   else None
@@ -1362,32 +1374,39 @@ def _extract_rows(ws_xml, shared_strings,
 # No Key Schedule, no project parameters required.
 
 MM = 1.0 / 304.8   # millimetres to Revit internal feet
+PT_MM = 0.352778    # millimetres per point (1pt = 1/72in = 25.4/72mm) -
+                     # this is the answer to "what is 7pt in mm": 7 * PT_MM ≈ 2.47mm
 
 # ── pyLink text type manager ──
-# Text types are named "pyLink Table XX" and matched by font/size/bold.
+# Text types are named "pyLink <N>pt <Font>" and matched by font/size ONLY -
+# bold/italic/underline are explicitly NOT part of a type's identity.
+# Revit's FormattedText API can apply bold/italic/underline to any
+# text RANGE within a TextNote instance, independent of its Type - so
+# one "pyLink 7pt" type serves every 7pt cell regardless of whether
+# that particular cell is bold, instead of a separate "pyLink 7pt
+# Bold" type existing purely to carry that one flag. This is the fix
+# for the type-count bloat (100s of cells => 100s of near-duplicate
+# types) a per-cell-attribute naming scheme would otherwise cause.
 # If an existing type matches the fingerprint it is reused.
-# If not, a new one is created with the next available number.
+# If not, a new one is created for that size.
 
-PREFIX = 'pyLink Table '
+PREFIX = 'pyLink '
 
-def _text_type_fingerprint(font, size_mm, bold):
+def _text_type_fingerprint(font, size_mm):
     """
     Canonical string key for a text style.
     Used to match existing types without creating duplicates.
     """
-    return '{}__{:.4f}__{}'.format(
-        font.lower().strip(), size_mm, 'bold' if bold else 'regular'
-    )
+    return '{}__{:.4f}'.format(font.lower().strip(), size_mm)
 
 def _read_fingerprint(tt):
     """
-    Read font, size and bold from an existing TextNoteType and return
-    its fingerprint string. Returns None if the type cannot be read.
+    Read font and size from an existing TextNoteType and return its
+    fingerprint string. Returns None if the type cannot be read.
     """
     try:
         font_p = tt.get_Parameter(DB.BuiltInParameter.TEXT_FONT)
         size_p = tt.get_Parameter(DB.BuiltInParameter.TEXT_SIZE)
-        bold_p = tt.get_Parameter(DB.BuiltInParameter.TEXT_STYLE_BOLD)
 
         if not font_p or not size_p:
             return None
@@ -1395,25 +1414,51 @@ def _read_fingerprint(tt):
         font    = font_p.AsString() or 'Arial'
         size_ft = size_p.AsDouble()
         size_mm = size_ft / MM  # convert feet back to mm
-        bold    = bool(bold_p.AsInteger()) if bold_p else False
 
-        return _text_type_fingerprint(font, size_mm, bold)
+        return _text_type_fingerprint(font, size_mm)
     except Exception:
         return None
 
-def get_or_create_text_type(font='Arial', size_mm=2.3, bold=False):
+def _pt_name(size_mm, font):
+    """'pyLink 7pt Arial' / 'pyLink 9pt Artifakt Element' - size
+    derived from mm back to points (the unit Excel and the Revit UI's
+    Text Size dialog both think in), so the name reads the same as
+    what a person set in Excel. No Bold/Italic/Underline suffix -
+    those are instance-level now, not part of the type."""
+    pt = size_mm / PT_MM
+    # Round to the nearest sane fraction so float noise (e.g. 7.0001)
+    # doesn't spawn a near-duplicate type; 0.5pt is finer than anyone
+    # actually picks in Excel's font-size box.
+    pt = round(pt * 2) / 2.0
+    pt_str = ('{:g}'.format(pt))
+    return '{}{}pt {}'.format(PREFIX, pt_str, font)
+
+
+def get_or_create_text_type(font='Arial', size_mm=2.3):
     """
-    Return a TextNoteType matching font/size/bold. Always plain black -
-    per-cell text colour is applied separately as a view-specific
-    graphic override on each TextNote instance (Override Graphics in
-    View > By Element), not by creating a new Type per colour.
-    Searches existing 'pyLink Table XX' types first.
+    Return a TextNoteType matching font/size. Always plain black,
+    never bold/italic/underlined at the TYPE level - per-cell text
+    colour AND per-cell bold/italic/underline are both applied
+    separately as instance-level formatting (view-specific graphic
+    override for colour, FormattedText/TextRange for bold/italic/
+    underline - see _draw_text in Export/create_drafting.py), not by
+    creating a new Type per combination.
+    Searches existing 'pyLink <N>pt <Font>' types first.
     Creates a new one if none match.
 
-    All pyLink types are named 'pyLink Table 01', '02', etc.
-    so they stay grouped in the Type Selector and are easy to manage.
+    Every pyLink type is also forced to Leader/Border Offset = 0,
+    Tab Size = 1mm, and Width Factor = 0.75 on creation (and re-checked
+    on reuse, same as the transparency fixup below) - Revit pads a
+    TextNote's rendered width by the Leader/Border Offset on both
+    sides, so leaving it non-zero is why a box sized exactly to a
+    cell's width visually overflows or undershoots it; forcing it to 0
+    makes the Width passed to TextNote.Create the actual visible text
+    width, matching the cell. Width Factor (TEXT_WIDTH_SCALE) narrows
+    the glyphs themselves so cells whose text was overflowing at 1.0
+    fit properly at 0.75.
     """
-    target_fp = _text_type_fingerprint(font, size_mm, bold)
+    target_fp = _text_type_fingerprint(font, size_mm)
+    target_name = _pt_name(size_mm, font)
 
     all_tt = list(
         DB.FilteredElementCollector(doc)
@@ -1438,25 +1483,72 @@ def get_or_create_text_type(font='Arial', size_mm=2.3, bold=False):
                 logger.debug(
                     'Reusing text type "{}": {}'.format(name, target_fp)
                 )
-                # Background isn't part of the fingerprint, so a type
-                # created before transparency was added here would
-                # otherwise stay opaque forever on reuse. Check and fix.
+                # None of these are part of the fingerprint, so a type
+                # created before these fixes existed (or before Bold
+                # got folded into instance-level formatting) would
+                # otherwise keep its old (wrong) values forever on
+                # reuse. Check and correct each one.
                 try:
+                    fixes = []
                     bg_p = tt.get_Parameter(DB.BuiltInParameter.TEXT_BACKGROUND)
-                    if bg_p and not bg_p.IsReadOnly and bg_p.AsInteger() != 0:
+                    # 1 = Transparent, 0 = Opaque - NOT the other way
+                    # around; an opaque background hides a cell's own
+                    # fill colour drawn behind the text.
+                    if bg_p and not bg_p.IsReadOnly and bg_p.AsInteger() != 1:
+                        fixes.append((bg_p, 1))
+                    lo_p = tt.get_Parameter(DB.BuiltInParameter.LEADER_OFFSET_SHEET)
+                    if lo_p and not lo_p.IsReadOnly and lo_p.AsDouble() != 0.0:
+                        fixes.append((lo_p, 0.0))
+                    ts_p = tt.get_Parameter(DB.BuiltInParameter.TEXT_TAB_SIZE)
+                    tab_ft = 1.0 * MM
+                    if ts_p and not ts_p.IsReadOnly and abs(ts_p.AsDouble() - tab_ft) > 1e-9:
+                        fixes.append((ts_p, tab_ft))
+                    ws_p = tt.get_Parameter(DB.BuiltInParameter.TEXT_WIDTH_SCALE)
+                    if ws_p and not ws_p.IsReadOnly and abs(ws_p.AsDouble() - 0.75) > 1e-9:
+                        fixes.append((ws_p, 0.75))
+                    # Bold/Italic are no longer type-level - a type
+                    # from before this change may still be marked bold
+                    # (e.g. an old "pyLink 7pt Bold" type someone's
+                    # cells still reference); force both off here so
+                    # formatting only ever comes from the per-instance
+                    # FormattedText path in create_drafting.py.
+                    b_p = tt.get_Parameter(DB.BuiltInParameter.TEXT_STYLE_BOLD)
+                    if b_p and not b_p.IsReadOnly and b_p.AsInteger() != 0:
+                        fixes.append((b_p, 0))
+                    i_p = tt.get_Parameter(DB.BuiltInParameter.TEXT_STYLE_ITALIC)
+                    if i_p and not i_p.IsReadOnly and i_p.AsInteger() != 0:
+                        fixes.append((i_p, 0))
+                    # Pick up naming-scheme changes on an existing type
+                    # too (e.g. old "pyLink 7pt" -> "pyLink 7pt font
+                    # type") rather than only applying new names to
+                    # brand new types - if another type is already
+                    # sitting on the target name, Set() below just
+                    # raises and this one keeps its current name; not
+                    # worth failing the whole reuse over.
+                    if name != target_name:
+                        name_p = tt.get_Parameter(
+                            DB.BuiltInParameter.SYMBOL_NAME_PARAM)
+                        if name_p and not name_p.IsReadOnly:
+                            fixes.append((name_p, target_name))
+                    if fixes:
                         with revit.Transaction(
-                            'pyLink - Make text type transparent: {}'.format(name)
+                            'pyLink - Fix text type settings: {}'.format(name)
                         ):
-                            bg_p.Set(0)
+                            for p, v in fixes:
+                                p.Set(v)
                 except Exception as ex:
                     logger.debug(
-                        'Transparent-background fixup on "{}": {}'.format(name, ex)
+                        'Settings fixup on "{}": {}'.format(name, ex)
                     )
                 return tt
 
-    # No match — create a new one
-    next_num = len(pylink_types) + 1
-    new_name = '{}{:02d}'.format(PREFIX, next_num)
+    # No match — create a new one, named after its point size
+    new_name = target_name
+    if any(n == new_name for n, _ in pylink_types):
+        # Extremely unlikely (would mean the fingerprint changed but
+        # the rounded name didn't) - fall back to a suffix rather than
+        # silently overwriting/duplicating a real type.
+        new_name = '{} ({})'.format(new_name, len(pylink_types) + 1)
 
     # Duplicate from any existing TextNoteType as a base
     base = all_tt[0] if all_tt else None
@@ -1473,14 +1565,29 @@ def get_or_create_text_type(font='Arial', size_mm=2.3, bold=False):
         for bip, val in [
             (DB.BuiltInParameter.TEXT_FONT,         font),
             (DB.BuiltInParameter.TEXT_SIZE,          size_ft),
-            (DB.BuiltInParameter.TEXT_STYLE_BOLD,    1 if bold else 0),
+            # Always plain at the type level - bold/italic/underline
+            # are applied per-instance via FormattedText in
+            # create_drafting.py, using each cell's own Excel flags,
+            # so ONE type serves both a bold header and a regular
+            # data cell at the same point size instead of needing a
+            # separate type per combination.
+            (DB.BuiltInParameter.TEXT_STYLE_BOLD,    0),
             (DB.BuiltInParameter.TEXT_STYLE_ITALIC,  0),
             # Black, and transparent rather than opaque — an opaque
             # text background would sit on top of and hide a cell's
             # fill colour, drawn separately as a FilledRegion behind
-            # the text.
+            # the text. TEXT_BACKGROUND is 1 = Transparent, 0 = Opaque.
             (DB.BuiltInParameter.LINE_COLOR,         0),
-            (DB.BuiltInParameter.TEXT_BACKGROUND,    0),
+            (DB.BuiltInParameter.TEXT_BACKGROUND,    1),
+            # Leader/Border Offset pads the rendered text box on both
+            # sides - zero it so a TextNote's Width parameter equals
+            # its actual visible width, matching the cell it's drawn
+            # into exactly rather than overflowing/undershooting it.
+            (DB.BuiltInParameter.LEADER_OFFSET_SHEET, 0.0),
+            (DB.BuiltInParameter.TEXT_TAB_SIZE,       1.0 * MM),
+            # Width Factor - narrows glyphs so text that was
+            # overflowing a cell at the normal 1.0 factor fits at 0.75.
+            (DB.BuiltInParameter.TEXT_WIDTH_SCALE,    0.75),
         ]:
             try:
                 p = new_tt.get_Parameter(bip)
@@ -1495,6 +1602,76 @@ def get_or_create_text_type(font='Arial', size_mm=2.3, bold=False):
         'Created text type "{}": {}'.format(new_name, target_fp)
     )
     return new_tt
+
+
+def purge_unused_pylink_text_types():
+    """
+    Delete every 'pyLink <N>pt <Font>' TextNoteType with zero TextNote
+    instances currently using it anywhere in the document. Scoped to
+    types this tool created (by name prefix) - never touches anything
+    else in the project, unlike Revit's own Purge Unused command,
+    which is document-wide and would strip a user's own unrelated
+    types right alongside pyLink's accumulated ones.
+
+    Bold/Italic no longer being part of a type's identity means far
+    fewer types accumulate in the first place (one per point size,
+    not one per size+bold combination) - this is for the types that
+    piled up before that change, or from a range that's since been
+    resized/reformatted so its old size is no longer used anywhere.
+
+    Returns (purged_count, kept_count, failed_names).
+    """
+    all_tt = list(
+        DB.FilteredElementCollector(doc)
+        .OfClass(DB.TextNoteType)
+        .ToElements()
+    )
+    pylink_tt = {}
+    for tt in all_tt:
+        try:
+            name = tt.get_Parameter(
+                DB.BuiltInParameter.SYMBOL_NAME_PARAM
+            ).AsString()
+        except Exception:
+            continue
+        if name and name.startswith(PREFIX):
+            pylink_tt[_eid_int(tt.Id)] = (name, tt)
+
+    if not pylink_tt:
+        return (0, 0, [])
+
+    used_ids = set()
+    try:
+        for tn in DB.FilteredElementCollector(doc).OfClass(DB.TextNote):
+            try:
+                used_ids.add(_eid_int(tn.GetTypeId()))
+            except Exception:
+                continue
+    except Exception as ex:
+        logger.warning('Purge: TextNote scan failed: {}'.format(ex))
+        return (0, len(pylink_tt), [])
+
+    unused = [
+        (name, tt) for tid, (name, tt) in pylink_tt.items()
+        if tid not in used_ids
+    ]
+
+    purged = 0
+    failed = []
+    if unused:
+        with revit.Transaction('pyLink - Purge unused text types'):
+            for name, tt in unused:
+                try:
+                    doc.Delete(tt.Id)
+                    purged += 1
+                except Exception as ex:
+                    logger.debug(
+                        'Purge failed for "{}": {}'.format(name, ex)
+                    )
+                    failed.append(name)
+
+    kept = len(pylink_tt) - purged
+    return (purged, kept, failed)
 
 def _clear_header(hdr):
     """Strip header back to a single 1x1 cell."""
@@ -2091,16 +2268,62 @@ def apply_row(row):
     )
     cell_styles = fmt.get('cell_styles', {})
 
-    # Pre-create text types outside any transaction. Size/bold only,
-    # always black — per-cell text colour is applied afterwards as a
-    # view-specific graphic override on each TextNote instance
-    # (Override Graphics in View > By Element) rather than by creating
-    # a new Type per colour.
+    # Derive text size from Excel's OWN font size (already parsed into
+    # cell_styles as 'font_size', in points) rather than the fixed
+    # 2.5mm/2.3mm TableRow defaults, which have no connection to the
+    # actual spreadsheet at all - a 9pt Excel header was silently
+    # coming out at ~7pt in Revit because row.size_hdr_mm never
+    # reflected what the file actually said. Row (0,*) is the header,
+    # row (1,*) the first data row; take the first cell in each that
+    # actually specifies a size, falling back to the row default only
+    # if Excel genuinely has none (shouldn't normally happen - every
+    # cell has SOME font size, default 11pt, in a real xlsx).
+    def _first_font_size(row_idx, n_cols):
+        for c in range(n_cols):
+            fs = cell_styles.get((row_idx, c), {}).get('font_size')
+            if fs:
+                return float(fs)
+        return None
+
+    hdr_pt = _first_font_size(0, len(fields))
+    dat_pt = _first_font_size(1, len(fields))
+    size_hdr_mm = (hdr_pt * PT_MM) if hdr_pt else row.size_hdr_mm
+    size_dat_mm = (dat_pt * PT_MM) if dat_pt else row.size_dat_mm
+
+    # Same idea for font NAME - use Excel's own font (e.g. 'Aptos
+    # Narrow') if it's actually installed on this machine, otherwise
+    # fall back to the user-configured default (hamburger menu ->
+    # Default Font) rather than handing Revit a font name it doesn't
+    # have and letting it silently substitute something unpredictable.
+    def _first_font_name(row_idx, n_cols):
+        for c in range(n_cols):
+            fn = cell_styles.get((row_idx, c), {}).get('font_name')
+            if fn:
+                return fn
+        return None
+
+    font_settings = load_excel_font_settings()
+    if font_settings.get('force_fallback'):
+        # Toggle is on - always the configured default, don't even
+        # look at what Excel says.
+        font_name = font_settings.get('fallback_font', 'Arial')
+    else:
+        excel_font = _first_font_name(0, len(fields)) or _first_font_name(1, len(fields))
+        if excel_font and _is_font_installed(excel_font):
+            font_name = excel_font
+        else:
+            font_name = font_settings.get('fallback_font', 'Arial')
+
+    # Pre-create text types outside any transaction. Size only, always
+    # plain/black — per-cell text colour and bold/italic/underline are
+    # applied afterwards as instance-level formatting (view-specific
+    # graphic override for colour, FormattedText for bold/italic/
+    # underline) rather than by creating a new Type per combination.
     hdr_tt = get_or_create_text_type(
-        font=row.font, size_mm=row.size_hdr_mm, bold=True
+        font=font_name, size_mm=size_hdr_mm
     )
     dat_tt = get_or_create_text_type(
-        font=row.font, size_mm=row.size_dat_mm, bold=False
+        font=font_name, size_mm=size_dat_mm
     )
     hdr_tt_id = hdr_tt.Id if hdr_tt else DB.ElementId.InvalidElementId
     dat_tt_id = dat_tt.Id if dat_tt else DB.ElementId.InvalidElementId
@@ -2119,9 +2342,9 @@ def apply_row(row):
         'view_name':          row.view_name,
         'fields':             fields,
         'records':            records,
-        'font':               row.font,
-        'size_hdr_mm':        row.size_hdr_mm,
-        'size_dat_mm':        row.size_dat_mm,
+        'font':               font_name,
+        'size_hdr_mm':        size_hdr_mm,
+        'size_dat_mm':        size_dat_mm,
         'hdr_tt_id':          hdr_tt_id,
         'dat_tt_id':          dat_tt_id,
         'view_scale':         row.view_scale,
@@ -2155,7 +2378,12 @@ def apply_row(row):
             view_id = export_result['view_id']
             result['view_id'] = view_id
             try:
-                view = doc.GetElement(DB.ElementId(view_id))
+                # Same explicit-Int64 disambiguation as the reload path
+                # in pyLink.py - a plain int is ambiguous against
+                # ElementId's BuiltInParameter/BuiltInCategory/Int64
+                # overloads under IronPython (this exact "Multiple
+                # targets could match" error was seen in Fred's log).
+                view = doc.GetElement(DB.ElementId(_Int64(view_id)))
                 if view:
                     set_view_pylink_data(
                         view,

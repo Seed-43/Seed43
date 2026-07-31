@@ -27,6 +27,7 @@ import time as _time
 import threading as _threading
 import wpf
 from System import Action as _Action
+from System import Int64 as _Int64
 from System.Windows import (
     Visibility, Thickness,
     VerticalAlignment, HorizontalAlignment,
@@ -68,10 +69,12 @@ from pylink_shared import (
     save_pylink_state, load_pylink_state, _run_export_script,
     PYLINK_PARAM_GUID, PYLINK_PARAM_NAME, PYLINK_PARAM_FILE,
     format_applied_at,
+    load_excel_font_settings, save_excel_font_settings,
+    get_installed_font_names,
 )
 from pylink_excel import (
     TableRow, get_named_ranges_from_workbook, apply_row, _hash_range,
-    ExcelCardMixin,
+    ExcelCardMixin, purge_unused_pylink_text_types,
 )
 from pylink_word import (
     read_word_sections, get_word_headings, apply_notes_row,
@@ -1059,6 +1062,11 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             lambda s, ev: self._open_group_settings_editor()))
         panel.Children.Add(item(u'Word Text Size\u2026',
             lambda s, ev: self._open_word_text_settings_editor()))
+        panel.Children.Add(item(u'Default Font\u2026',
+            lambda s, ev: self._open_default_font_editor()))
+        panel.Children.Add(self._make_menu_separator())
+        panel.Children.Add(item(u'\U0001F9F9  Purge Unused Text Types',
+            self._menu_purge_text_types_click))
         panel.Children.Add(self._make_menu_separator())
         panel.Children.Add(item(u'\u2753  Support', self._menu_support_click))
         panel.Children.Add(item(u'\u2139  About pyLink', self._menu_about_click))
@@ -1117,6 +1125,115 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             'support@seed43.org', urllib.quote(subject), urllib.quote(body))
         self._open_url(mailto, title="Support")
 
+    def _menu_purge_text_types_click(self, sender, e):
+        """☰ → Purge Unused Text Types: delete every 'pyLink <N>pt'
+        TextNoteType with no TextNote instances left using it. Scoped
+        to pyLink's own types only - never touches anything else in
+        the project."""
+        try:
+            purged, kept, failed = purge_unused_pylink_text_types()
+        except Exception as ex:
+            _alert('Purge failed:\n{}'.format(str(ex)), title='Purge Unused Text Types')
+            return
+        msg = '{} unused pyLink text type{} removed.\n{} still in use, kept.'.format(
+            purged, '' if purged == 1 else 's', kept)
+        if failed:
+            msg += '\n\n{} could not be deleted:\n{}'.format(
+                len(failed), '\n'.join(failed[:10]))
+        _alert(msg, title='Purge Unused Text Types')
+
+    def _open_default_font_editor(self):
+        """☰ → 'Default Font': pick the font pyLink falls back to
+        whenever a table's own Excel font isn't actually installed on
+        this machine (Revit would otherwise silently substitute
+        something unpredictable), plus a toggle to force it always."""
+        settings = load_excel_font_settings()
+        current = settings.get('fallback_font', 'Arial')
+        installed = get_installed_font_names()
+
+        from System.Windows import TextWrapping
+        w, root = self._build_styled_dialog('Default Font')
+
+        hint = TextBlock()
+        hint.Text = (
+            u"Default: used only when a table's Excel font isn't "
+            u"installed on this machine. Toggle below to always use "
+            u"it instead, regardless of what Excel says."
+        )
+        hint.Foreground   = w.TryFindResource('BrushTextPrimary') or hb('#F4FAFF')
+        hint.Opacity      = 0.6
+        hint.FontSize     = 10
+        hint.TextWrapping = TextWrapping.Wrap
+        hint.Margin       = Thickness(0, 0, 0, 12)
+        root.Children.Add(hint)
+
+        combo = ComboBox()
+        self._combo_style(combo, 220)
+        combo.Margin = Thickness(0, 0, 0, 14)
+        if not installed:
+            combo.IsEnabled = False
+            combo.Items.Add('(could not read installed fonts)')
+            combo.SelectedIndex = 0
+        else:
+            for name in installed:
+                combo.Items.Add(name)
+            if current in installed:
+                combo.SelectedIndex = installed.index(current)
+            else:
+                # Current setting isn't actually installed either -
+                # show it anyway rather than silently swapping it, so
+                # the user sees what's actually configured right now.
+                combo.Items.Insert(0, u'{}  (not installed)'.format(current))
+                combo.SelectedIndex = 0
+        root.Children.Add(combo)
+
+        force_cb = CheckBox()
+        force_cb.Content    = u'Always use this font (ignore Excel)'
+        force_cb.IsChecked  = bool(settings.get('force_fallback', False))
+        force_cb.Foreground = w.TryFindResource('BrushTextPrimary') or hb('#F4FAFF')
+        force_cb.Margin     = Thickness(0, 0, 0, 14)
+        root.Children.Add(force_cb)
+
+        btn_row = StackPanel()
+        btn_row.Orientation = Orientation.Horizontal
+        btn_row.HorizontalAlignment = HorizontalAlignment.Right
+
+        def _save(s, ev):
+            idx = combo.SelectedIndex
+            if installed and 0 <= idx < len(installed):
+                chosen = installed[idx]
+            elif installed and idx == 0 and combo.Items.Count > len(installed):
+                chosen = current  # the "(not installed)" placeholder stayed selected
+            else:
+                chosen = current
+            save_excel_font_settings({
+                'fallback_font': chosen,
+                'force_fallback': bool(force_cb.IsChecked),
+            })
+            w.Close()
+
+        save_btn = self._green_btn(u'Save')
+        save_btn.Click += _save
+        btn_row.Children.Add(save_btn)
+
+        cancel_btn = Button()
+        cancel_btn.Content    = u'Cancel'
+        cancel_btn.Height     = 24
+        cancel_btn.Padding    = Thickness(10, 0, 10, 0)
+        cancel_btn.FontSize   = 11
+        try:
+            cancel_btn.Style = self.FindResource('SecondaryButtonStyle')
+        except Exception as e:
+            logger.warning('Failed to apply SecondaryButtonStyle: {}'.format(e))
+        cancel_btn.FocusVisualStyle = None
+        cancel_btn.VerticalAlignment = VerticalAlignment.Center
+        cancel_btn.Margin = Thickness(8, 0, 0, 0)
+        cancel_btn.Click += lambda s, ev: w.Close()
+        btn_row.Children.Add(cancel_btn)
+
+        root.Children.Add(btn_row)
+        w.ShowDialog()
+
     def _menu_about_click(self, sender, e):
         _alert(
             'pyLink\n'
@@ -1153,6 +1270,7 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
 
         # ── Reset all dots to pending before re-running ──
         for r in all_rows:
+            r._was_pending_before_reset = (r.Status == 'pending')
             if r.Status not in ('pending',):
                 r.Status = 'pending'
                 if r._dot:
@@ -1301,8 +1419,20 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             tr.view_scale  = getattr(row, 'ViewScale', 1)
             tr.file_path   = row.FilePath
             tr.auto_sync   = False
-            tr.applied_view_name = row._applied_view_name
-            tr.applied_view_id   = getattr(row, '_applied_view_id', None)
+            # A row already known to be 'pending' (checked above, before
+            # the blanket dot-reset) owns no live view by definition - so
+            # never hand its old ElementId/name into the ownership guard.
+            # Without this, a view deleted manually in Revit mid-session
+            # (no window reopen to clear it) can leave a stale id sitting
+            # in memory that's technically harmless once the view is
+            # actually gone, but there's no reason to carry it forward at
+            # all once the row itself has already told us it's pending.
+            if getattr(row, '_was_pending_before_reset', False):
+                tr.applied_view_name = None
+                tr.applied_view_id   = None
+            else:
+                tr.applied_view_name = row._applied_view_name
+                tr.applied_view_id   = getattr(row, '_applied_view_id', None)
             result = apply_row(tr)
             results.append(result)
             row.Status = result.get('status', 'error')
@@ -1665,6 +1795,18 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                 row._applied_view_name = rdata.get('applied_view_name', None)
                 row.ViewScale       = int(rdata.get('view_scale', 1) or 1)
                 row._applied_view_id = rdata.get('applied_view_id', None)
+                # Row.__init__ defaults Enabled=False (right for a brand
+                # new blank row awaiting configuration) - but a row
+                # restored here already has its view name/sheet/range
+                # filled in from a previous session, so it should come
+                # back checked and ready to Apply, not silently excluded.
+                # Without this, every row reverts to unchecked on every
+                # reopen - and since the workflow requires closing pyLink
+                # to touch Revit at all, that means EVERY reapply after
+                # any Revit-side change (like deleting a view to test a
+                # recreate) silently does nothing until the user notices
+                # and rechecks the box by hand.
+                row.Enabled = rdata.get('enabled', True)
 
                 # ElementId is the authoritative link — if we have one,
                 # check whether the view still exists and whether it's
@@ -1673,7 +1815,15 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                 # a stale label.
                 if row._applied_view_id is not None:
                     try:
-                        v = doc.GetElement(DB.ElementId(row._applied_view_id))
+                        # A plain Python int is ambiguous against
+                        # ElementId's BuiltInParameter/BuiltInCategory/
+                        # Int64 constructor overloads under IronPython's
+                        # dynamic dispatch (Revit 2024+'s 64-bit ElementId
+                        # migration added the Int64 one alongside the two
+                        # enum-based ones that already existed) - raises
+                        # "Multiple targets could match" without an
+                        # explicit cast to force the Int64 overload.
+                        v = doc.GetElement(DB.ElementId(_Int64(row._applied_view_id)))
                         if v and v.IsValidObject:
                             live_name = v.Name
                             if live_name and live_name != row.ViewName:

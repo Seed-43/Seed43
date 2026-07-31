@@ -72,6 +72,78 @@ PYLINK_PARAM_NAME = 'pyLink'
 PYLINK_PARAM_FILE = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), '..', 'pyLink.txt')
 
+# ── Default text font (shared infra, not Excel-reading logic - the
+# Excel side just asks "is this font installed / what's the fallback",
+# it doesn't own the setting) ──
+EXCEL_FONT_SETTINGS_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), '..',
+    'userdata', 'excel_font_settings.json')
+
+DEFAULT_EXCEL_FONT_SETTINGS = {'fallback_font': 'Arial', 'force_fallback': False}
+
+
+def load_excel_font_settings():
+    """The font pyLink falls back to when a table's own Excel font
+    (e.g. 'Aptos Narrow') isn't actually installed on this machine -
+    user-configurable via the hamburger menu's 'Default Font' option."""
+    try:
+        if os.path.exists(EXCEL_FONT_SETTINGS_PATH):
+            with open(EXCEL_FONT_SETTINGS_PATH, 'r') as f:
+                data = _json.load(f)
+            if isinstance(data, dict) and 'fallback_font' in data:
+                return data
+    except Exception as ex:
+        logger.warning('excel_font_settings.json load failed: {}'.format(ex))
+    return dict(DEFAULT_EXCEL_FONT_SETTINGS)
+
+
+def save_excel_font_settings(data):
+    try:
+        folder = os.path.dirname(EXCEL_FONT_SETTINGS_PATH)
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+        with open(EXCEL_FONT_SETTINGS_PATH, 'w') as f:
+            _json.dump(data, f, indent=2)
+    except Exception as ex:
+        logger.warning('excel_font_settings.json save failed: {}'.format(ex))
+
+
+def get_installed_font_names():
+    """Every font family name Windows/WPF actually has installed,
+    sorted - used both to validate a table's own font before using it,
+    and to populate the fallback-font picker dropdown."""
+    names = []
+    try:
+        from System.Windows.Media import Fonts
+        for ff in Fonts.SystemFontFamilies:
+            try:
+                # FontFamily.Source is "Family Name", or occasionally
+                # "file://path/#Family Name" for a font referenced by
+                # file - either way the real name is after any '#'.
+                src = str(ff.Source)
+                names.append(src.split('#')[-1].strip())
+            except Exception:
+                continue
+    except Exception as ex:
+        logger.warning('Reading installed fonts failed: {}'.format(ex))
+    return sorted(set(n for n in names if n))
+
+
+def _is_font_installed(font_name):
+    """Whether font_name is actually installed on this machine. Revit
+    silently substitutes an uninstalled font rather than erroring, so
+    without this check a table styled in a font the drafter doesn't
+    have (e.g. 'Aptos Narrow') would render in whatever Revit happened
+    to pick instead - unpredictable rather than a deliberate, user-
+    chosen fallback."""
+    if not font_name:
+        return False
+    target = font_name.strip().lower()
+    for n in get_installed_font_names():
+        if n.strip().lower() == target:
+            return True
+    return False
+
 
 def _alert(message, title='', exitscript=False):
     """Themed popup via the shared Snippets dialog lib, falls back to
@@ -382,9 +454,10 @@ def save_pylink_state(file_data):
             avn = getattr(row, '_applied_view_name', '') or ''
             vid = getattr(row, '_applied_view_id', None)
             vid = '' if vid is None else str(vid)
-            lines.append('VN-{}|S-{}|R-{}|VT-{}|MT-{}|H-{}|CN-{}|PR-{}|GR-{}|AT-{}|AVN-{}|VS-{}|VID-{}'.format(
+            en = '1' if getattr(row, 'Enabled', True) else '0'
+            lines.append('VN-{}|S-{}|R-{}|VT-{}|MT-{}|H-{}|CN-{}|PR-{}|GR-{}|AT-{}|AVN-{}|VS-{}|VID-{}|EN-{}'.format(
                 row.ViewName, row.Sheet, row.NamedRange,
-                row.ViewType, mt, h, cn, pr, gr, at, avn, vs, vid))
+                row.ViewType, mt, h, cn, pr, gr, at, avn, vs, vid, en))
         # Card-level word settings
         ss = fd.get('sheet_size', '')
         cc = fd.get('col_count', '')
@@ -510,6 +583,11 @@ def load_pylink_state():
                     'applied_view_id': (
                         int(parts['VID']) if parts.get('VID') else None
                     ),
+                    # Older saved state has no EN token at all - default
+                    # True so existing projects don't suddenly need every
+                    # row rechecked; going forward this preserves an
+                    # actual deliberate uncheck across a reopen.
+                    'enabled': parts.get('EN', '1') == '1',
                 })
         # Resolve any relative path/real_path back to absolute now
         # that we know the current doc's location.

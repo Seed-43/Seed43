@@ -43,11 +43,11 @@ from pyrevit import revit, DB, script
 from Autodesk.Revit.DB import (
     FilteredElementCollector, ViewFamilyType, ViewFamily,
     ViewDrafting, TextNote, TextNoteOptions,
-    HorizontalTextAlignment, FilledRegion, FilledRegionType,
+    HorizontalTextAlignment, VerticalTextAlignment, FilledRegion, FilledRegionType,
     CurveLoop, Line, XYZ, ElementId, Color,
     CurveElement, ImageInstance, OverrideGraphicSettings,
     BuiltInCategory, GraphicsStyleType, ElementTransformUtils,
-    BuiltInParameter,
+    BuiltInParameter, FormattedText,
 )
 import math
 
@@ -267,30 +267,118 @@ def _excel_rotation_to_radians(excel_rot):
 
 
 _TEXT_MARGIN = 1.5 * MM
+_TAB_MM = 1.0 * MM  # matches TEXT_TAB_SIZE forced on every pyLink text
+                     # type (see get_or_create_text_type in
+                     # pylink_excel.py) - used here as the Top/Bottom
+                     # edge padding in the Middle-Align-always vertical
+                     # positioning formula below.
+
+# Cache of measured probe offsets, keyed by every setting that can
+# change where Revit anchors a text box: (tt_id, width, halign, bold).
+# Bold is included because bold glyphs measure wider/taller than
+# regular ones at the same type/size, which is exactly why bold is
+# in the cache key even though it's no longer part of the TYPE itself
+# (see get_or_create_text_type in pylink_excel.py - bold/italic/
+# underline are applied per-instance via FormattedText below, not
+# baked into a dedicated "Bold" type per size).
+# For single-line, non-wrapping text - the overwhelming majority of
+# cells in a data table - that offset is identical regardless of the
+# actual string, so probing once per unique combination and reusing
+# it avoids a doc.Regenerate() (expensive - walks the whole document,
+# not just the view) for every single cell.
+#
+# Caveat: if a cell's text is long enough to WRAP inside its column
+# width, its real box height differs from the cached single-line
+# probe and the vertical placement for that cell will be off. Worth
+# watching for on any column where text is close to the column width;
+# if that turns out to matter, the fix is to key the cache on an
+# estimated line-count too and re-probe on mismatch.
+_probe_cache = {}
+
+
+def _apply_instance_formatting(tn, bold=False, italic=False, underline=False):
+    """Apply bold/italic/underline to the FULL text of one TextNote
+    instance via FormattedText - Revit's per-instance formatting API,
+    independent of the note's Type. This is what lets a single
+    'pyLink 7pt' type serve both a bold header cell and a regular
+    data cell at the same point size, instead of needing a dedicated
+    Bold type purely to carry that one flag (each per-cell Excel
+    bold/italic/underline flag is honoured exactly as set, nothing
+    forced or assumed)."""
+    if not (bold or italic or underline):
+        return
+    try:
+        ft = tn.GetFormattedText()
+        rng = ft.AsTextRange()
+        if bold:
+            ft.SetBoldStatus(rng, True)
+        if italic:
+            ft.SetItalicStatus(rng, True)
+        if underline:
+            ft.SetUnderlineStatus(rng, True)
+        tn.SetFormattedText(ft)
+    except Exception as ex:
+        logger.debug('Instance formatting failed: {}'.format(ex))
+
+
+def _measure_probe(tt_id, width, halign, sample_text, bold=False):
+    key = (tt_id.IntegerValue if hasattr(tt_id, 'IntegerValue') else int(tt_id.Value),
+           round(width, 6), halign, bold)
+    if key in _probe_cache:
+        return _probe_cache[key]
+    opts = TextNoteOptions(tt_id)
+    opts.HorizontalAlignment = getattr(
+        HorizontalTextAlignment, halign, HorizontalTextAlignment.Left
+    )
+    scratch = XYZ(0, 0, 0)
+    probe = TextNote.Create(doc, view.Id, scratch, width, str(sample_text), opts)
+    if bold:
+        _apply_instance_formatting(probe, bold=True)
+    doc.Regenerate()  # bbox is unreliable until regeneration
+    bbox = probe.get_BoundingBox(view)
+    doc.Delete(probe.Id)
+    if bbox is None:
+        return None
+    result = (bbox.Min.X, bbox.Max.X, bbox.Min.Y, bbox.Max.Y)
+    _probe_cache[key] = result
+    return result
 
 
 def _draw_text(view, x, y, w, h, text, tt_id, color_rgb,
-                rotation_rad=0.0, halign='Left', valign='Bottom'):
+                rotation_rad=0.0, halign='Left', valign='Bottom',
+                bold=False, italic=False, underline=False):
     """
     Place a TextNote inside the cell (x, y, w, h) — (x, y) top-left —
     per Excel's halign/valign, by MEASURING where Revit actually puts
     a probe note rather than assuming what any alignment property
-    does. Three separate assumptions about Revit's anchor/justification
-    behaviour have each turned out wrong in practice (double-applying
-    HorizontalAlignment on top of our own math; assuming a Top default;
-    assuming VerticalAlignment actually takes effect as an anchor) - so
-    this stops guessing and corrects for whatever the real behaviour is:
+    does on its own.
+
+    Horizontal: opts.HorizontalAlignment is set to match Excel's
+    halign at creation time, and the probe measurement corrects the
+    ORIGIN so the resulting box's left/center/right lands exactly on
+    the cell's own left/center/right - confirmed working; do not also
+    set TextElement.HorizontalAlignment after creation, that fights
+    the already-correct position instead of complementing it.
+
+    Vertical: TextElement.VerticalAlignment is always set to Middle
+    after creation, regardless of what Excel's valign says - Excel's
+    Top/Center/Bottom is instead encoded as an OFFSET for where that
+    center line should sit: Top = tab size + half the text's own
+    measured height down from the cell's top line; Bottom = the
+    mirror of that, up from the bottom line; Center = the cell's exact
+    vertical middle. Middle Align is what actually holds the text at
+    whatever center point this places it at.
 
       1. Create a probe with the EXACT same options/Width/text at a
          scratch origin (0,0,0).
       2. Regenerate, then read its real bounding box - this captures
          wherever Revit actually placed the box relative to that
          origin, whatever mechanism caused it.
-      3. Work out, via the same rotation math as before, what origin
-         WOULD have produced a box landing exactly on the target cell
-         edge/center - using the probe's measured offsets, not an
-         assumed corner.
-      4. Discard the probe, recreate at that corrected origin, rotate.
+      3. Work out, via the rotation math below, what origin WOULD
+         have produced a box landing exactly on the target position -
+         using the probe's measured offsets, not an assumed corner.
+      4. Discard the probe, recreate at that corrected origin, rotate,
+         then set VerticalAlignment=Middle.
 
     Width is always set to the cell's full trivial-axis dimension
     (matching the filled region exactly, not a separately-inset one).
@@ -310,18 +398,14 @@ def _draw_text(view, x, y, w, h, text, tt_id, color_rgb,
             return
 
         # ── Probe: measure exactly where Revit puts this box for
-        # these exact settings, relative to a scratch origin.
-        scratch = XYZ(0, 0, 0)
-        probe = TextNote.Create(doc, view.Id, scratch, width, str(text), opts)
-        doc.Regenerate()  # bbox is unreliable until regeneration
-        bbox = probe.get_BoundingBox(view)
-        if bbox is None:
-            doc.Delete(probe.Id)
+        # these exact settings, relative to a scratch origin - cached
+        # per (type, width, halign, bold) so repeat cells (most of a
+        # table) skip the expensive doc.Regenerate() entirely.
+        probe_result = _measure_probe(tt_id, width, halign, text, bold=bold)
+        if probe_result is None:
             logger.debug('TextNote bbox None for "{}" - skipped'.format(text))
             return
-        bminx, bmaxx = bbox.Min.X, bbox.Max.X
-        bminy, bmaxy = bbox.Min.Y, bbox.Max.Y
-        doc.Delete(probe.Id)
+        bminx, bmaxx, bminy, bmaxy = probe_result
 
         # Margin only applies to the axis perpendicular to Width, to
         # keep text off the border line on that side.
@@ -330,44 +414,116 @@ def _draw_text(view, x, y, w, h, text, tt_id, color_rgb,
 
         if rotation_rad == 0:
             box_h = bmaxy - bminy
-            target_left = x  # Width axis matches the fill exactly
-            target_top = {
-                'Top':    my,
-                'Center': my - (mh - box_h) / 2.0,
-                'Bottom': my - mh + box_h,
-            }.get(valign, my)
+            box_w = bmaxx - bminx
+            # Full cell width (x, w), not the margin-inset mx/mw - the
+            # frame itself is declared at width=w (see "width" above),
+            # so the target has to match that exactly or the two
+            # disagree by the margin amount. Margin here is reserved
+            # for the perpendicular (vertical) axis only, same as the
+            # comment above already establishes.
+            target_left = {
+                'Left':   x,
+                'Center': x + (w - box_w) / 2.0,
+                'Right':  x + w - box_w,
+            }.get(halign, x)
+            # Vertical: always target the text's CENTER line (Revit's
+            # own Middle Align, set below, is what actually holds it
+            # there) - Excel's Top/Center/Bottom become an offset FOR
+            # that center point, not an edge to match directly:
+            #   Top    -> center sits tab + half the text's own height
+            #             down from the cell's top line
+            #   Bottom -> mirror of that, up from the bottom line
+            #   Center -> the cell's own vertical middle, exactly
+            half_text = box_h / 2.0
+            target_center_y = {
+                'Top':    y - _TAB_MM - half_text,
+                'Center': y - h / 2.0,
+                'Bottom': y - h + _TAB_MM + half_text,
+            }.get(valign, y - h / 2.0)
+            target_top = target_center_y + half_text
             ox = target_left - bminx
             oy = target_top - bmaxy
+            logger.debug(
+                'vtext "{}" valign={} y={:.3f} h={:.3f}mm box_h={:.3f}mm '
+                'target_center_y={:.3f} (h/2={:.3f}) oy={:.3f}'.format(
+                    text, valign, y / MM, h / MM, box_h / MM,
+                    target_center_y / MM, (h / 2.0) / MM, oy / MM
+                )
+            )
         elif rotation_rad > 0:
             # +90 CCW: local (dx,dy) -> screen (-dy, dx) relative to
             # origin, so post-rotation footprint (relative to origin)
             # is X:[-bmaxy,-bminy], Y:[bminx,bmaxx].
             box_h = bmaxy - bminy  # -> screen X extent (halign axis)
+            box_w = bmaxx - bminx  # -> screen Y extent (valign axis)
             target_x_min = {
                 'Left':   mx,
                 'Center': mx + (mw - box_h) / 2.0,
                 'Right':  mx + mw - box_h,
             }.get(halign, mx)
+            # Same Middle-Align-always technique as the unrotated case,
+            # just along the row-height axis (box_w here, since that's
+            # what maps to "reading-direction extent" once rotated).
+            half_text = box_w / 2.0
+            target_center_y = {
+                'Top':    y - _TAB_MM - half_text,
+                'Center': y - h / 2.0,
+                'Bottom': y - h + _TAB_MM + half_text,
+            }.get(valign, y - h / 2.0)
+            target_y_min = target_center_y - half_text
             ox = target_x_min + bmaxy
-            oy = (y - h) - bminx  # Width axis matches the fill exactly
+            oy = target_y_min - bminx
         else:
             # -90 CW: local (dx,dy) -> screen (dy, -dx) relative to
             # origin, so post-rotation footprint (relative to origin)
             # is X:[bminy,bmaxy], Y:[-bmaxx,-bminx].
             box_h = bmaxy - bminy  # -> screen X extent (halign axis)
+            box_w = bmaxx - bminx  # -> screen Y extent (valign axis)
             target_x_min = {
                 'Left':   mx,
                 'Center': mx + (mw - box_h) / 2.0,
                 'Right':  mx + mw - box_h,
             }.get(halign, mx)
+            half_text = box_w / 2.0
+            target_center_y = {
+                'Top':    y - _TAB_MM - half_text,
+                'Center': y - h / 2.0,
+                'Bottom': y - h + _TAB_MM + half_text,
+            }.get(valign, y - h / 2.0)
+            target_y_min = target_center_y - half_text
             ox = target_x_min - bminy
-            oy = (y - h) + bmaxx  # Width axis matches the fill exactly
+            oy = target_y_min + bmaxx
 
         pt = XYZ(ox, oy, 0)
         tn = TextNote.Create(doc, view.Id, pt, width, str(text), opts)
 
+        # TextElement.VerticalAlignment - a real, settable per-INSTANCE
+        # anchor property (since Revit 2016, replacing the old
+        # TextNote.Align; TextNoteOptions has no vertical member at
+        # all, only horizontal). ALWAYS Middle now, regardless of
+        # Excel's own valign - Excel's Top/Center/Bottom is fully
+        # encoded in the target_center_y math above instead, and
+        # letting Revit's Middle Align hold that center-line fixed is
+        # the mechanism that makes the tab+half-height offset formula
+        # correct in the first place.
+        #
+        # HorizontalAlignment does NOT get the same treatment here -
+        # unlike vertical, opts.HorizontalAlignment is ALREADY set at
+        # creation time (TextNoteOptions does have a horizontal
+        # member), and the manual math above already positions the
+        # note correctly using it. Re-setting TextElement.
+        # HorizontalAlignment again AFTER creation fights with that
+        # already-correct position instead of complementing it -
+        # confirmed by testing: it introduced a horizontal drift
+        # regression.
+        try:
+            tn.VerticalAlignment = VerticalTextAlignment.Middle
+        except Exception as ex:
+            logger.debug('Element-level VerticalAlignment: {}'.format(ex))
+
         if color_rgb:
             _override_color(tn.Id, color_rgb)
+        _apply_instance_formatting(tn, bold=bold, italic=italic, underline=underline)
 
         if rotation_rad:
             try:
@@ -587,7 +743,17 @@ for r in range(n_total_rows):
                                _cell_border_weight(style, 'right'))
 
         # Text — plain black type, tinted via view override to this
-        # cell's own colour when Excel set one.
+        # cell's own colour when Excel set one. Header AND data cells
+        # both use the probed placement path so the text box always
+        # spans the FULL cell width (never auto-sized/glyph-hugging)
+        # and justification always matches what Excel actually set for
+        # that cell - the probe cache (keyed on type/width/halign/bold)
+        # keeps this fast since most cells in a column share all four.
+        # Bold/italic/underline come from Excel's OWN per-cell flags,
+        # not assumed from the row being a header - the type itself is
+        # never bold (see get_or_create_text_type), so a header cell
+        # Excel didn't actually bold stays regular, and a data cell
+        # Excel DID bold comes through bold too.
         if is_header:
             text = fields[c] if c < len(fields) else ''
         else:
@@ -596,19 +762,14 @@ for r in range(n_total_rows):
         tt_id = hdr_txt_id if is_header else dat_txt_id
         color_rgb = style.get('color_rgb')
         rotation_rad = _excel_rotation_to_radians(style.get('rotation', 0)) if is_header else 0.0
-        if is_header:
-            halign = style.get('halign', 'Center')
-            valign = style.get('valign', 'Bottom')
-        else:
-            # Data rows: fixed Left/Top, ignoring Excel's actual
-            # halign/valign (often Center/Center) - matches the
-            # original pre-containment-fix look, which read better for
-            # a plain data table than true centering does.
-            halign = 'Left'
-            valign = 'Top'
+        halign = style.get('halign', 'Center')
+        valign = style.get('valign', 'Center' if not is_header else 'Bottom')
         _draw_text(view, x, y, w, h, text, tt_id,
                    tuple(color_rgb) if color_rgb else None,
-                   rotation_rad, halign, valign)
+                   rotation_rad, halign, valign,
+                   bold=bool(style.get('bold', False)),
+                   italic=bool(style.get('italic', False)),
+                   underline=bool(style.get('underline', False)))
 
 logger.debug(
     'create_drafting: "{}" {}r x {}c'.format(

@@ -6,10 +6,35 @@
     SizeToContent="Height"
     ResizeMode="CanResizeWithGrip"
     WindowStartupLocation="CenterScreen"
-    Background="#3B4553"
+    Background="{DynamicResource BrushWindowBg}"
     TextElement.FontFamily="Segoe UI">
 
     <Window.Resources>
+
+        <!-- ── Seed43 palette (fallback defaults; overridden at runtime by apply_seed43_palette) ── -->
+        <SolidColorBrush x:Key="BrushWindowBg"             Color="#3B4553"/>
+        <SolidColorBrush x:Key="BrushCardBg"                Color="#2B3340"/>
+        <SolidColorBrush x:Key="BrushHeaderBg"              Color="#232933"/>
+        <SolidColorBrush x:Key="BrushTextPrimary"           Color="#F4FAFF"/>
+        <SolidColorBrush x:Key="BrushTextInput"             Color="#2B3340"/>
+        <SolidColorBrush x:Key="BrushInputBg"               Color="#F4FAFF"/>
+        <SolidColorBrush x:Key="BrushPrimaryGreen"          Color="#208A3C"/>
+        <SolidColorBrush x:Key="BrushPrimaryGreenHover"     Color="#2B933F"/>
+        <SolidColorBrush x:Key="BrushPrimaryGreenPressed"   Color="#1A6E2E"/>
+        <SolidColorBrush x:Key="BrushBorderDefault"         Color="#208A3C"/>
+        <SolidColorBrush x:Key="BrushBorderHover"           Color="#2B933F"/>
+        <SolidColorBrush x:Key="BrushBorderPressed"         Color="#2B933F"/>
+        <SolidColorBrush x:Key="BrushSecondaryBg"           Color="#404553"/>
+        <SolidColorBrush x:Key="BrushSecondaryHover"        Color="#4E5566"/>
+        <SolidColorBrush x:Key="BrushSecondaryPressed"      Color="#333B48"/>
+        <SolidColorBrush x:Key="BrushSecondaryDisabledBg"   Color="#555555"/>
+        <SolidColorBrush x:Key="BrushSecondaryDisabledFg"   Color="#888888"/>
+        <SolidColorBrush x:Key="BrushDropdownItemHover"     Color="#313D4D"/>
+        <SolidColorBrush x:Key="BrushDanger"                Color="#C53030"/>
+        <SolidColorBrush x:Key="BrushDangerHover"           Color="#FF5555"/>
+        <SolidColorBrush x:Key="BrushDangerPressed"         Color="#CC4444"/>
+        <SolidColorBrush x:Key="BrushSuccess"               Color="#27AE60"/>
+        <SolidColorBrush x:Key="BrushSuccessHover"          Color="#2ECC71"/>
 
         <!-- ── Drop Shadows ───────────────────────────────────────── -->
         <DropShadowEffect x:Key="CardShadow"
@@ -26,7 +51,7 @@
 
         <!-- ── CardStyle ──────────────────────────────────────────── -->
         <Style x:Key="CardStyle" TargetType="Border">
-            <Setter Property="Background"    Value="#2B3340"/>
+            <Setter Property="Background"    Value="{DynamicResource BrushCardBg}"/>
             <Setter Property="CornerRadius"  Value="8"/>
             <Setter Property="Padding"       Value="16"/>
             <Setter Property="Margin"        Value="0,0,0,12"/>
@@ -35,7 +60,7 @@
 
         <!-- ── SectionLabelStyle ─────────────────────────────────── -->
         <Style x:Key="SectionLabelStyle" TargetType="TextBlock">
-            <Setter Property="Foreground"  Value="#208A3C"/>
+            <Setter Property="Foreground"  Value="{DynamicResource BrushPrimaryGreen}"/>
             <Setter Property="FontWeight"  Value="SemiBold"/>
             <Setter Property="FontSize"    Value="14"/>
             <Setter Property="Margin"      Value="0,0,0,8"/>
@@ -43,7 +68,7 @@
 
         <!-- ── FieldLabelStyle ───────────────────────────────────── -->
         <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
-            <Setter Property="Foreground"  Value="#F4FAFF"/>
+            <Setter Property="Foreground"  Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="FontWeight"  Value="Medium"/>
             <Setter Property="FontSize"    Value="12"/>
             <Setter Property="Margin"      Value="0,0,0,4"/>
@@ -52,9 +77,9 @@
 
         <!-- ── ModernTextBoxStyle ────────────────────────────────── -->
         <Style x:Key="ModernTextBoxStyle" TargetType="TextBox">
-            <Setter Property="Background"                Value="#F4FAFF"/>
-            <Setter Property="Foreground"                Value="#2B3340"/>
-            <Setter Property="BorderBrush"               Value="#208A3C"/>
+            <Setter Property="Background"                Value="{DynamicResource BrushInputBg}"/>
+            <Setter Property="Foreground"                Value="{DynamicResource BrushTextInput}"/>
+            <Setter Property="BorderBrush"               Value="{DynamicResource BrushBorderDefault}"/>
             <Setter Property="BorderThickness"           Value="1"/>
             <Setter Property="Padding"                   Value="8,4"/>
             <Setter Property="FontSize"                  Value="12"/>
@@ -75,10 +100,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="MainBorder" Property="BorderBrush" Value="#2B933F"/>
+                                <Setter TargetName="MainBorder" Property="BorderBrush" Value="{DynamicResource BrushBorderHover}"/>
                             </Trigger>
                             <Trigger Property="IsFocused" Value="True">
-                                <Setter TargetName="MainBorder" Property="BorderBrush"     Value="#2B933F"/>
+                                <Setter TargetName="MainBorder" Property="BorderBrush"     Value="{DynamicResource BrushBorderPressed}"/>
                                 <Setter TargetName="MainBorder" Property="BorderThickness" Value="2"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -89,8 +114,8 @@
 
         <!-- ── SmallButtonStyle ──────────────────────────────────── -->
         <Style x:Key="SmallButtonStyle" TargetType="Button">
-            <Setter Property="Background"      Value="#208A3C"/>
-            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="Background"      Value="{DynamicResource BrushPrimaryGreen}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding"         Value="12,4"/>
             <Setter Property="FontSize"        Value="11"/>
@@ -109,10 +134,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ButtonBorder" Property="Background" Value="#2B933F"/>
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="ButtonBorder" Property="Background" Value="#1A6E2E"/>
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource BrushPrimaryGreenPressed}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -122,8 +147,8 @@
 
         <!-- ── SecondaryButtonStyle ──────────────────────────────── -->
         <Style x:Key="SecondaryButtonStyle" TargetType="Button">
-            <Setter Property="Background"      Value="#404553"/>
-            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="Background"      Value="{DynamicResource BrushSecondaryBg}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding"         Value="16,8"/>
             <Setter Property="FontSize"        Value="12"/>
@@ -140,14 +165,14 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#4E5566"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryHover}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#333B48"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryPressed}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Bd" Property="Background" Value="#555555"/>
-                                <Setter Property="Foreground"                  Value="#888888"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryDisabledBg}"/>
+                                <Setter Property="Foreground"                  Value="{DynamicResource BrushSecondaryDisabledFg}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -158,7 +183,7 @@
         <!-- ── CloseButtonStyle ──────────────────────────────────── -->
         <Style x:Key="CloseButtonStyle" TargetType="Button">
             <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontSize"        Value="14"/>
             <Setter Property="Width"           Value="30"/>
@@ -175,10 +200,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="MainBorder" Property="Background" Value="#FF5555"/>
+                                <Setter TargetName="MainBorder" Property="Background" Value="{DynamicResource BrushDangerHover}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="MainBorder" Property="Background" Value="#CC4444"/>
+                                <Setter TargetName="MainBorder" Property="Background" Value="{DynamicResource BrushDangerPressed}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -188,7 +213,7 @@
 
         <!-- ── MacScrollBarThumb ─────────────────────────────────── -->
         <Style x:Key="MacScrollBarThumb" TargetType="Thumb">
-            <Setter Property="Background" Value="#208A3C"/>
+            <Setter Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Thumb">
@@ -198,10 +223,10 @@
                                 Margin="2,2,2,2"/>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="thumb" Property="Background" Value="#27AE60"/>
+                                <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushSuccess}"/>
                             </Trigger>
                             <Trigger Property="IsDragging" Value="True">
-                                <Setter TargetName="thumb" Property="Background" Value="#2ECC71"/>
+                                <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushSuccessHover}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -267,7 +292,7 @@
 
         <!-- ── Layer Row CheckBox ────────────────────────────────── -->
         <Style x:Key="LayerCheckBoxStyle" TargetType="CheckBox">
-            <Setter Property="Foreground"  Value="#F4FAFF"/>
+            <Setter Property="Foreground"  Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="FontSize"    Value="12"/>
             <Setter Property="Padding"     Value="6,0,0,0"/>
             <Setter Property="Cursor"      Value="Hand"/>
@@ -291,7 +316,7 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="RowBorder"
-                                        Property="Background" Value="#313D4D"/>
+                                        Property="Background" Value="{DynamicResource BrushDropdownItemHover}"/>
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="RowBorder"
@@ -322,7 +347,7 @@
         <!-- ── Header ─────────────────────────────────────────── -->
         <Border Height="70"
                 VerticalAlignment="Top"
-                Background="#232933"
+                Background="{DynamicResource BrushHeaderBg}"
                 CornerRadius="0,0,12,12"
                 Effect="{StaticResource HeaderShadow}"
                 Panel.ZIndex="10">
@@ -341,9 +366,9 @@
                            VerticalAlignment="Center"
                            Margin="0,0,10,0"/>
                     <TextBlock FontSize="32" FontWeight="Bold"
-                               Foreground="#208A3C" Text="CAD"/>
+                               Foreground="{DynamicResource BrushPrimaryGreen}" Text="CAD"/>
                     <TextBlock FontSize="32" FontWeight="SemiBold"
-                               Foreground="#F4FAFF" Text=" Layer Manager"/>
+                               Foreground="{DynamicResource BrushTextPrimary}" Text=" Layer Manager"/>
                 </StackPanel>
 
                 <!-- Header close button -->
@@ -390,7 +415,7 @@
                                      Style="{StaticResource ModernTextBoxStyle}"/>
                             <TextBlock x:Name="search_placeholder_lbl"
                                        Text="Search layers…"
-                                       Foreground="#2B3340"
+                                       Foreground="{DynamicResource BrushTextInput}"
                                        FontSize="12"
                                        Opacity="0.45"
                                        Margin="10,0,0,0"
@@ -409,20 +434,20 @@
                             <Button x:Name="hide_all_btn"
                                     Content="Hide All"
                                     Style="{StaticResource SmallButtonStyle}"
-                                    Background="#C53030"
+                                    Background="{DynamicResource BrushDanger}"
                                     Width="80"/>
                         </StackPanel>
 
                         <!-- Layer count summary -->
                         <TextBlock x:Name="layer_count_lbl"
-                                   Foreground="#F4FAFF"
+                                   Foreground="{DynamicResource BrushTextPrimary}"
                                    FontSize="11"
                                    Opacity="0.6"
                                    Margin="0,0,0,8"
                                    Text="0 layers"/>
 
                         <!-- Layer list -->
-                        <Border Background="#232933"
+                        <Border Background="{DynamicResource BrushHeaderBg}"
                                 CornerRadius="6"
                                 Padding="4"
                                 MaxHeight="320">
@@ -468,8 +493,8 @@
              ALERT POPUP
         ═══════════════════════════════════════════════════════ -->
         <Border x:Name="alert_popup"
-                Background="#2B3340"
-                BorderBrush="#208A3C"
+                Background="{DynamicResource BrushCardBg}"
+                BorderBrush="{DynamicResource BrushBorderDefault}"
                 BorderThickness="1"
                 CornerRadius="6"
                 Padding="24"
@@ -483,13 +508,13 @@
             <StackPanel>
                 <TextBlock x:Name="alert_title_lbl"
                            Text="Alert"
-                           Foreground="#208A3C"
+                           Foreground="{DynamicResource BrushPrimaryGreen}"
                            FontSize="14"
                            FontWeight="SemiBold"
                            Margin="0,0,0,8"/>
                 <TextBlock x:Name="alert_msg_lbl"
                            Text=""
-                           Foreground="#F4FAFF"
+                           Foreground="{DynamicResource BrushTextPrimary}"
                            FontSize="12"
                            TextWrapping="Wrap"
                            Margin="0,0,0,20"/>
@@ -505,8 +530,8 @@
              CONFIRM POPUP
         ═══════════════════════════════════════════════════════ -->
         <Border x:Name="confirm_popup"
-                Background="#2B3340"
-                BorderBrush="#208A3C"
+                Background="{DynamicResource BrushCardBg}"
+                BorderBrush="{DynamicResource BrushBorderDefault}"
                 BorderThickness="1"
                 CornerRadius="6"
                 Padding="24"
@@ -518,12 +543,12 @@
                 Panel.ZIndex="1000">
             <StackPanel>
                 <TextBlock Text="Revert Changes?"
-                           Foreground="#208A3C"
+                           Foreground="{DynamicResource BrushPrimaryGreen}"
                            FontSize="14"
                            FontWeight="SemiBold"
                            Margin="0,0,0,8"/>
                 <TextBlock Text="All layer visibility changes will be undone and restored to how they were when you opened this window."
-                           Foreground="#F4FAFF"
+                           Foreground="{DynamicResource BrushTextPrimary}"
                            FontSize="12"
                            TextWrapping="Wrap"
                            Margin="0,0,0,20"/>
@@ -539,7 +564,7 @@
                     <Button x:Name="confirm_yes_btn"
                             Content="Yes, Revert"
                             Style="{StaticResource SmallButtonStyle}"
-                            Background="#C53030"
+                            Background="{DynamicResource BrushDanger}"
                             Width="90"/>
                 </StackPanel>
             </StackPanel>

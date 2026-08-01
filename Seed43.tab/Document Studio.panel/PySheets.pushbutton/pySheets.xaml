@@ -10,7 +10,7 @@
         WindowStyle="None"
         ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
-        Background="#3B4553"
+        Background="{DynamicResource BrushWindowBg}"
         TextElement.FontFamily="Segoe UI"
         Closing="window_closing">
 
@@ -27,32 +27,38 @@
         <!-- ═══════════════════════════════════════════════════════════
              COLOUR PALETTE
         ═══════════════════════════════════════════════════════════ -->
-        <SolidColorBrush x:Key="AccentGreen"       Color="#208A3C"/>
-        <SolidColorBrush x:Key="AccentGreenHover"  Color="#2B933F"/>
-        <SolidColorBrush x:Key="AccentGreenPress"  Color="#1A6B2F"/>
-        <SolidColorBrush x:Key="WindowBG"          Color="#3B4553"/>
-        <SolidColorBrush x:Key="CardBG"            Color="#2B3340"/>
-        <SolidColorBrush x:Key="HeaderBG"          Color="#232933"/>
+        <SolidColorBrush x:Key="BrushPrimaryGreen"       Color="#208A3C"/>
+        <SolidColorBrush x:Key="BrushPrimaryGreenHover"  Color="#2B933F"/>
+        <SolidColorBrush x:Key="BrushPrimaryGreenPressed"  Color="#1A6B2F"/>
+        <SolidColorBrush x:Key="BrushWindowBg"          Color="#3B4553"/>
+        <SolidColorBrush x:Key="BrushCardBg"            Color="#2B3340"/>
+        <SolidColorBrush x:Key="BrushHeaderBg"          Color="#232933"/>
         <SolidColorBrush x:Key="GridRowBG"         Color="#1E2530"/>
         <SolidColorBrush x:Key="GridRowHover"      Color="#253040"/>
-        <SolidColorBrush x:Key="GridRowSelected"   Color="#1A3D26"/>
-        <SolidColorBrush x:Key="GridRowHighlight"  Color="#2A603C"/>
-        <SolidColorBrush x:Key="GridHeaderBG"      Color="#232933"/>
-        <SolidColorBrush x:Key="FmtColumnBG"       Color="#1C2A1E"/>
-        <SolidColorBrush x:Key="InputBG"           Color="#F4FAFF"/>
-        <SolidColorBrush x:Key="InputFG"           Color="#2B3340"/>
-        <SolidColorBrush x:Key="LightText"         Color="#F4FAFF"/>
-        <SolidColorBrush x:Key="MutedText"         Color="#F4FAFF"/>
-        <SolidColorBrush x:Key="SecondaryBtnBG"    Color="#404553"/>
-        <SolidColorBrush x:Key="SecondaryBtnHover" Color="#4E5566"/>
-        <SolidColorBrush x:Key="PillOffBG"         Color="#2B3340"/>
-        <SolidColorBrush x:Key="PillOffBorder"     Color="#404553"/>
+        <SolidColorBrush x:Key="BrushSelectedRowBg"    Color="#0D2139"/>
+        <SolidColorBrush x:Key="BrushHighlightedRowBg" Color="#183B67"/>
+        <SolidColorBrush x:Key="BrushInputBg"           Color="#F4FAFF"/>
+        <SolidColorBrush x:Key="BrushTextInput"           Color="#2B3340"/>
+        <SolidColorBrush x:Key="BrushTextPrimary"         Color="#F4FAFF"/>
+        <SolidColorBrush x:Key="BrushTextMuted"    Color="#9CA3AF"/>
+        <SolidColorBrush x:Key="BrushSecondaryBg"    Color="#404553"/>
+        <SolidColorBrush x:Key="BrushSecondaryHover" Color="#4E5566"/>
+        <SolidColorBrush x:Key="BrushSecondaryPressed" Color="#333B48"/>
+        <SolidColorBrush x:Key="BrushSecondaryDisabledBg" Color="#555555"/>
+        <SolidColorBrush x:Key="BrushSecondaryDisabledFg" Color="#888888"/>
+        <SolidColorBrush x:Key="BrushDropdownItemHover" Color="#3A4553"/>
+        <SolidColorBrush x:Key="BrushBorderMuted"       Color="#3B4553"/>
+        <SolidColorBrush x:Key="BrushDanger"            Color="#C53030"/>
+        <SolidColorBrush x:Key="BrushSuccess"           Color="#27AE60"/>
+        <SolidColorBrush x:Key="BrushSuccessHover"      Color="#2ECC71"/>
+        <SolidColorBrush x:Key="BrushPillOffBg"         Color="#2B3340"/>
+        <SolidColorBrush x:Key="BrushPillOffBorder"     Color="#404553"/>
 
         <!-- ═══════════════════════════════════════════════════════════
              SECTION LABEL
         ═══════════════════════════════════════════════════════════ -->
         <Style x:Key="SectionLabel" TargetType="TextBlock">
-            <Setter Property="Foreground"  Value="{StaticResource AccentGreen}"/>
+            <Setter Property="Foreground"  Value="{DynamicResource BrushPrimaryGreen}"/>
             <Setter Property="FontWeight"  Value="SemiBold"/>
             <Setter Property="FontSize"    Value="13"/>
             <Setter Property="Margin"      Value="0,0,0,8"/>
@@ -62,7 +68,7 @@
              FIELD LABEL
         ═══════════════════════════════════════════════════════════ -->
         <Style x:Key="FieldLabel" TargetType="TextBlock">
-            <Setter Property="Foreground"  Value="{StaticResource LightText}"/>
+            <Setter Property="Foreground"  Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="FontWeight"  Value="Medium"/>
             <Setter Property="FontSize"    Value="12"/>
             <Setter Property="Opacity"     Value="0.85"/>
@@ -73,7 +79,7 @@
              CARD BORDER
         ═══════════════════════════════════════════════════════════ -->
         <Style x:Key="Card" TargetType="Border">
-            <Setter Property="Background"    Value="{StaticResource CardBG}"/>
+            <Setter Property="Background"    Value="{DynamicResource BrushCardBg}"/>
             <Setter Property="CornerRadius"  Value="8"/>
             <Setter Property="Padding"       Value="14"/>
             <Setter Property="Margin"        Value="0,0,0,12"/>
@@ -88,9 +94,9 @@
              TEXTBOX
         ═══════════════════════════════════════════════════════════ -->
         <Style x:Key="ModernTextBox" TargetType="TextBox">
-            <Setter Property="Background"             Value="{StaticResource InputBG}"/>
-            <Setter Property="Foreground"             Value="{StaticResource InputFG}"/>
-            <Setter Property="BorderBrush"            Value="{StaticResource AccentGreen}"/>
+            <Setter Property="Background"             Value="{DynamicResource BrushInputBg}"/>
+            <Setter Property="Foreground"             Value="{DynamicResource BrushTextInput}"/>
+            <Setter Property="BorderBrush"            Value="{DynamicResource BrushPrimaryGreen}"/>
             <Setter Property="BorderThickness"        Value="1.5"/>
             <Setter Property="Padding"                Value="8,0"/>
             <Setter Property="FontSize"               Value="12"/>
@@ -112,10 +118,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentGreenHover}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreenHover}"/>
                             </Trigger>
                             <Trigger Property="IsFocused" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentGreenHover}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreenHover}"/>
                                 <Setter TargetName="Bd" Property="BorderThickness" Value="2"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -129,9 +135,9 @@
         ═══════════════════════════════════════════════════════════ -->
         <Style x:Key="ModernComboBox" TargetType="ComboBox">
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-            <Setter Property="Background"      Value="{StaticResource InputBG}"/>
-            <Setter Property="Foreground"      Value="{StaticResource InputFG}"/>
-            <Setter Property="BorderBrush"     Value="{StaticResource AccentGreen}"/>
+            <Setter Property="Background"      Value="{DynamicResource BrushInputBg}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextInput}"/>
+            <Setter Property="BorderBrush"     Value="{DynamicResource BrushPrimaryGreen}"/>
             <Setter Property="BorderThickness" Value="1.5"/>
             <Setter Property="Padding"         Value="8,0"/>
             <Setter Property="FontSize"        Value="12"/>
@@ -168,8 +174,8 @@
                                        AllowsTransparency="True"
                                        Focusable="False"
                                        PopupAnimation="Slide">
-                                    <Border Background="{StaticResource CardBG}"
-                                            BorderBrush="{StaticResource AccentGreen}"
+                                    <Border Background="{DynamicResource BrushCardBg}"
+                                            BorderBrush="{DynamicResource BrushPrimaryGreen}"
                                             BorderThickness="1"
                                             CornerRadius="6"
                                             MinWidth="{TemplateBinding ActualWidth}">
@@ -182,7 +188,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentGreenHover}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreenHover}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Bd" Property="Opacity" Value="0.5"/>
@@ -195,9 +201,9 @@
 
         <!-- Dark ComboBox variant — used inside grid headers / dark surfaces -->
         <Style x:Key="DarkComboBox" TargetType="ComboBox" BasedOn="{StaticResource ModernComboBox}">
-            <Setter Property="Background"  Value="{StaticResource CardBG}"/>
-            <Setter Property="Foreground"  Value="{StaticResource LightText}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource PillOffBorder}"/>
+            <Setter Property="Background"  Value="{DynamicResource BrushCardBg}"/>
+            <Setter Property="Foreground"  Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BrushPillOffBorder}"/>
             <Setter Property="FontSize"    Value="11"/>
             <Setter Property="Height"      Value="24"/>
         </Style>
@@ -208,9 +214,9 @@
              just a small closed box (chevron only) with a fixed-width dropdown
              instead of one tied to the closed box's own (tiny) width. -->
         <Style x:Key="FilterComboBox" TargetType="ComboBox" BasedOn="{StaticResource ModernComboBox}">
-            <Setter Property="Background"  Value="{StaticResource CardBG}"/>
-            <Setter Property="Foreground"  Value="{StaticResource LightText}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource PillOffBorder}"/>
+            <Setter Property="Background"  Value="{DynamicResource BrushCardBg}"/>
+            <Setter Property="Foreground"  Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BrushPillOffBorder}"/>
             <Setter Property="Width"       Value="20"/>
             <Setter Property="Height"      Value="20"/>
             <Setter Property="Padding"     Value="0"/>
@@ -237,8 +243,8 @@
                                        AllowsTransparency="True"
                                        Focusable="False"
                                        PopupAnimation="Slide">
-                                    <Border Background="{StaticResource CardBG}"
-                                            BorderBrush="{StaticResource AccentGreen}"
+                                    <Border Background="{DynamicResource BrushCardBg}"
+                                            BorderBrush="{DynamicResource BrushPrimaryGreen}"
                                             BorderThickness="1"
                                             CornerRadius="6"
                                             MinWidth="160">
@@ -253,7 +259,7 @@
                                                         Style="{DynamicResource SmallSecBtn}"
                                                         Click="filter_none_clicked"/>
                                             </DockPanel>
-                                            <Rectangle Fill="#404553" Height="1" Margin="0,4"/>
+                                            <Rectangle Fill="{DynamicResource BrushSecondaryBg}" Height="1" Margin="0,4"/>
                                             <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto">
                                                 <StackPanel IsItemsHost="True"/>
                                             </ScrollViewer>
@@ -264,7 +270,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentGreenHover}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreenHover}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -278,7 +284,7 @@
              which would otherwise select+close the dropdown on every click
              (the standard fix for multi-select ComboBoxes in WPF). -->
         <Style x:Key="FilterCheckBox" TargetType="CheckBox">
-            <Setter Property="Foreground" Value="{StaticResource LightText}"/>
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="FontSize"   Value="11"/>
             <Setter Property="Margin"     Value="6,4"/>
             <Setter Property="HorizontalAlignment" Value="Stretch"/>
@@ -313,9 +319,9 @@
 
         <!-- Dark DatePicker — pill shape matching SmallSecToggle / DarkComboBox -->
         <Style x:Key="DarkDatePicker" TargetType="DatePicker">
-            <Setter Property="Background"      Value="{StaticResource SecondaryBtnBG}"/>
-            <Setter Property="Foreground"      Value="{StaticResource LightText}"/>
-            <Setter Property="BorderBrush"     Value="{StaticResource PillOffBorder}"/>
+            <Setter Property="Background"      Value="{DynamicResource BrushSecondaryBg}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderBrush"     Value="{DynamicResource BrushPillOffBorder}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="FontSize"        Value="11"/>
             <Setter Property="FontWeight"      Value="SemiBold"/>
@@ -341,7 +347,7 @@
                                                         Foreground="{TemplateBinding Foreground}"
                                                         FontSize="{TemplateBinding FontSize}"
                                                         FontWeight="{TemplateBinding FontWeight}"
-                                                        CaretBrush="{StaticResource LightText}"
+                                                        CaretBrush="{DynamicResource BrushTextPrimary}"
                                                         VerticalContentAlignment="Center"
                                                         Focusable="{TemplateBinding IsTabStop}">
                                         <DatePickerTextBox.Template>
@@ -365,7 +371,7 @@
                                             <ControlTemplate TargetType="Button">
                                                 <Border x:Name="IconBd" Background="Transparent" CornerRadius="4">
                                                     <Path Data="M3,2 L3,4 M11,2 L11,4 M2,5 L12,5 M2,4 L12,4 L12,13 L2,13 Z"
-                                                          Stroke="{StaticResource LightText}"
+                                                          Stroke="{DynamicResource BrushTextPrimary}"
                                                           StrokeThickness="1.1"
                                                           Opacity="0.85"
                                                           Width="13" Height="13"
@@ -373,7 +379,7 @@
                                                 </Border>
                                                 <ControlTemplate.Triggers>
                                                     <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter TargetName="IconBd" Property="Background" Value="{StaticResource SecondaryBtnHover}"/>
+                                                        <Setter TargetName="IconBd" Property="Background" Value="{DynamicResource BrushSecondaryHover}"/>
                                                     </Trigger>
                                                 </ControlTemplate.Triggers>
                                             </ControlTemplate>
@@ -389,7 +395,7 @@
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource SecondaryBtnHover}"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryHover}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Bd" Property="Opacity" Value="0.5"/>
@@ -402,7 +408,7 @@
 
         <!-- Dark dropdown items — applies to every ComboBox popup -->
         <Style TargetType="ComboBoxItem">
-            <Setter Property="Foreground" Value="{StaticResource LightText}"/>
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Padding" Value="8,4"/>
             <Setter Property="Template">
@@ -416,10 +422,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#3A4553"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushDropdownItemHover}"/>
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentGreen}"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -429,7 +435,7 @@
 
         <!-- macOS-style slim green scrollbar — applies everywhere -->
         <Style x:Key="MacScrollBarThumb" TargetType="Thumb">
-            <Setter Property="Background" Value="#208A3C"/>
+            <Setter Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Thumb">
@@ -439,10 +445,10 @@
                                 Margin="2"/>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="thumb" Property="Background" Value="#27AE60"/>
+                                <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushSuccess}"/>
                             </Trigger>
                             <Trigger Property="IsDragging" Value="True">
-                                <Setter TargetName="thumb" Property="Background" Value="#2ECC71"/>
+                                <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushSuccessHover}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -505,8 +511,8 @@
              PRIMARY BUTTON  (green fill)
         ═══════════════════════════════════════════════════════════ -->
         <Style x:Key="PrimaryBtn" TargetType="Button">
-            <Setter Property="Background"   Value="{StaticResource AccentGreen}"/>
-            <Setter Property="Foreground"   Value="{StaticResource LightText}"/>
+            <Setter Property="Background"   Value="{DynamicResource BrushPrimaryGreen}"/>
+            <Setter Property="Foreground"   Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontWeight"   Value="SemiBold"/>
             <Setter Property="FontSize"     Value="13"/>
@@ -523,14 +529,14 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentGreenHover}"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentGreenPress}"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreenPressed}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Bd" Property="Background" Value="#555555"/>
-                                <Setter Property="Foreground" Value="#888888"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryDisabledBg}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource BrushSecondaryDisabledFg}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -542,8 +548,8 @@
              SECONDARY BUTTON  (grey fill)
         ═══════════════════════════════════════════════════════════ -->
         <Style x:Key="SecondaryBtn" TargetType="Button">
-            <Setter Property="Background"      Value="{StaticResource SecondaryBtnBG}"/>
-            <Setter Property="Foreground"      Value="{StaticResource LightText}"/>
+            <Setter Property="Background"      Value="{DynamicResource BrushSecondaryBg}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontWeight"      Value="SemiBold"/>
             <Setter Property="FontSize"        Value="13"/>
@@ -560,14 +566,14 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource SecondaryBtnHover}"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryHover}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#333B48"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryPressed}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Bd" Property="Background" Value="#555555"/>
-                                <Setter Property="Foreground" Value="#888888"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryDisabledBg}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource BrushSecondaryDisabledFg}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -585,8 +591,8 @@
         </Style>
 
         <Style x:Key="SmallSecToggle" TargetType="ToggleButton">
-            <Setter Property="Background"  Value="{StaticResource SecondaryBtnBG}"/>
-            <Setter Property="Foreground"  Value="{StaticResource LightText}"/>
+            <Setter Property="Background"  Value="{DynamicResource BrushSecondaryBg}"/>
+            <Setter Property="Foreground"  Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontSize"    Value="11"/>
             <Setter Property="FontWeight"  Value="SemiBold"/>
@@ -604,10 +610,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource SecondaryBtnHover}"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryHover}"/>
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource SecondaryBtnHover}"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryHover}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Bd" Property="Opacity" Value="0.5"/>
@@ -621,7 +627,7 @@
         <!-- Hamburger dropdown menu item — shared by all items in settings_popup -->
         <Style x:Key="HamburgerMenuItem" TargetType="Button">
             <Setter Property="Background"                 Value="Transparent"/>
-            <Setter Property="Foreground"                 Value="{StaticResource LightText}"/>
+            <Setter Property="Foreground"                 Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness"             Value="0"/>
             <Setter Property="Padding"                     Value="12,8"/>
             <Setter Property="HorizontalContentAlignment"  Value="Left"/>
@@ -634,7 +640,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#404553"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryBg}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -645,7 +651,7 @@
         <!-- Custom title bar control: close -->
         <Style x:Key="WinCtrlCloseBtn" TargetType="Button">
             <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="{StaticResource LightText}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Width"           Value="32"/>
             <Setter Property="Height"          Value="32"/>
@@ -661,7 +667,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#C53030"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushDanger}"/>
                                 <Setter Property="Foreground" Value="White"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -679,9 +685,9 @@
              Shape: pill (rounded rectangle, not oval)
         ═══════════════════════════════════════════════════════════ -->
         <Style x:Key="PillBtn" TargetType="Button">
-            <Setter Property="Background"      Value="{StaticResource PillOffBG}"/>
-            <Setter Property="Foreground"      Value="{StaticResource LightText}"/>
-            <Setter Property="BorderBrush"     Value="{StaticResource PillOffBorder}"/>
+            <Setter Property="Background"      Value="{DynamicResource BrushPillOffBg}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderBrush"     Value="{DynamicResource BrushPillOffBorder}"/>
             <Setter Property="BorderThickness" Value="1.5"/>
             <Setter Property="FontSize"        Value="12"/>
             <Setter Property="FontWeight"      Value="Bold"/>
@@ -714,20 +720,20 @@
                                     <Condition Property="IsMouseOver" Value="True"/>
                                     <Condition Property="Tag" Value=""/>
                                 </MultiTrigger.Conditions>
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentGreen}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreen}"/>
                                 <Setter Property="Opacity" Value="1"/>
                             </MultiTrigger>
                             <!-- Enabled state: grey bg + green border + green dot -->
                             <Trigger Property="Tag" Value="Enabled">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentGreen}"/>
-                                <Setter TargetName="Dot" Property="Fill" Value="{StaticResource AccentGreen}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreen}"/>
+                                <Setter TargetName="Dot" Property="Fill" Value="{DynamicResource BrushPrimaryGreen}"/>
                                 <Setter TargetName="Dot" Property="Opacity" Value="1"/>
                                 <Setter Property="Opacity" Value="1"/>
                             </Trigger>
                             <!-- Viewing state: green bg + white dot -->
                             <Trigger Property="Tag" Value="Viewing">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentGreen}"/>
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentGreen}"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreen}"/>
                                 <Setter TargetName="Dot" Property="Fill" Value="White"/>
                                 <Setter TargetName="Dot" Property="Opacity" Value="1"/>
                                 <Setter Property="Opacity" Value="1"/>
@@ -742,8 +748,8 @@
              MAIN TAB BUTTON  (Select / Export Settings / Print)
         ═══════════════════════════════════════════════════════════ -->
         <Style x:Key="MainTab" TargetType="Button">
-            <Setter Property="Background"      Value="{StaticResource CardBG}"/>
-            <Setter Property="Foreground"      Value="{StaticResource LightText}"/>
+            <Setter Property="Background"      Value="{DynamicResource BrushCardBg}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderBrush"     Value="Transparent"/>
             <Setter Property="BorderThickness" Value="1.5"/>
             <Setter Property="FontSize"        Value="13"/>
@@ -764,8 +770,8 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="Tag" Value="Active">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentGreen}"/>
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentGreen}"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreen}"/>
                                 <Setter Property="FontWeight" Value="SemiBold"/>
                                 <Setter Property="Opacity" Value="1"/>
                             </Trigger>
@@ -789,7 +795,7 @@
              CHECKBOX STYLE
         ═══════════════════════════════════════════════════════════ -->
         <Style TargetType="CheckBox">
-            <Setter Property="Foreground" Value="{StaticResource LightText}"/>
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="FontSize"   Value="12"/>
         </Style>
 
@@ -798,10 +804,10 @@
         ═══════════════════════════════════════════════════════════ -->
         <Style x:Key="SheetGrid" TargetType="DataGrid">
             <Setter Property="Background"             Value="{StaticResource GridRowBG}"/>
-            <Setter Property="Foreground"             Value="{StaticResource LightText}"/>
+            <Setter Property="Foreground"             Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness"        Value="0"/>
             <Setter Property="GridLinesVisibility"    Value="Horizontal"/>
-            <Setter Property="HorizontalGridLinesBrush" Value="#2B3340"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource BrushCardBg}"/>
             <Setter Property="VerticalGridLinesBrush" Value="Transparent"/>
             <Setter Property="HeadersVisibility"      Value="Column"/>
             <Setter Property="RowHeaderWidth"         Value="0"/>
@@ -820,8 +826,8 @@
 
         <!-- DataGrid column header -->
         <Style x:Key="GridColHeader" TargetType="DataGridColumnHeader">
-            <Setter Property="Background"   Value="{StaticResource GridHeaderBG}"/>
-            <Setter Property="Foreground"   Value="{StaticResource LightText}"/>
+            <Setter Property="Background"   Value="{DynamicResource BrushHeaderBg}"/>
+            <Setter Property="Foreground"   Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="FontWeight"   Value="SemiBold"/>
             <Setter Property="FontSize"     Value="11"/>
             <Setter Property="Padding"      Value="8,7"/>
@@ -829,17 +835,15 @@
             <Setter Property="BorderThickness" Value="0"/>
         </Style>
 
-        <!-- Format column header — green tinted -->
+        <!-- Format column header -->
         <Style x:Key="FmtColHeader" TargetType="DataGridColumnHeader"
                BasedOn="{StaticResource GridColHeader}">
-            <Setter Property="Background" Value="{StaticResource FmtColumnBG}"/>
-            <Setter Property="Opacity"    Value="1"/>
         </Style>
 
         <!-- DataGrid cell -->
         <Style x:Key="GridCell" TargetType="DataGridCell">
             <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="{StaticResource LightText}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding"         Value="8,4"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
@@ -856,30 +860,29 @@
             <Style.Triggers>
                 <Trigger Property="IsSelected" Value="True">
                     <Setter Property="Background" Value="Transparent"/>
-                    <Setter Property="Foreground" Value="{StaticResource LightText}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
 
-        <!-- Format column cell — green tinted bg -->
+        <!-- Format column cell -->
         <Style x:Key="FmtCell" TargetType="DataGridCell" BasedOn="{StaticResource GridCell}">
-            <Setter Property="Background" Value="{StaticResource FmtColumnBG}"/>
         </Style>
 
         <!-- DataGrid row -->
         <Style x:Key="GridRow" TargetType="DataGridRow">
             <Setter Property="Background" Value="{StaticResource GridRowBG}"/>
-            <Setter Property="Foreground" Value="{StaticResource LightText}"/>
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="FontSize"   Value="12"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Background" Value="{StaticResource GridRowHover}"/>
                 </Trigger>
                 <DataTrigger Binding="{Binding is_selected}" Value="True">
-                    <Setter Property="Background" Value="{StaticResource GridRowSelected}"/>
+                    <Setter Property="Background" Value="{DynamicResource BrushSelectedRowBg}"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding is_highlighted}" Value="True">
-                    <Setter Property="Background" Value="{StaticResource GridRowHighlight}"/>
+                    <Setter Property="Background" Value="{DynamicResource BrushHighlightedRowBg}"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -887,7 +890,7 @@
         <!-- Revision badge template -->
         <DataTemplate x:Key="RevBadgeCell">
             <Border x:Name="Badge"
-                    Background="{StaticResource AccentGreen}"
+                    Background="{DynamicResource BrushPrimaryGreen}"
                     CornerRadius="3"
                     Padding="5,1"
                     HorizontalAlignment="Left"
@@ -917,7 +920,7 @@
             <TextBlock Text="{Binding print_filename}"
                        FontFamily="Consolas"
                        FontSize="10"
-                       Foreground="{StaticResource LightText}"
+                       Foreground="{DynamicResource BrushTextPrimary}"
                        Opacity="0.55"
                        FontStyle="Italic"
                        VerticalAlignment="Center"/>
@@ -976,7 +979,7 @@
              ROW 0 — HEADER
         ═══════════════════════════════════════════════════════════ -->
         <Border Grid.Row="0"
-                Background="{StaticResource HeaderBG}"
+                Background="{DynamicResource BrushHeaderBg}"
                 CornerRadius="10,10,12,12">
             <Border.Effect>
                 <DropShadowEffect Color="Black" Opacity="0.3" ShadowDepth="2" BlurRadius="8"/>
@@ -988,12 +991,12 @@
                             VerticalAlignment="Center"
                             HorizontalAlignment="Left">
                     <TextBlock Text="py"
-                               Foreground="{StaticResource AccentGreen}"
+                               Foreground="{DynamicResource BrushPrimaryGreen}"
                                FontWeight="Bold"
                                FontSize="26"
                                VerticalAlignment="Center"/>
                     <TextBlock Text="Sheets"
-                               Foreground="{StaticResource LightText}"
+                               Foreground="{DynamicResource BrushTextPrimary}"
                                FontWeight="Bold"
                                FontSize="26"
                                VerticalAlignment="Center"/>
@@ -1001,7 +1004,7 @@
                     <TextBlock x:Name="header_subtitle_tb"
                                Text="| Select"
                                Width="110"
-                               Foreground="{StaticResource LightText}"
+                               Foreground="{DynamicResource BrushTextPrimary}"
                                FontSize="18"
                                FontWeight="SemiBold"
                                Opacity="0.55"
@@ -1016,7 +1019,7 @@
                     <Border x:Name="step1_circle"
                             Width="26" Height="26"
                             CornerRadius="13"
-                            Background="{StaticResource AccentGreen}">
+                            Background="{DynamicResource BrushPrimaryGreen}">
                         <TextBlock Text="1"
                                    Foreground="White"
                                    FontSize="11"
@@ -1028,7 +1031,7 @@
                     <!-- Connector 1→2 -->
                     <Rectangle x:Name="step_line_1"
                                Width="36" Height="2"
-                               Fill="#555555"
+                               Fill="{DynamicResource BrushSecondaryDisabledBg}"
                                VerticalAlignment="Center"/>
 
                     <!-- Step 2 -->
@@ -1036,10 +1039,10 @@
                             Width="26" Height="26"
                             CornerRadius="13"
                             Background="Transparent"
-                            BorderBrush="#555555"
+                            BorderBrush="{DynamicResource BrushSecondaryDisabledBg}"
                             BorderThickness="2">
                         <TextBlock Text="2"
-                                   Foreground="#888888"
+                                   Foreground="{DynamicResource BrushSecondaryDisabledFg}"
                                    FontSize="11"
                                    FontWeight="Bold"
                                    HorizontalAlignment="Center"
@@ -1049,7 +1052,7 @@
                     <!-- Connector 2→3 -->
                     <Rectangle x:Name="step_line_2"
                                Width="36" Height="2"
-                               Fill="#555555"
+                               Fill="{DynamicResource BrushSecondaryDisabledBg}"
                                VerticalAlignment="Center"/>
 
                     <!-- Step 3 -->
@@ -1057,10 +1060,10 @@
                             Width="26" Height="26"
                             CornerRadius="13"
                             Background="Transparent"
-                            BorderBrush="#555555"
+                            BorderBrush="{DynamicResource BrushSecondaryDisabledBg}"
                             BorderThickness="2">
                         <TextBlock Text="3"
-                                   Foreground="#888888"
+                                   Foreground="{DynamicResource BrushSecondaryDisabledFg}"
                                    FontSize="11"
                                    FontWeight="Bold"
                                    HorizontalAlignment="Center"
@@ -1077,7 +1080,7 @@
 
                     <!-- Profile selector + actions -->
                     <TextBlock Text="Profile"
-                               Foreground="{StaticResource LightText}"
+                               Foreground="{DynamicResource BrushTextPrimary}"
                                Opacity="0.6"
                                FontSize="11"
                                VerticalAlignment="Center"
@@ -1114,7 +1117,7 @@
                             Cursor="Hand">
                         <Button.Style>
                             <Style TargetType="Button">
-                                <Setter Property="Background"      Value="{StaticResource AccentGreen}"/>
+                                <Setter Property="Background"      Value="{DynamicResource BrushPrimaryGreen}"/>
                                 <Setter Property="BorderThickness" Value="0"/>
                                 <Setter Property="Template">
                                     <Setter.Value>
@@ -1129,11 +1132,11 @@
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
                                                     <Setter TargetName="Bd" Property="Background"
-                                                            Value="{StaticResource AccentGreenHover}"/>
+                                                            Value="{DynamicResource BrushPrimaryGreenHover}"/>
                                                 </Trigger>
                                                 <Trigger Property="IsPressed" Value="True">
                                                     <Setter TargetName="Bd" Property="Background"
-                                                            Value="{StaticResource AccentGreenPress}"/>
+                                                            Value="{DynamicResource BrushPrimaryGreenPressed}"/>
                                                 </Trigger>
                                             </ControlTemplate.Triggers>
                                         </ControlTemplate>
@@ -1181,10 +1184,10 @@
                                                 </Border>
                                                 <ControlTemplate.Triggers>
                                                     <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter TargetName="Bd" Property="Background" Value="#404553"/>
+                                                        <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryBg}"/>
                                                     </Trigger>
                                                     <Trigger Property="IsChecked" Value="True">
-                                                        <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentGreen}"/>
+                                                        <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
                                                     </Trigger>
                                                 </ControlTemplate.Triggers>
                                             </ControlTemplate>
@@ -1200,8 +1203,8 @@
                                AllowsTransparency="True"
                                StaysOpen="False"
                                IsOpen="{Binding ElementName=settings_toggle_btn, Path=IsChecked}">
-                            <Border Background="{StaticResource CardBG}"
-                                    BorderBrush="{StaticResource AccentGreen}"
+                            <Border Background="{DynamicResource BrushCardBg}"
+                                    BorderBrush="{DynamicResource BrushPrimaryGreen}"
                                     BorderThickness="1"
                                     CornerRadius="6"
                                     MinWidth="200">
@@ -1221,7 +1224,7 @@
                                             Content="🧩  Manage Columns"
                                             Style="{StaticResource HamburgerMenuItem}"
                                             Click="manage_columns_clicked"/>
-                                    <Rectangle Fill="#404553" Height="1" Margin="0,2"/>
+                                    <Rectangle Fill="{DynamicResource BrushSecondaryBg}" Height="1" Margin="0,2"/>
                                     <Button x:Name="export_settings_btn"
                                             Content="📤  Export Settings"
                                             Style="{StaticResource HamburgerMenuItem}"
@@ -1230,17 +1233,17 @@
                                             Content="📥  Import Settings"
                                             Style="{StaticResource HamburgerMenuItem}"
                                             Click="import_settings_clicked"/>
-                                    <Rectangle Fill="#404553" Height="1" Margin="0,2"/>
+                                    <Rectangle Fill="{DynamicResource BrushSecondaryBg}" Height="1" Margin="0,2"/>
                                     <Button x:Name="help_btn"
                                             Content="?  Support"
                                             Style="{StaticResource HamburgerMenuItem}"
                                             Click="help_clicked"/>
-                                    <Rectangle Fill="#404553" Height="1" Margin="0,2"/>
+                                    <Rectangle Fill="{DynamicResource BrushSecondaryBg}" Height="1" Margin="0,2"/>
                                     <Button x:Name="about_btn"
                                             Content="ℹ  About pySheets"
                                             Style="{StaticResource HamburgerMenuItem}"
                                             Click="about_clicked"/>
-                                    <Rectangle Fill="#404553" Height="1" Margin="0,2"/>
+                                    <Rectangle Fill="{DynamicResource BrushSecondaryBg}" Height="1" Margin="0,2"/>
                                     <Button x:Name="support_btn"
                                             Content="☕  Support this project and help us grow"
                                             Style="{StaticResource HamburgerMenuItem}"
@@ -1268,8 +1271,8 @@
              ROW 1 — TAB BAR
         ═══════════════════════════════════════════════════════════ -->
         <Border Grid.Row="1"
-                Background="{StaticResource WindowBG}"
-                BorderBrush="{StaticResource AccentGreen}"
+                Background="{DynamicResource BrushWindowBg}"
+                BorderBrush="{DynamicResource BrushPrimaryGreen}"
                 BorderThickness="0,0,0,2">
             <StackPanel Orientation="Horizontal"
                         VerticalAlignment="Bottom"
@@ -1375,7 +1378,7 @@
                             <!-- Search box (right-aligned) -->
                             <StackPanel Grid.Column="8" Orientation="Horizontal" VerticalAlignment="Bottom">
                                 <TextBlock Text="Search:"
-                                           Foreground="{StaticResource LightText}"
+                                           Foreground="{DynamicResource BrushTextPrimary}"
                                            FontSize="12"
                                            Opacity="0.7"
                                            VerticalAlignment="Center"
@@ -1409,12 +1412,12 @@
 
                             <!-- Divider -->
                             <Rectangle Width="1" Height="22"
-                                       Fill="#404553"
+                                       Fill="{DynamicResource BrushSecondaryBg}"
                                        VerticalAlignment="Center"
                                        Margin="0,0,12,0"/>
 
                             <TextBlock Text="Export as:"
-                                       Foreground="{StaticResource LightText}"
+                                       Foreground="{DynamicResource BrushTextPrimary}"
                                        FontSize="11"
                                        Opacity="0.4"
                                        VerticalAlignment="Center"
@@ -1604,7 +1607,7 @@
                                                                Text="PDF"
                                                                Width="36"
                                                                DockPanel.Dock="Left"
-                                                               Foreground="{StaticResource AccentGreen}"
+                                                               Foreground="{DynamicResource BrushPrimaryGreen}"
                                                                FontSize="11"
                                                                FontWeight="Bold"
                                                                VerticalAlignment="Center"/>
@@ -1633,12 +1636,12 @@
                                         </DataGridTemplateColumn.Header>
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <Border Background="{StaticResource FmtColumnBG}"
+                                                <Border Background="Transparent"
                                                         Padding="6,0">
                                                     <TextBlock Text="{Binding print_filename}"
                                                                FontFamily="Consolas"
                                                                FontSize="10"
-                                                               Foreground="{StaticResource LightText}"
+                                                               Foreground="{DynamicResource BrushTextPrimary}"
                                                                Opacity="0.55"
                                                                FontStyle="Italic"
                                                                VerticalAlignment="Center"/>
@@ -1655,7 +1658,7 @@
                                  later sibling in the same overlay Grid. -->
                             <Rectangle x:Name="drop_indicator"
                                        Height="3"
-                                       Fill="{StaticResource AccentGreen}"
+                                       Fill="{DynamicResource BrushPrimaryGreen}"
                                        VerticalAlignment="Top"
                                        HorizontalAlignment="Stretch"
                                        IsHitTestVisible="False"
@@ -1686,7 +1689,7 @@
                             <TextBlock x:Name="sel_count_tb"
                                        Text="0 of 0 selected"
                                        Margin="16,0,0,0"
-                                       Foreground="{StaticResource AccentGreen}"
+                                       Foreground="{DynamicResource BrushPrimaryGreen}"
                                        FontSize="12"
                                        FontWeight="SemiBold"
                                        DockPanel.Dock="Right"
@@ -1709,8 +1712,8 @@
                     <StackPanel>
 
                         <!-- Sub-tab pill row -->
-                        <Border Background="{StaticResource CardBG}"
-                                BorderBrush="#3B4553" BorderThickness="1"
+                        <Border Background="{DynamicResource BrushCardBg}"
+                                BorderBrush="{DynamicResource BrushBorderMuted}" BorderThickness="1"
                                 CornerRadius="6" Padding="10" Margin="0,0,0,14">
                             <WrapPanel Orientation="Horizontal">
                             <Button x:Name="exp_pdf_btn"
@@ -1763,7 +1766,7 @@
 
                             <!-- Settings-scope indicator: shows which destination these settings apply to -->
                             <Border Grid.Column="2" Grid.ColumnSpan="3"
-                                    BorderBrush="{StaticResource AccentGreen}"
+                                    BorderBrush="{DynamicResource BrushPrimaryGreen}"
                                     BorderThickness="1.5"
                                     CornerRadius="8"
                                     Margin="0,10,0,0"/>
@@ -1772,15 +1775,15 @@
                                        Grid.Column="2" Grid.ColumnSpan="3"
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Top"
-                                       Background="{StaticResource WindowBG}"
-                                       Foreground="{StaticResource AccentGreen}"
+                                       Background="{DynamicResource BrushWindowBg}"
+                                       Foreground="{DynamicResource BrushPrimaryGreen}"
                                        FontWeight="Bold" FontSize="12"
                                        Padding="12,2"/>
 
                             <!-- Column 1: Printer + Print Destination + File Output (sized to fit the print-setting buttons) -->
                             <StackPanel Grid.Column="0">
-<Border Background="{StaticResource CardBG}"
-        BorderBrush="#3B4553" BorderThickness="1"
+<Border Background="{DynamicResource BrushCardBg}"
+        BorderBrush="{DynamicResource BrushBorderMuted}" BorderThickness="1"
                                         CornerRadius="6" Padding="10" Margin="0,0,0,12">
                                     <StackPanel>
                                         <TextBlock Text="PRINTER"
@@ -1825,8 +1828,8 @@
                                     </StackPanel>
                                 </Border>
 
-<Border Background="{StaticResource CardBG}"
-        BorderBrush="#3B4553" BorderThickness="1"
+<Border Background="{DynamicResource BrushCardBg}"
+        BorderBrush="{DynamicResource BrushBorderMuted}" BorderThickness="1"
                                         CornerRadius="6" Padding="10" Margin="0,0,0,12">
                                     <StackPanel>
                                         <TextBlock Text="PRINT DESTINATION"
@@ -1849,8 +1852,8 @@
                                     </StackPanel>
                                 </Border>
 
-<Border Background="{StaticResource CardBG}"
-        BorderBrush="#3B4553" BorderThickness="1"
+<Border Background="{DynamicResource BrushCardBg}"
+        BorderBrush="{DynamicResource BrushBorderMuted}" BorderThickness="1"
                                         CornerRadius="6" Padding="10">
                                     <StackPanel>
                                         <TextBlock Text="FILE OUTPUT"
@@ -1860,12 +1863,12 @@
                                         <RadioButton x:Name="file_separate_rb" GroupName="filegrp"
                                                      Content="Separate file per sheet"
                                                      IsChecked="True"
-                                                     Foreground="{StaticResource LightText}"
+                                                     Foreground="{DynamicResource BrushTextPrimary}"
                                                      Margin="0,0,0,6"/>
                                         <RadioButton x:Name="file_combine_rb" GroupName="filegrp"
                                                      Content="Combine into single PDF"
                                                      IsChecked="False"
-                                                     Foreground="{StaticResource LightText}"
+                                                     Foreground="{DynamicResource BrushTextPrimary}"
                                                      Margin="0,0,0,14"/>
                                         <TextBlock Text="COMBINED PDF NAME"
                                                    Style="{StaticResource SectionLabel}"
@@ -1899,8 +1902,8 @@
 
                             <!-- Column 2: Paper + Orientation + Paper Placement + Hidden Line Views -->
                             <StackPanel Grid.Column="2" Margin="10,22,10,12">
-<Border Background="{StaticResource CardBG}"
-        BorderBrush="#3B4553" BorderThickness="1"
+<Border Background="{DynamicResource BrushCardBg}"
+        BorderBrush="{DynamicResource BrushBorderMuted}" BorderThickness="1"
                                         CornerRadius="6" Padding="10" Margin="0,0,0,12">
                                     <StackPanel>
                                         <TextBlock Text="PAPER"
@@ -1933,8 +1936,8 @@
                                     </StackPanel>
                                 </Border>
 
-<Border Background="{StaticResource CardBG}"
-        BorderBrush="#3B4553" BorderThickness="1"
+<Border Background="{DynamicResource BrushCardBg}"
+        BorderBrush="{DynamicResource BrushBorderMuted}" BorderThickness="1"
                                         CornerRadius="6" Padding="10" Margin="0,0,0,12">
                                     <StackPanel>
                                         <TextBlock Text="ORIENTATION"
@@ -1950,13 +1953,13 @@
                                                     Click="orient_clicked">
                                                 <StackPanel>
                                                     <Border Width="18" Height="24"
-                                                            BorderBrush="{StaticResource LightText}"
+                                                            BorderBrush="{DynamicResource BrushTextPrimary}"
                                                             BorderThickness="2"
                                                             CornerRadius="2"
                                                             Margin="0,0,0,3"/>
                                                     <TextBlock Text="Portrait"
                                                                FontSize="9"
-                                                               Foreground="{StaticResource LightText}"
+                                                               Foreground="{DynamicResource BrushTextPrimary}"
                                                                HorizontalAlignment="Center"/>
                                                 </StackPanel>
                                             </Button>
@@ -1968,13 +1971,13 @@
                                                     Click="orient_clicked">
                                                 <StackPanel>
                                                     <Border Width="24" Height="18"
-                                                            BorderBrush="{StaticResource LightText}"
+                                                            BorderBrush="{DynamicResource BrushTextPrimary}"
                                                             BorderThickness="2"
                                                             CornerRadius="2"
                                                             Margin="0,0,0,3"/>
                                                     <TextBlock Text="Landscape"
                                                                FontSize="9"
-                                                               Foreground="{StaticResource LightText}"
+                                                               Foreground="{DynamicResource BrushTextPrimary}"
                                                                HorizontalAlignment="Center"/>
                                                 </StackPanel>
                                             </Button>
@@ -1982,8 +1985,8 @@
                                     </StackPanel>
                                 </Border>
 
-<Border Background="{StaticResource CardBG}"
-        BorderBrush="#3B4553" BorderThickness="1"
+<Border Background="{DynamicResource BrushCardBg}"
+        BorderBrush="{DynamicResource BrushBorderMuted}" BorderThickness="1"
                                         CornerRadius="6" Padding="10" Margin="0,0,0,12">
                                     <StackPanel>
                                         <TextBlock Text="PAPER PLACEMENT"
@@ -1993,15 +1996,15 @@
                                         <RadioButton x:Name="placement_center_rb" GroupName="placegrp"
                                                      Content="Center"
                                                      IsChecked="True"
-                                                     Foreground="{StaticResource LightText}"
+                                                     Foreground="{DynamicResource BrushTextPrimary}"
                                                      Margin="0,0,0,6"/>
                                         <RadioButton x:Name="placement_offset_rb" GroupName="placegrp"
                                                      Content="Offset from corner"
-                                                     Foreground="{StaticResource LightText}"
+                                                     Foreground="{DynamicResource BrushTextPrimary}"
                                                      Margin="0,0,0,6"/>
                                         <StackPanel Orientation="Horizontal" Margin="18,0,0,0">
                                             <TextBlock Text="X ="
-                                                       Foreground="{StaticResource LightText}"
+                                                       Foreground="{DynamicResource BrushTextPrimary}"
                                                        FontSize="11" Opacity="0.6"
                                                        VerticalAlignment="Center"
                                                        Margin="0,0,4,0"/>
@@ -2012,7 +2015,7 @@
                                                      IsEnabled="{Binding IsChecked,
                                                                  ElementName=placement_offset_rb}"/>
                                             <TextBlock Text="Y ="
-                                                       Foreground="{StaticResource LightText}"
+                                                       Foreground="{DynamicResource BrushTextPrimary}"
                                                        FontSize="11" Opacity="0.6"
                                                        VerticalAlignment="Center"
                                                        Margin="10,0,4,0"/>
@@ -2026,8 +2029,8 @@
                                     </StackPanel>
                                 </Border>
 
-<Border Background="{StaticResource CardBG}"
-        BorderBrush="#3B4553" BorderThickness="1"
+<Border Background="{DynamicResource BrushCardBg}"
+        BorderBrush="{DynamicResource BrushBorderMuted}" BorderThickness="1"
                                         CornerRadius="6" Padding="10">
                                     <StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
@@ -2043,19 +2046,19 @@
                                         <RadioButton x:Name="hlv_vector_rb" GroupName="hlvgrp"
                                                      Content="Vector Processing"
                                                      IsChecked="True"
-                                                     Foreground="{StaticResource LightText}"
+                                                     Foreground="{DynamicResource BrushTextPrimary}"
                                                      Margin="0,0,0,6"/>
                                         <RadioButton x:Name="hlv_raster_rb" GroupName="hlvgrp"
                                                      Content="Raster Processing"
-                                                     Foreground="{StaticResource LightText}"/>
+                                                     Foreground="{DynamicResource BrushTextPrimary}"/>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
 
                             <!-- Column 3: Appearance + Zoom + Options -->
                             <StackPanel Grid.Column="4" Margin="10,22,10,12">
-<Border Background="{StaticResource CardBG}"
-        BorderBrush="#3B4553" BorderThickness="1"
+<Border Background="{DynamicResource BrushCardBg}"
+        BorderBrush="{DynamicResource BrushBorderMuted}" BorderThickness="1"
                                         CornerRadius="6" Padding="10" Margin="0,0,0,12">
                                     <StackPanel>
                                         <TextBlock Text="APPEARANCE"
@@ -2087,8 +2090,8 @@
                                     </StackPanel>
                                 </Border>
 
-<Border Background="{StaticResource CardBG}"
-        BorderBrush="#3B4553" BorderThickness="1"
+<Border Background="{DynamicResource BrushCardBg}"
+        BorderBrush="{DynamicResource BrushBorderMuted}" BorderThickness="1"
                                         CornerRadius="6" Padding="10" Margin="0,0,0,12">
                                     <StackPanel>
                                         <TextBlock Text="ZOOM"
@@ -2098,12 +2101,12 @@
                                         <RadioButton x:Name="zoom_fit_rb" GroupName="zoomgrp"
                                                      Content="Fit to Page"
                                                      IsChecked="True"
-                                                     Foreground="{StaticResource LightText}"
+                                                     Foreground="{DynamicResource BrushTextPrimary}"
                                                      Margin="0,0,0,6"/>
                                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                             <RadioButton x:Name="zoom_pct_rb" GroupName="zoomgrp"
                                                          Content="Zoom:"
-                                                         Foreground="{StaticResource LightText}"
+                                                         Foreground="{DynamicResource BrushTextPrimary}"
                                                          VerticalAlignment="Center"
                                                          Margin="0,0,8,0"/>
                                             <TextBox x:Name="zoom_pct_tb"
@@ -2112,7 +2115,7 @@
                                                      Style="{StaticResource ModernTextBox}"
                                                      IsEnabled="{Binding IsChecked, ElementName=zoom_pct_rb}"/>
                                             <TextBlock Text="%"
-                                                       Foreground="{StaticResource LightText}"
+                                                       Foreground="{DynamicResource BrushTextPrimary}"
                                                        VerticalAlignment="Center"
                                                        Margin="6,0,0,0"
                                                        Opacity="0.6"/>
@@ -2120,8 +2123,8 @@
                                     </StackPanel>
                                 </Border>
 
-<Border Background="{StaticResource CardBG}"
-        BorderBrush="#3B4553" BorderThickness="1"
+<Border Background="{DynamicResource BrushCardBg}"
+        BorderBrush="{DynamicResource BrushBorderMuted}" BorderThickness="1"
                                         CornerRadius="6" Padding="10">
                                     <StackPanel>
                                         <TextBlock Text="OPTIONS"
@@ -2158,8 +2161,8 @@
 
                         <!-- DWG Settings Panel -->
                         <StackPanel x:Name="dwg_settings_panel" Visibility="Collapsed" MaxWidth="420" HorizontalAlignment="Left">
-                            <Border Background="{StaticResource CardBG}"
-                                    BorderBrush="#3B4553" BorderThickness="1"
+                            <Border Background="{DynamicResource BrushCardBg}"
+                                    BorderBrush="{DynamicResource BrushBorderMuted}" BorderThickness="1"
                                     CornerRadius="6" Padding="10" Margin="0,0,0,12">
                                 <StackPanel>
                                     <TextBlock Text="EXPORT SETUP"
@@ -2178,7 +2181,7 @@
                                             HorizontalAlignment="Left"
                                             Click="dwg_setups_clicked"/>
                                     <TextBlock Text="Opens Revit's DWG/DXF Export Setups dialog so you can create or edit a setup, then re-open pySheets."
-                                               Foreground="{StaticResource LightText}"
+                                               Foreground="{DynamicResource BrushTextPrimary}"
                                                Opacity="0.5" FontSize="10"
                                                TextWrapping="Wrap" Margin="0,6,0,0"/>
                                 </StackPanel>
@@ -2187,8 +2190,8 @@
 
                         <!-- DGN Settings Panel -->
                         <StackPanel x:Name="dgn_settings_panel" Visibility="Collapsed" MaxWidth="420" HorizontalAlignment="Left">
-                            <Border Background="{StaticResource CardBG}"
-                                    BorderBrush="#3B4553" BorderThickness="1"
+                            <Border Background="{DynamicResource BrushCardBg}"
+                                    BorderBrush="{DynamicResource BrushBorderMuted}" BorderThickness="1"
                                     CornerRadius="6" Padding="10" Margin="0,0,0,12">
                                 <StackPanel>
                                     <TextBlock Text="EXPORT SETUP"
@@ -2203,7 +2206,7 @@
                                             HorizontalAlignment="Left"
                                             Click="dgn_setups_clicked"/>
                                     <TextBlock Text="Opens Revit's DGN Export Setups dialog so you can create or edit a setup, then re-open pySheets."
-                                               Foreground="{StaticResource LightText}"
+                                               Foreground="{DynamicResource BrushTextPrimary}"
                                                Opacity="0.5" FontSize="10"
                                                TextWrapping="Wrap" Margin="0,6,0,0"/>
                                 </StackPanel>
@@ -2215,14 +2218,14 @@
                             <Border x:Name="nwc_overlay"
                                     Visibility="Collapsed"
                                     Background="#4DC53030"
-                                    BorderBrush="#C53030" BorderThickness="1"
+                                    BorderBrush="{DynamicResource BrushDanger}" BorderThickness="1"
                                     CornerRadius="6" Padding="10" Margin="0,0,0,12">
                                 <TextBlock Text="Navisworks exporter is not installed. Install the free 'Navisworks NWC Export Utility' from Autodesk, restart Revit, then re-open this tab."
-                                           Foreground="{StaticResource LightText}"
+                                           Foreground="{DynamicResource BrushTextPrimary}"
                                            FontSize="11" TextWrapping="Wrap"/>
                             </Border>
-                            <Border Background="{StaticResource CardBG}"
-                                    BorderBrush="#3B4553" BorderThickness="1"
+                            <Border Background="{DynamicResource BrushCardBg}"
+                                    BorderBrush="{DynamicResource BrushBorderMuted}" BorderThickness="1"
                                     CornerRadius="6" Padding="10" Margin="0,0,0,12">
                                 <StackPanel x:Name="nwc_options_panel">
                                     <TextBlock Text="NAVISWORKS OPTIONS"
@@ -2237,7 +2240,7 @@
                                               IsChecked="True"
                                               Margin="0,0,0,12"/>
                                     <TextBlock Text="Each selected view exports to its own NWC. Requires the Navisworks exporter add-in. 3D views work best — sheets and 2D views may be skipped by the exporter."
-                                               Foreground="{StaticResource LightText}"
+                                               Foreground="{DynamicResource BrushTextPrimary}"
                                                Opacity="0.5" FontSize="10"
                                                TextWrapping="Wrap"/>
                                 </StackPanel>
@@ -2246,8 +2249,8 @@
 
                         <!-- IFC Settings Panel -->
                         <StackPanel x:Name="ifc_settings_panel" Visibility="Collapsed" MaxWidth="420" HorizontalAlignment="Left">
-                            <Border Background="{StaticResource CardBG}"
-                                    BorderBrush="#3B4553" BorderThickness="1"
+                            <Border Background="{DynamicResource BrushCardBg}"
+                                    BorderBrush="{DynamicResource BrushBorderMuted}" BorderThickness="1"
                                     CornerRadius="6" Padding="10" Margin="0,0,0,12">
                                 <StackPanel>
                                     <TextBlock Text="IFC OPTIONS"
@@ -2268,7 +2271,7 @@
                                             HorizontalAlignment="Left"
                                             Click="ifc_dialog_clicked"/>
                                     <TextBlock Text="The model is exported filtered by each selected view. For advanced mapping/property-set options use Revit's IFC dialog."
-                                               Foreground="{StaticResource LightText}"
+                                               Foreground="{DynamicResource BrushTextPrimary}"
                                                Opacity="0.5" FontSize="10"
                                                TextWrapping="Wrap" Margin="0,6,0,0"/>
                                 </StackPanel>
@@ -2277,8 +2280,8 @@
 
                         <!-- IMG Settings Panel -->
                         <StackPanel x:Name="img_settings_panel" Visibility="Collapsed" MaxWidth="420" HorizontalAlignment="Left">
-                            <Border Background="{StaticResource CardBG}"
-                                    BorderBrush="#3B4553" BorderThickness="1"
+                            <Border Background="{DynamicResource BrushCardBg}"
+                                    BorderBrush="{DynamicResource BrushBorderMuted}" BorderThickness="1"
                                     CornerRadius="6" Padding="10" Margin="0,0,0,12">
                                 <StackPanel>
                                     <TextBlock Text="IMAGE OPTIONS"
@@ -2356,8 +2359,8 @@
                                    AllowsTransparency="True"
                                    StaysOpen="False"
                                    IsOpen="{Binding ElementName=folder_preset_btn, Path=IsChecked}">
-                                <Border Background="{StaticResource CardBG}"
-                                        BorderBrush="{StaticResource AccentGreen}"
+                                <Border Background="{DynamicResource BrushCardBg}"
+                                        BorderBrush="{DynamicResource BrushPrimaryGreen}"
                                         BorderThickness="1"
                                         CornerRadius="6"
                                         Padding="8"
@@ -2406,7 +2409,7 @@
                                   VerticalAlignment="Center" Margin="0,0,16,0"/>
                         <TextBlock Text="Profile"
                                    DockPanel.Dock="Left"
-                                   Foreground="{StaticResource LightText}"
+                                   Foreground="{DynamicResource BrushTextPrimary}"
                                    Opacity="0.7" FontSize="11"
                                    VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <ComboBox x:Name="sched_profile_cb"
@@ -2418,7 +2421,7 @@
                                   ToolTip="Required — this profile is loaded when the schedule fires"/>
                         <TextBlock Text="Time"
                                    DockPanel.Dock="Left"
-                                   Foreground="{StaticResource LightText}"
+                                   Foreground="{DynamicResource BrushTextPrimary}"
                                    Opacity="0.7" FontSize="11"
                                    VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <Grid DockPanel.Dock="Left" Margin="0,0,16,0">
@@ -2435,8 +2438,8 @@
                                    StaysOpen="False"
                                    Opened="tp_popup_opened"
                                    IsOpen="{Binding ElementName=sched_time_btn, Path=IsChecked}">
-                                <Border Background="{StaticResource CardBG}"
-                                        BorderBrush="{StaticResource AccentGreen}"
+                                <Border Background="{DynamicResource BrushCardBg}"
+                                        BorderBrush="{DynamicResource BrushPrimaryGreen}"
                                         BorderThickness="1"
                                         CornerRadius="6"
                                         Padding="10">
@@ -2447,14 +2450,14 @@
                                     <StackPanel>
                                         <Grid ClipToBounds="True">
                                             <Border Background="#33208A3C"
-                                                    BorderBrush="{StaticResource AccentGreen}"
+                                                    BorderBrush="{DynamicResource BrushPrimaryGreen}"
                                                     BorderThickness="0,1,0,1"
                                                     Height="30" VerticalAlignment="Center"/>
                                             <StackPanel Orientation="Horizontal"
                                                         HorizontalAlignment="Center">
                                                 <StackPanel x:Name="tp_hours"/>
                                                 <TextBlock Text=":" FontSize="15" FontWeight="Bold"
-                                                           Foreground="{StaticResource LightText}"
+                                                           Foreground="{DynamicResource BrushTextPrimary}"
                                                            VerticalAlignment="Center"
                                                            Margin="2,0,2,0"/>
                                                 <StackPanel x:Name="tp_minutes" Margin="0,0,10,0"/>
@@ -2489,7 +2492,7 @@
                         </ComboBox>
                         <TextBlock Text="Starting Date"
                                    DockPanel.Dock="Left"
-                                   Foreground="{StaticResource LightText}"
+                                   Foreground="{DynamicResource BrushTextPrimary}"
                                    Opacity="0.7" FontSize="11"
                                    VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <DatePicker x:Name="sched_date_dp"
@@ -2504,7 +2507,7 @@
                                    Text="Schedule off"
                                    Width="190"
                                    TextTrimming="CharacterEllipsis"
-                                   Foreground="{StaticResource AccentGreen}"
+                                   Foreground="{DynamicResource BrushPrimaryGreen}"
                                    FontSize="11" FontWeight="SemiBold"
                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <StackPanel x:Name="sched_days_panel"
@@ -2570,7 +2573,7 @@
                 <DockPanel>
                     <TextBlock Text="Overall"
                                DockPanel.Dock="Left"
-                               Foreground="{StaticResource LightText}"
+                               Foreground="{DynamicResource BrushTextPrimary}"
                                FontSize="12" FontWeight="SemiBold"
                                Opacity="0.7"
                                VerticalAlignment="Center"
@@ -2578,7 +2581,7 @@
                     <TextBlock x:Name="overall_pct_tb"
                                Text="Ready"
                                DockPanel.Dock="Right"
-                               Foreground="{StaticResource LightText}"
+                               Foreground="{DynamicResource BrushTextPrimary}"
                                FontSize="12" FontWeight="SemiBold"
                                VerticalAlignment="Center"
                                Margin="12,0,0,0"
@@ -2587,7 +2590,7 @@
                                  Value="0"
                                  Minimum="0" Maximum="100"
                                  Height="14"
-                                 Foreground="{StaticResource AccentGreen}"
+                                 Foreground="{DynamicResource BrushPrimaryGreen}"
                                  Background="{StaticResource GridRowBG}"
                                  BorderThickness="0"/>
                 </DockPanel>
@@ -2599,8 +2602,8 @@
              ROW 3 — FOOTER
         ═══════════════════════════════════════════════════════════ -->
         <Border Grid.Row="3"
-                Background="{StaticResource HeaderBG}"
-                BorderBrush="#2B3340"
+                Background="{DynamicResource BrushHeaderBg}"
+                BorderBrush="{DynamicResource BrushCardBg}"
                 BorderThickness="0,1,0,0">
             <Grid>
                 <DockPanel Margin="20,6">
@@ -2608,23 +2611,23 @@
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock x:Name="footer_status_tb"
                                    Text=""
-                                   Foreground="{StaticResource AccentGreen}"
+                                   Foreground="{DynamicResource BrushPrimaryGreen}"
                                    FontSize="11"
                                    FontWeight="SemiBold"
                                    Opacity="0.9"/>
                         <TextBlock FontSize="10"
                                    Margin="0,2,0,0"
-                                   Foreground="{StaticResource LightText}">
+                                   Foreground="{DynamicResource BrushTextPrimary}">
                             <Run>Special thanks to </Run>
                             <Hyperlink x:Name="pyrevit_link"
-                                       Foreground="{StaticResource LightText}"
+                                       Foreground="{DynamicResource BrushTextPrimary}"
                                        TextDecorations="None"
                                        Click="footer_pyrevit_clicked">
                                 <Run>Jean-Marc Couffin &amp; all pyRevit contributors</Run>
                             </Hyperlink>
                             <Run> for Print sheets, and to </Run>
                             <Hyperlink x:Name="ryan_link"
-                                       Foreground="{StaticResource LightText}"
+                                       Foreground="{DynamicResource BrushTextPrimary}"
                                        TextDecorations="None"
                                        Click="footer_ryan_clicked">
                                 <Run>Ryan McCullough</Run>
@@ -2640,12 +2643,12 @@
                         HorizontalAlignment="Right" VerticalAlignment="Bottom"
                         Margin="0,0,8,6"
                         IsHitTestVisible="False">
-                    <Rectangle Canvas.Left="10" Canvas.Top="10" Width="3" Height="3" Fill="{StaticResource LightText}" Opacity="0.35"/>
-                    <Rectangle Canvas.Left="10" Canvas.Top="5"  Width="3" Height="3" Fill="{StaticResource LightText}" Opacity="0.35"/>
-                    <Rectangle Canvas.Left="5"  Canvas.Top="10" Width="3" Height="3" Fill="{StaticResource LightText}" Opacity="0.35"/>
-                    <Rectangle Canvas.Left="10" Canvas.Top="0"  Width="3" Height="3" Fill="{StaticResource LightText}" Opacity="0.35"/>
-                    <Rectangle Canvas.Left="5"  Canvas.Top="5"  Width="3" Height="3" Fill="{StaticResource LightText}" Opacity="0.35"/>
-                    <Rectangle Canvas.Left="0"  Canvas.Top="10" Width="3" Height="3" Fill="{StaticResource LightText}" Opacity="0.35"/>
+                    <Rectangle Canvas.Left="10" Canvas.Top="10" Width="3" Height="3" Fill="{DynamicResource BrushTextPrimary}" Opacity="0.35"/>
+                    <Rectangle Canvas.Left="10" Canvas.Top="5"  Width="3" Height="3" Fill="{DynamicResource BrushTextPrimary}" Opacity="0.35"/>
+                    <Rectangle Canvas.Left="5"  Canvas.Top="10" Width="3" Height="3" Fill="{DynamicResource BrushTextPrimary}" Opacity="0.35"/>
+                    <Rectangle Canvas.Left="10" Canvas.Top="0"  Width="3" Height="3" Fill="{DynamicResource BrushTextPrimary}" Opacity="0.35"/>
+                    <Rectangle Canvas.Left="5"  Canvas.Top="5"  Width="3" Height="3" Fill="{DynamicResource BrushTextPrimary}" Opacity="0.35"/>
+                    <Rectangle Canvas.Left="0"  Canvas.Top="10" Width="3" Height="3" Fill="{DynamicResource BrushTextPrimary}" Opacity="0.35"/>
                 </Canvas>
             </Grid>
         </Border>

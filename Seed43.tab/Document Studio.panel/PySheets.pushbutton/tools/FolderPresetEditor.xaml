@@ -9,7 +9,7 @@
         Width="700"
         MinHeight="300"
         Title="Export Folder Preset"
-        Background="#3B4553">
+        Background="{DynamicResource BrushWindowBg}">
 
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="70"
@@ -20,16 +20,20 @@
     </shell:WindowChrome.WindowChrome>
 
     <Window.Resources>
-        <SolidColorBrush x:Key="Bg"       Color="#3B4553"/>
-        <SolidColorBrush x:Key="Card"     Color="#2B3340"/>
-        <SolidColorBrush x:Key="Dark"     Color="#232933"/>
-        <SolidColorBrush x:Key="Green"    Color="#208A3C"/>
-        <SolidColorBrush x:Key="Text"     Color="#F4FAFF"/>
-        <SolidColorBrush x:Key="Wildcard" Color="#C0392B"/>
+        <SolidColorBrush x:Key="BrushWindowBg"       Color="#3B4553"/>
+        <SolidColorBrush x:Key="BrushCardBg"     Color="#2B3340"/>
+        <SolidColorBrush x:Key="BrushHeaderBg"     Color="#232933"/>
+        <SolidColorBrush x:Key="BrushPrimaryGreen"    Color="#208A3C"/>
+        <SolidColorBrush x:Key="BrushTextPrimary"     Color="#F4FAFF"/>
+        <SolidColorBrush x:Key="BrushTextInput"       Color="#2B3340"/>
+        <SolidColorBrush x:Key="BrushInputBg"         Color="#F4FAFF"/>
+        <SolidColorBrush x:Key="BrushDanger" Color="#C0392B"/>
+        <SolidColorBrush x:Key="BrushSuccess" Color="#27AE60"/>
+        <SolidColorBrush x:Key="BrushSecondaryPressed" Color="#333B48"/>
 
         <Style x:Key="GreenBtn" TargetType="Button">
-            <Setter Property="Background"  Value="{StaticResource Green}"/>
-            <Setter Property="Foreground"  Value="{StaticResource Text}"/>
+            <Setter Property="Background"  Value="{DynamicResource BrushPrimaryGreen}"/>
+            <Setter Property="Foreground"  Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontWeight"  Value="SemiBold"/>
             <Setter Property="FontSize"    Value="12"/>
@@ -44,7 +48,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#27AE60"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSuccess}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -53,9 +57,9 @@
         </Style>
 
         <Style x:Key="DarkBtn" TargetType="Button">
-            <Setter Property="Background"  Value="{StaticResource Dark}"/>
-            <Setter Property="Foreground"  Value="{StaticResource Text}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource Green}"/>
+            <Setter Property="Background"  Value="{DynamicResource BrushHeaderBg}"/>
+            <Setter Property="Foreground"  Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreen}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="FontWeight"  Value="SemiBold"/>
             <Setter Property="FontSize"    Value="12"/>
@@ -72,7 +76,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#333B48"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryPressed}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -83,7 +87,7 @@
         <!-- Token chip — color set per-instance via Tag in code-behind is
              overkill; we just set Background directly on each chip. -->
         <Style x:Key="Chip" TargetType="Button">
-            <Setter Property="Foreground"  Value="{StaticResource Text}"/>
+            <Setter Property="Foreground"  Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontFamily"  Value="Consolas"/>
             <Setter Property="FontSize"    Value="11"/>
@@ -103,9 +107,9 @@
         </Style>
 
         <Style x:Key="Field" TargetType="TextBox">
-            <Setter Property="Background"  Value="{StaticResource Text}"/>
-            <Setter Property="Foreground"  Value="{StaticResource Dark}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource Green}"/>
+            <Setter Property="Background"  Value="{DynamicResource BrushInputBg}"/>
+            <Setter Property="Foreground"  Value="{DynamicResource BrushTextInput}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreen}"/>
             <Setter Property="BorderThickness" Value="1.5"/>
             <Setter Property="FontFamily"  Value="Consolas"/>
             <Setter Property="FontSize"    Value="12"/>
@@ -129,18 +133,18 @@
         </Style>
 
         <Style x:Key="Section" TargetType="TextBlock">
-            <Setter Property="Foreground"  Value="{StaticResource Green}"/>
+            <Setter Property="Foreground"  Value="{DynamicResource BrushPrimaryGreen}"/>
             <Setter Property="FontWeight"  Value="Bold"/>
             <Setter Property="FontSize"    Value="15"/>
             <Setter Property="Margin"      Value="0,0,0,6"/>
         </Style>
         <Style x:Key="Label" TargetType="TextBlock">
-            <Setter Property="Foreground"  Value="{StaticResource Text}"/>
+            <Setter Property="Foreground"  Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="FontSize"    Value="12"/>
             <Setter Property="Margin"      Value="0,10,0,4"/>
         </Style>
         <Style x:Key="Hint" TargetType="TextBlock">
-            <Setter Property="Foreground"  Value="{StaticResource Text}"/>
+            <Setter Property="Foreground"  Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="Opacity"     Value="0.7"/>
             <Setter Property="FontSize"    Value="11"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
@@ -149,7 +153,7 @@
         <!-- Custom title bar control: close -->
         <Style x:Key="WinCtrlCloseBtn" TargetType="Button">
             <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="{StaticResource Text}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Width"           Value="32"/>
             <Setter Property="Height"          Value="32"/>
@@ -165,7 +169,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#C53030"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushDanger}"/>
                                 <Setter Property="Foreground" Value="White"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -177,7 +181,7 @@
 
     <DockPanel Margin="0">
         <!-- Header -->
-        <Border Background="{StaticResource Dark}"
+        <Border Background="{DynamicResource BrushHeaderBg}"
                 Height="70"
                 DockPanel.Dock="Top"
                 CornerRadius="0,0,12,12">
@@ -189,11 +193,11 @@
                             VerticalAlignment="Center"
                             HorizontalAlignment="Left">
                     <TextBlock Text="py" FontWeight="Bold" FontSize="26"
-                               Foreground="{StaticResource Green}"/>
+                               Foreground="{DynamicResource BrushPrimaryGreen}"/>
                     <TextBlock Text="Sheets" FontWeight="Bold" FontSize="26"
-                               Foreground="{StaticResource Text}"/>
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
                     <TextBlock Text="  |  Export Folder Preset" FontSize="16"
-                               Foreground="{StaticResource Text}" Opacity="0.6"
+                               Foreground="{DynamicResource BrushTextPrimary}" Opacity="0.6"
                                VerticalAlignment="Bottom" Margin="4,0,0,4"/>
                 </StackPanel>
                 <Button x:Name="win_close_btn"
@@ -208,7 +212,7 @@
         </Border>
 
         <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <Border Background="{StaticResource Card}"
+            <Border Background="{DynamicResource BrushCardBg}"
                     CornerRadius="8"
                     Margin="20"
                     Padding="20">
@@ -231,7 +235,7 @@
                                  TextChanged="field_changed"/>
                     </DockPanel>
                     <TextBlock Style="{StaticResource Hint}"
-                               Foreground="{StaticResource Green}" Margin="0,6,0,0"
+                               Foreground="{DynamicResource BrushPrimaryGreen}" Margin="0,6,0,0"
                                Text='Range-bucket folders are matched automatically, e.g. "#JOB-4251-4300" for job 4293.'/>
 
                     <TextBlock Text="Output Path Template" Style="{StaticResource Label}"/>
@@ -243,13 +247,13 @@
                              PreviewDragOver="template_drag_over"
                              PreviewDrop="template_drop"/>
                     <TextBlock x:Name="wildcard_hint_tb" Style="{StaticResource Hint}"
-                               Foreground="{StaticResource Wildcard}" Margin="0,6,0,0"/>
+                               Foreground="{DynamicResource BrushDanger}" Margin="0,6,0,0"/>
 
                     <TextBlock Text="Preview" Style="{StaticResource Label}"/>
                     <TextBox x:Name="preview_tb" Style="{StaticResource Field}"
                              IsReadOnly="True"
-                             Background="{StaticResource Dark}"
-                             Foreground="{StaticResource Green}"/>
+                             Background="{DynamicResource BrushHeaderBg}"
+                             Foreground="{DynamicResource BrushPrimaryGreen}"/>
 
                     <TextBlock Text="Available tokens — drag or click to insert"
                                Style="{StaticResource Label}"/>

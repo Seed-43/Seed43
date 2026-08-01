@@ -9,7 +9,7 @@
         Width="480"
         MinHeight="200"
         Title="Export / Import Settings"
-        Background="#3B4553">
+        Background="{DynamicResource BrushWindowBg}">
 
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="60"
@@ -20,15 +20,18 @@
     </shell:WindowChrome.WindowChrome>
 
     <Window.Resources>
-        <SolidColorBrush x:Key="Card"  Color="#2B3340"/>
-        <SolidColorBrush x:Key="Dark"  Color="#232933"/>
-        <SolidColorBrush x:Key="Green" Color="#208A3C"/>
-        <SolidColorBrush x:Key="Text"  Color="#F4FAFF"/>
-        <SolidColorBrush x:Key="Red"   Color="#C0392B"/>
+        <SolidColorBrush x:Key="BrushWindowBg" Color="#3B4553"/>
+        <SolidColorBrush x:Key="BrushCardBg"  Color="#2B3340"/>
+        <SolidColorBrush x:Key="BrushHeaderBg"  Color="#232933"/>
+        <SolidColorBrush x:Key="BrushPrimaryGreen" Color="#208A3C"/>
+        <SolidColorBrush x:Key="BrushTextPrimary"  Color="#F4FAFF"/>
+        <SolidColorBrush x:Key="BrushDanger"   Color="#C0392B"/>
+        <SolidColorBrush x:Key="BrushSuccess" Color="#27AE60"/>
+        <SolidColorBrush x:Key="BrushSecondaryPressed" Color="#333B48"/>
 
         <Style x:Key="GreenBtn" TargetType="Button">
-            <Setter Property="Background"  Value="{StaticResource Green}"/>
-            <Setter Property="Foreground"  Value="{StaticResource Text}"/>
+            <Setter Property="Background"  Value="{DynamicResource BrushPrimaryGreen}"/>
+            <Setter Property="Foreground"  Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontWeight"  Value="SemiBold"/>
             <Setter Property="FontSize"    Value="12"/>
@@ -43,7 +46,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#27AE60"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSuccess}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -52,7 +55,7 @@
         </Style>
 
         <Style x:Key="SecBtn" TargetType="Button" BasedOn="{StaticResource GreenBtn}">
-            <Setter Property="Background" Value="{StaticResource Dark}"/>
+            <Setter Property="Background" Value="{DynamicResource BrushHeaderBg}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -62,7 +65,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#333B48"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryPressed}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -71,9 +74,9 @@
         </Style>
 
         <Style x:Key="PathBox" TargetType="TextBox">
-            <Setter Property="Background"  Value="{StaticResource Dark}"/>
-            <Setter Property="Foreground"  Value="{StaticResource Text}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource Green}"/>
+            <Setter Property="Background"  Value="{DynamicResource BrushHeaderBg}"/>
+            <Setter Property="Foreground"  Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreen}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding"     Value="8,0"/>
             <Setter Property="FontSize"    Value="12"/>
@@ -96,7 +99,7 @@
         </Style>
 
         <Style TargetType="CheckBox">
-            <Setter Property="Foreground" Value="{StaticResource Text}"/>
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="FontSize"   Value="12"/>
             <Setter Property="Margin"     Value="0,0,0,8"/>
             <Setter Property="Cursor"     Value="Hand"/>
@@ -105,7 +108,7 @@
         <!-- Custom title bar control: close -->
         <Style x:Key="WinCtrlCloseBtn" TargetType="Button">
             <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="{StaticResource Text}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Width"           Value="32"/>
             <Setter Property="Height"          Value="32"/>
@@ -121,7 +124,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#C53030"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushDanger}"/>
                                 <Setter Property="Foreground" Value="White"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -132,16 +135,16 @@
     </Window.Resources>
 
     <DockPanel>
-        <Border Background="{StaticResource Dark}" Height="60" DockPanel.Dock="Top" CornerRadius="0,0,12,12">
+        <Border Background="{DynamicResource BrushHeaderBg}" Height="60" DockPanel.Dock="Top" CornerRadius="0,0,12,12">
             <Border.Effect>
                 <DropShadowEffect Color="Black" Opacity="0.3" ShadowDepth="2" BlurRadius="6"/>
             </Border.Effect>
             <Grid Margin="20,0,16,0">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
-                    <TextBlock Text="py" FontWeight="Bold" FontSize="22" Foreground="{StaticResource Green}"/>
-                    <TextBlock Text="Sheets" FontWeight="Bold" FontSize="22" Foreground="{StaticResource Text}"/>
+                    <TextBlock Text="py" FontWeight="Bold" FontSize="22" Foreground="{DynamicResource BrushPrimaryGreen}"/>
+                    <TextBlock Text="Sheets" FontWeight="Bold" FontSize="22" Foreground="{DynamicResource BrushTextPrimary}"/>
                     <TextBlock x:Name="header_subtitle_tb" Text="Export Settings" FontSize="14"
-                               Foreground="{StaticResource Text}" Opacity="0.6"
+                               Foreground="{DynamicResource BrushTextPrimary}" Opacity="0.6"
                                VerticalAlignment="Bottom" Margin="4,0,0,4"/>
                 </StackPanel>
                 <Button x:Name="win_close_btn"
@@ -154,17 +157,17 @@
             </Grid>
         </Border>
 
-        <Border Background="{StaticResource Card}" CornerRadius="8" Margin="20" Padding="16">
+        <Border Background="{DynamicResource BrushCardBg}" CornerRadius="8" Margin="20" Padding="16">
             <StackPanel>
                 <TextBlock x:Name="blurb_tb"
-                           Foreground="{StaticResource Text}"
+                           Foreground="{DynamicResource BrushTextPrimary}"
                            Opacity="0.6"
                            FontSize="11"
                            TextWrapping="Wrap"
                            Margin="0,0,0,14"/>
 
                 <TextBlock x:Name="path_label_tb" Text="Folder"
-                           Foreground="{StaticResource Text}"
+                           Foreground="{DynamicResource BrushTextPrimary}"
                            Opacity="0.85"
                            FontSize="12"
                            FontWeight="Medium"
@@ -178,7 +181,7 @@
                 </DockPanel>
 
                 <TextBlock Text="Include"
-                           Foreground="{StaticResource Text}"
+                           Foreground="{DynamicResource BrushTextPrimary}"
                            Opacity="0.85"
                            FontSize="12"
                            FontWeight="Medium"
@@ -187,7 +190,7 @@
                 <CheckBox x:Name="naming_combined_cb" Content="Combined Sheet Naming" IsChecked="True"/>
                 <CheckBox x:Name="profiles_cb" Content="Profiles" IsChecked="True"/>
                 <CheckBox x:Name="auto_cb" Content="Auto-update on every pySheets startup"
-                          Foreground="{StaticResource Green}"
+                          Foreground="{DynamicResource BrushPrimaryGreen}"
                           FontWeight="SemiBold"
                           Visibility="Collapsed"
                           Margin="0,4,0,4"/>

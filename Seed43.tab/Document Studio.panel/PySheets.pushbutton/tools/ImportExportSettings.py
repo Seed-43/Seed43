@@ -18,6 +18,7 @@ from pyrevit import forms
 from pyrevit.framework import Windows
 
 from Snippets import _dialogs as dlg
+from Snippets.seed43_theme import apply_seed43_palette
 
 
 # (key, display label) — key is also the sub-folder name used on disk and
@@ -113,6 +114,7 @@ def run_auto_import(folders, sync_path):
 class ImportExportSettingsWindow(forms.WPFWindow):
     def __init__(self, xaml_file_name, mode, folders, sync_path):
         forms.WPFWindow.__init__(self, xaml_file_name)
+        apply_seed43_palette(self, op.dirname(xaml_file_name))
         self.mode      = mode            # 'export' or 'import'
         self._folders  = folders         # {key: folder_path}
         self._sync_path = sync_path

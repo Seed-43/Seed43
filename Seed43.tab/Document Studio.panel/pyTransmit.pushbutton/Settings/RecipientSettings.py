@@ -24,6 +24,8 @@ try:
 except Exception:
     sdlg = None
 
+from Snippets.seed43_theme import apply_seed43_palette
+
 def _alert(message, title='', exitscript=False):
     """Themed popup via the shared Snippets dialog lib, falls back to
     pyRevit's default forms.alert if the shared lib isn't available."""
@@ -518,7 +520,8 @@ class ImportPreviewWindow(WPFWindow):
         # Load XAML
         xaml_file = os.path.join(os.path.dirname(__file__), 'ImportPreview.xaml')
         WPFWindow.__init__(self, xaml_file)
-        
+        apply_seed43_palette(self, os.path.dirname(__file__))
+
         # Create preview collection
         self.preview_records = ObservableCollection[PreviewRecord]()
         

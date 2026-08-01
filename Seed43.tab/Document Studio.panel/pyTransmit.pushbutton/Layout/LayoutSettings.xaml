@@ -50,9 +50,10 @@ Header: rev count, page size, template, tabs, save/close
              promoting into seed43_palette.json later if other tools want
              the same neutral-border/row-tint pattern.
 
-             LocalBrushTextMuted is injected in code instead of declared
-             here - see _apply_seed43_theme - since it's computed
-             (BrushTextPrimary at reduced opacity), not a fixed value. -->
+             Muted/secondary text now uses BrushTextMuted, the same
+             canonical DynamicResource apply_seed43_palette() injects for
+             every other tool - no local declaration or code-side
+             injection needed for it any more. -->
         <SolidColorBrush x:Key="LocalBrushRowBg"    Color="#323D4D"/>
         <SolidColorBrush x:Key="LocalBrushHoverBg"  Color="#3A4760"/>
         <SolidColorBrush x:Key="LocalBrushBorderNeutral" Color="#404E62"/>
@@ -192,7 +193,7 @@ Header: rev count, page size, template, tabs, save/close
              row - was previously a hardcoded 22px with no such alignment. -->
         <Style x:Key="SmallIconButtonStyle" TargetType="Button">
             <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="{DynamicResource LocalBrushTextMuted}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextMuted}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Width"           Value="{DynamicResource HeightInput}"/>
             <Setter Property="Height"          Value="{DynamicResource HeightInput}"/>
@@ -219,7 +220,7 @@ Header: rev count, page size, template, tabs, save/close
         <!-- Tab button -->
         <Style x:Key="TabButtonStyle" TargetType="Button">
             <Setter Property="Background"      Value="{StaticResource LocalBrushRowBg}"/>
-            <Setter Property="Foreground"      Value="{DynamicResource LocalBrushTextMuted}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextMuted}"/>
             <Setter Property="BorderBrush"     Value="{StaticResource LocalBrushBorderNeutral}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding"         Value="{DynamicResource PaddingButtonSmall}"/>
@@ -310,7 +311,7 @@ Header: rev count, page size, template, tabs, save/close
                                                                   VerticalAlignment="Center"
                                                                   HorizontalAlignment="Left"/>
                                                 <TextBlock Grid.Column="1" Text="&#9662;"
-                                                           Foreground="{DynamicResource LocalBrushTextMuted}"
+                                                           Foreground="{DynamicResource BrushTextMuted}"
                                                            FontSize="9"
                                                            HorizontalAlignment="Center"
                                                            VerticalAlignment="Center"/>
@@ -510,7 +511,7 @@ Header: rev count, page size, template, tabs, save/close
                     <!-- Revision count -->
                     <Border Background="{DynamicResource BrushCardBg}" BorderBrush="{StaticResource LocalBrushBorderNeutral}" BorderThickness="1" CornerRadius="4" Padding="7,3" Margin="0,0,8,0">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="Revisions" Foreground="{DynamicResource LocalBrushTextMuted}" FontSize="9" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBlock Text="Revisions" Foreground="{DynamicResource BrushTextMuted}" FontSize="9" VerticalAlignment="Center" Margin="0,0,5,0"/>
                             <Button x:Name="rev_dec_btn" Content="&#8722;" Style="{StaticResource SmallIconButtonStyle}" Width="22" Height="22" Click="rev_dec_click"/>
                             <TextBox x:Name="rev_tb" Text="4" Width="28" Background="{StaticResource LocalBrushRowBg}" Foreground="{DynamicResource BrushTextPrimary}" BorderBrush="{StaticResource LocalBrushBorderNeutral}" BorderThickness="1" TextAlignment="Center" FontSize="11" Height="20" Padding="2" Margin="2,0" VerticalContentAlignment="Center" TextChanged="rev_changed"/>
                             <Button x:Name="rev_inc_btn" Content="+" Style="{StaticResource SmallIconButtonStyle}" Width="22" Height="22" Click="rev_inc_click"/>
@@ -520,7 +521,7 @@ Header: rev count, page size, template, tabs, save/close
                     <!-- Page size -->
                     <Border Background="{DynamicResource BrushCardBg}" BorderBrush="{StaticResource LocalBrushBorderNeutral}" BorderThickness="1" CornerRadius="4" Padding="7,3" Margin="0,0,8,0">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="Page" Foreground="{DynamicResource LocalBrushTextMuted}" FontSize="9" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBlock Text="Page" Foreground="{DynamicResource BrushTextMuted}" FontSize="9" VerticalAlignment="Center" Margin="0,0,5,0"/>
                             <ComboBox x:Name="page_cb" Style="{StaticResource ComboBoxStyle}" Width="120" Height="20" Padding="4,2" FontSize="10" SelectionChanged="page_changed">
                                 <ComboBoxItem Content="A4 Portrait" Tag="a4" IsSelected="True"/>
                                 <ComboBoxItem Content="A4 Landscape" Tag="a4l"/>
@@ -529,10 +530,10 @@ Header: rev count, page size, template, tabs, save/close
                                 <ComboBoxItem Content="Custom" Tag="custom"/>
                             </ComboBox>
                             <TextBox x:Name="custom_w_tb" Text="210" Width="44" Style="{StaticResource TextBoxStyle}" Height="20" Padding="3,2" FontSize="10" Margin="4,0,0,0" Visibility="Collapsed" TextChanged="custom_w_changed" ToolTip="Width in mm"/>
-                            <TextBlock x:Name="custom_x_tb" Text="x" Foreground="{DynamicResource LocalBrushTextMuted}" FontSize="9" VerticalAlignment="Center" Margin="4,0,4,0" Visibility="Collapsed"/>
+                            <TextBlock x:Name="custom_x_tb" Text="x" Foreground="{DynamicResource BrushTextMuted}" FontSize="9" VerticalAlignment="Center" Margin="4,0,4,0" Visibility="Collapsed"/>
                             <TextBox x:Name="custom_h_tb" Text="297" Width="44" Style="{StaticResource TextBoxStyle}" Height="20" Padding="3,2" FontSize="10" Visibility="Collapsed" TextChanged="custom_h_changed" ToolTip="Height in mm"/>
-                            <TextBlock x:Name="custom_mm_tb" Text="mm" Foreground="{DynamicResource LocalBrushTextMuted}" FontSize="9" VerticalAlignment="Center" Margin="4,0,0,0" Visibility="Collapsed"/>
-                            <TextBlock x:Name="page_dims_tb" Text="210x297mm" Foreground="{DynamicResource LocalBrushTextMuted}" FontSize="9" VerticalAlignment="Center" Margin="5,0,0,0"/>
+                            <TextBlock x:Name="custom_mm_tb" Text="mm" Foreground="{DynamicResource BrushTextMuted}" FontSize="9" VerticalAlignment="Center" Margin="4,0,0,0" Visibility="Collapsed"/>
+                            <TextBlock x:Name="page_dims_tb" Text="210x297mm" Foreground="{DynamicResource BrushTextMuted}" FontSize="9" VerticalAlignment="Center" Margin="5,0,0,0"/>
                         </StackPanel>
                     </Border>
 
@@ -572,7 +573,7 @@ Header: rev count, page size, template, tabs, save/close
         <Border DockPanel.Dock="Bottom" Background="{DynamicResource BrushHeaderBg}" Padding="14,4" BorderBrush="{StaticResource LocalBrushBorderNeutral}" BorderThickness="0,1,0,0">
             <Grid>
                 <TextBlock x:Name="status_tb" Foreground="{DynamicResource BrushPrimaryGreen}" FontSize="10" HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                <TextBlock x:Name="count_tb" Text="0 rows" Foreground="{DynamicResource LocalBrushTextMuted}" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                <TextBlock x:Name="count_tb" Text="0 rows" Foreground="{DynamicResource BrushTextMuted}" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Center"/>
             </Grid>
         </Border>
 
@@ -621,7 +622,7 @@ Header: rev count, page size, template, tabs, save/close
                         <StackPanel Margin="8,4,8,4">
                             <TextBlock x:Name="options_header_tb" Text="Options" Style="{StaticResource SectionLabelStyle}"/>
                             <Border Background="{DynamicResource BrushCardBg}" CornerRadius="8" BorderBrush="{StaticResource LocalBrushBorderNeutral}" BorderThickness="1" Padding="12" Margin="0,0,0,8">
-                                <TextBlock x:Name="options_note_tb" Text="Static card, declared directly in XAML. Nothing here is built or touched by Python." Foreground="{DynamicResource LocalBrushTextMuted}" FontSize="10" TextWrapping="Wrap"/>
+                                <TextBlock x:Name="options_note_tb" Text="Static card, declared directly in XAML. Nothing here is built or touched by Python." Foreground="{DynamicResource BrushTextMuted}" FontSize="10" TextWrapping="Wrap"/>
                             </Border>
                             <StackPanel x:Name="options_dynamic_panel"/>
                         </StackPanel>
@@ -632,7 +633,7 @@ Header: rev count, page size, template, tabs, save/close
                             <TextBlock Text="Logo" Style="{StaticResource SectionLabelStyle}"/>
                             <Border Background="{DynamicResource BrushCardBg}" CornerRadius="6" BorderBrush="{StaticResource LocalBrushBorderNeutral}" BorderThickness="1" Padding="10" Margin="0,0,0,8">
                                 <StackPanel>
-                                    <TextBlock Text="Logo path / filename" Foreground="{DynamicResource LocalBrushTextMuted}" FontSize="9" Margin="0,0,0,3"/>
+                                    <TextBlock Text="Logo path / filename" Foreground="{DynamicResource BrushTextMuted}" FontSize="9" Margin="0,0,0,3"/>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -644,7 +645,7 @@ Header: rev count, page size, template, tabs, save/close
                                                 Width="30" Height="26" Margin="4,0,0,0" Padding="0" Click="logo_browse_click"
                                                 ToolTip="Browse for logo file"/>
                                     </Grid>
-                                    <TextBlock Text="Logo will be mapped on output. Preview shows placeholder." Foreground="{DynamicResource LocalBrushTextMuted}" FontSize="9" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                    <TextBlock Text="Logo will be mapped on output. Preview shows placeholder." Foreground="{DynamicResource BrushTextMuted}" FontSize="9" TextWrapping="Wrap" Margin="0,4,0,0"/>
                                 </StackPanel>
                             </Border>
 
@@ -770,7 +771,7 @@ Header: rev count, page size, template, tabs, save/close
                 <Border DockPanel.Dock="Top" Height="44" Background="{DynamicResource BrushHeaderBg}" Padding="12,7" BorderBrush="{StaticResource LocalBrushBorderNeutral}" BorderThickness="0,0,0,1">
                     <Grid>
                         <TextBlock Text="Live Preview" Foreground="{DynamicResource BrushPrimaryGreen}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                        <TextBlock x:Name="prev_info_tb" Text="A4 - 4 revs - dummy data" Foreground="{DynamicResource LocalBrushTextMuted}" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="prev_info_tb" Text="A4 - 4 revs - dummy data" Foreground="{DynamicResource BrushTextMuted}" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                     </Grid>
                 </Border>
                 <ScrollViewer x:Name="preview_scroll" Style="{StaticResource MacScrollViewer}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="10">

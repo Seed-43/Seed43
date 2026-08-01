@@ -439,7 +439,7 @@
                                VerticalAlignment="Center" Foreground="{DynamicResource BrushTextPrimary}"/>
                 </DockPanel>
                 <TextBlock Text="Accent Colour" FontSize="11"
-                           Foreground="#A0AABB" Margin="0,0,0,8"/>
+                           Foreground="{DynamicResource BrushTextMuted}" Margin="0,0,0,8"/>
                 <WrapPanel x:Name="accent_swatch_panel" Orientation="Horizontal"/>
             </StackPanel>
         </Border>

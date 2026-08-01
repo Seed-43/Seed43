@@ -817,6 +817,158 @@
   #toggle-label {
     font-size: 11px;
   }
+  #preview-search-wrap {
+    position: relative;
+    margin-top: 14px;
+    margin-bottom: 4px;
+  }
+  #preview-search-icon {
+    position: absolute;
+    left: 9px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+  #preview-search {
+    width: 100%;
+    padding-left: 30px;
+    border-radius: 5px;
+    border: 1px solid var(--input-border, currentColor);
+    background: var(--input-bg);
+    font-size: 13px;
+    transition: border-color 0.1s ease, background 0.1s ease;
+  }
+  #preview-search:hover {
+    border-color: var(--input-border-hover, currentColor);
+    background: var(--input-bg-hover, var(--input-bg));
+  }
+  #preview-search:focus {
+    border-color: var(--input-border-pressed, currentColor);
+    background: var(--input-bg-pressed, var(--input-bg));
+    outline: none;
+  }
+  #preview-list-wrap {
+    margin-top: 14px;
+    overflow: hidden;
+    background: var(--list-bg);
+    border: 1px solid var(--list-border, currentColor);
+  }
+  .pv-list-item {
+    padding: 6px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.1s ease;
+    background: var(--list-item-bg, transparent);
+    color: var(--list-item-fg);
+  }
+  .pv-list-item-hover {
+    background: var(--list-item-hover-bg) !important;
+  }
+  .pv-list-item-selected {
+    background: var(--list-item-selected-bg) !important;
+    color: var(--list-item-selected-fg, #fff) !important;
+  }
+  #preview-grid-wrap {
+    margin-top: 14px;
+    overflow: hidden;
+    border-radius: 6px;
+  }
+  #preview-grid {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  #preview-grid th, #preview-grid td {
+    text-align: left;
+    white-space: nowrap;
+  }
+  #preview-grid tbody tr {
+    transition: background 0.1s ease;
+  }
+  .grid-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  #checkbox-radio-row {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+  }
+  .pv-checkbox-demo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .checkbox-demo-label {
+    font-size: 12px;
+  }
+  .pv-checkbox {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    background: var(--cb-bg, transparent);
+    border: var(--cb-border-width, 1.5px) solid var(--cb-border, currentColor);
+  }
+  .pv-checkbox svg { pointer-events: none; }
+  .pv-radio {
+    cursor: pointer;
+    border-radius: 50%;
+    background: var(--cb-bg, transparent);
+    border: var(--cb-border-width, 1.5px) solid var(--cb-border, currentColor);
+    position: relative;
+  }
+  .pv-radio.pv-radio-checked::after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+    background: var(--radio-dot, currentColor);
+    top: 25%; left: 25%; right: 25%; bottom: 25%;
+  }
+  #progress-bar-wrap {
+    margin-top: 14px;
+  }
+  .progress-track {
+    width: 100%;
+    overflow: hidden;
+    background: var(--progress-track-bg);
+    margin-bottom: 6px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--progress-fill-bg);
+    transition: width 0.2s ease;
+  }
+  #progress-label {
+    font-size: 11px;
+    opacity: 0.7;
+  }
+  #status-chip-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  #success-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  #muted-text-example {
+    font-size: 11px;
+  }
   footer {
     padding: 20px 28px;
     border-top: 1px solid var(--editor-border);
@@ -983,7 +1135,7 @@
               <span class="round-btn-label">Reload (click to toggle)</span>
             </div>
             <div class="round-btn-demo">
-              <button class="pv-round-toggle" id="pv-round-toggle"><svg id="pv-round-toggle-icon" viewBox="0 0 24 24" width="30" height="30"></svg></button>
+              <button class="pv-round-toggle" id="pv-round-toggle"><svg id="pv-round-toggle-icon" viewBox="0 0 24 24" width="28" height="28"></svg></button>
               <span class="round-btn-label" id="round-toggle-label">Sections (click to toggle)</span>
             </div>
             <div class="round-btn-demo">
@@ -1009,6 +1161,88 @@
               <div class="accordion-row"><span>pyTransmit</span><div class="mini-toggle mini-toggle-on"><div class="mini-toggle-knob"></div></div></div>
               <div class="accordion-row"><span>PyTables</span><div class="mini-toggle"><div class="mini-toggle-knob"></div></div></div>
             </div>
+          </div>
+
+          <!-- Search box - same tokens/style as Text Input above (input_bg/border/text_input,
+               input_textbox.* sizing) with a magnifying-glass icon prefix. Not a separate
+               component style - this is the ONE canonical search-box look, replacing the
+               ~4 near-duplicate search TextBoxes hand-rolled per-tool (pySheets search_tb,
+               PyTable SearchTextBoxStyle, pyTransmit rec_search_tb/opt_search_tb,
+               LayerManager search_tb). -->
+          <div id="preview-search-wrap">
+            <svg id="preview-search-icon" viewBox="0 0 24 24" width="14" height="14"></svg>
+            <input id="preview-search" type="text" placeholder="Search sheets...">
+          </div>
+
+          <!-- List / multi-select - same tokens as Dropdown's popup items (input_bg wrap,
+               border_default border, dropdown_item_hover on hover, accent+white on selected),
+               not a separate colour group. This is the ONE canonical themed list-row look -
+               PyTable's 6 category/parameter/schedule ListBoxes currently have NO ListBoxItem
+               style at all (native OS blue selection), and LayerManager/ENFStyles/pyViewPlacer
+               each independently reimplement their own near-identical version of this same
+               pattern (LayerRowStyle, ModernListBoxStyle, PanelListBoxItemStyle). -->
+          <div class="card-label" id="list-section-label">List / Multi-select</div>
+          <div id="preview-list-wrap">
+            <div class="pv-list-item">Level 1 - Ground Floor</div>
+            <div class="pv-list-item pv-list-item-hover">Level 2 - First Floor</div>
+            <div class="pv-list-item pv-list-item-selected">Level 3 - Roof</div>
+            <div class="pv-list-item">Level 4 - Mechanical</div>
+          </div>
+
+          <div class="card-label" id="grid-section-label">Data Grid</div>
+          <div id="preview-grid-wrap">
+            <table id="preview-grid">
+              <thead>
+                <tr>
+                  <th>Sheet</th><th>Name</th><th style="text-align:center;">Rev</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>A101</td><td>Ground Floor Plan</td>
+                  <td style="text-align:center;"><span class="grid-badge grid-badge-ok" id="grid-badge-ok">3</span></td>
+                </tr>
+                <tr class="grid-row-alt grid-row-hover">
+                  <td>A102</td><td>First Floor Plan</td>
+                  <td style="text-align:center;"><span class="grid-badge grid-badge-ok" id="grid-badge-ok2">1</span></td>
+                </tr>
+                <tr>
+                  <td>A103</td><td>Roof Plan</td>
+                  <td style="text-align:center;"><span class="grid-badge grid-badge-warn" id="grid-badge-warn" title="Naming format incompatible">!</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div id="checkbox-radio-row">
+            <div class="pv-checkbox-demo">
+              <div class="pv-checkbox pv-checkbox-checked" id="pv-checkbox-1"><svg viewBox="0 0 24 24" id="pv-checkbox-1-icon"></svg></div>
+              <span class="checkbox-demo-label">Include layer</span>
+            </div>
+            <div class="pv-checkbox-demo">
+              <div class="pv-checkbox" id="pv-checkbox-2"></div>
+              <span class="checkbox-demo-label">Hidden</span>
+            </div>
+            <div class="pv-checkbox-demo">
+              <div class="pv-radio pv-radio-checked" id="pv-radio-1"></div>
+              <span class="checkbox-demo-label">By sheet</span>
+            </div>
+            <div class="pv-checkbox-demo">
+              <div class="pv-radio" id="pv-radio-2"></div>
+              <span class="checkbox-demo-label">By view</span>
+            </div>
+          </div>
+
+          <div id="progress-bar-wrap">
+            <div class="progress-track" id="progress-track">
+              <div class="progress-fill" id="progress-fill" style="width:60%;"></div>
+            </div>
+            <span id="progress-label">Exporting 6 / 10 sheets&hellip;</span>
+          </div>
+
+          <div id="status-chip-row">
+            <span id="success-chip">Format matched</span>
+            <span id="muted-text-example">Last synced 2 minutes ago</span>
           </div>
         </div>
       </div>
@@ -1064,6 +1298,7 @@ const KEY_META = [
 
   ["text_primary", "Primary text", "Text"],
   ["text_input", "Text inside light inputs", "Text"],
+  ["text_muted", "Muted / secondary text (hints, counters, helper labels)", "Text"],
   ["input_bg", "Input field background", "Text"],
   ["input_bg_hover", "Input field background (hover)", "Text"],
   ["input_bg_pressed", "Input field background (focus)", "Text"],
@@ -1092,13 +1327,16 @@ const KEY_META = [
 
   ["pill_off_bg", "Format pill background (off)", "Format Pills"],
   ["pill_off_border", "Format pill border (off)", "Format Pills"],
+
+  ["success", "Success / valid state (resting)", "Success"],
+  ["success_hover", "Success hover", "Success"],
 ];
 
 const DATA = {
   dark: {
     accent: "#208A3C", accent_hover: "#32934C", accent_pressed: "#5CAA71",
     window_bg: "#3B4553", card_bg: "#2B3340", header_bg: "#232933",
-    text_primary: "#FFFFFF", text_input: "#FFFFFF", input_bg: "#1d1d20",
+    text_primary: "#FFFFFF", text_input: "#FFFFFF", text_muted: "#9CA3AF", input_bg: "#1d1d20",
     input_bg_hover: "#2F2F32", input_bg_pressed: "#5A5A5C",
     border_default: "#208A3C", border_hover: "#32934C", border_pressed: "#5CAA71",
     secondary_bg: "#48484b", secondary_hover: "#515155", secondary_pressed: "#67676c",
@@ -1106,12 +1344,13 @@ const DATA = {
     dropdown_item_hover: "#3f3f41", border_muted: "#208A3C",
     toggle_off_bg: "#5e5c64", toggle_off_hover: "#6B6970", toggle_off_pressed: "#89888E", toggle_knob: "#FFFFFF",
     danger: "#e01b24", danger_hover: "#E22D36", danger_pressed: "#E8595F",
-    pill_off_bg: "#2B3340", pill_off_border: "#404553"
+    pill_off_bg: "#2B3340", pill_off_border: "#404553",
+    success: "#27AE60", success_hover: "#2ECC71"
   },
   light: {
     accent: "#208A3C", accent_hover: "#32934C", accent_pressed: "#5CAA71",
     window_bg: "#ebebed", card_bg: "#ffffff", header_bg: "#ffffff",
-    text_primary: "#1a1a1e", text_input: "#1a1a1e", input_bg: "#EBEBED",
+    text_primary: "#1a1a1e", text_input: "#1a1a1e", text_muted: "#6B7280", input_bg: "#EBEBED",
     input_bg_hover: "#F2F1F0", input_bg_pressed: "#FFFFFF",
     border_default: "#208A3C", border_hover: "#32934C", border_pressed: "#5CAA71",
     secondary_bg: "#deddda", secondary_hover: "#c0bfbc", secondary_pressed: "#9a9996",
@@ -1119,7 +1358,8 @@ const DATA = {
     dropdown_item_hover: "#f6f5f4", border_muted: "#208A3C",
     toggle_off_bg: "#c0bfbc", toggle_off_hover: "#C5C4C1", toggle_off_pressed: "#D1D0CE", toggle_knob: "#FFFFFF",
     danger: "#e01b24", danger_hover: "#E22D36", danger_pressed: "#E8595F",
-    pill_off_bg: "#ffffff", pill_off_border: "#deddda"
+    pill_off_bg: "#ffffff", pill_off_border: "#deddda",
+    success: "#27AE60", success_hover: "#2ECC71"
   }
 };
 
@@ -1197,6 +1437,7 @@ const DIM_META = [
   ["button_round.width", "Round action btn width (delete/reload/collapse)", "Buttons"],
   ["button_round.height", "Round action btn height (delete/reload/collapse)", "Buttons"],
   ["button_round.corner_radius", "Round action btn corner radius (delete/reload/collapse)", "Buttons"],
+  ["button_round.icon_size", "Round action btn icon size, % of circle (delete/reload - independent of circle size; not the toggle, whose icon IS the circle)", "Buttons"],
 
   ["button_menu.width", "Menu btn width (square)", "Buttons"],
   ["button_menu.height", "Menu btn height (square)", "Buttons"],
@@ -1255,6 +1496,25 @@ const DIM_META = [
   ["text.heading", "Heading size", "Text"],
   ["text.small_button", "Small button text size", "Text"],
   ["text.body", "Body text size", "Text"],
+
+  ["data_grid.header_height", "Header row height", "Data Grid"],
+  ["data_grid.row_height", "Data row height", "Data Grid"],
+  ["data_grid.header_font_size", "Header font size", "Data Grid"],
+  ["data_grid.cell_font_size", "Cell font size", "Data Grid"],
+  ["data_grid.cell_padding_x", "Cell horizontal padding", "Data Grid"],
+  ["data_grid.border_thickness", "Grid line thickness (pySheets/pyTransmit/PyTable tables)", "Data Grid"],
+
+  ["checkbox.size", "Checkbox / radio size", "Checkbox / Radio"],
+  ["checkbox.corner_radius", "Checkbox corner radius (0 = square, half of size = circle for radio)", "Checkbox / Radio"],
+  ["checkbox.border_thickness", "Border thickness", "Checkbox / Radio"],
+
+  ["progress_bar.height", "Track height", "Progress Bar"],
+  ["progress_bar.corner_radius", "Track / fill corner radius", "Progress Bar"],
+
+  ["badge.corner_radius", "Badge corner radius (pill/circle, e.g. revision count)", "Badge"],
+  ["badge.padding_x", "Badge padding X", "Badge"],
+  ["badge.padding_y", "Badge padding Y", "Badge"],
+  ["badge.font_size", "Badge font size", "Badge"],
 ];
 
 const DIMENSIONS = {
@@ -1262,7 +1522,7 @@ const DIMENSIONS = {
   button_small:     { height: 24, padding_x: 12, padding_y: 4, corner_radius: 4, font_size: 11 },
   button_secondary: { padding_x: 15, padding_y: 7, corner_radius: 10, font_size: 12 },
   button_close:     { width: 30, height: 30, corner_radius: 15 },
-  button_round:     { width: 28, height: 28, corner_radius: 14 },
+  button_round:     { width: 28, height: 28, corner_radius: 14, icon_size: 50 },
   button_menu:      { width: 36, height: 36, corner_radius: 6 },
 
   input_textbox:  { height: 28, padding_x: 8, padding_y: 4, corner_radius: 6, border_thickness: 1, font_size: 12 },
@@ -1281,6 +1541,14 @@ const DIMENSIONS = {
   icon: { grid_size: 24, default_size: 16 },
 
   text: { section_label: 14, field_label: 12, heading: 13, small_button: 11, body: 12 },
+
+  data_grid: { header_height: 32, row_height: 28, header_font_size: 12, cell_font_size: 12, cell_padding_x: 8, border_thickness: 1 },
+
+  checkbox: { size: 16, corner_radius: 4, border_thickness: 1.5 },
+
+  progress_bar: { height: 8, corner_radius: 4 },
+
+  badge: { corner_radius: 10, padding_x: 6, padding_y: 2, font_size: 10 },
 };
 
 const ICON_DATA = {
@@ -1556,6 +1824,12 @@ function downloadIconsJSON() {
   URL.revokeObjectURL(url);
 }
 
+// Dimension paths whose value is a percentage (0-100) rather than a pixel
+// value - button_round.icon_size is "% of the circle's own width/height",
+// not an absolute size, so it needs a different unit/clamp than every
+// other sizing row.
+const PERCENT_DIMS = new Set(["button_round.icon_size"]);
+
 function renderSizingEditor() {
   const col = document.getElementById("editor-col");
   col.innerHTML = "";
@@ -1572,6 +1846,7 @@ function renderSizingEditor() {
       const row = document.createElement("div");
       row.className = "row";
       row.dataset.token = path;
+      const isPercent = PERCENT_DIMS.has(path);
 
       const labelWrap = document.createElement("label");
       labelWrap.innerHTML = label + '<span class="key-name">' + path + '</span>';
@@ -1581,17 +1856,20 @@ function renderSizingEditor() {
       numInput.type = "number";
       numInput.value = getDim(path);
       numInput.min = 0;
+      if (isPercent) numInput.max = 100;
       numInput.addEventListener("change", (e) => {
-        const v = parseFloat(e.target.value);
+        let v = parseFloat(e.target.value);
         if (!isNaN(v)) {
+          if (isPercent) v = Math.min(100, Math.max(0, v));
           setDim(path, v);
+          e.target.value = v;
           renderPreview();
         }
       });
 
       const unit = document.createElement("span");
       unit.className = "num-unit";
-      unit.textContent = "px";
+      unit.textContent = isPercent ? "%" : "px";
 
       row.appendChild(labelWrap);
       row.appendChild(numInput);
@@ -1859,6 +2137,30 @@ function renderPreview() {
   pvRoundDelete.style.width = d.button_round.width + "px";
   pvRoundDelete.style.height = d.button_round.height + "px";
   setIcon(document.getElementById("pv-round-delete-icon"), "close", "#FFFFFF");
+
+  // All three round buttons' icon <svg> elements had hardcoded width/height
+  // attributes in the markup (14 for primary/delete, 30 for toggle) that
+  // never tracked button_round.width/height - most visibly, the toggle's
+  // fixed 30px icon (which IS the whole visible circle, since the button
+  // itself is transparent) was literally larger than the 28px default
+  // button box the other two solid-circle buttons are sized to, so all
+  // three looked like different sizes even though the buttons themselves
+  // were always set to the same width/height above. Primary/delete now use
+  // their own independent button_round.icon_size token (glyph-on-a-circle,
+  // so circle size and glyph size are two separate design decisions) -
+  // expressed as a % of the circle's own width (100% = fills the circle,
+  // 50% = half), not a fixed px value, so the glyph keeps its proportion
+  // if button_round.width/height is changed too. Toggle's icon is still
+  // sized to exactly match the button box, since it has to fill it
+  // completely - there's no separate circle to decouple it from.
+  const roundGlyphSize = Math.round(d.button_round.width * (d.button_round.icon_size / 100));
+  ["pv-round-primary-icon", "pv-round-delete-icon"].forEach(id => {
+    const el = document.getElementById(id);
+    el.setAttribute("width", roundGlyphSize);
+    el.setAttribute("height", roundGlyphSize);
+  });
+  document.getElementById("pv-round-toggle-icon").setAttribute("width", d.button_round.width);
+  document.getElementById("pv-round-toggle-icon").setAttribute("height", d.button_round.height);
   pvDisabled.style.fontSize = d.button_secondary.font_size + "px";
 
   const ddClosed = document.getElementById("dd-closed");
@@ -2017,6 +2319,114 @@ function renderPreview() {
     el.style.setProperty("--menu-item-pressed-bg", c.accent_pressed);
   });
 
+  // Search box - reuses the exact same tokens as Text Input (input_bg/
+  // border_default/text_input, input_textbox.* sizing) - see the markup
+  // comment above #preview-search-wrap for why this isn't a separate
+  // colour/size group.
+  const searchInput = document.getElementById("preview-search");
+  searchInput.style.color = c.text_input;
+  searchInput.style.setProperty("--input-bg", c.input_bg);
+  searchInput.style.setProperty("--input-bg-hover", c.input_bg_hover);
+  searchInput.style.setProperty("--input-bg-pressed", c.input_bg_pressed);
+  searchInput.style.setProperty("--input-border", c.border_default);
+  searchInput.style.setProperty("--input-border-hover", c.border_hover);
+  searchInput.style.setProperty("--input-border-pressed", c.border_pressed);
+  searchInput.style.height = d.input_textbox.height + "px";
+  searchInput.style.borderRadius = d.input_textbox.corner_radius + "px";
+  searchInput.style.borderWidth = d.input_textbox.border_thickness + "px";
+  searchInput.style.fontSize = d.input_textbox.font_size + "px";
+  setIcon(document.getElementById("preview-search-icon"), "search", c.text_muted);
+
+  // List / multi-select - see the markup comment above #preview-list-wrap
+  // for why this reuses Dropdown's existing item tokens instead of a new
+  // colour group.
+  const listWrap = document.getElementById("preview-list-wrap");
+  listWrap.style.setProperty("--list-bg", c.input_bg);
+  listWrap.style.setProperty("--list-border", c.border_default);
+  listWrap.style.borderRadius = d.dropdown_popup.corner_radius + "px";
+  document.querySelectorAll(".pv-list-item").forEach(el => {
+    el.style.setProperty("--list-item-fg", c.text_input);
+    el.style.setProperty("--list-item-hover-bg", c.dropdown_item_hover);
+    el.style.setProperty("--list-item-selected-bg", c.accent);
+    el.style.padding = d.dropdown_popup.item_padding_y + "px " + d.dropdown_popup.item_padding_x + "px";
+  });
+
+  // Data grid - pySheets/pyTransmit/PyTable/ImportPreview all share this
+  // same header/row/badge language already (same hex values, just
+  // re-declared per file) - header = header_bg, rows = card_bg with an
+  // alt shade at window_bg, hover = dropdown_item_hover, and revision/
+  // incompatibility badges reuse accent/danger rather than inventing a
+  // separate "grid" colour family.
+  const grid = document.getElementById("preview-grid");
+  const gridHead = grid.querySelector("thead tr");
+  gridHead.style.background = c.header_bg;
+  gridHead.style.color = c.text_primary;
+  gridHead.querySelectorAll("th").forEach(el => {
+    el.style.fontSize = d.data_grid.header_font_size + "px";
+    el.style.height = d.data_grid.header_height + "px";
+    el.style.padding = "0 " + d.data_grid.cell_padding_x + "px";
+  });
+  grid.querySelectorAll("tbody tr").forEach(row => {
+    row.style.background = row.classList.contains("grid-row-alt") ? c.window_bg : c.card_bg;
+    row.style.color = c.text_primary;
+    if (row.classList.contains("grid-row-hover")) row.style.background = c.dropdown_item_hover;
+  });
+  grid.querySelectorAll("tbody td").forEach(el => {
+    el.style.fontSize = d.data_grid.cell_font_size + "px";
+    el.style.height = d.data_grid.row_height + "px";
+    el.style.padding = "0 " + d.data_grid.cell_padding_x + "px";
+  });
+  document.getElementById("preview-grid-wrap").style.border = d.data_grid.border_thickness + "px solid " + c.border_muted;
+  document.querySelectorAll(".grid-badge-ok").forEach(el => {
+    el.style.background = c.accent;
+    el.style.color = "#fff";
+  });
+  document.getElementById("grid-badge-warn").style.background = c.danger;
+  document.getElementById("grid-badge-warn").style.color = "#fff";
+  document.querySelectorAll(".grid-badge").forEach(el => {
+    el.style.borderRadius = d.badge.corner_radius + "px";
+    el.style.padding = d.badge.padding_y + "px " + d.badge.padding_x + "px";
+    el.style.fontSize = d.badge.font_size + "px";
+  });
+
+  // Checkbox / radio - checked state reuses accent (same "filled = accent"
+  // convention as the toggle switch), unchecked reuses border_default,
+  // the check glyph/dot reuses toggle_knob (already the "mark on a filled
+  // control" colour everywhere else in this palette).
+  document.querySelectorAll(".pv-checkbox, .pv-radio").forEach(el => {
+    const checked = el.classList.contains("pv-checkbox-checked") || el.classList.contains("pv-radio-checked");
+    el.style.setProperty("--cb-bg", checked ? c.accent : "transparent");
+    el.style.setProperty("--cb-border", checked ? c.accent : c.border_default);
+    el.style.setProperty("--cb-border-width", d.checkbox.border_thickness + "px");
+    el.style.setProperty("--radio-dot", c.toggle_knob);
+    el.style.width = d.checkbox.size + "px";
+    el.style.height = d.checkbox.size + "px";
+  });
+  document.querySelectorAll(".pv-checkbox").forEach(el => {
+    el.style.borderRadius = d.checkbox.corner_radius + "px";
+  });
+  setIcon(document.getElementById("pv-checkbox-1-icon"), "check", c.toggle_knob);
+  document.querySelectorAll(".checkbox-demo-label").forEach(el => el.style.color = c.text_primary);
+
+  // Progress bar - track reuses secondary_bg (same "inactive control"
+  // grey as disabled/off states elsewhere), fill reuses accent.
+  const progressTrack = document.getElementById("progress-track");
+  const progressFill = document.getElementById("progress-fill");
+  progressTrack.style.setProperty("--progress-track-bg", c.secondary_bg);
+  progressFill.style.setProperty("--progress-fill-bg", c.accent);
+  progressTrack.style.height = d.progress_bar.height + "px";
+  progressTrack.style.borderRadius = d.progress_bar.corner_radius + "px";
+  progressFill.style.borderRadius = d.progress_bar.corner_radius + "px";
+  document.getElementById("progress-label").style.color = c.text_primary;
+
+  // Success chip + muted text - the two genuinely new semantic colours
+  // added alongside this preview (text_muted, success/success_hover).
+  const successChip = document.getElementById("success-chip");
+  successChip.style.background = c.success;
+  successChip.style.color = "#fff";
+  successChip.style.borderRadius = d.badge.corner_radius + "px";
+  document.getElementById("muted-text-example").style.color = c.text_muted;
+
   win.style.borderRadius = d.top_bar.corner_radius + "px";
 }
 
@@ -2065,10 +2475,8 @@ const BRUSH_NAME = {
   dropdown_item_hover: "BrushDropdownItemHover",
   toggle_off_bg: "BrushToggleOffBg", toggle_off_hover: "BrushToggleOffHover", toggle_off_pressed: "BrushToggleOffPressed", toggle_knob: "BrushToggleKnob",
   danger: "BrushDanger", danger_hover: "BrushDangerHover", danger_pressed: "BrushDangerPressed",
-  // New as of the pySheets format-pill addition - not yet in seed43_theme.py's
-  // KEY_TO_BRUSH, needs adding there (BrushPillOffBg/BrushPillOffBorder) when
-  // this file is actually merged into the windows.
   pill_off_bg: "BrushPillOffBg", pill_off_border: "BrushPillOffBorder",
+  text_muted: "BrushTextMuted", success: "BrushSuccess", success_hover: "BrushSuccessHover",
 };
 const DIM_NAME = {
   "button_primary.corner_radius": "CornerRadiusButton", "button_primary.font_size": "FontSizeButton",
@@ -2079,13 +2487,12 @@ const DIM_NAME = {
   "button_menu.width": "WidthButtonMenu", "button_menu.height": "HeightButtonMenu", "button_menu.corner_radius": "CornerRadiusButtonMenu",
   "input_textbox.height": "HeightInput", "input_textbox.corner_radius": "CornerRadiusInput", "input_textbox.border_thickness": "BorderThicknessInput", "input_textbox.font_size": "FontSizeInput",
   "input_combobox.height": "HeightCombobox", "input_combobox.corner_radius": "CornerRadiusCombobox", "input_combobox.font_size": "FontSizeCombobox",
+  "input_combobox.border_thickness": "BorderThicknessCombobox",
   "dropdown_popup.corner_radius": "CornerRadiusDropdownPopup", "dropdown_popup.min_width": "MinWidthDropdownPopup",
   "dropdown_popup.item_corner_radius": "CornerRadiusDropdownItem", "dropdown_popup.arrow_size": "SizeDropdownArrow",
   "top_bar.caption_height": "HeightTopBar", "top_bar.corner_radius": "CornerRadiusWindow", "top_bar.logo_size": "SizeTopBarLogo",
-  // New as of the floating-header fix - not yet in seed43_theme.py's
-  // DIM_TO_RESOURCE, needs adding there (CornerRadiusTopBarBottom /
-  // MarginTopBarBody) when this file is actually merged into the windows.
   "top_bar.corner_radius_bottom": "CornerRadiusTopBarBottom", "top_bar.body_margin_top": "MarginTopBarBody",
+  "menu_item.font_size": "FontSizeMenuItem",
   "toggle.width": "WidthToggle", "toggle.height": "HeightToggle", "toggle.corner_radius": "CornerRadiusToggle",
   "toggle.knob_size": "SizeToggleKnob", "toggle.knob_corner_radius": "CornerRadiusToggleKnob", "toggle.knob_margin": "MarginToggleKnob",
   "card.corner_radius": "CornerRadiusCard", "card.padding": "PaddingCard",
@@ -2339,7 +2746,7 @@ trigger, a reshaped template) need this file re-exported and re-merged.
         <Setter Property="Background"                 Value="Transparent"/>
         <Setter Property="Foreground"                 Value="${br('text_primary')}"/>
         <Setter Property="BorderThickness"            Value="0"/>
-        <Setter Property="Padding"                    Value="${dm('menu_item.padding_x')},${dm('menu_item.padding_y')}"/>
+        <Setter Property="Padding"                    Value="{DynamicResource PaddingMenuItem}"/>
         <Setter Property="FontSize"                   Value="${dm('menu_item.font_size')}"/>
         <Setter Property="HorizontalAlignment"        Value="Stretch"/>
         <Setter Property="HorizontalContentAlignment" Value="Left"/>
@@ -3143,13 +3550,13 @@ const COMPONENT_MAP = [
     dimKeys: ["button_secondary.padding_x", "button_secondary.padding_y", "button_secondary.corner_radius", "button_secondary.font_size"] },
   { label: "Round Primary Button", selector: "#pv-round-primary",
     colorKeys: ["accent", "accent_hover", "accent_pressed", "secondary_disabled_bg", "secondary_disabled_fg"],
-    dimKeys: ["button_round.width", "button_round.height", "button_round.corner_radius"] },
+    dimKeys: ["button_round.width", "button_round.height", "button_round.corner_radius", "button_round.icon_size"] },
   { label: "Round Toggle Button",  selector: "#pv-round-toggle",
     colorKeys: ["accent", "secondary_bg"],
     dimKeys: ["button_round.width", "button_round.height", "button_round.corner_radius"] },
   { label: "Round Delete Button",  selector: "#pv-round-delete",
     colorKeys: ["danger", "danger_hover", "danger_pressed"],
-    dimKeys: ["button_round.width", "button_round.height", "button_round.corner_radius"] },
+    dimKeys: ["button_round.width", "button_round.height", "button_round.corner_radius", "button_round.icon_size"] },
   { label: "Toggle Switch",     selector: "#toggle-row",
     colorKeys: ["accent", "accent_hover", "accent_pressed", "toggle_off_bg", "toggle_off_hover", "toggle_off_pressed", "toggle_knob"],
     dimKeys: ["toggle.width", "toggle.height", "toggle.corner_radius", "toggle.knob_size", "toggle.knob_corner_radius", "toggle.knob_margin"] },
@@ -3160,6 +3567,24 @@ const COMPONENT_MAP = [
     colorKeys: ["header_bg", "card_bg", "text_primary"], dimKeys: [] },
   { label: "Scrollbar",         selector: "#editor-col",
     colorKeys: ["accent", "accent_hover", "accent_pressed"], dimKeys: [] },
+  { label: "Search Box",        selector: "#preview-search-wrap",
+    colorKeys: ["input_bg", "input_bg_hover", "input_bg_pressed", "border_default", "border_hover", "border_pressed", "text_input", "text_muted"],
+    dimKeys: ["input_textbox.height", "input_textbox.corner_radius", "input_textbox.border_thickness", "input_textbox.font_size"] },
+  { label: "List / Multi-select", selector: "#preview-list-wrap",
+    colorKeys: ["input_bg", "border_default", "dropdown_item_hover", "accent", "text_input"],
+    dimKeys: ["dropdown_popup.corner_radius", "dropdown_popup.item_padding_x", "dropdown_popup.item_padding_y"] },
+  { label: "Data Grid",         selector: "#preview-grid-wrap",
+    colorKeys: ["header_bg", "card_bg", "window_bg", "dropdown_item_hover", "text_primary", "border_muted", "accent", "danger"],
+    dimKeys: ["data_grid.header_height", "data_grid.row_height", "data_grid.header_font_size", "data_grid.cell_font_size", "data_grid.cell_padding_x", "data_grid.border_thickness", "badge.corner_radius", "badge.padding_x", "badge.padding_y", "badge.font_size"] },
+  { label: "Checkbox / Radio",  selector: "#checkbox-radio-row",
+    colorKeys: ["accent", "border_default", "toggle_knob", "text_primary"],
+    dimKeys: ["checkbox.size", "checkbox.corner_radius", "checkbox.border_thickness"] },
+  { label: "Progress Bar",      selector: "#progress-bar-wrap",
+    colorKeys: ["secondary_bg", "accent", "text_primary"],
+    dimKeys: ["progress_bar.height", "progress_bar.corner_radius"] },
+  { label: "Success / Muted Text", selector: "#status-chip-row",
+    colorKeys: ["success", "success_hover", "text_muted"],
+    dimKeys: ["badge.corner_radius", "badge.padding_x", "badge.padding_y", "badge.font_size"] },
 ];
 
 let _highlightedEl = null;

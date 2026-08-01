@@ -5,16 +5,42 @@
         MinWidth="1000" MinHeight="500"
         ResizeMode="CanResizeWithGrip"
         WindowStartupLocation="CenterScreen"
-        Background="#3B4553"
+        Background="{DynamicResource BrushWindowBg}"
         TextElement.FontFamily="Segoe UI"
-        TextElement.Foreground="#F4FAFF"
+        TextElement.Foreground="{DynamicResource BrushTextPrimary}"
         FontSize="12">
 
     <Window.Resources>
+        <!-- ═════════ SEED43 PALETTE (fallback defaults; overridden at runtime by apply_seed43_palette) ═════════ -->
+        <SolidColorBrush x:Key="BrushWindowBg"             Color="#3B4553"/>
+        <SolidColorBrush x:Key="BrushCardBg"                Color="#2B3340"/>
+        <SolidColorBrush x:Key="BrushHeaderBg"              Color="#232933"/>
+        <SolidColorBrush x:Key="BrushTextPrimary"           Color="#F4FAFF"/>
+        <SolidColorBrush x:Key="BrushTextInput"             Color="#2B3340"/>
+        <SolidColorBrush x:Key="BrushTextMuted"             Color="#9CA3AF"/>
+        <SolidColorBrush x:Key="BrushInputBg"               Color="#F4FAFF"/>
+        <SolidColorBrush x:Key="BrushPrimaryGreen"          Color="#208A3C"/>
+        <SolidColorBrush x:Key="BrushPrimaryGreenHover"     Color="#2B933F"/>
+        <SolidColorBrush x:Key="BrushPrimaryGreenPressed"   Color="#1A6E2E"/>
+        <SolidColorBrush x:Key="BrushBorderDefault"         Color="#208A3C"/>
+        <SolidColorBrush x:Key="BrushBorderHover"           Color="#2B933F"/>
+        <SolidColorBrush x:Key="BrushBorderPressed"         Color="#2B933F"/>
+        <SolidColorBrush x:Key="BrushSecondaryBg"           Color="#404553"/>
+        <SolidColorBrush x:Key="BrushSecondaryHover"        Color="#4E5566"/>
+        <SolidColorBrush x:Key="BrushSecondaryPressed"      Color="#333B48"/>
+        <SolidColorBrush x:Key="BrushSecondaryDisabledBg"   Color="#555555"/>
+        <SolidColorBrush x:Key="BrushSecondaryDisabledFg"   Color="#888888"/>
+        <SolidColorBrush x:Key="BrushDropdownItemHover"     Color="#3A4150"/>
+        <SolidColorBrush x:Key="BrushDanger"                Color="#C53030"/>
+        <SolidColorBrush x:Key="BrushDangerHover"           Color="#D63838"/>
+        <SolidColorBrush x:Key="BrushDangerPressed"         Color="#A02424"/>
+        <SolidColorBrush x:Key="BrushSuccess"               Color="#27AE60"/>
+        <SolidColorBrush x:Key="BrushSuccessHover"          Color="#2ECC71"/>
+
         <!-- ═════════ SEED43 STYLES (embedded) ═════════ -->
 
         <Style x:Key="CardStyle" TargetType="Border">
-            <Setter Property="Background"   Value="#2B3340"/>
+            <Setter Property="Background"   Value="{DynamicResource BrushCardBg}"/>
             <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="Padding"      Value="16"/>
             <Setter Property="Margin"       Value="0,0,0,12"/>
@@ -26,14 +52,14 @@
         </Style>
 
         <Style x:Key="SectionLabelStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#208A3C"/>
+            <Setter Property="Foreground" Value="{DynamicResource BrushPrimaryGreen}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize"   Value="14"/>
             <Setter Property="Margin"     Value="0,0,0,8"/>
         </Style>
 
         <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#F4FAFF"/>
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="FontSize"   Value="12"/>
             <Setter Property="Margin"     Value="0,0,0,4"/>
             <Setter Property="Opacity"    Value="0.9"/>
@@ -41,7 +67,7 @@
 
         <Style x:Key="OptionsToggleButtonStyle" TargetType="ToggleButton">
             <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontSize"        Value="18"/>
             <Setter Property="Width"           Value="40"/>
@@ -58,13 +84,13 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#208A3C"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#208A3C"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#1A6B2F"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreenPressed}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -74,7 +100,7 @@
 
         <Style x:Key="CloseButtonStyle" TargetType="Button">
             <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontSize"        Value="14"/>
             <Setter Property="Width"           Value="30"/>
@@ -92,10 +118,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#FF5555"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushDangerHover}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#CC4444"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushDangerPressed}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -105,8 +131,8 @@
 
         <!-- Primary green button -->
         <Style x:Key="ModernButtonStyle" TargetType="Button">
-            <Setter Property="Background"      Value="#208A3C"/>
-            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="Background"      Value="{DynamicResource BrushPrimaryGreen}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding"         Value="24,8"/>
             <Setter Property="FontSize"        Value="14"/>
@@ -124,10 +150,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#2B933F"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#1A6E2E"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreenPressed}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Bd" Property="Opacity" Value="0.55"/>
@@ -140,8 +166,8 @@
 
         <!-- Neutral grey button -->
         <Style x:Key="SecondaryButtonStyle" TargetType="Button">
-            <Setter Property="Background"      Value="#404553"/>
-            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="Background"      Value="{DynamicResource BrushSecondaryBg}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding"         Value="14,6"/>
             <Setter Property="FontSize"        Value="12"/>
@@ -158,14 +184,14 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#4E5566"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryHover}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#333B48"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryPressed}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Bd" Property="Background" Value="#555555"/>
-                                <Setter Property="Foreground" Value="#888888"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryDisabledBg}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource BrushSecondaryDisabledFg}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -175,8 +201,8 @@
 
         <!-- Small green ribbon button -->
         <Style x:Key="SmallButtonStyle" TargetType="Button">
-            <Setter Property="Background"      Value="#208A3C"/>
-            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="Background"      Value="{DynamicResource BrushPrimaryGreen}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding"         Value="12,0"/>
             <Setter Property="FontSize"        Value="11"/>
@@ -195,10 +221,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#2B933F"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#1A6E2E"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreenPressed}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Bd" Property="Opacity" Value="0.45"/>
@@ -211,7 +237,7 @@
 
         <!-- Small neutral ribbon button (grey) -->
         <Style x:Key="SmallSecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource SmallButtonStyle}">
-            <Setter Property="Background" Value="#404553"/>
+            <Setter Property="Background" Value="{DynamicResource BrushSecondaryBg}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -224,10 +250,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#4E5566"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryHover}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#333B48"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryPressed}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -237,7 +263,7 @@
 
         <!-- Red destructive small button -->
         <Style x:Key="SmallDangerButtonStyle" TargetType="Button" BasedOn="{StaticResource SmallButtonStyle}">
-            <Setter Property="Background" Value="#C53030"/>
+            <Setter Property="Background" Value="{DynamicResource BrushDanger}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -250,10 +276,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#D63838"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushDangerHover}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#A02424"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushDangerPressed}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -263,8 +289,8 @@
 
         <!-- Mode toggle button (looks like a tab) -->
         <Style x:Key="ModeTabButtonStyle" TargetType="Button">
-            <Setter Property="Background"      Value="#404553"/>
-            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="Background"      Value="{DynamicResource BrushSecondaryBg}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding"         Value="14,0"/>
             <Setter Property="FontSize"        Value="11"/>
@@ -283,7 +309,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#4E5566"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryHover}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -292,9 +318,9 @@
         </Style>
 
         <Style x:Key="ModernTextBoxStyle" TargetType="TextBox">
-            <Setter Property="Background"               Value="#F4FAFF"/>
-            <Setter Property="Foreground"               Value="#2B3340"/>
-            <Setter Property="BorderBrush"              Value="#208A3C"/>
+            <Setter Property="Background"               Value="{DynamicResource BrushInputBg}"/>
+            <Setter Property="Foreground"               Value="{DynamicResource BrushTextInput}"/>
+            <Setter Property="BorderBrush"              Value="{DynamicResource BrushBorderDefault}"/>
             <Setter Property="BorderThickness"          Value="1"/>
             <Setter Property="Padding"                  Value="8,4"/>
             <Setter Property="FontSize"                 Value="12"/>
@@ -316,10 +342,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="#2B933F"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushBorderHover}"/>
                             </Trigger>
                             <Trigger Property="IsFocused" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush"     Value="#2B933F"/>
+                                <Setter TargetName="Bd" Property="BorderBrush"     Value="{DynamicResource BrushBorderPressed}"/>
                                 <Setter TargetName="Bd" Property="BorderThickness" Value="2"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -331,7 +357,7 @@
         <!-- Sidebar list item button -->
         <Style x:Key="SideBtn" TargetType="Button">
             <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding"         Value="10,7"/>
             <Setter Property="FontSize"        Value="12"/>
@@ -350,7 +376,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#3A4150"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushDropdownItemHover}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -359,7 +385,7 @@
         </Style>
 
         <Style x:Key="SideBtnActive" TargetType="Button" BasedOn="{StaticResource SideBtn}">
-            <Setter Property="Background" Value="#208A3C"/>
+            <Setter Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -377,7 +403,7 @@
 
         <Style x:Key="MenuItemButtonStyle" TargetType="Button">
             <Setter Property="Background"             Value="Transparent"/>
-            <Setter Property="Foreground"             Value="#F4FAFF"/>
+            <Setter Property="Foreground"             Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness"        Value="0"/>
             <Setter Property="Padding"                Value="12,8"/>
             <Setter Property="FontSize"               Value="12"/>
@@ -395,12 +421,12 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#208A3C"/>
-                                <Setter Property="Foreground" Value="#F4FAFF"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#1A6B2F"/>
-                                <Setter Property="Foreground" Value="#F4FAFF"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreenPressed}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -411,7 +437,7 @@
         <!-- Hamburger icon button (kept for any fallback use) -->
         <Style x:Key="HamburgerButtonStyle" TargetType="Button">
             <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Width"           Value="32"/>
             <Setter Property="Height"          Value="32"/>
@@ -428,7 +454,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#3A4150"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushDropdownItemHover}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -439,7 +465,7 @@
         <!-- Hamburger menu item (icon + label, pyTransmit style) -->
         <Style x:Key="MenuItemStyle" TargetType="Button">
             <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding"         Value="14,10"/>
             <Setter Property="FontSize"        Value="13"/>
@@ -457,10 +483,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#208A3C"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#1A6E2E"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreenPressed}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -471,7 +497,7 @@
         <!-- ═════════ MAC-STYLE SCROLLBAR (Seed43Styles spec) ═════════ -->
 
         <Style x:Key="MacScrollBarThumb" TargetType="Thumb">
-            <Setter Property="Background" Value="#208A3C"/>
+            <Setter Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Thumb">
@@ -481,10 +507,10 @@
                                 Margin="2,2,2,2"/>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="thumb" Property="Background" Value="#27AE60"/>
+                                <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushSuccess}"/>
                             </Trigger>
                             <Trigger Property="IsDragging" Value="True">
-                                <Setter TargetName="thumb" Property="Background" Value="#2ECC71"/>
+                                <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushSuccessHover}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -557,7 +583,7 @@
 
         <!-- ══ HEADER + TOOLBAR ════════════════════════════════════ -->
         <Border Grid.Row="0"
-                Background="#232933"
+                Background="{DynamicResource BrushHeaderBg}"
                 CornerRadius="0,0,12,12">
             <Border.Effect>
                 <DropShadowEffect Color="Black" Opacity="0.3"
@@ -575,17 +601,17 @@
                 <StackPanel Grid.Column="0" Orientation="Horizontal"
                             VerticalAlignment="Center">
                     <TextBlock Text="py" FontWeight="Bold" FontSize="28"
-                               Foreground="#208A3C" VerticalAlignment="Center"/>
+                               Foreground="{DynamicResource BrushPrimaryGreen}" VerticalAlignment="Center"/>
                     <TextBlock Text="Filter" FontWeight="SemiBold" FontSize="28"
-                               Foreground="#F4FAFF" Margin="3,0,0,0"
+                               Foreground="{DynamicResource BrushTextPrimary}" Margin="3,0,0,0"
                                VerticalAlignment="Center"/>
                     <TextBlock x:Name="ExportHeaderLbl"
                                Text="  |  Export" FontWeight="SemiBold" FontSize="20"
-                               Foreground="#F4FAFF" Opacity="0.75"
+                               Foreground="{DynamicResource BrushTextPrimary}" Opacity="0.75"
                                VerticalAlignment="Center" Visibility="Collapsed"/>
                     <TextBlock x:Name="ImportHeaderLbl"
                                Text="  |  Import" FontWeight="SemiBold" FontSize="20"
-                               Foreground="#F4FAFF" Opacity="0.75"
+                               Foreground="{DynamicResource BrushTextPrimary}" Opacity="0.75"
                                VerticalAlignment="Center" Visibility="Collapsed"/>
                 </StackPanel>
 
@@ -618,7 +644,7 @@
                             Content="View Templates" Style="{StaticResource ModeTabButtonStyle}"/>
 
                     <Border Grid.Column="6" Width="1" Height="20"
-                            Background="#404553" VerticalAlignment="Center"/>
+                            Background="{DynamicResource BrushSecondaryBg}" VerticalAlignment="Center"/>
 
                     <!-- Templates-mode actions -->
                     <Button x:Name="BtnAddFilter"      Grid.Column="8"
@@ -641,13 +667,13 @@
                 <!-- Right: normal mode (search + Apply + hamburger) -->
                 <StackPanel x:Name="HeaderNormalBtns" Grid.Column="3"
                             Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Background="#F4FAFF" CornerRadius="4" Padding="8,0"
+                    <Border Background="{DynamicResource BrushInputBg}" CornerRadius="4" Padding="8,0"
                             Height="26" VerticalAlignment="Center" Margin="0,0,8,0">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="&#x1F50D;" Foreground="#9CA3AF" FontSize="11"
+                            <TextBlock Text="&#x1F50D;" Foreground="{DynamicResource BrushTextMuted}" FontSize="11"
                                        VerticalAlignment="Center" Margin="0,0,6,0"/>
                             <TextBox x:Name="TxtSearch" Width="160" Height="22"
-                                     Background="Transparent" Foreground="#2B3340"
+                                     Background="Transparent" Foreground="{DynamicResource BrushTextInput}"
                                      BorderThickness="0" VerticalContentAlignment="Center"
                                      FontSize="11"/>
                         </StackPanel>
@@ -665,8 +691,8 @@
                                AllowsTransparency="True"
                                StaysOpen="False"
                                IsOpen="{Binding ElementName=options_btn, Path=IsChecked}">
-                            <Border Background="#2B3340"
-                                    BorderBrush="#208A3C" BorderThickness="1"
+                            <Border Background="{DynamicResource BrushCardBg}"
+                                    BorderBrush="{DynamicResource BrushBorderDefault}" BorderThickness="1"
                                     CornerRadius="6" MinWidth="200">
                                 <Border.Effect>
                                     <DropShadowEffect Color="Black" Opacity="0.4"
@@ -676,25 +702,25 @@
                                     <Button x:Name="MenuExport"
                                             Content="&#x1F4E4;  Export Templates"
                                             Style="{StaticResource MenuItemButtonStyle}"
-                                            Foreground="#F4FAFF"/>
+                                            Foreground="{DynamicResource BrushTextPrimary}"/>
                                     <Button x:Name="MenuImport"
                                             Content="&#x1F4E5;  Import Templates"
                                             Style="{StaticResource MenuItemButtonStyle}"
-                                            Foreground="#F4FAFF"/>
-                                    <Rectangle Fill="#404553" Height="1" Margin="0,2"/>
+                                            Foreground="{DynamicResource BrushTextPrimary}"/>
+                                    <Rectangle Fill="{DynamicResource BrushSecondaryBg}" Height="1" Margin="0,2"/>
                                     <Button x:Name="MenuResetColumns"
                                             Content="&#x21BA;  Reset Column Widths"
                                             Style="{StaticResource MenuItemButtonStyle}"
-                                            Foreground="#F4FAFF"/>
-                                    <Rectangle Fill="#404553" Height="1" Margin="0,2"/>
+                                            Foreground="{DynamicResource BrushTextPrimary}"/>
+                                    <Rectangle Fill="{DynamicResource BrushSecondaryBg}" Height="1" Margin="0,2"/>
                                     <Button x:Name="MenuHelp"
                                             Content="&#x2753;  Help"
                                             Style="{StaticResource MenuItemButtonStyle}"
-                                            Foreground="#F4FAFF"/>
+                                            Foreground="{DynamicResource BrushTextPrimary}"/>
                                     <Button x:Name="MenuAbout"
                                             Content="&#x2139;  About pyFilter"
                                             Style="{StaticResource MenuItemButtonStyle}"
-                                            Foreground="#F4FAFF"/>
+                                            Foreground="{DynamicResource BrushTextPrimary}"/>
                                 </StackPanel>
                             </Border>
                         </Popup>
@@ -774,15 +800,15 @@
                         <TextBlock x:Name="TxtTargetLabel"
                                    Text=""
                                    FontSize="13" FontWeight="SemiBold"
-                                   Foreground="#F4FAFF"
+                                   Foreground="{DynamicResource BrushTextPrimary}"
                                    VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis"/>
                     </Grid>
 
                     <Grid x:Name="GroupHeaderGrid" Grid.Row="1" Height="22"
-                          Background="#232933"/>
+                          Background="{DynamicResource BrushHeaderBg}"/>
                     <Grid x:Name="HeaderGrid"      Grid.Row="2" Height="28"
-                          Background="#1F242E"/>
+                          Background="{DynamicResource BrushHeaderBg}"/>
 
                     <ScrollViewer Grid.Row="3"
                                   Style="{StaticResource MacScrollViewer}">
@@ -792,7 +818,7 @@
                     <Border x:Name="EmptyState" Grid.Row="3"
                             Background="Transparent" Visibility="Collapsed">
                         <TextBlock x:Name="TxtEmpty" Text="No filters."
-                                   Foreground="#9CA3AF" FontSize="13"
+                                   Foreground="{DynamicResource BrushTextMuted}" FontSize="13"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center"/>
                     </Border>
@@ -801,17 +827,17 @@
         </Grid>
 
         <!-- ══ STATUS BAR ════════════════════════════════════════════ -->
-        <Border Grid.Row="2" Background="#232933">
+        <Border Grid.Row="2" Background="{DynamicResource BrushHeaderBg}">
             <TextBlock x:Name="StatusText" Text="Ready"
-                       Foreground="#9CA3AF" FontSize="11"
+                       Foreground="{DynamicResource BrushTextMuted}" FontSize="11"
                        VerticalAlignment="Center" Margin="16,0"/>
         </Border>
 
         <!-- ══ OPTIONS POPUP (per-row override editor) ═══════════════ -->
         <Popup x:Name="OptionsPopup" Placement="MousePoint"
                StaysOpen="False" AllowsTransparency="True">
-            <Border Background="#2B3340" CornerRadius="8" Padding="12"
-                    BorderBrush="#208A3C" BorderThickness="1">
+            <Border Background="{DynamicResource BrushCardBg}" CornerRadius="8" Padding="12"
+                    BorderBrush="{DynamicResource BrushBorderDefault}" BorderThickness="1">
                 <Border.Effect>
                     <DropShadowEffect Color="Black" BlurRadius="8"
                                       ShadowDepth="3" Opacity="0.4"/>
@@ -823,8 +849,8 @@
         <!-- ══ ROW CONTEXT MENU (template ⋮) ═════════════════════════ -->
         <Popup x:Name="RowMenuPopup" Placement="MousePoint"
                StaysOpen="False" AllowsTransparency="True">
-            <Border Background="#2B3340" CornerRadius="6" Padding="4"
-                    BorderBrush="#208A3C" BorderThickness="1"
+            <Border Background="{DynamicResource BrushCardBg}" CornerRadius="6" Padding="4"
+                    BorderBrush="{DynamicResource BrushBorderDefault}" BorderThickness="1"
                     MinWidth="140">
                 <Border.Effect>
                     <DropShadowEffect Color="Black" BlurRadius="8"
@@ -834,14 +860,14 @@
                     <Button x:Name="RowMenuRename" Content="Rename"
                             Style="{StaticResource SideBtn}"/>
                     <Button x:Name="RowMenuDelete" Content="Delete"
-                            Style="{StaticResource SideBtn}" Foreground="#F4FAFF"/>
+                            Style="{StaticResource SideBtn}" Foreground="{DynamicResource BrushTextPrimary}"/>
                 </StackPanel>
             </Border>
         </Popup>
 
         <!-- ══ EXPORT PANEL (inline, pyTransmit-style) ═══════════════ -->
         <Grid x:Name="ExportPanel"
-              Background="#3B4553"
+              Background="{DynamicResource BrushWindowBg}"
               Grid.Row="1"
               Visibility="Collapsed"
               Panel.ZIndex="52">
@@ -854,7 +880,7 @@
                             <TextBlock Text="Export Templates"
                                        Style="{StaticResource SectionLabelStyle}"/>
                             <TextBlock Text="Each selected template is saved as its own .json file in the chosen folder."
-                                       Foreground="#F4FAFF" FontSize="11" Opacity="0.7"
+                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.7"
                                        TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
@@ -863,10 +889,10 @@
                         <StackPanel>
                             <CheckBox x:Name="ExportAutoUpdate"
                                       Content="Auto update on save"
-                                      Foreground="#F4FAFF" FontSize="12"
+                                      Foreground="{DynamicResource BrushTextPrimary}" FontSize="12"
                                       Margin="0,0,0,4"/>
                             <TextBlock Text="When enabled, saving a template automatically copies it to the export folder."
-                                       Foreground="#F4FAFF" FontSize="11" Opacity="0.6"
+                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.6"
                                        TextWrapping="Wrap" Margin="20,0,0,16"/>
                             <TextBlock Text="Export Folder" Style="{StaticResource FieldLabelStyle}"/>
                             <DockPanel>
@@ -893,7 +919,7 @@
                                         Style="{StaticResource SmallSecondaryButtonStyle}"
                                         Padding="14,4"/>
                             </StackPanel>
-                            <Border Background="#1E2530" CornerRadius="6" Padding="8"
+                            <Border Background="{DynamicResource BrushHeaderBg}" CornerRadius="6" Padding="8"
                                     Height="200">
                                 <ScrollViewer Style="{StaticResource MacScrollViewer}">
                                     <StackPanel x:Name="ExportTemplateList"/>
@@ -902,16 +928,16 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Background="#1E2730" CornerRadius="6" Margin="0,0,0,8">
+                    <Border Background="{DynamicResource BrushHeaderBg}" CornerRadius="6" Margin="0,0,0,8">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="4"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0" Background="#208A3C" CornerRadius="3,0,0,3"/>
+                            <Border Grid.Column="0" Background="{DynamicResource BrushPrimaryGreen}" CornerRadius="3,0,0,3"/>
                             <TextBlock Grid.Column="1"
                                        Text="Settings are saved automatically when you close this panel."
-                                       Foreground="#7EC8A0" FontSize="10" Opacity="0.9"
+                                       Foreground="{DynamicResource BrushSuccess}" FontSize="10" Opacity="0.9"
                                        TextWrapping="Wrap" Margin="10,8,8,8"/>
                         </Grid>
                     </Border>
@@ -922,7 +948,7 @@
 
         <!-- ══ IMPORT PANEL (inline, pyTransmit-style) ═══════════════ -->
         <Grid x:Name="ImportPanel"
-              Background="#3B4553"
+              Background="{DynamicResource BrushWindowBg}"
               Grid.Row="1"
               Visibility="Collapsed"
               Panel.ZIndex="52">
@@ -935,7 +961,7 @@
                             <TextBlock Text="Import Templates"
                                        Style="{StaticResource SectionLabelStyle}"/>
                             <TextBlock Text="Browse to a folder containing pyFilter template .json files."
-                                       Foreground="#F4FAFF" FontSize="11" Opacity="0.7"
+                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.7"
                                        TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
@@ -944,10 +970,10 @@
                         <StackPanel>
                             <CheckBox x:Name="ImportAutoUpdate"
                                       Content="Auto update on startup"
-                                      Foreground="#F4FAFF" FontSize="12"
+                                      Foreground="{DynamicResource BrushTextPrimary}" FontSize="12"
                                       Margin="0,0,0,4"/>
                             <TextBlock Text="When enabled, templates are automatically imported from this folder each time pyFilter opens."
-                                       Foreground="#F4FAFF" FontSize="11" Opacity="0.6"
+                                       Foreground="{DynamicResource BrushTextPrimary}" FontSize="11" Opacity="0.6"
                                        TextWrapping="Wrap" Margin="20,0,0,16"/>
                             <TextBlock Text="Import Folder" Style="{StaticResource FieldLabelStyle}"/>
                             <DockPanel>
@@ -966,17 +992,17 @@
                         <StackPanel>
                             <TextBlock Text="Select templates to import"
                                        Style="{StaticResource SectionLabelStyle}"/>
-                            <TextBlock Text="On name conflict:" Foreground="#9CA3AF"
+                            <TextBlock Text="On name conflict:" Foreground="{DynamicResource BrushTextMuted}"
                                        FontSize="11" Margin="0,0,0,8"/>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                                 <RadioButton x:Name="RdoOverwrite" Content="Overwrite"
-                                             Foreground="#F4FAFF" IsChecked="True"
+                                             Foreground="{DynamicResource BrushTextPrimary}" IsChecked="True"
                                              GroupName="import_conflict" Margin="0,0,16,0"/>
                                 <RadioButton x:Name="RdoSkip" Content="Skip"
-                                             Foreground="#F4FAFF"
+                                             Foreground="{DynamicResource BrushTextPrimary}"
                                              GroupName="import_conflict" Margin="0,0,16,0"/>
                                 <RadioButton x:Name="RdoRename" Content="Rename"
-                                             Foreground="#F4FAFF"
+                                             Foreground="{DynamicResource BrushTextPrimary}"
                                              GroupName="import_conflict"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
@@ -987,7 +1013,7 @@
                                         Style="{StaticResource SmallSecondaryButtonStyle}"
                                         Padding="14,4"/>
                             </StackPanel>
-                            <Border Background="#1E2530" CornerRadius="6" Padding="8"
+                            <Border Background="{DynamicResource BrushHeaderBg}" CornerRadius="6" Padding="8"
                                     Height="200">
                                 <ScrollViewer Style="{StaticResource MacScrollViewer}">
                                     <StackPanel x:Name="ImportTemplateList"/>
@@ -996,16 +1022,16 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Background="#1E2730" CornerRadius="6" Margin="0,0,0,8">
+                    <Border Background="{DynamicResource BrushHeaderBg}" CornerRadius="6" Margin="0,0,0,8">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="4"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0" Background="#208A3C" CornerRadius="3,0,0,3"/>
+                            <Border Grid.Column="0" Background="{DynamicResource BrushPrimaryGreen}" CornerRadius="3,0,0,3"/>
                             <TextBlock Grid.Column="1"
                                        Text="Settings are saved automatically when you close this panel."
-                                       Foreground="#7EC8A0" FontSize="10" Opacity="0.9"
+                                       Foreground="{DynamicResource BrushSuccess}" FontSize="10" Opacity="0.9"
                                        TextWrapping="Wrap" Margin="10,8,8,8"/>
                         </Grid>
                     </Border>

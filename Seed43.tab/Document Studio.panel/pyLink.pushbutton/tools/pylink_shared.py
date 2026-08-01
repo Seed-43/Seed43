@@ -50,6 +50,21 @@ PyLink.py) can import from here with zero circularity risk.
 """
 
 
+MM     = 1.0 / 304.8   # millimetres to Revit internal feet
+PT_MM  = 0.352778      # millimetres per point (1pt = 1/72in = 25.4/72mm) -
+                        # this is the answer to "what is 7pt in mm": 7 * PT_MM ~ 2.47mm
+
+
+def _col_letter_to_index(col_str):
+    """Spreadsheet column letters ("A", "AB", ...) to a 0-based index -
+    shared by the xlsx and ods format readers (tools/format/), both of
+    which resolve named-range cell references the same way."""
+    result = 0
+    for ch in col_str.upper():
+        result = result * 26 + (ord(ch) - ord('A') + 1)
+    return result - 1
+
+
 VIEW_TYPES      = ['Schedule View', 'Legend View', 'Drafting View']
 WORD_VIEW_TYPES = ['Legend View', 'Drafting View']
 SHEET_SIZES     = [
@@ -600,23 +615,6 @@ def load_pylink_state():
     except Exception as ex:
         logger.warning('pyLink load failed: {}'.format(ex))
         return []
-
-VIEW_TYPES      = ['Schedule View', 'Legend View', 'Drafting View']
-WORD_VIEW_TYPES = ['Legend View', 'Drafting View']
-SHEET_SIZES     = [
-    'A4 Landscape', 'A4 Portrait',
-    'A3 Landscape', 'A3 Portrait',
-    'A2 Landscape', 'A2 Portrait',
-    'A1 Landscape', 'A1 Portrait',
-    'A0 Landscape', 'A0 Portrait',
-]
-
-SRC_COLOURS    = {'xl': '#217346', 'word': '#2B579A', 'ods': '#0E8C7B', 'odt': '#6B3FA0'}
-STATUS_COLOURS = {
-    'pending': '#6B7280', 'success': '#16A34A',
-    'error':   '#DC2626', 'skipped': '#CA8A04',
-    'sync':    '#3B82F6',
-}
 
 def hb(h):
     h = h.lstrip('#')

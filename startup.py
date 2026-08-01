@@ -35,10 +35,27 @@ WINDOW_XAML = """
     SizeToContent="Height"
     ResizeMode="NoResize"
     WindowStartupLocation="CenterScreen"
-    Background="#3B4553"
+    Background="{StaticResource LocalWindowBg}"
     TextElement.FontFamily="Segoe UI">
 
     <Window.Resources>
+
+        <SolidColorBrush x:Key="LocalWindowBg"    Color="#3B4553"/>
+        <SolidColorBrush x:Key="LocalHeaderBg"    Color="#232933"/>
+        <SolidColorBrush x:Key="LocalAccent"        Color="#208A3C"/>
+        <SolidColorBrush x:Key="LocalAccentHover"   Color="#2B933F"/>
+        <SolidColorBrush x:Key="LocalAccentPressed" Color="#1A6E2E"/>
+        <SolidColorBrush x:Key="LocalLightText"   Color="#F4FAFF"/>
+        <SolidColorBrush x:Key="LocalCardBg"      Color="#F4FAFF"/>
+        <SolidColorBrush x:Key="LocalCardText"    Color="#2B3340"/>
+        <SolidColorBrush x:Key="LocalSecondaryBg"        Color="#404553"/>
+        <SolidColorBrush x:Key="LocalSecondaryHover"     Color="#4E5566"/>
+        <SolidColorBrush x:Key="LocalSecondaryPressed"   Color="#333B48"/>
+        <SolidColorBrush x:Key="LocalDisabledBg"  Color="#555555"/>
+        <SolidColorBrush x:Key="LocalDisabledFg"  Color="#888888"/>
+        <SolidColorBrush x:Key="LocalDangerHover"   Color="#FF5555"/>
+        <SolidColorBrush x:Key="LocalDangerPressed" Color="#CC4444"/>
+        <SolidColorBrush x:Key="LocalProgressTrackBg" Color="#D0D8E0"/>
 
         <DropShadowEffect x:Key="HeaderShadow"
                           Color="Black" Opacity="0.3"
@@ -49,8 +66,8 @@ WINDOW_XAML = """
                           ShadowDepth="2" BlurRadius="4"/>
 
         <Style x:Key="SmallButtonStyle" TargetType="Button">
-            <Setter Property="Background"      Value="#208A3C"/>
-            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="Background"      Value="{StaticResource LocalAccent}"/>
+            <Setter Property="Foreground"      Value="{StaticResource LocalLightText}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding"         Value="12,4"/>
             <Setter Property="FontSize"        Value="11"/>
@@ -69,14 +86,14 @@ WINDOW_XAML = """
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#2B933F"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource LocalAccentHover}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#1A6E2E"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource LocalAccentPressed}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Bd" Property="Background" Value="#555555"/>
-                                <Setter Property="Foreground"                  Value="#888888"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource LocalDisabledBg}"/>
+                                <Setter Property="Foreground"                  Value="{StaticResource LocalDisabledFg}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -85,8 +102,8 @@ WINDOW_XAML = """
         </Style>
 
         <Style x:Key="SecondaryButtonStyle" TargetType="Button">
-            <Setter Property="Background"      Value="#404553"/>
-            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="Background"      Value="{StaticResource LocalSecondaryBg}"/>
+            <Setter Property="Foreground"      Value="{StaticResource LocalLightText}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding"         Value="16,8"/>
             <Setter Property="FontSize"        Value="12"/>
@@ -103,14 +120,14 @@ WINDOW_XAML = """
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#4E5566"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource LocalSecondaryHover}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#333B48"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource LocalSecondaryPressed}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Bd" Property="Background" Value="#555555"/>
-                                <Setter Property="Foreground"                  Value="#888888"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource LocalDisabledBg}"/>
+                                <Setter Property="Foreground"                  Value="{StaticResource LocalDisabledFg}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -120,7 +137,7 @@ WINDOW_XAML = """
 
         <Style x:Key="CloseButtonStyle" TargetType="Button">
             <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="#F4FAFF"/>
+            <Setter Property="Foreground"      Value="{StaticResource LocalLightText}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontSize"        Value="14"/>
             <Setter Property="Width"           Value="30"/>
@@ -137,10 +154,10 @@ WINDOW_XAML = """
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#FF5555"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource LocalDangerHover}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#CC4444"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource LocalDangerPressed}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -155,7 +172,7 @@ WINDOW_XAML = """
         <!-- Header -->
         <Border Height="70"
                 VerticalAlignment="Top"
-                Background="#232933"
+                Background="{StaticResource LocalHeaderBg}"
                 CornerRadius="0,0,12,12"
                 Effect="{StaticResource HeaderShadow}"
                 Panel.ZIndex="10">
@@ -172,11 +189,11 @@ WINDOW_XAML = """
                            VerticalAlignment="Center"
                            Margin="0,0,10,0"/>
                     <TextBlock FontSize="32" FontWeight="Bold"
-                               Foreground="#208A3C" Text="SEED"/>
+                               Foreground="{StaticResource LocalAccent}" Text="SEED"/>
                     <TextBlock FontSize="32" FontWeight="SemiBold"
-                               Foreground="#F4FAFF" Text="43"/>
+                               Foreground="{StaticResource LocalLightText}" Text="43"/>
                     <TextBlock FontSize="20" FontWeight="SemiBold"
-                               Foreground="#F4FAFF" Opacity="0.75"
+                               Foreground="{StaticResource LocalLightText}" Opacity="0.75"
                                VerticalAlignment="Bottom"
                                Margin="10,0,0,5"
                                Text="  |  Update"/>
@@ -191,8 +208,8 @@ WINDOW_XAML = """
 
         <!-- Update card -->
         <Border Margin="24,90,24,24"
-                Background="#F4FAFF"
-                BorderBrush="#208A3C"
+                Background="{StaticResource LocalCardBg}"
+                BorderBrush="{StaticResource LocalAccent}"
                 BorderThickness="1"
                 CornerRadius="6"
                 Padding="24"
@@ -201,13 +218,13 @@ WINDOW_XAML = """
 
                 <TextBlock x:Name="update_title_lbl"
                            Text="Update Available"
-                           Foreground="#208A3C"
+                           Foreground="{StaticResource LocalAccent}"
                            FontSize="14"
                            FontWeight="SemiBold"
                            Margin="0,0,0,8"/>
 
                 <TextBlock x:Name="update_msg_lbl"
-                           Foreground="#2B3340"
+                           Foreground="{StaticResource LocalCardText}"
                            FontSize="12"
                            TextWrapping="Wrap"
                            Margin="0,0,0,20"/>
@@ -218,13 +235,13 @@ WINDOW_XAML = """
                              Minimum="0"
                              Maximum="100"
                              Value="0"
-                             Foreground="#208A3C"
-                             Background="#D0D8E0"
+                             Foreground="{StaticResource LocalAccent}"
+                             Background="{StaticResource LocalProgressTrackBg}"
                              BorderThickness="0"
                              Visibility="Collapsed"/>
 
                 <TextBlock x:Name="status_lbl"
-                           Foreground="#208A3C"
+                           Foreground="{StaticResource LocalAccent}"
                            FontSize="11"
                            Margin="0,0,0,12"
                            Visibility="Collapsed"/>

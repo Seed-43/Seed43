@@ -16,6 +16,8 @@ try:
 except Exception:
     dlg = None
 
+from Snippets.seed43_theme import apply_seed43_palette
+
 def _alert(message):
     """Themed popup when available, falls back to forms.alert."""
     if dlg:
@@ -73,18 +75,7 @@ class EditNamingFormatsWindow(forms.WPFWindow):
             _alert('Could not load the Naming Formats window.\n\n'
                   + self._error_chain(ex))
             raise
-        try:
-            # Styles live in ENFStyles.xaml, merged here at runtime,
-            # avoids the ResourceDictionary load error seen with
-            # wpf.LoadComponent on this engine
-            import System
-            rd = Windows.ResourceDictionary()
-            rd.Source = System.Uri(
-                op.join(op.dirname(__file__), 'ENFStyles.xaml'))
-            self.Resources.MergedDictionaries.Add(rd)
-        except Exception as ex:
-            _alert('Could not load the Naming Formats styles.\n\n'
-                  + self._error_chain(ex))
+        apply_seed43_palette(self, op.dirname(__file__))
         self._drop_pos = 0
         self._starting_item = start_with
         self._saved = False

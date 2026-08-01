@@ -31,6 +31,7 @@ import pyfilter_view_assign as va
 import pyfilter_sync as sm
 import pyfilter_settings as settings_dialog
 from Snippets._revisions import safe_str
+from Snippets.seed43_theme import apply_seed43_palette
 
 doc    = revit.doc
 output = None  # pyRevit output panel disabled
@@ -88,6 +89,7 @@ class pyFilterWindow(WPFWindow):
         xaml_path = os.path.join(SCRIPT_DIR, "pyFilter.xaml")
         log("Loading XAML: {}".format(xaml_path))
         WPFWindow.__init__(self, xaml_path)
+        apply_seed43_palette(self, SCRIPT_DIR)
 
         self.templates_folder  = get_templates_folder()
         self.active_template   = None

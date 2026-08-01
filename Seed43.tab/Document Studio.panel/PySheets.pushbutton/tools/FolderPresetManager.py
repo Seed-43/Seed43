@@ -7,12 +7,14 @@ from pyrevit.framework import Windows
 
 import FolderPresetEditor as fpe_win
 from Snippets import _dialogs as dlg
+from Snippets.seed43_theme import apply_seed43_palette
 
 
 class FolderPresetManagerWindow(forms.WPFWindow):
     def __init__(self, xaml_file_name, project_info, username, revit_version,
                  load_presets, save_presets):
         forms.WPFWindow.__init__(self, xaml_file_name)
+        apply_seed43_palette(self, op.dirname(xaml_file_name))
         self._project_info = project_info
         self._username = username
         self._revit_version = revit_version
@@ -28,7 +30,7 @@ class FolderPresetManagerWindow(forms.WPFWindow):
         if not presets:
             tb = Windows.Controls.TextBlock()
             tb.Text = 'No presets yet — click "Create Preset" to add one.'
-            tb.Foreground = self.FindResource('Text')
+            tb.Foreground = self.FindResource('BrushTextPrimary')
             tb.Opacity = 0.5
             tb.FontSize = 12
             tb.TextWrapping = Windows.TextWrapping.Wrap

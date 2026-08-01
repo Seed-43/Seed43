@@ -1104,10 +1104,13 @@ class LayoutSettingsWindow(WPFWindow):
         apply_seed43_dimensions() alone is enough to theme the window; no
         extra injection step is needed for those.
 
-        The one thing still injected here by hand is LocalBrushTextMuted -
-        it's computed (BrushTextPrimary at reduced opacity), not something
-        directly present in seed43_palette.json, so it can't come from
-        apply_seed43_palette() alone.
+        LocalBrushTextMuted used to be injected here by hand (computed as
+        BrushTextPrimary at reduced opacity) because no canonical
+        muted/secondary-text token existed. seed43_palette.json now has a
+        real "text_muted" key (-> BrushTextMuted), so this window's XAML
+        references BrushTextMuted via DynamicResource directly, same as
+        every other themed brush, and apply_seed43_palette() alone covers
+        it - no special-case injection needed any more.
 
         LocalBrushRowBg/LocalBrushHoverBg/LocalBrushBorderNeutral and
         ColA-D are declared as static local brushes directly in the XAML
@@ -1153,17 +1156,7 @@ class LayoutSettingsWindow(WPFWindow):
         sec_hover = _find('BrushSecondaryHover',     '#515155')
         sec_dis_bg = _find('BrushSecondaryDisabledBg', '#2E2E32')
         sec_dis_fg = _find('BrushSecondaryDisabledFg', '#77767B')
-        # LocalBrushTextMuted keeps its own reduced opacity rather than
-        # becoming identical to BrushTextPrimary, so the muted/main text
-        # hierarchy this file relies on throughout doesn't collapse into
-        # one shade.
-        text_mute = _SWM.SolidColorBrush(text_main.Color)
-        text_mute.Opacity = 0.7
-
-        try:
-            self.Resources['LocalBrushTextMuted'] = text_mute
-        except Exception:
-            pass
+        text_mute = _find('BrushTextMuted', '#9CA3AF')
 
         # Mirror the same live brushes into the module-level BK dict, so
         # every Python-built dynamic element (canvas blocks, drag handles,

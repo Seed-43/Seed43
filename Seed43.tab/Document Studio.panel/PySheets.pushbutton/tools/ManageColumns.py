@@ -12,6 +12,8 @@ import os.path as op
 from pyrevit import forms
 from pyrevit.framework import Windows
 
+from Snippets.seed43_theme import apply_seed43_palette
+
 
 BUILTIN_SHEET_COLUMNS = [
     ('revision',   'Revision'),
@@ -25,6 +27,7 @@ class ManageColumnsWindow(forms.WPFWindow):
     def __init__(self, xaml_file_name, sample_sheet, sample_view,
                  current_sheet_cols, current_view_cols, builtin_visible):
         forms.WPFWindow.__init__(self, xaml_file_name)
+        apply_seed43_palette(self, op.dirname(xaml_file_name))
         self.result = None
 
         self._sheet_boxes = {}   # key -> CheckBox
@@ -77,7 +80,7 @@ class ManageColumnsWindow(forms.WPFWindow):
     def _add_note(self, panel, text):
         tb = Windows.Controls.TextBlock()
         tb.Text = text
-        tb.Foreground = self.FindResource('Text')
+        tb.Foreground = self.FindResource('BrushTextPrimary')
         tb.Opacity = 0.5
         tb.FontSize = 12
         tb.TextWrapping = Windows.TextWrapping.Wrap
@@ -88,7 +91,7 @@ class ManageColumnsWindow(forms.WPFWindow):
         cb = Windows.Controls.CheckBox()
         cb.Content = label
         cb.IsChecked = checked
-        cb.Foreground = self.FindResource('Text')
+        cb.Foreground = self.FindResource('BrushTextPrimary')
         cb.FontSize = 12
         cb.Margin = Windows.Thickness(0, 0, 0, 6)
         if builtin:

@@ -59,6 +59,9 @@
         <CornerRadius x:Key="CornerRadiusButtonSecondary">10</CornerRadius>
         <sys:Double x:Key="FontSizeButtonSecondary">13</sys:Double>
         <Thickness x:Key="PaddingButtonSecondary">15,7,15,7</Thickness>
+        <CornerRadius x:Key="CornerRadiusButtonSmall">4</CornerRadius>
+        <sys:Double x:Key="FontSizeButtonSmall">11</sys:Double>
+        <Thickness x:Key="PaddingButtonSmall">12,4,12,4</Thickness>
         <sys:Double x:Key="HeightInput">28</sys:Double>
         <CornerRadius x:Key="CornerRadiusInput">8</CornerRadius>
         <Thickness x:Key="BorderThicknessInput">1</Thickness>
@@ -78,6 +81,8 @@
         <sys:Double x:Key="FontSizeMenuItem">12</sys:Double>
         <Thickness x:Key="PaddingMenuItem">12,8,12,8</Thickness>
         <CornerRadius x:Key="CornerRadiusDropdownPopup">14</CornerRadius>
+        <CornerRadius x:Key="CornerRadiusDropdownItem">4</CornerRadius>
+        <Thickness x:Key="PaddingDropdownItem">8,4,8,4</Thickness>
         <Thickness x:Key="PaddingCard">16</Thickness>
         <sys:Double x:Key="FontSizeSectionLabel">11</sys:Double>
         <sys:Double x:Key="FontSizeFieldLabel">12</sys:Double>
@@ -163,14 +168,110 @@
             <Setter Property="Margin" Value="2,0,0,6"/>
         </Style>
 
+        <!-- Was colour Setters only, no Template - the toggle-button chevron area
+             and the dropdown popup/items stayed native WPF chrome (the grey box
+             with a system arrow seen in the real app). Retemplated to match the
+             canonical ComboBoxStyle already in Seed43Styles.xaml (custom chevron,
+             themed popup, themed items) - simplified here since format_combo only
+             ever has 2 short items (no scrolling needed, so no MacScrollViewer
+             dependency pulled in). -->
         <Style x:Key="FormatComboStyle" TargetType="ComboBox">
             <Setter Property="Height" Value="{DynamicResource HeightCombobox}"/>
             <Setter Property="Background" Value="{DynamicResource BrushInputBg}"/>
             <Setter Property="Foreground" Value="{DynamicResource BrushTextInput}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource BrushBorderDefault}"/>
+            <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="FontSize" Value="{DynamicResource FontSizeCombobox}"/>
             <Setter Property="Padding" Value="{DynamicResource PaddingCombobox}"/>
             <Setter Property="MinWidth" Value="120"/>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="Background" Value="{DynamicResource BrushCardBg}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ComboBoxItem">
+                                    <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                            CornerRadius="{DynamicResource CornerRadiusDropdownItem}"
+                                            Padding="{DynamicResource PaddingDropdownItem}">
+                                        <ContentPresenter/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsHighlighted" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushDropdownItemHover}"/>
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="ToggleButton"
+                                          Background="{TemplateBinding Background}"
+                                          BorderBrush="{TemplateBinding BorderBrush}"
+                                          BorderThickness="{TemplateBinding BorderThickness}"
+                                          IsChecked="{Binding Path=IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                          Focusable="False" ClickMode="Press">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="tgBd" Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                CornerRadius="{DynamicResource CornerRadiusCombobox}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="18"/>
+                                                </Grid.ColumnDefinitions>
+                                                <ContentPresenter Grid.Column="0" Margin="8,0,0,0"
+                                                                  VerticalAlignment="Center" HorizontalAlignment="Left"/>
+                                                <TextBlock Grid.Column="1" Text="&#9662;" FontSize="9"
+                                                           Foreground="{DynamicResource BrushTextInput}"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="tgBd" Property="BorderBrush" Value="{DynamicResource BrushBorderHover}"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter x:Name="ContentSite" IsHitTestVisible="False"
+                                              Content="{TemplateBinding SelectionBoxItem}"
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              Margin="8,0,22,0" VerticalAlignment="Center" HorizontalAlignment="Left"/>
+                            <Popup x:Name="Popup" Placement="Bottom"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   AllowsTransparency="True" Focusable="False" PopupAnimation="Slide">
+                                <Border x:Name="DropDownBorder"
+                                        MinWidth="{TemplateBinding ActualWidth}"
+                                        MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                        Background="{DynamicResource BrushCardBg}"
+                                        BorderBrush="{DynamicResource BrushBorderMuted}"
+                                        CornerRadius="{DynamicResource CornerRadiusDropdownPopup}"
+                                        BorderThickness="1"
+                                        Padding="4">
+                                    <Border.Effect>
+                                        <DropShadowEffect Color="Black" Opacity="0.4" ShadowDepth="3" BlurRadius="8"/>
+                                    </Border.Effect>
+                                    <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="SearchTextBoxStyle" TargetType="TextBox">
@@ -183,10 +284,75 @@
             <Setter Property="Padding" Value="{DynamicResource PaddingInput}"/>
         </Style>
 
+        <!-- ── Themed list row (categories/parameters/schedules ListBoxes) ──
+             Same look as the Dropdown popup's own item row (hover =
+             BrushDropdownItemHover, selected = accent fill + white text) -
+             see the Seed43 Palette Editor's "List / Multi-select" preview
+             component for the canonical spec this matches. -->
+        <Style x:Key="ListBoxItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextInput}"/>
+            <Setter Property="Padding" Value="{DynamicResource PaddingDropdownItem}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="RowBorder"
+                                Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}"
+                                CornerRadius="{DynamicResource CornerRadiusDropdownItem}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="RowBorder" Property="Background" Value="{DynamicResource BrushDropdownItemHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="RowBorder" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Was Foreground/FontSize/Padding-only, so the actual tab chrome (shape,
+             selected-state background) fell through to native WPF TabItem - the
+             plain white/grey box behind the selected header seen in the real app.
+             Retemplated to match the app's pill tab-strip look (accent fill when
+             selected, same as every "fake tab strip" elsewhere in the extension). -->
         <Style TargetType="TabItem">
             <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
-            <Setter Property="FontSize" Value="{DynamicResource FontSizeBody}"/>
-            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeButtonSmall}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="{DynamicResource PaddingButtonSmall}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="bd" Background="{DynamicResource BrushSecondaryBg}"
+                                CornerRadius="{DynamicResource CornerRadiusButtonSmall}"
+                                Padding="{TemplateBinding Padding}"
+                                Margin="0,0,4,0">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              ContentSource="Header"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushSecondaryHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushSecondaryDisabledBg}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource BrushSecondaryDisabledFg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style TargetType="DataGrid">
@@ -199,6 +365,64 @@
             <Setter Property="HeadersVisibility" Value="Column"/>
             <Setter Property="AutoGenerateColumns" Value="False"/>
             <Setter Property="CanUserAddRows" Value="False"/>
+        </Style>
+
+        <!-- diff_grid's body is themed via the DataGrid style above (RowBackground/
+             AlternatingRowBackground), but WPF's default DataGridColumnHeader/Cell
+             chrome doesn't inherit from that - without these, headers keep native
+             Windows grey chrome and selected cells keep the native blue highlight,
+             both clashing with the dark theme. -->
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="{DynamicResource BrushHeaderBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeBody}"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        </Style>
+
+        <Style TargetType="DataGridCell">
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Same circular-fill pattern as pyLink's RadioButtonStyle (BrushPrimaryGreen
+             ring + dot on IsChecked) instead of the native Windows radio circle -
+             the scope RadioButtons here had no Style at all before this. -->
+        <Style x:Key="RadioButtonStyle" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="FontSize"   Value="{DynamicResource FontSizeBody}"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="16" Height="16"
+                                    BorderBrush="{DynamicResource BrushPrimaryGreen}" BorderThickness="1.5"
+                                    CornerRadius="8" Background="{DynamicResource BrushInputBg}"
+                                    VerticalAlignment="Center">
+                                <Ellipse x:Name="Dot" Width="8" Height="8"
+                                         Fill="{DynamicResource BrushPrimaryGreen}"
+                                         Visibility="Collapsed"/>
+                            </Border>
+                            <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Dot" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="IconToggleButtonStyle" TargetType="ToggleButton">
@@ -361,11 +585,11 @@
 
                 <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
                     <RadioButton x:Name="scope_whole_model" Content="Whole Model" IsChecked="True"
-                                 Foreground="{DynamicResource BrushTextPrimary}" Margin="0,0,16,0"/>
+                                 Style="{StaticResource RadioButtonStyle}" Margin="0,0,16,0"/>
                     <RadioButton x:Name="scope_active_view" Content="Active View"
-                                 Foreground="{DynamicResource BrushTextPrimary}" Margin="0,0,16,0"/>
+                                 Style="{StaticResource RadioButtonStyle}" Margin="0,0,16,0"/>
                     <RadioButton x:Name="scope_current_selection" Content="Current Selection"
-                                 Foreground="{DynamicResource BrushTextPrimary}"/>
+                                 Style="{StaticResource RadioButtonStyle}"/>
                 </StackPanel>
 
                 <TabControl x:Name="main_tabs" Grid.Row="1" Background="Transparent" BorderThickness="0">
@@ -384,6 +608,7 @@
                                     <TextBlock Text="SELECT CATEGORIES" Style="{StaticResource SectionLabelStyle}"/>
                                     <ListBox x:Name="categories_list" Height="380"
                                              SelectionMode="Extended"
+                                             ItemContainerStyle="{StaticResource ListBoxItemStyle}"
                                              Background="{DynamicResource BrushInputBg}"
                                              Foreground="{DynamicResource BrushTextPrimary}"
                                              BorderBrush="{DynamicResource BrushBorderDefault}"/>
@@ -392,6 +617,7 @@
                                     <TextBlock Text="AVAILABLE PARAMETERS" Style="{StaticResource SectionLabelStyle}"/>
                                     <ListBox x:Name="available_params_categories" Height="380"
                                              SelectionMode="Extended"
+                                             ItemContainerStyle="{StaticResource ListBoxItemStyle}"
                                              Background="{DynamicResource BrushInputBg}"
                                              Foreground="{DynamicResource BrushTextPrimary}"
                                              BorderBrush="{DynamicResource BrushBorderDefault}"/>
@@ -406,6 +632,7 @@
                                     <TextBlock Text="SELECTED PARAMETERS" Style="{StaticResource SectionLabelStyle}"/>
                                     <ListBox x:Name="selected_params_categories" Height="380"
                                              SelectionMode="Extended"
+                                             ItemContainerStyle="{StaticResource ListBoxItemStyle}"
                                              Background="{DynamicResource BrushInputBg}"
                                              Foreground="{DynamicResource BrushTextPrimary}"
                                              BorderBrush="{DynamicResource BrushBorderDefault}"/>
@@ -429,6 +656,7 @@
                                     <TextBox x:Name="schedules_search" Style="{StaticResource SearchTextBoxStyle}" Margin="0,0,0,6"/>
                                     <ListBox x:Name="schedules_list" Height="340"
                                              SelectionMode="Extended"
+                                             ItemContainerStyle="{StaticResource ListBoxItemStyle}"
                                              Background="{DynamicResource BrushInputBg}"
                                              Foreground="{DynamicResource BrushTextPrimary}"
                                              BorderBrush="{DynamicResource BrushBorderDefault}"/>
@@ -437,6 +665,7 @@
                                     <TextBlock Text="AVAILABLE PARAMETERS" Style="{StaticResource SectionLabelStyle}"/>
                                     <ListBox x:Name="available_params_schedules" Height="374"
                                              SelectionMode="Extended"
+                                             ItemContainerStyle="{StaticResource ListBoxItemStyle}"
                                              Background="{DynamicResource BrushInputBg}"
                                              Foreground="{DynamicResource BrushTextPrimary}"
                                              BorderBrush="{DynamicResource BrushBorderDefault}"/>
@@ -451,6 +680,7 @@
                                     <TextBlock Text="SELECTED PARAMETERS" Style="{StaticResource SectionLabelStyle}"/>
                                     <ListBox x:Name="selected_params_schedules" Height="374"
                                              SelectionMode="Extended"
+                                             ItemContainerStyle="{StaticResource ListBoxItemStyle}"
                                              Background="{DynamicResource BrushInputBg}"
                                              Foreground="{DynamicResource BrushTextPrimary}"
                                              BorderBrush="{DynamicResource BrushBorderDefault}"/>

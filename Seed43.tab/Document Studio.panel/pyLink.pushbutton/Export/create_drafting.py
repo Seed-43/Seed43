@@ -43,7 +43,7 @@ from pyrevit import revit, DB, script
 from Autodesk.Revit.DB import (
     FilteredElementCollector, ViewFamilyType, ViewFamily,
     ViewDrafting, TextNote, TextNoteOptions,
-    HorizontalTextAlignment, VerticalTextAlignment, FilledRegion, FilledRegionType,
+    HorizontalTextAlignment, FilledRegion, FilledRegionType,
     CurveLoop, Line, XYZ, ElementId, Color,
     CurveElement, ImageInstance, OverrideGraphicSettings,
     BuiltInCategory, GraphicsStyleType, ElementTransformUtils,
@@ -165,9 +165,9 @@ def _default_line_style_id():
         logger.debug('Default <Lines> flat search: {}'.format(ex))
 
     # Fallback 2: the Lines category's own top-level default style —
-    # last resort only. This is what was producing plain "Lines"
-    # instead of "<Lines>" before, so it's kept purely so borders at
-    # least land on *some* real style rather than none.
+    # last resort only, and not the exact "<Lines>" subcategory (plain
+    # "Lines" instead) - kept so borders at least land on *some* real
+    # style rather than none.
     if lines_cat is not None:
         try:
             gs = lines_cat.GetGraphicsStyle(GraphicsStyleType.Projection)
@@ -274,26 +274,39 @@ _TAB_MM = 1.0 * MM  # matches TEXT_TAB_SIZE forced on every pyLink text
                      # positioning formula below.
 
 # Cache of measured probe offsets, keyed by every setting that can
-# change where Revit anchors a text box: (tt_id, width, halign, bold).
-# Bold is included because bold glyphs measure wider/taller than
-# regular ones at the same type/size, which is exactly why bold is
-# in the cache key even though it's no longer part of the TYPE itself
-# (see get_or_create_text_type in pylink_excel.py - bold/italic/
-# underline are applied per-instance via FormattedText below, not
-# baked into a dedicated "Bold" type per size).
-# For single-line, non-wrapping text - the overwhelming majority of
-# cells in a data table - that offset is identical regardless of the
-# actual string, so probing once per unique combination and reusing
-# it avoids a doc.Regenerate() (expensive - walks the whole document,
-# not just the view) for every single cell.
+# change where Revit anchors a text box: (tt_id, width, halign, bold,
+# text-component). Bold is included because bold glyphs measure wider/
+# taller than regular ones at the same type/size, which is exactly why
+# bold is in the cache key even though it's no longer part of the TYPE
+# itself (see get_or_create_text_type in pylink_excel.py - bold/
+# italic/underline are applied per-instance via FormattedText below,
+# not baked into a dedicated "Bold" type per size).
 #
-# Caveat: if a cell's text is long enough to WRAP inside its column
-# width, its real box height differs from the cached single-line
-# probe and the vertical placement for that cell will be off. Worth
-# watching for on any column where text is close to the column width;
-# if that turns out to matter, the fix is to key the cache on an
-# estimated line-count too and re-probe on mismatch.
+# The text-component (see _cache_text_component) is the cell's real
+# text for HEADER cells only, else a shared placeholder. Two different
+# strings sharing the same width/halign/bold can measure a different
+# bounding box if one wraps onto more lines than the other - narrow
+# header columns are exactly that case (several often share the same
+# Excel width, so a short one-line header and a long one that wraps to
+# 3 lines would otherwise land on the same key). Data cells share one
+# placeholder key per (type, width, halign, bold) regardless of their
+# own text - single-line values at a shared width/halign/bold measure
+# the same box height, and this keeps the cache doing its actual job:
+# a whole column of data (e.g. 40 rows of "Grade 8.8") shares ONE
+# probe instead of one per cell.
+#
+# Every key this table's text needs is pre-measured in a single batch
+# (_batch_measure_probes, called once per view) so the doc.Regenerate()
+# this all depends on - expensive, it walks the whole document, not
+# just the view - runs once per view instead of once per cache miss.
 _probe_cache = {}
+
+
+def _cache_text_component(text, is_header):
+    """The text portion of a probe cache key - see _probe_cache's
+    docstring for why header cells use their real text and data cells
+    share one placeholder."""
+    return str(text) if is_header else ''
 
 
 def _apply_instance_formatting(tn, bold=False, italic=False, underline=False):
@@ -321,9 +334,21 @@ def _apply_instance_formatting(tn, bold=False, italic=False, underline=False):
         logger.debug('Instance formatting failed: {}'.format(ex))
 
 
-def _measure_probe(tt_id, width, halign, sample_text, bold=False):
-    key = (tt_id.IntegerValue if hasattr(tt_id, 'IntegerValue') else int(tt_id.Value),
-           round(width, 6), halign, bold)
+def _probe_key(tt_id, width, halign, bold, text, is_header):
+    return (
+        tt_id.IntegerValue if hasattr(tt_id, 'IntegerValue') else int(tt_id.Value),
+        round(width, 6), halign, bold, _cache_text_component(text, is_header)
+    )
+
+
+def _measure_probe(tt_id, width, halign, sample_text, bold=False, is_header=False):
+    """Cache lookup for one text box's measured offset. Normally
+    every key is already populated by _batch_measure_probes before
+    the draw pass runs, so this just returns the cached value; the
+    create/regenerate/measure/delete path below only runs as a
+    fallback for a key that pass somehow missed, so correctness never
+    depends on the batch pass being exhaustive - just performance."""
+    key = _probe_key(tt_id, width, halign, bold, sample_text, is_header)
     if key in _probe_cache:
         return _probe_cache[key]
     opts = TextNoteOptions(tt_id)
@@ -344,9 +369,69 @@ def _measure_probe(tt_id, width, halign, sample_text, bold=False):
     return result
 
 
+def _batch_measure_probes(cell_specs):
+    """Pre-measure every distinct probe key this table's text needs
+    in ONE doc.Regenerate() call instead of one per key: create every
+    still-uncached probe TextNote first (no regenerate yet), regenerate
+    once, then measure and delete them all. Populates _probe_cache
+    directly; _measure_probe's own single-key path still runs during
+    the draw pass as a fallback for anything this missed."""
+    pending = []  # [(key, probe_element), ...]
+    seen_keys = set()
+
+    for spec in cell_specs:
+        text = spec['text']
+        if not str(text).strip():
+            continue
+        width = spec['h'] if spec['rotation_rad'] else spec['w']
+        if width <= 0:
+            continue
+
+        tt_id, halign, bold, is_header = (
+            spec['tt_id'], spec['halign'], spec['bold'], spec['is_header']
+        )
+        key = _probe_key(tt_id, width, halign, bold, text, is_header)
+        if key in _probe_cache or key in seen_keys:
+            continue
+        seen_keys.add(key)
+
+        try:
+            opts = TextNoteOptions(tt_id)
+            opts.HorizontalAlignment = getattr(
+                HorizontalTextAlignment, halign, HorizontalTextAlignment.Left
+            )
+            probe = TextNote.Create(
+                doc, view.Id, XYZ(0, 0, 0), width, str(text), opts
+            )
+            if bold:
+                _apply_instance_formatting(probe, bold=True)
+            pending.append((key, probe))
+        except Exception as ex:
+            logger.debug('Batch probe create failed for {}: {}'.format(key, ex))
+
+    if not pending:
+        return
+
+    doc.Regenerate()  # single whole-document pass for every probe above
+
+    for key, probe in pending:
+        try:
+            bbox = probe.get_BoundingBox(view)
+            if bbox is not None:
+                _probe_cache[key] = (bbox.Min.X, bbox.Max.X, bbox.Min.Y, bbox.Max.Y)
+        except Exception as ex:
+            logger.debug('Batch probe measure failed for {}: {}'.format(key, ex))
+
+    for _key, probe in pending:
+        try:
+            doc.Delete(probe.Id)
+        except Exception:
+            pass
+
+
 def _draw_text(view, x, y, w, h, text, tt_id, color_rgb,
                 rotation_rad=0.0, halign='Left', valign='Bottom',
-                bold=False, italic=False, underline=False):
+                bold=False, italic=False, underline=False, is_header=False):
     """
     Place a TextNote inside the cell (x, y, w, h) — (x, y) top-left —
     per Excel's halign/valign, by MEASURING where Revit actually puts
@@ -356,18 +441,19 @@ def _draw_text(view, x, y, w, h, text, tt_id, color_rgb,
     Horizontal: opts.HorizontalAlignment is set to match Excel's
     halign at creation time, and the probe measurement corrects the
     ORIGIN so the resulting box's left/center/right lands exactly on
-    the cell's own left/center/right - confirmed working; do not also
-    set TextElement.HorizontalAlignment after creation, that fights
-    the already-correct position instead of complementing it.
+    the cell's own left/center/right. Do not also set
+    TextElement.HorizontalAlignment after creation - that re-justifies
+    the box against Revit's own internal reference, fighting the
+    already-correct position instead of complementing it.
 
-    Vertical: TextElement.VerticalAlignment is always set to Middle
-    after creation, regardless of what Excel's valign says - Excel's
-    Top/Center/Bottom is instead encoded as an OFFSET for where that
-    center line should sit: Top = tab size + half the text's own
-    measured height down from the cell's top line; Bottom = the
-    mirror of that, up from the bottom line; Center = the cell's exact
-    vertical middle. Middle Align is what actually holds the text at
-    whatever center point this places it at.
+    Vertical: Excel's Top/Center/Bottom is encoded purely as an OFFSET
+    for where the text's center line should sit: Top = tab size + half
+    the text's own measured height down from the cell's top line;
+    Bottom = the mirror of that, up from the bottom line; Center = the
+    cell's exact vertical middle. The manual probe-correction math
+    below (same mechanism as horizontal) lands the note exactly there
+    on its own - do NOT also set TextElement.VerticalAlignment after
+    creation, same reason as HorizontalAlignment above.
 
       1. Create a probe with the EXACT same options/Width/text at a
          scratch origin (0,0,0).
@@ -401,7 +487,7 @@ def _draw_text(view, x, y, w, h, text, tt_id, color_rgb,
         # these exact settings, relative to a scratch origin - cached
         # per (type, width, halign, bold) so repeat cells (most of a
         # table) skip the expensive doc.Regenerate() entirely.
-        probe_result = _measure_probe(tt_id, width, halign, text, bold=bold)
+        probe_result = _measure_probe(tt_id, width, halign, text, bold=bold, is_header=is_header)
         if probe_result is None:
             logger.debug('TextNote bbox None for "{}" - skipped'.format(text))
             return
@@ -443,13 +529,6 @@ def _draw_text(view, x, y, w, h, text, tt_id, color_rgb,
             target_top = target_center_y + half_text
             ox = target_left - bminx
             oy = target_top - bmaxy
-            logger.debug(
-                'vtext "{}" valign={} y={:.3f} h={:.3f}mm box_h={:.3f}mm '
-                'target_center_y={:.3f} (h/2={:.3f}) oy={:.3f}'.format(
-                    text, valign, y / MM, h / MM, box_h / MM,
-                    target_center_y / MM, (h / 2.0) / MM, oy / MM
-                )
-            )
         elif rotation_rad > 0:
             # +90 CCW: local (dx,dy) -> screen (-dy, dx) relative to
             # origin, so post-rotation footprint (relative to origin)
@@ -497,29 +576,18 @@ def _draw_text(view, x, y, w, h, text, tt_id, color_rgb,
         pt = XYZ(ox, oy, 0)
         tn = TextNote.Create(doc, view.Id, pt, width, str(text), opts)
 
-        # TextElement.VerticalAlignment - a real, settable per-INSTANCE
-        # anchor property (since Revit 2016, replacing the old
-        # TextNote.Align; TextNoteOptions has no vertical member at
-        # all, only horizontal). ALWAYS Middle now, regardless of
-        # Excel's own valign - Excel's Top/Center/Bottom is fully
-        # encoded in the target_center_y math above instead, and
-        # letting Revit's Middle Align hold that center-line fixed is
-        # the mechanism that makes the tab+half-height offset formula
-        # correct in the first place.
-        #
-        # HorizontalAlignment does NOT get the same treatment here -
-        # unlike vertical, opts.HorizontalAlignment is ALREADY set at
-        # creation time (TextNoteOptions does have a horizontal
-        # member), and the manual math above already positions the
-        # note correctly using it. Re-setting TextElement.
-        # HorizontalAlignment again AFTER creation fights with that
-        # already-correct position instead of complementing it -
-        # confirmed by testing: it introduced a horizontal drift
-        # regression.
-        try:
-            tn.VerticalAlignment = VerticalTextAlignment.Middle
-        except Exception as ex:
-            logger.debug('Element-level VerticalAlignment: {}'.format(ex))
+        # NEITHER TextElement.HorizontalAlignment NOR .VerticalAlignment
+        # get set here post-creation, despite both being real, settable
+        # per-INSTANCE properties (since Revit 2016, replacing the old
+        # TextNote.Align). The manual math above already computes and
+        # lands on the exact correct position for both axes; setting
+        # either alignment property again AFTERWARD re-justifies the
+        # already-correctly-placed note against Revit's own internal
+        # reference instead of complementing the position that's
+        # already there. If Revit's own Paragraph-panel Vertical/
+        # Horizontal Align ever needs to show something other than its
+        # unset default for cosmetic/editability reasons, that's a
+        # SEPARATE concern from positioning, not assumed harmless.
 
         if color_rgb:
             _override_color(tn.Id, color_rgb)
@@ -593,6 +661,37 @@ def _cell_border_weight(style, side):
     if not val or val in ('', 'none'):
         return None
     return _excel_border_weight(val)
+
+
+def _merge_collinear_segments(segments):
+    """Merge touching/overlapping collinear border segments that share
+    the same style into as few pieces as possible - a table row where
+    every cell has the same bottom-border colour/weight draws as ONE
+    line spanning the row instead of one abutting DetailLine per cell.
+    `segments` is [(pos, start, end, rgb, weight), ...] where `pos` is
+    the fixed coordinate (y for a horizontal run, x for a vertical
+    one) and start/end is the extent along the other axis. Two cells'
+    borders at the exact same position (e.g. one cell's bottom and the
+    cell below's top, both set to the same colour) collapse into the
+    same merged piece rather than drawing twice."""
+    TOL = 1e-6
+    by_key = {}
+    for pos, s, e, rgb, weight in segments:
+        key = (round(pos, 6), rgb, weight)
+        by_key.setdefault(key, []).append((min(s, e), max(s, e)))
+
+    merged = []
+    for (pos, rgb, weight), spans in by_key.items():
+        spans.sort()
+        cur_s, cur_e = spans[0]
+        for s, e in spans[1:]:
+            if s <= cur_e + TOL:
+                cur_e = max(cur_e, e)
+            else:
+                merged.append((pos, cur_s, cur_e, rgb, weight))
+                cur_s, cur_e = s, e
+        merged.append((pos, cur_s, cur_e, rgb, weight))
+    return merged
 
 
 # ---------------------------------------------------------------------------
@@ -699,6 +798,14 @@ hdr_txt_id = _get_text_type(hdr_tt_id)
 dat_txt_id = _get_text_type(dat_tt_id)
 default_line_id = _default_line_style_id()
 
+# Pass 1: backgrounds (drawn immediately - no batching benefit, each
+# is its own FilledRegion) plus collecting border segments and text
+# specs for passes 2-4 below, instead of drawing borders/text inline
+# per cell.
+h_border_segments = []  # [(y, x1, x2, rgb, weight), ...]
+v_border_segments = []  # [(x, y1, y2, rgb, weight), ...]
+cell_specs = []          # text-drawing specs, one per non-covered cell
+
 for r in range(n_total_rows):
     is_header = (r == 0)
     for c in range(n_cols):
@@ -719,57 +826,73 @@ for r in range(n_total_rows):
         if fill_rgb:
             _draw_filled_rect(view, x, y, w, h, fill_type_id, tuple(fill_rgb))
 
-        # Borders — only the sides Excel actually set, in that side's
-        # own colour, all on the default <Line> style.
+        # Borders — collected here, merged and drawn in pass 2 below:
+        # a whole row/column of cells sharing the same border colour/
+        # weight ends up as ONE DetailLine instead of one per cell.
         top_rgb    = _cell_border_rgb(style, 'top')
         bottom_rgb = _cell_border_rgb(style, 'bottom')
         left_rgb   = _cell_border_rgb(style, 'left')
         right_rgb  = _cell_border_rgb(style, 'right')
         if top_rgb:
-            _draw_border_line(view, x,     y,     x + w, y,
-                               default_line_id, top_rgb,
-                               _cell_border_weight(style, 'top'))
+            h_border_segments.append(
+                (y, x, x + w, top_rgb, _cell_border_weight(style, 'top')))
         if bottom_rgb:
-            _draw_border_line(view, x,     y - h, x + w, y - h,
-                               default_line_id, bottom_rgb,
-                               _cell_border_weight(style, 'bottom'))
+            h_border_segments.append(
+                (y - h, x, x + w, bottom_rgb, _cell_border_weight(style, 'bottom')))
         if left_rgb:
-            _draw_border_line(view, x,     y,     x,     y - h,
-                               default_line_id, left_rgb,
-                               _cell_border_weight(style, 'left'))
+            v_border_segments.append(
+                (x, y, y - h, left_rgb, _cell_border_weight(style, 'left')))
         if right_rgb:
-            _draw_border_line(view, x + w, y,     x + w, y - h,
-                               default_line_id, right_rgb,
-                               _cell_border_weight(style, 'right'))
+            v_border_segments.append(
+                (x + w, y, y - h, right_rgb, _cell_border_weight(style, 'right')))
 
-        # Text — plain black type, tinted via view override to this
-        # cell's own colour when Excel set one. Header AND data cells
-        # both use the probed placement path so the text box always
-        # spans the FULL cell width (never auto-sized/glyph-hugging)
-        # and justification always matches what Excel actually set for
-        # that cell - the probe cache (keyed on type/width/halign/bold)
-        # keeps this fast since most cells in a column share all four.
-        # Bold/italic/underline come from Excel's OWN per-cell flags,
-        # not assumed from the row being a header - the type itself is
-        # never bold (see get_or_create_text_type), so a header cell
-        # Excel didn't actually bold stays regular, and a data cell
-        # Excel DID bold comes through bold too.
+        # Text spec — measured in pass 3 (one batch doc.Regenerate()
+        # for every distinct probe this table needs) and drawn in
+        # pass 4. Bold/italic/underline come from Excel's OWN per-cell
+        # flags, not assumed from the row being a header - the type
+        # itself is never bold (see get_or_create_text_type), so a
+        # header cell Excel didn't actually bold stays regular, and a
+        # data cell Excel DID bold comes through bold too.
         if is_header:
             text = fields[c] if c < len(fields) else ''
         else:
             record = records[r - 1] if (r - 1) < len(records) else []
             text = record[c] if c < len(record) else ''
-        tt_id = hdr_txt_id if is_header else dat_txt_id
         color_rgb = style.get('color_rgb')
-        rotation_rad = _excel_rotation_to_radians(style.get('rotation', 0)) if is_header else 0.0
-        halign = style.get('halign', 'Center')
-        valign = style.get('valign', 'Center' if not is_header else 'Bottom')
-        _draw_text(view, x, y, w, h, text, tt_id,
-                   tuple(color_rgb) if color_rgb else None,
-                   rotation_rad, halign, valign,
-                   bold=bool(style.get('bold', False)),
-                   italic=bool(style.get('italic', False)),
-                   underline=bool(style.get('underline', False)))
+        cell_specs.append({
+            'x': x, 'y': y, 'w': w, 'h': h,
+            'text':  text,
+            'tt_id': hdr_txt_id if is_header else dat_txt_id,
+            'color_rgb': tuple(color_rgb) if color_rgb else None,
+            'rotation_rad': _excel_rotation_to_radians(style.get('rotation', 0)) if is_header else 0.0,
+            'halign': style.get('halign', 'Center'),
+            'valign': style.get('valign', 'Center' if not is_header else 'Bottom'),
+            'bold':      bool(style.get('bold', False)),
+            'italic':    bool(style.get('italic', False)),
+            'underline': bool(style.get('underline', False)),
+            'is_header': is_header,
+        })
+
+# Pass 2: merge collinear border segments and draw the result.
+for y, x1, x2, rgb, weight in _merge_collinear_segments(h_border_segments):
+    _draw_border_line(view, x1, y, x2, y, default_line_id, rgb, weight)
+for x, y1, y2, rgb, weight in _merge_collinear_segments(v_border_segments):
+    _draw_border_line(view, x, y1, x, y2, default_line_id, rgb, weight)
+
+# Pass 3: pre-measure every distinct text-box probe this table needs
+# in one doc.Regenerate() call - see _batch_measure_probes.
+_batch_measure_probes(cell_specs)
+
+# Pass 4: place every cell's text. _measure_probe now hits the cache
+# pass 3 already populated, so no further doc.Regenerate() calls
+# happen here - the probe cache (keyed on type/width/halign/bold, plus
+# text for header cells) keeps most cells sharing one measurement.
+for spec in cell_specs:
+    _draw_text(view, spec['x'], spec['y'], spec['w'], spec['h'],
+               spec['text'], spec['tt_id'], spec['color_rgb'],
+               spec['rotation_rad'], spec['halign'], spec['valign'],
+               bold=spec['bold'], italic=spec['italic'],
+               underline=spec['underline'], is_header=spec['is_header'])
 
 logger.debug(
     'create_drafting: "{}" {}r x {}c'.format(

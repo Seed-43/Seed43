@@ -10,12 +10,14 @@ from pyrevit import forms
 from pyrevit.framework import Windows
 
 import folder_preset_resolve as resolve
+from Snippets.seed43_theme import apply_seed43_palette
 
 
 class FolderPresetEditorWindow(forms.WPFWindow):
     def __init__(self, xaml_file_name, project_info, username, revit_version,
                  existing=None):
         forms.WPFWindow.__init__(self, xaml_file_name)
+        apply_seed43_palette(self, op.dirname(xaml_file_name))
         self._project_info = project_info
         self._username = username
         self._revit_version = revit_version

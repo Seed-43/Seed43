@@ -135,12 +135,10 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
     # ── File combo ──
 
     def _update_file_combo(self):
-        """Keep _active_file pointed at something valid. The File:
-        dropdown this used to also drive is gone, per-card controls
-        (Add Row / Reload / Close) no longer need a globally 'active'
-        file, but a few internal helpers (_add_row_for_card's
-        temporary-redirect pattern) still read _active_file, so keep
-        it sane here rather than ripping it out everywhere."""
+        """Keep _active_file pointed at something valid. Per-card
+        controls (Add Row / Reload / Close) don't need a globally
+        'active' file, but a few internal helpers (_add_row_for_card's
+        temporary-redirect pattern) still read _active_file."""
         if self._active_file not in self._file_data:
             paths = list(self._file_data.keys())
             self._active_file = paths[0] if paths else None

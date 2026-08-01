@@ -18,7 +18,7 @@ Sections:
         ShowInTaskbar="False"
         ResizeMode="CanResize"
         WindowStartupLocation="CenterOwner"
-        Background="#3B4553"
+        Background="{DynamicResource BrushWindowBg}"
         TextElement.FontFamily="Segoe UI">
 
     <Window.Resources>
@@ -26,9 +26,17 @@ Sections:
         <!-- ═══════════════════════════════════════════════════════════════
              COLOURS
         ═══════════════════════════════════════════════════════════════ -->
-        <SolidColorBrush x:Key="AccentColor"    Color="#208A3C"/>
-        <SolidColorBrush x:Key="CardBackground" Color="#2B3340"/>
-        <SolidColorBrush x:Key="LightText"      Color="#F4FAFF"/>
+        <SolidColorBrush x:Key="BrushWindowBg"          Color="#3B4553"/>
+        <SolidColorBrush x:Key="BrushCardBg"            Color="#2B3340"/>
+        <SolidColorBrush x:Key="BrushHeaderBg"          Color="#232933"/>
+        <SolidColorBrush x:Key="BrushTextPrimary"       Color="#F4FAFF"/>
+        <SolidColorBrush x:Key="BrushPrimaryGreen"      Color="#208A3C"/>
+        <SolidColorBrush x:Key="BrushPrimaryGreenHover"  Color="#2B933F"/>
+        <SolidColorBrush x:Key="BrushPrimaryGreenPressed" Color="#1A6E2E"/>
+        <SolidColorBrush x:Key="BrushSecondaryBg"       Color="#4A5568"/>
+        <SolidColorBrush x:Key="BrushSecondaryHover"    Color="#5A6678"/>
+        <SolidColorBrush x:Key="BrushSecondaryPressed"  Color="#3A4558"/>
+        <SolidColorBrush x:Key="BrushBorderMuted"       Color="#404553"/>
 
         <!-- ═══════════════════════════════════════════════════════════════
              BUTTONS
@@ -36,8 +44,8 @@ Sections:
 
         <!-- Primary -->
         <Style x:Key="ModernButtonStyle" TargetType="Button">
-            <Setter Property="Background"      Value="{StaticResource AccentColor}"/>
-            <Setter Property="Foreground"      Value="{StaticResource LightText}"/>
+            <Setter Property="Background"      Value="{DynamicResource BrushPrimaryGreen}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding"         Value="24,8"/>
             <Setter Property="FontSize"        Value="14"/>
@@ -54,10 +62,10 @@ Sections:
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="MainBorder" Property="Background" Value="#2B933F"/>
+                                <Setter TargetName="MainBorder" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="MainBorder" Property="Background" Value="#1A6E2E"/>
+                                <Setter TargetName="MainBorder" Property="Background" Value="{DynamicResource BrushPrimaryGreenPressed}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -67,13 +75,13 @@ Sections:
 
         <!-- Secondary  –  Close -->
         <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource ModernButtonStyle}">
-            <Setter Property="Background" Value="#4A5568"/>
+            <Setter Property="Background" Value="{DynamicResource BrushSecondaryBg}"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#5A6678"/>
+                    <Setter Property="Background" Value="{DynamicResource BrushSecondaryHover}"/>
                 </Trigger>
                 <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#3A4558"/>
+                    <Setter Property="Background" Value="{DynamicResource BrushSecondaryPressed}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -82,12 +90,12 @@ Sections:
              DATAGRID
         ═══════════════════════════════════════════════════════════════ -->
         <Style x:Key="PreviewDataGridStyle" TargetType="DataGrid">
-            <Setter Property="Background"          Value="{StaticResource CardBackground}"/>
+            <Setter Property="Background"          Value="{DynamicResource BrushCardBg}"/>
             <Setter Property="BorderThickness"     Value="0"/>
             <Setter Property="GridLinesVisibility" Value="Horizontal"/>
-            <Setter Property="HorizontalGridLinesBrush" Value="#404553"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource BrushSecondaryBg}"/>
             <Setter Property="RowBackground"       Value="Transparent"/>
-            <Setter Property="AlternatingRowBackground" Value="#2B3340"/>
+            <Setter Property="AlternatingRowBackground" Value="{DynamicResource BrushCardBg}"/>
             <Setter Property="AutoGenerateColumns" Value="False"/>
             <Setter Property="CanUserAddRows"      Value="False"/>
             <Setter Property="CanUserDeleteRows"   Value="False"/>
@@ -100,7 +108,7 @@ Sections:
         </Style>
 
         <Style x:Key="PreviewColumnHeaderStyle" TargetType="DataGridColumnHeader">
-            <Setter Property="Background"                Value="{StaticResource AccentColor}"/>
+            <Setter Property="Background"                Value="{DynamicResource BrushPrimaryGreen}"/>
             <Setter Property="Foreground"                Value="White"/>
             <Setter Property="FontWeight"                Value="SemiBold"/>
             <Setter Property="FontSize"                  Value="12"/>
@@ -112,7 +120,7 @@ Sections:
         <Style x:Key="PreviewCellStyle" TargetType="DataGridCell">
             <Setter Property="Background"      Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Foreground"      Value="{StaticResource LightText}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="Padding"         Value="12,8"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -131,7 +139,7 @@ Sections:
             <Setter Property="Background" Value="Transparent"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#404553"/>
+                    <Setter Property="Background" Value="{DynamicResource BrushSecondaryBg}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -145,7 +153,7 @@ Sections:
 
         <!-- ── HEADER ─────────────────────────────────────────────────── -->
         <Border DockPanel.Dock="Top"
-                Background="#232933"
+                Background="{DynamicResource BrushHeaderBg}"
                 Height="70"
                 CornerRadius="0,0,12,12">
             <Border.Effect>
@@ -155,11 +163,11 @@ Sections:
             <Grid Margin="24,0,24,0">
                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Left">
                     <TextBlock Text="Import Preview"
-                               Foreground="{StaticResource LightText}"
+                               Foreground="{DynamicResource BrushTextPrimary}"
                                FontSize="18" FontWeight="SemiBold"/>
                     <TextBlock x:Name="preview_info_tb"
                                Text="Review the data below before confirming import."
-                               Foreground="{StaticResource LightText}"
+                               Foreground="{DynamicResource BrushTextPrimary}"
                                FontSize="12" Opacity="0.7"
                                Margin="0,4,0,0"/>
                 </StackPanel>
@@ -168,9 +176,9 @@ Sections:
 
         <!-- ── FOOTER  –  Close button (right-aligned) ────────────────── -->
         <Border DockPanel.Dock="Bottom"
-                Background="#232933"
+                Background="{DynamicResource BrushHeaderBg}"
                 Padding="24,16"
-                BorderBrush="#404553"
+                BorderBrush="{DynamicResource BrushBorderMuted}"
                 BorderThickness="0,1,0,0">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button x:Name="close_btn"
@@ -182,8 +190,8 @@ Sections:
         </Border>
 
         <!-- ── DATA AREA ──────────────────────────────────────────────── -->
-        <Border Background="#3B4553" Padding="24">
-            <Border Background="{StaticResource CardBackground}"
+        <Border Background="{DynamicResource BrushWindowBg}" Padding="24">
+            <Border Background="{DynamicResource BrushCardBg}"
                     CornerRadius="8"
                     Padding="0">
                 <Border.Effect>

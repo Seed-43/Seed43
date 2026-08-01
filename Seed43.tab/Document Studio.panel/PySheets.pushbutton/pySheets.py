@@ -67,6 +67,7 @@ if _lib_path and _lib_path not in _sys.path:
 from EditNamingFormats import EditNamingFormatsWindow, NamingFormat
 from Snippets import _dialogs as dlg
 from Snippets._icons import make_icon
+from Snippets.seed43_theme import apply_seed43_palette
 import FolderPresetManager as fpm_win
 import folder_preset_resolve as fpe_resolve
 import ManageProfiles as profiles_win
@@ -605,6 +606,7 @@ class PrintSheetsWindow(forms.WPFWindow):
     def __init__(self, xaml_file_name):
         self._loading = True   # suppress event handlers during init
         forms.WPFWindow.__init__(self, xaml_file_name)
+        apply_seed43_palette(self, op.dirname(__file__))
 
         # ── Core state ──
         self._current_tab     = TAB_SELECT
@@ -1870,34 +1872,40 @@ class PrintSheetsWindow(forms.WPFWindow):
         self.header_subtitle_tb.Text = subtitles[tab_index]
 
     def _update_step_indicators(self, current):
-        """Green fill for done/active, grey border for future steps."""
-        GREEN  = '#208A3C'
-        GREY   = '#555555'
-        WHITE  = 'White'
-        MUTED  = '#888888'
+        """Accent fill for done/active, muted border for future steps.
+
+        Resources are looked up fresh on every call (rather than cached
+        hex constants) so this always reflects whatever accent colour is
+        current in the palette - see seed43-pyrevit-ui skill gotcha #3
+        (Python-built UI colours are a one-time snapshot unless re-looked
+        up on every call that can run after a theme/accent change)."""
+        accent  = self.TryFindResource('BrushPrimaryGreen') or _brush('#208A3C')
+        grey_bg = self.TryFindResource('BrushSecondaryDisabledBg') or _brush('#555555')
+        grey_fg = self.TryFindResource('BrushSecondaryDisabledFg') or _brush('#888888')
+        white   = _brush('White')
 
         circles  = [self.step1_circle, self.step2_circle, self.step3_circle]
         lines    = [self.step_line_1,  self.step_line_2]
 
         for i, circle in enumerate(circles):
             if i < current:       # done
-                circle.Background      = _brush(GREEN)
-                circle.BorderBrush     = _brush(GREEN)
+                circle.Background      = accent
+                circle.BorderBrush     = accent
                 circle.BorderThickness = Windows.Thickness(0)
-                _set_child_text(circle, '✓', WHITE)
+                _set_child_text(circle, '✓', white)
             elif i == current:    # active
-                circle.Background      = _brush(GREEN)
-                circle.BorderBrush     = _brush(GREEN)
+                circle.Background      = accent
+                circle.BorderBrush     = accent
                 circle.BorderThickness = Windows.Thickness(0)
-                _set_child_text(circle, str(i + 1), WHITE)
+                _set_child_text(circle, str(i + 1), white)
             else:                 # future
                 circle.Background      = _brush('Transparent')
-                circle.BorderBrush     = _brush(GREY)
+                circle.BorderBrush     = grey_bg
                 circle.BorderThickness = Windows.Thickness(2)
-                _set_child_text(circle, str(i + 1), MUTED)
+                _set_child_text(circle, str(i + 1), grey_fg)
 
         for i, line in enumerate(lines):
-            line.Fill = _brush(GREEN if i < current else GREY)
+            line.Fill = accent if i < current else grey_bg
 
     # ── SELECTION HELPERS ──
     def _update_sel_count(self):
@@ -3110,6 +3118,15 @@ class PrintSheetsWindow(forms.WPFWindow):
                     if s is item:
                         self._last_row_index = i
                         break
+                # If this row is part of the active highlighted group, the
+                # checkbox click applies to the whole group (same behavior
+                # as select_all_clicked when a group is active).
+                if item.is_highlighted:
+                    new_state = item.is_selected
+                    for s in sheets:
+                        if s.is_highlighted:
+                            s.is_selected = new_state
+                    self.sheets_dg.Items.Refresh()
         except Exception:
             pass
         self._update_sel_count()
@@ -3122,14 +3139,13 @@ class PrintSheetsWindow(forms.WPFWindow):
             pass
 
     def select_all_clicked(self, sender, args):
+        # Master checkbox always toggles every visible sheet, regardless of
+        # any active highlighted (multi-select) group.
         sheets = self._visible_sheets
-        # If rows are highlighted (active multi-select), operate only on those
-        active = [s for s in sheets if s.is_highlighted]
-        targets = active if active else sheets
 
-        checked = [s for s in targets if s.is_selected]
-        new_state = len(checked) < len(targets)
-        for s in targets:
+        checked = [s for s in sheets if s.is_selected]
+        new_state = len(checked) < len(sheets)
+        for s in sheets:
             s.is_selected = new_state
         self.sheets_dg.Items.Refresh()
         self._update_sel_count()
@@ -3693,7 +3709,7 @@ class PrintSheetsWindow(forms.WPFWindow):
         if not presets:
             tb = Windows.Controls.TextBlock()
             tb.Text = 'No presets saved yet — see \u2630 Manage Folder Presets'
-            tb.Foreground = self.FindResource('LightText')
+            tb.Foreground = self.FindResource('BrushTextPrimary')
             tb.Opacity = 0.5
             tb.FontSize = 11
             tb.TextWrapping = Windows.TextWrapping.Wrap

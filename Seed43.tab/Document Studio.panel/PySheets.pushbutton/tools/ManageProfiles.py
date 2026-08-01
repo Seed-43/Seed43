@@ -8,11 +8,13 @@ from pyrevit import forms
 from pyrevit.framework import Windows
 
 from Snippets import _dialogs as dlg
+from Snippets.seed43_theme import apply_seed43_palette
 
 
 class ManageProfilesWindow(forms.WPFWindow):
     def __init__(self, xaml_file_name, list_profiles, delete_profile):
         forms.WPFWindow.__init__(self, xaml_file_name)
+        apply_seed43_palette(self, op.dirname(xaml_file_name))
         self._list_profiles  = list_profiles    # callable -> list of names
         self._delete_profile = delete_profile   # callable(name) -> None
         self.changed = False
@@ -25,7 +27,7 @@ class ManageProfilesWindow(forms.WPFWindow):
         if not names:
             tb = Windows.Controls.TextBlock()
             tb.Text = 'No profiles yet — use the + button in the header to save one.'
-            tb.Foreground = self.FindResource('Text')
+            tb.Foreground = self.FindResource('BrushTextPrimary')
             tb.Opacity = 0.5
             tb.FontSize = 12
             tb.TextWrapping = Windows.TextWrapping.Wrap
@@ -49,7 +51,7 @@ class ManageProfilesWindow(forms.WPFWindow):
 
             name_tb = Windows.Controls.TextBlock()
             name_tb.Text = name
-            name_tb.Foreground = self.FindResource('Text')
+            name_tb.Foreground = self.FindResource('BrushTextPrimary')
             name_tb.FontSize = 12
             name_tb.VerticalAlignment = Windows.VerticalAlignment.Center
             name_tb.Margin = Windows.Thickness(10, 8, 8, 8)

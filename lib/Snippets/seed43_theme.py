@@ -63,6 +63,11 @@ KEY_TO_BRUSH = {
     "danger_pressed":           "BrushDangerPressed",
     "pill_off_bg":              "BrushPillOffBg",
     "pill_off_border":          "BrushPillOffBorder",
+    "text_muted":               "BrushTextMuted",
+    "success":                  "BrushSuccess",
+    "success_hover":            "BrushSuccessHover",
+    "selected_row_bg":         "BrushSelectedRowBg",
+    "highlighted_row_bg":      "BrushHighlightedRowBg",
 }
 
 _PALETTE_FILENAME = "seed43_palette.json"
@@ -215,6 +220,12 @@ DIM_TO_RESOURCE = {
     "button_round.width":                  ("WidthButtonRound",          "double"),
     "button_round.height":                 ("HeightButtonRound",         "double"),
     "button_round.corner_radius":          ("CornerRadiusButtonRound",   "corner"),
+    # Percentage (0-100) of button_round.width/height, NOT an absolute pixel
+    # size - a consumer computing an actual icon size needs
+    # round(width * (icon_size / 100.0)), same formula the palette editor's
+    # preview uses. Applies to the primary/delete round buttons only, not
+    # the toggle (whose icon fills the whole transparent button).
+    "button_round.icon_size":              ("SizeButtonRoundIcon",       "double"),
     "button_menu.width":                   ("WidthButtonMenu",           "double"),
     "button_menu.height":                  ("HeightButtonMenu",          "double"),
     "button_menu.corner_radius":           ("CornerRadiusButtonMenu",    "corner"),
@@ -224,6 +235,7 @@ DIM_TO_RESOURCE = {
     "input_textbox.font_size":             ("FontSizeInput",             "double"),
     "input_combobox.height":               ("HeightCombobox",            "double"),
     "input_combobox.corner_radius":        ("CornerRadiusCombobox",      "corner"),
+    "input_combobox.border_thickness":     ("BorderThicknessCombobox",   "thickness_uniform"),
     "input_combobox.font_size":            ("FontSizeCombobox",          "double"),
     "dropdown_filter_combo.width":         ("WidthFilterCombo",          "double"),
     "dropdown_filter_combo.height":        ("HeightFilterCombo",         "double"),
@@ -251,6 +263,19 @@ DIM_TO_RESOURCE = {
     "text.field_label":                    ("FontSizeFieldLabel",        "double"),
     "text.heading":                        ("FontSizeHeading",           "double"),
     "text.body":                           ("FontSizeBody",              "double"),
+    "data_grid.header_height":             ("HeightGridHeader",          "double"),
+    "data_grid.row_height":                ("HeightGridRow",             "double"),
+    "data_grid.header_font_size":          ("FontSizeGridHeader",        "double"),
+    "data_grid.cell_font_size":            ("FontSizeGridCell",          "double"),
+    "data_grid.cell_padding_x":            ("PaddingGridCellX",          "double"),
+    "data_grid.border_thickness":          ("BorderThicknessGrid",       "thickness_uniform"),
+    "checkbox.size":                       ("SizeCheckbox",              "double"),
+    "checkbox.corner_radius":              ("CornerRadiusCheckbox",      "corner"),
+    "checkbox.border_thickness":           ("BorderThicknessCheckbox",   "thickness_uniform"),
+    "progress_bar.height":                 ("HeightProgressBar",         "double"),
+    "progress_bar.corner_radius":          ("CornerRadiusProgressBar",   "corner"),
+    "badge.corner_radius":                 ("CornerRadiusBadge",         "corner"),
+    "badge.font_size":                     ("FontSizeBadge",             "double"),
 }
 
 
@@ -300,6 +325,7 @@ def apply_seed43_dimensions(window, start_dir):
         "input_combobox":   "PaddingCombobox",
         "dropdown_popup":   "PaddingDropdownItem",  # uses item_padding_x/y below
         "menu_item":        "PaddingMenuItem",
+        "badge":            "PaddingBadge",
     }
     for group_name, res_key in padding_pairs.items():
         group = dimensions.get(group_name)
@@ -322,7 +348,11 @@ def apply_seed43_dimensions(window, start_dir):
 def set_accent(start_dir, hex_color, profiles=("dark", "light")):
     """Set a new accent colour, deriving hover/pressed/border/border_muted
     from it with the same 8%/27% lighten gradient used everywhere else
-    in the palette. Writes both profiles by default.
+    in the palette, plus two darkened tints (selected_row_bg/
+    highlighted_row_bg) for list/grid row selection highlights - e.g.
+    pySheets' sheet/view list - so those track whatever accent the user
+    picks instead of staying a fixed colour. Writes both profiles by
+    default.
     """
     path = _find_palette_path(start_dir)
     if not path:
@@ -332,6 +362,8 @@ def set_accent(start_dir, hex_color, profiles=("dark", "light")):
             data = json.load(f)
         hover = _hex_shade(hex_color, 0.08)
         pressed = _hex_shade(hex_color, 0.27)
+        selected_row_bg = _hex_shade(hex_color, -0.75)
+        highlighted_row_bg = _hex_shade(hex_color, -0.55)
         for profile in profiles:
             p = data.get("profiles", {}).get(profile)
             if not p:
@@ -343,6 +375,8 @@ def set_accent(start_dir, hex_color, profiles=("dark", "light")):
             p["border_hover"] = hover
             p["border_pressed"] = pressed
             p["border_muted"] = hex_color
+            p["selected_row_bg"] = selected_row_bg
+            p["highlighted_row_bg"] = highlighted_row_bg
         with open(path, "w") as f:
             json.dump(data, f, indent=2)
         return True

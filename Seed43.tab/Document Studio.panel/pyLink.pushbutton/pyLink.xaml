@@ -30,12 +30,9 @@
         <SolidColorBrush x:Key="LocalBrushMenuBorder"       Color="#404553"/>
 
         <!-- These 5 styles are looked up via FindResource() throughout
-             pyLink_ui.py. They used to live only in the unused
-             PyLinks.xaml (nothing loads that file), so every lookup
-             silently failed and fell back to native/plain rendering,
-             this is why the dropdown arrow and a few other controls
-             looked inconsistent. Defined here now, in the file this
-             window actually loads. -->
+             pyLink_ui.py, so they must be declared in this file - the
+             one the window actually loads - not PyLinks.xaml, which
+             nothing loads. -->
         <Style x:Key="CardStyle" TargetType="Border">
                 <Setter Property="Background"    Value="{DynamicResource BrushCardBg}"/>
                 <Setter Property="CornerRadius"  Value="{DynamicResource CornerRadiusCard}"/>

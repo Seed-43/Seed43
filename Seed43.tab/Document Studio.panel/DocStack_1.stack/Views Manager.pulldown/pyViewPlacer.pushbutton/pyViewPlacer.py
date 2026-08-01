@@ -12,6 +12,8 @@ from System.Windows.Media import SolidColorBrush, Color, VisualTreeHelper
 
 from pyrevit import revit, DB, UI, forms, script
 
+from Snippets.seed43_theme import apply_seed43_palette
+
 # ── VARIABLES ────────────────────────────────────────────────────────
 HELP_URL  = "https://example.com/help"
 ABOUT_URL = "https://example.com/about"
@@ -137,6 +139,7 @@ class ViewPlacerDialog(object):
         self._active_search = None
         # ── Load XAML, FindName while name scope is intact ────────────
         self._window = load_xaml(XAML_PATH)
+        apply_seed43_palette(self._window, os.path.dirname(__file__))
         # ── Named elements ────────────────────────────────────────────
         self.header_subtitle  = self._window.FindName("header_subtitle")
         self.panel_template   = self._window.FindName("panel_template")

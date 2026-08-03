@@ -1,35 +1,35 @@
 {
-  "col_pct": [
-    22, 
-    28, 
-    20
-  ], 
-  "active_template": "Excel", 
+  "active_template": "Revit Drafting View", 
+  "logo_path": "", 
   "text_styles": {
-    "Title": {
-      "color": "#000000", 
-      "size_mm": 4.5, 
-      "bold": true, 
-      "font": "Arial", 
-      "underline": false, 
-      "italic": false
-    }, 
     "Header": {
-      "color": "#000000", 
-      "size_mm": 2.5, 
       "bold": true, 
-      "font": "Arial", 
       "underline": false, 
-      "italic": false
+      "italic": false, 
+      "size_mm": 2.5, 
+      "color": "#000000", 
+      "font": "Arial"
+    }, 
+    "Title": {
+      "bold": true, 
+      "underline": false, 
+      "italic": false, 
+      "size_mm": 4.5, 
+      "color": "#000000", 
+      "font": "Arial"
     }, 
     "Data": {
-      "color": "#000000", 
-      "size_mm": 2.2999999999999998, 
       "bold": false, 
-      "font": "Arial", 
       "underline": false, 
-      "italic": false
+      "italic": false, 
+      "size_mm": 2.2999999999999998, 
+      "color": "#000000", 
+      "font": "Arial"
     }
   }, 
-  "logo_path": ""
+  "col_pct": [
+    11, 
+    11, 
+    33
+  ]
 }

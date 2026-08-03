@@ -1,8 +1,9 @@
 title: "Xplode"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
 tooltip: |
-  _____________________________________________________________________
+  __________________________________________________________________
   Description:
-  Breaks one or more multi-line Text Notes into individual single-line Text Notes, stacked at the same position as the original.
-  Each line of text becomes its own independent Text Note. The original note is removed and replaced with the split result.
-  _____________________________________________________________________
+  Breaks one or more multi-line Text Notes into individual
+  single-line Text Notes, stacked at the original position. Each line
+  becomes its own independent Text Note, replacing the original.
+  __________________________________________________________________

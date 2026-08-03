@@ -18,6 +18,17 @@ then from any pushbutton:
 """
 from pyrevit.framework import Windows
 
+try:
+    from Snippets.seed43_theme import apply_seed43_palette, get_color
+except Exception:
+    apply_seed43_palette = None
+    get_color = None
+
+# Fallback literals only - used if seed43_palette.json can't be found/parsed,
+# so this module never hard-fails just because the palette is missing. Once
+# apply_seed43_palette() has run on a window, _res() below prefers the live
+# token (BrushCardBg/BrushPrimaryGreen/etc, the same names every other
+# Seed43 tool's XAML references) over these.
 BG     = '#2B3340'
 HEADER = '#232933'
 GREEN  = '#208A3C'
@@ -31,22 +42,49 @@ def _brush(hexcolor):
         Windows.Media.ColorConverter.ConvertFromString(hexcolor))
 
 
-def _button(text, primary=True):
+def _res(w, key, fallback_hex):
+    """Resolved (snapshot, not live-updating) brush for `key` - fine for a
+    modal popup that's built and closed in one shot. Falls back to the
+    literal hex above if the token isn't in the window's resources."""
+    try:
+        b = w.TryFindResource(key)
+        if b:
+            return b
+    except Exception:
+        pass
+    return _brush(fallback_hex)
+
+
+def _button(w, text, primary=True):
+    bg = _res(w, 'BrushPrimaryGreen' if primary else 'BrushSecondaryBg', GREEN if primary else HEADER)
+    border = _res(w, 'BrushPrimaryGreen', GREEN)
+    fg = _res(w, 'BrushTextPrimary', TEXT)
+
+    # The hover colour needs to end up as a literal hex string baked into a
+    # parsed XAML template (see below) - go straight to the palette JSON via
+    # get_color() rather than resolving a Brush and converting it back, so
+    # there's no dependency on TryFindResource returning something with a
+    # usable .Color at this point.
+    hover_fallback = GREENH if primary else '#333B48'
+    if get_color:
+        hover_hex = get_color(None, 'accent_hover' if primary else 'secondary_hover', fallback=hover_fallback)
+    else:
+        hover_hex = hover_fallback
+
     b = Windows.Controls.Button()
     b.Content = text
     b.MinWidth = 84
     b.Height = 32
     b.Margin = Windows.Thickness(8, 0, 0, 0)
-    b.Background = _brush(GREEN if primary else HEADER)
-    b.Foreground = _brush(TEXT)
-    b.BorderBrush = _brush(GREEN)
+    b.Background = bg
+    b.Foreground = fg
+    b.BorderBrush = border
     b.BorderThickness = Windows.Thickness(0 if primary else 1)
     b.FontWeight = Windows.FontWeights.SemiBold
     b.FontSize = 12
     b.Cursor = Windows.Input.Cursors.Hand
 
     import System.Windows.Markup as _Markup
-    hover = GREENH if primary else '#333B48'
     template_xaml = (
         '<ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" '
         'xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" '
@@ -63,7 +101,7 @@ def _button(text, primary=True):
         '</Trigger>'
         '</ControlTemplate.Triggers>'
         '</ControlTemplate>'
-    ).format(hover=hover)
+    ).format(hover=hover_hex)
     b.Template = _Markup.XamlReader.Parse(template_xaml)
     return b
 
@@ -78,13 +116,18 @@ def _window(width=420):
     w.AllowsTransparency = True
     w.Background = _brush('Transparent')
     w.ShowInTaskbar = False
+    if apply_seed43_palette:
+        try:
+            apply_seed43_palette(w, None)
+        except Exception:
+            pass
     return w
 
 
 def _card(w):
     """Rounded dark card with a green accent bar, drop shadow, drag-movable."""
     outer = Windows.Controls.Border()
-    outer.Background = _brush(BG)
+    outer.Background = _res(w, 'BrushCardBg', BG)
     outer.CornerRadius = Windows.CornerRadius(10)
     outer.Margin = Windows.Thickness(12)
     outer.Padding = Windows.Thickness(24, 20, 24, 20)
@@ -103,7 +146,7 @@ def _card(w):
 
     root = Windows.Controls.StackPanel()
     accent = Windows.Controls.Border()
-    accent.Background = _brush(GREEN)
+    accent.Background = _res(w, 'BrushPrimaryGreen', GREEN)
     accent.Height = 3
     accent.CornerRadius = Windows.CornerRadius(2)
     accent.Margin = Windows.Thickness(0, 0, 0, 16)
@@ -113,10 +156,10 @@ def _card(w):
     return root
 
 
-def _textblock(text, error=False, title=False):
+def _textblock(w, text, error=False, title=False):
     t = Windows.Controls.TextBlock()
     t.Text = text
-    t.Foreground = _brush(RED if error else TEXT)
+    t.Foreground = _res(w, 'BrushDanger' if error else 'BrushTextPrimary', RED if error else TEXT)
     t.FontSize = 15 if title else 12
     t.FontWeight = Windows.FontWeights.Bold if title else Windows.FontWeights.Normal
     t.Opacity = 1.0 if title else 0.85
@@ -130,12 +173,12 @@ def message(text, title=''):
     w = _window()
     root = _card(w)
     if title:
-        root.Children.Add(_textblock(title, title=True))
-    root.Children.Add(_textblock(text))
+        root.Children.Add(_textblock(w, title, title=True))
+    root.Children.Add(_textblock(w, text))
     row = Windows.Controls.StackPanel()
     row.Orientation = Windows.Controls.Orientation.Horizontal
     row.HorizontalAlignment = Windows.HorizontalAlignment.Right
-    ok = _button('OK')
+    ok = _button(w, 'OK')
     ok.Click += lambda s, a: w.Close()
     row.Children.Add(ok)
     root.Children.Add(row)
@@ -154,8 +197,8 @@ def confirm(text, title='', yes='Yes', no='Cancel'):
     root = _card(w)
     result = {'ok': False}
     if title:
-        root.Children.Add(_textblock(title, title=True))
-    root.Children.Add(_textblock(text))
+        root.Children.Add(_textblock(w, title, title=True))
+    root.Children.Add(_textblock(w, text))
     row = Windows.Controls.StackPanel()
     row.Orientation = Windows.Controls.Orientation.Horizontal
     row.HorizontalAlignment = Windows.HorizontalAlignment.Right
@@ -163,9 +206,9 @@ def confirm(text, title='', yes='Yes', no='Cancel'):
     def _yes(s, a):
         result['ok'] = True
         w.Close()
-    nb = _button(no, primary=False)
+    nb = _button(w, no, primary=False)
     nb.Click += lambda s, a: w.Close()
-    yb = _button(yes)
+    yb = _button(w, yes)
     yb.Click += _yes
     row.Children.Add(nb)
     row.Children.Add(yb)
@@ -180,10 +223,10 @@ def ask_string(prompt, title='', default='', error=''):
     root = _card(w)
     result = {'text': None}
     if title:
-        root.Children.Add(_textblock(title, title=True))
-    root.Children.Add(_textblock(prompt))
+        root.Children.Add(_textblock(w, title, title=True))
+    root.Children.Add(_textblock(w, prompt))
     if error:
-        err = _textblock(error, error=True)
+        err = _textblock(w, error, error=True)
         err.Margin = Windows.Thickness(0, -12, 0, 12)
         root.Children.Add(err)
     tb = Windows.Controls.TextBox()
@@ -191,9 +234,9 @@ def ask_string(prompt, title='', default='', error=''):
     tb.Height = 32
     tb.FontSize = 12
     tb.Padding = Windows.Thickness(8, 4, 8, 4)
-    tb.Background = _brush(TEXT)
-    tb.Foreground = _brush(HEADER)
-    tb.BorderBrush = _brush(GREEN)
+    tb.Background = _res(w, 'BrushInputBg', TEXT)
+    tb.Foreground = _res(w, 'BrushTextInput', HEADER)
+    tb.BorderBrush = _res(w, 'BrushBorderDefault', GREEN)
     tb.BorderThickness = Windows.Thickness(1.5)
     tb.Margin = Windows.Thickness(0, 0, 0, 16)
     root.Children.Add(tb)
@@ -204,9 +247,9 @@ def ask_string(prompt, title='', default='', error=''):
     def _ok(s, a):
         result['text'] = tb.Text
         w.Close()
-    ca = _button('Cancel', primary=False)
+    ca = _button(w, 'Cancel', primary=False)
     ca.Click += lambda s, a: w.Close()
-    ok = _button('OK')
+    ok = _button(w, 'OK')
     ok.Click += _ok
     row.Children.Add(ca)
     row.Children.Add(ok)

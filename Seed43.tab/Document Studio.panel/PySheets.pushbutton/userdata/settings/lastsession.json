@@ -1,46 +1,8 @@
 {
-  "folder": "C:\\Users\\Test\\desktop", 
-  "naming": {
-    "IFC": "PySheets Default", 
-    "PDF": "PySheets Default", 
-    "DWG": "PySheets Default", 
-    "DGN": "PySheets Default", 
-    "NWC": "PySheets Default", 
-    "IMG": "PySheets Default"
-  }, 
-  "dest": "file", 
-  "folder_preset": null, 
-  "viewing": "PDF", 
-  "auto_overwrite": true, 
   "formats": [
     "PDF"
   ], 
-  "open_after": true, 
-  "column_order": [
-    "check", 
-    "number", 
-    "name", 
-    "collection", 
-    "revision", 
-    "size", 
-    "filename"
-  ], 
-  "dwg": {
-    "export_setup_name": "<Revit Default>", 
-    "export_xrefs": false
-  }, 
-  "nwc": {
-    "shared_coords": true, 
-    "convert_properties": true
-  }, 
-  "dgn": {
-    "export_setup_name": "<Revit Default>"
-  }, 
-  "img": {
-    "image_type": "PNG", 
-    "resolution": "150 DPI", 
-    "pixel_size": 2048
-  }, 
+  "dest": "file", 
   "pdf": {
     "printer": "PDF24", 
     "print_setting_name": "", 
@@ -64,16 +26,54 @@
     "opt_halftone_thin": false, 
     "opt_region_edges": false
   }, 
+  "auto_overwrite": true, 
+  "folder": "C:\\Users\\Test\\desktop", 
+  "viewing": "PDF", 
+  "open_after": true, 
   "ifc": {
     "version": "IFC 2x3 Coordination View 2.0"
   }, 
   "subfolders": true, 
+  "dwg": {
+    "export_setup_name": "<Revit Default>", 
+    "export_xrefs": false
+  }, 
+  "column_order": [
+    "check", 
+    "number", 
+    "name", 
+    "collection", 
+    "revision", 
+    "size", 
+    "filename"
+  ], 
   "column_widths": {
-    "size": 136.0, 
     "collection": 90.0, 
     "number": 136.0, 
     "check": 36.0, 
-    "revision": 80.0, 
-    "filename": 210.0
+    "filename": 210.0, 
+    "size": 136.0, 
+    "revision": 80.0
+  }, 
+  "dgn": {
+    "export_setup_name": "<Revit Default>"
+  }, 
+  "naming": {
+    "NWC": "PySheets Default", 
+    "IMG": "PySheets Default", 
+    "IFC": "PySheets Default", 
+    "DWG": "PySheets Default", 
+    "PDF": "PySheets Default", 
+    "DGN": "PySheets Default"
+  }, 
+  "img": {
+    "image_type": "PNG", 
+    "resolution": "150 DPI", 
+    "pixel_size": 2048
+  }, 
+  "folder_preset": null, 
+  "nwc": {
+    "shared_coords": true, 
+    "convert_properties": true
   }
 }

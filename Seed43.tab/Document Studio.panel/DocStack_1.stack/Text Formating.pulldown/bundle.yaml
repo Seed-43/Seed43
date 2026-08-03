@@ -1,3 +1,13 @@
+title: "Text Formatting"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  __________________________________________________________________
+  Description:
+  A collection of Text Note tools - batch formatting and type
+  changes, find & replace, matching alignment, properties, or width
+  between notes, merging notes into one (MText), splitting one into
+  many (Xplode), and fixing stray line breaks.
+  __________________________________________________________________
 
 layout:
   - Fix Page Brake

@@ -1,21 +1,10 @@
 title: "Match Alignment"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
 tooltip: |
-  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 260521
-  _____________________________________________________________________
+  __________________________________________________________________
   Description:
-  Matches paragraph alignment settings between Text Notes in the model.
-  
-  Transfers alignment properties from a reference Text Note to the selected target Text Notes, ensuring consistent annotation presentation.
-  
-  Includes:
-  - Horizontal Alignment (Left, Centre, Right)
-  - Vertical Alignment (Top, Middle, Bottom)
-  - Leader Attachment Points (Left, Right)
-  
-  Does NOT modify text content or leaders themselves, only alignment
-  settings.
-  _____________________________________________________________________
-  Last update:
-  - Updated to use pyrevitlib
-  _____________________________________________________________________
+  Matches paragraph alignment - horizontal, vertical, and leader
+  attachment point - from a reference Text Note to one or more target
+  Text Notes, for consistent annotation presentation. Does not modify
+  text content or leaders themselves.
+  __________________________________________________________________

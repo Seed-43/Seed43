@@ -1,3 +1,12 @@
+title: "Rebar"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  __________________________________________________________________
+  Description:
+  A set of tools for working with rebar - assign rebar to a workset,
+  toggle visibility between obscured and unobscured, or update a tag
+  parameter across every element that shares its value.
+  __________________________________________________________________
 
 layout:
   - Set Workset

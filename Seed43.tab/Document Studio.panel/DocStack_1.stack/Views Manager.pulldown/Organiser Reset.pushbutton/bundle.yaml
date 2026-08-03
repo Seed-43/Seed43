@@ -1,9 +1,9 @@
-title: "Find Type"
+title: "Organiser Reset"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
 tooltip: |
   __________________________________________________________________
   Description:
-  Finds all instances of selected Text Types across the project,
-  listing every view and legend that contains them with a count per
-  location and quick navigation to any result.
+  Clears View Organiser's saved folder-parameter configuration, so
+  the source and destination parameters can be re-picked the next
+  time View Organiser runs.
   __________________________________________________________________

@@ -2,6 +2,7 @@
 import os
 import clr
 import shutil
+import traceback
 import zipfile
 
 clr.AddReference("PresentationFramework")
@@ -30,13 +31,23 @@ WINDOW_XAML = """
 <Window
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
     Title="Seed43 Update"
     Width="420"
     SizeToContent="Height"
     ResizeMode="NoResize"
+    WindowStyle="None"
     WindowStartupLocation="CenterScreen"
-    Background="{StaticResource LocalWindowBg}"
+    Background="{DynamicResource LocalWindowBg}"
     TextElement.FontFamily="Segoe UI">
+
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="70"
+                             CornerRadius="10"
+                             GlassFrameThickness="0"
+                             ResizeBorderThickness="0"
+                             UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
 
     <Window.Resources>
 
@@ -202,7 +213,8 @@ WINDOW_XAML = """
                         Grid.Column="1"
                         Style="{StaticResource CloseButtonStyle}"
                         Content="&#x2716;"
-                        VerticalAlignment="Center"/>
+                        VerticalAlignment="Center"
+                        shell:WindowChrome.IsHitTestVisibleInChrome="True"/>
             </Grid>
         </Border>
 
@@ -287,6 +299,18 @@ EXTENSION_DIR = os.path.join(APPDATA, "pyRevit", "Extensions", "Seed43.extension
 TAB_DIR       = os.path.join(EXTENSION_DIR, "Seed43.tab")
 VERSION_FILE  = os.path.join(EXTENSION_DIR, "version.txt")
 ICON_PATH     = os.path.join(SCRIPT_DIR, "icon.png")
+_LOG_FILE     = os.path.join(SCRIPT_DIR, "startup_error.log")
+
+
+def _log_error(context):
+    """Silent-by-design elsewhere in this file, but a swallowed exception
+    here means the update popup just never appears with no way to tell
+    why - write the traceback to a local file instead of losing it."""
+    try:
+        with open(_LOG_FILE, "a") as f:
+            f.write("-- {} --\n{}\n".format(context, traceback.format_exc()))
+    except Exception:
+        pass
 
 
 # ── FUNCTIONS ─────────────────────────────────────────────────────────────────
@@ -320,6 +344,7 @@ def fetch_remote_version():
             if line:
                 return line
     except Exception:
+        _log_error("fetch_remote_version")
         return None
 
 
@@ -632,7 +657,7 @@ def _check_and_notify(ui_dispatcher):
         ui_dispatcher.Invoke(Action(show_window))
 
     except Exception:
-        pass
+        _log_error("_check_and_notify")
 
 
 # ── SCHEDULED PRINT (pySheets, works even if pySheets isn't open) ─────────────

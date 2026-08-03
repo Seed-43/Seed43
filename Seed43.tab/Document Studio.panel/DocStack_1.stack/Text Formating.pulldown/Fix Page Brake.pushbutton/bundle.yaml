@@ -1,19 +1,9 @@
 title: "Fix Page Break"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
 tooltip: |
-  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 260521
-  _____________________________________________________________________
+  __________________________________________________________________
   Description:
-  Text Notes that contain embedded newline characters (hard returns typed with Enter) are replaced with a space or removed entirely.
-
-  This fixes text notes that have breaks across lines unexpectedly due to a hidden newline in the string rather than a narrow text box.
-
-  Options:
-  - Scope: Active View Only or Entire Project
-  - Replace newline with a single space, or remove it completely
-
-  Safe to run on workshared models.
-  _____________________________________________________________________
-  Last update:
-  - Initial release
-  _____________________________________________________________________
+  Removes or replaces embedded newline characters in Text Notes that
+  cause unexpected line breaks, scoped to the active view or the
+  entire project. Safe to run on workshared models.
+  __________________________________________________________________

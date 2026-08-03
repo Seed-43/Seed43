@@ -4474,13 +4474,13 @@ def _brush(color_hex):
         return Windows.Media.Brushes.Transparent
 
 
-def _set_child_text(border, text, color_hex):
+def _set_child_text(border, text, foreground_brush):
     """Set the text and foreground of the first TextBlock child of a Border."""
     try:
         tb = border.Child
         if hasattr(tb, 'Text'):
             tb.Text       = text
-            tb.Foreground = _brush(color_hex)
+            tb.Foreground = foreground_brush
     except Exception:
         pass
 

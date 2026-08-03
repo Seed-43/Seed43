@@ -1,25 +1,11 @@
 title: "PyTable"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
 tooltip: |
-  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟕𝟐𝟗
-  _____________________________________________________________________
+  __________________________________________________________________
   Description:
   Export model categories and schedule parameters to Excel or
   LibreOffice Calc, edit them externally, then import the changes
   back into the model with a full preview before anything is written.
-  _____________________________________________________________________
-  How-to:
-  -> Run the tool
-  -> Pick categories and/or schedules, choose parameters, pick a
-     format (Excel/ODS) and Export
-  -> Edit the spreadsheet outside Revit
-  -> Import the edited file, review the diff on the Preview/Edit tab,
-     then confirm to write changes back
-  _____________________________________________________________________
-  Notes:
-  - Type parameters are written to the Type element, not the instance
-  - Read-only parameters are shown but never written back
-  _____________________________________________________________________
-  Last update:
-  - Initial release
-  _____________________________________________________________________
+  Type parameters are written to the Type element, not the instance,
+  and read-only parameters are shown but never written back.
+  __________________________________________________________________

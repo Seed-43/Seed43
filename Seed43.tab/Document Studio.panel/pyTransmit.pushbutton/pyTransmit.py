@@ -1022,6 +1022,31 @@ class RevTableWindow(Window):
         """Styling X, legacy handler kept for safety."""
         self._show_panel("main")
 
+    # ── Layout Studio (Excel-style layout builder) ────────────────────────────
+    # Separate from Document Layout above: its own module in Studio/, its own
+    # JSON format under Studio/studio_layouts/ - does not read or write
+    # anything the Layout Builder (Layout/LayoutSettings.py) uses.
+
+    def menu_layout_studio_click(self, sender, args):
+        """☰ → Layout Studio: open the Excel-style layout builder in a separate window."""
+        self.OptionsPopup.IsOpen = False
+        try: self.options_btn.IsChecked = False
+        except: pass
+        try:
+            _studio_dir = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), 'Studio')
+            if not os.path.isdir(_studio_dir):
+                os.makedirs(_studio_dir)
+            if _studio_dir not in sys.path:
+                sys.path.insert(0, _studio_dir)
+            from StudioSettings import StudioSettingsWindow
+            win = StudioSettingsWindow(_studio_dir)
+            win.ShowDialog()
+        except Exception as e:
+            _alert(
+                'Could not open Layout Studio:\n{}'.format(str(e)),
+                title='Layout Studio')
+
     def _on_closing(self, sender, args):
         """Save all controller state when the window is closed."""
         for ctrl in [

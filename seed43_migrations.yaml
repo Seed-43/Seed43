@@ -1,11 +1,9 @@
-# seed43_migrations.yaml
-# Place this file in the repo root alongside version.txt
+# seed43_migrations.yaml - lives in the repo root alongside version.txt.
 #
-# When a tool or folder is renamed, add an entry here so the updater
-# copies .json config files from the old location to the new one
-# before syncing. Paths are relative to Seed43.tab.
-#
-# Format:
+# When a tool or folder is renamed, add an entry so the updater copies the
+# user's .json config from the old location to the new one before syncing.
+# Without an entry the old config is orphaned and the tool starts on defaults.
+# Paths are relative to Seed43.tab. Parsed by lib/Snippets/_migrations.py.
 #
 # migrations:
 #   - from: Old Panel.panel/Old Tool.pushbutton
@@ -13,14 +11,19 @@
 #     subfolders:
 #       - from: OldSubFolder
 #         to:   NewSubFolder
-#
-# Example - if pyTransmit was renamed to New Transmit:
-#
-# migrations:
-#   - from: Document Studio.panel/pyTransmit.pushbutton
-#     to:   Document Studio.panel/New Transmit.pushbutton
-#     subfolders:
-#       - from: Settings
-#         to:   Config
 
 migrations:
+
+  # 2026-07-30: PyTables renamed to pyLink (carries userdata/section_groups.json).
+  - from: Document Studio.panel/PyTables.pushbutton
+    to:   Document Studio.panel/pyLink.pushbutton
+    subfolders:
+      - from: userdata
+        to:   userdata
+
+  # 2026-07-30: pyFilter moved out of the Filter Manager pulldown to the panel root.
+  - from: Document Studio.panel/DocStack_1.stack/Filter Manager.pulldown/pyFilter.pushbutton
+    to:   Document Studio.panel/pyFilter.pushbutton
+    subfolders:
+      - from: templates
+        to:   templates

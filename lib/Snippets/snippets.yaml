@@ -34,6 +34,28 @@ snippets:
       make_icon_with_label: Return a horizontal StackPanel with an icon and a text label beside it.
       icon_keys:            Return a sorted list of all available icon key names.
 
+  _migrations.py:
+    description: >
+      Reads seed43_migrations.yaml and copies user .json config from renamed
+      tool folders to their new location before the updater syncs, so saved
+      settings survive a rename. Used by startup.py and About.
+    functions:
+      read_migrations:  Parse seed43_migrations.yaml into a list of migration dicts.
+      apply_migrations: Copy .json config from each old folder path to its new one.
+
+  _parameters.py:
+    description: >
+      Shared helpers for reading/writing Revit parameters (unit-aware via
+      SetValueString/AsValueString) and collecting categories/schedules.
+      Used by PyTable.
+    functions:
+      get_param_display_value:      Return a parameter's value as display text.
+      set_param_from_display_value: Write display text back to a parameter.
+      get_categories_with_elements: Return categories that have at least one placed element.
+      get_elements_by_category:     Return all instances (not types) in a category.
+      get_schedules:                Return all non-template ViewSchedules in the project.
+      get_param_dropdown_options:   Return valid options for a constrained parameter, or None.
+
   _revisions.py:
     description: >
       Shared helpers for working with Revit revisions and the filter backup system.

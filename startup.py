@@ -395,80 +395,23 @@ def sync_tree(src, dst):
                     shutil.rmtree(d)
 
 
-def read_migrations(extracted_root):
-    """Parse seed43_migrations.yaml from the extracted repo root.
-    Returns a list of migration dicts with from/to/subfolders keys."""
-    yaml_path = os.path.join(extracted_root, "seed43_migrations.yaml")
-    if not os.path.exists(yaml_path):
-        return []
-    migrations = []
-    current    = None
-    in_sub     = False
-    sub_from   = None
+def _load_migrations():
+    """Import Snippets._migrations lazily, returning (read, apply) or (None, None).
+
+    Deliberately not a module-level import: startup.py keeps its import cost
+    near zero (see the pyrevit.forms note at the top), and lib/ is not on
+    sys.path this early. Returns None on failure so a missing/broken shared
+    module degrades to skipping migrations rather than blocking the update.
+    """
+    import sys as _sys
+    lib_dir = os.path.join(EXTENSION_DIR, "lib")
+    if os.path.isdir(lib_dir) and lib_dir not in _sys.path:
+        _sys.path.insert(0, lib_dir)
     try:
-        with open(yaml_path, "r") as f:
-            lines = f.readlines()
-        for line in lines:
-            stripped = line.strip()
-            indent   = len(line) - len(line.lstrip())
-            if not stripped or stripped.startswith("#"):
-                continue
-            if stripped.startswith("migrations:"):
-                continue
-            if indent <= 4 and stripped.startswith("- from:"):
-                if current:
-                    migrations.append(current)
-                current  = {'from': stripped[len("- from:"):].strip(),
-                            'to': None, 'subfolders': []}
-                in_sub   = False
-                sub_from = None
-            elif indent <= 4 and stripped.startswith("to:") and current and current['to'] is None:
-                current['to'] = stripped[len("to:"):].strip()
-            elif stripped == "subfolders:":
-                in_sub = True
-            elif in_sub and stripped.startswith("- from:"):
-                sub_from = stripped[len("- from:"):].strip()
-            elif in_sub and stripped.startswith("to:") and sub_from:
-                current['subfolders'].append({
-                    'from': sub_from,
-                    'to':   stripped[len("to:"):].strip()
-                })
-                sub_from = None
-        if current:
-            migrations.append(current)
+        from Snippets._migrations import read_migrations, apply_migrations
+        return read_migrations, apply_migrations
     except Exception:
-        return []
-    return [m for m in migrations if m.get('from') and m.get('to')]
-
-
-def apply_migrations(migrations, tab_dst):
-    """Copy .json files from old folder paths to new folder paths before syncing."""
-    for m in migrations:
-        old_dir = os.path.join(tab_dst, m['from'])
-        new_dir = os.path.join(tab_dst, m['to'])
-        if not os.path.isdir(old_dir):
-            continue
-        if not os.path.isdir(new_dir):
-            os.makedirs(new_dir)
-        for fname in os.listdir(old_dir):
-            if fname.lower().endswith(".json"):
-                src = os.path.join(old_dir, fname)
-                dst = os.path.join(new_dir, fname)
-                if not os.path.exists(dst):
-                    shutil.copy2(src, dst)
-        for sub in m.get('subfolders', []):
-            old_sub = os.path.join(old_dir, sub['from'])
-            new_sub = os.path.join(new_dir, sub['to'])
-            if not os.path.isdir(old_sub):
-                continue
-            if not os.path.isdir(new_sub):
-                os.makedirs(new_sub)
-            for fname in os.listdir(old_sub):
-                if fname.lower().endswith(".json"):
-                    src = os.path.join(old_sub, fname)
-                    dst = os.path.join(new_sub, fname)
-                    if not os.path.exists(dst):
-                        shutil.copy2(src, dst)
+        return None, None
 
 
 def download_and_apply_update(status_lbl, progress_bar):
@@ -513,9 +456,11 @@ def download_and_apply_update(status_lbl, progress_bar):
         # ── Sync Seed43.tab, keeping json, updating yaml ──────────────────────
 
         status_lbl.Text = "Checking migrations..."
-        migrations = read_migrations(extracted_root)
-        if migrations:
-            apply_migrations(migrations, TAB_DIR)
+        read_migrations, apply_migrations = _load_migrations()
+        if read_migrations:
+            migrations = read_migrations(extracted_root)
+            if migrations:
+                apply_migrations(migrations, TAB_DIR)
 
         status_lbl.Text = "Applying update..."
         sync_tree(new_tab, TAB_DIR)

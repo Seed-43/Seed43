@@ -68,6 +68,16 @@ snippets:
       load_backup:               Load a backup JSON file and return it as a dict.
       save_backup:               Write a dict to disk as a JSON backup file.
 
+  _userdata.py:
+    description: >
+      Per-tool user settings under a single .user folder at the extension
+      root, so the updater never has to protect scattered .json files.
+      Migrates a tool's legacy beside-the-script file across on first run.
+    functions:
+      user_root: Return the .user folder, creating it if needed.
+      user_path: Return a path inside .user/<tool>/, creating parent folders.
+      migrate:   Move a legacy file into .user once, then delete the original.
+
   seed43_theme.py:
     description: >
       Loads seed43_palette.json and injects the colour and sizing resources

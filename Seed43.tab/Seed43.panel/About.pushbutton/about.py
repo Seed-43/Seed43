@@ -154,11 +154,20 @@ def _load_migrations():
 
 # ── Sync helper ───────────────────────────────────────────────────────────────
 
-def sync_tree(src, dst, skipped=None):
-    """Sync src into dst file by file.
-    Tries to copy/update all files. If a file is locked by Revit the
-    exception is caught silently and the file is added to the skipped list.
-    Removes dst files and dirs not in src, skipping locked ones silently."""
+def sync_tree(src, dst, skipped=None, keep_json=True):
+    """Sync src into dst file by file. Same rules as startup.py's sync_tree -
+    this is the manual trigger for the same update, so it must not treat user
+    data differently:
+    - Copies all files from src, skipping .json files
+    - Deletes files in dst that are not in src, but keeps .json files
+    - Removes dirs in dst not in src only if they contain no .json files
+
+    keep_json=False syncs everything including .json, for lib/, which is
+    shipped code rather than user settings.
+
+    Differs from startup.py's version only in that a file locked by Revit is
+    caught and recorded in the returned skipped list instead of raising.
+    """
     if skipped is None:
         skipped = []
     if not os.path.isdir(dst):
@@ -169,8 +178,8 @@ def sync_tree(src, dst, skipped=None):
         s = os.path.join(src, name)
         d = os.path.join(dst, name)
         if os.path.isdir(s):
-            sync_tree(s, d, skipped)
-        else:
+            sync_tree(s, d, skipped, keep_json)
+        elif not (keep_json and name.lower().endswith(".json")):
             try:
                 shutil.copy2(s, d)
             except Exception:
@@ -179,15 +188,22 @@ def sync_tree(src, dst, skipped=None):
         if name not in src_names:
             d = os.path.join(dst, name)
             if os.path.isfile(d):
-                try:
-                    os.remove(d)
-                except Exception:
-                    skipped.append(d)
+                if not (keep_json and name.lower().endswith(".json")):
+                    try:
+                        os.remove(d)
+                    except Exception:
+                        skipped.append(d)
             elif os.path.isdir(d):
-                try:
-                    shutil.rmtree(d)
-                except Exception:
-                    skipped.append(d)
+                has_json = keep_json and any(
+                    f.lower().endswith(".json")
+                    for _, _, files in os.walk(d)
+                    for f in files
+                )
+                if not has_json:
+                    try:
+                        shutil.rmtree(d)
+                    except Exception:
+                        skipped.append(d)
     return skipped
 
 # ── YAML order helpers ────────────────────────────────────────────────────────
@@ -1091,9 +1107,12 @@ class Seed43Dialog(object):
                 new_lib = os.path.join(extracted_root, "lib")
                 if os.path.isdir(new_lib):
                     log("Updating shared modules...")
-                    sync_tree(new_lib, os.path.join(S43_INSTALL, "lib"), skipped)
+                    sync_tree(new_lib, os.path.join(S43_INSTALL, "lib"),
+                              skipped, keep_json=False)
 
-                # ── Sync root files (startup.py, extension.json, etc.) ────────
+                # ── Sync root files (startup.py, the yaml, etc.) ──────────────
+                # Seed43.tab and lib are folders, synced above. Matches
+                # startup.py: root .json and .png are left alone.
                 ROOT_SKIP = {
                     "Seed43.tab", "lib",
                     ".git", ".gitignore", "README.md", "LICENSE",
@@ -1105,6 +1124,9 @@ class Seed43Dialog(object):
                     src = os.path.join(extracted_root, fname)
                     dst = os.path.join(S43_INSTALL, fname)
                     if os.path.isfile(src):
+                        low = fname.lower()
+                        if low.endswith(".json") or low.endswith(".png"):
+                            continue
                         try:
                             shutil.copy2(src, dst)
                         except Exception:

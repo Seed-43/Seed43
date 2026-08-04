@@ -136,7 +136,20 @@ def dispatch(window, fn):
 
 # ── Migration helpers ─────────────────────────────────────────────────────────
 
-from Snippets._migrations import read_migrations, apply_migrations
+def _load_migrations():
+    """Import Snippets._migrations lazily, returning (read, apply) or (None, None).
+
+    Deliberately not a top-level import. The updater never syncs lib/ (it is in
+    ROOT_SKIP below and sync_tree only runs on Seed43.tab), so this file can be
+    updated on a machine whose lib/ predates _migrations.py. A top-level import
+    would then raise at load and take the whole About window - and with it the
+    manual update path - down with it.
+    """
+    try:
+        from Snippets._migrations import read_migrations, apply_migrations
+        return read_migrations, apply_migrations
+    except Exception:
+        return None, None
 
 
 # ── Sync helper ───────────────────────────────────────────────────────────────
@@ -1060,9 +1073,13 @@ class Seed43Dialog(object):
 
                 # ── Apply migrations before syncing ───────────────────────────
                 log("Checking migrations...")
-                migrations = read_migrations(extracted_root)
-                if migrations:
-                    apply_migrations(migrations, TAB_DIR_DEST)
+                read_migrations, apply_migrations = _load_migrations()
+                if read_migrations:
+                    migrations = read_migrations(extracted_root)
+                    if migrations:
+                        apply_migrations(migrations, TAB_DIR_DEST)
+                else:
+                    log("  migrations module unavailable, skipping")
 
                 log("Installing...")
                 skipped = sync_tree(new_tab, TAB_DIR_DEST)

@@ -68,6 +68,21 @@ snippets:
       load_backup:               Load a backup JSON file and return it as a dict.
       save_backup:               Write a dict to disk as a JSON backup file.
 
+  seed43_theme.py:
+    description: >
+      Loads seed43_palette.json and injects the colour and sizing resources
+      every Seed43 window's XAML references via DynamicResource. Must be
+      called AFTER the XAML has loaded, or the injected values lose to the
+      window's own Setters. Used by every WPF tool in the extension.
+    functions:
+      load_palette:            Return the full parsed palette dict, or None if not found/unreadable.
+      get_active_profile:      Return 'dark' or 'light', defaulting to 'dark'.
+      get_color:               Return the hex string for a semantic palette key, read straight from the JSON.
+      apply_seed43_palette:    Inject SolidColorBrush resources into window.Resources.
+      apply_seed43_dimensions: Inject sizing resources (Thickness/CornerRadius/double) into window.Resources.
+      set_active_profile:      Write a new active_profile ('dark'/'light') back to the JSON on disk.
+      set_accent:              Set a new accent colour, deriving hover/pressed/border shades from it.
+
   _selection.py:
     description: >
       Shared helpers for picking and resolving elements in Revit.

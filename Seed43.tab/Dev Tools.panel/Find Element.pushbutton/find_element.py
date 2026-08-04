@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-Find which sheet(s) the selected element(s) are placed on.
+Find which sheet(s) every element of the selected element's type is placed on.
 
-Works with any element selected in the Project Browser, a view,
-the model, or a sheet — including groups, categories, family types,
-individual elements, etc.
+A selection is expanded to all placed instances before searching, so picking a
+Filled Region type in the Project Browser reports every placed filled region of
+that type, not just one. Works with categories, families, family types, system
+types (FilledRegionType, WallType, ...), groups, and plain instances.
+
+Each result is linkified, so clicking an id selects and zooms that element.
 """
 
 from pyrevit import revit, DB, script, forms
@@ -13,37 +16,94 @@ doc = revit.doc
 output = script.get_output()
 
 # ---------------------------------------------------------------------------
+# Output styles (dark theme, matching view_organiser.py)
+# ---------------------------------------------------------------------------
+output.add_style("""
+body {
+    background-color: #232933;
+    color: #F4FAFF;
+    font-family: Consolas, Courier New, monospace;
+    padding: 20px;
+}
+.header {
+    color: #2B933F;
+    font-weight: bold;
+    font-size: 1.2em;
+}
+.element {
+    color: #F4FAFF;
+    font-weight: bold;
+    padding-left: 5px;
+}
+.sheet {
+    color: #F4FAFF;
+    padding-left: 15px;
+}
+.rev {
+    color: #8B9199;
+    padding-left: 30px;
+}
+.warn {
+    color: #E0A040;
+    padding-left: 15px;
+}
+.line {
+    color: #3B4553;
+}
+""")
+
+def print_header(text):
+    output.print_html("<div class='header'>{}</div>".format(text))
+
+def print_separator():
+    output.print_html(
+        "<div class='line'>------------------------------------</div>")
+
+def print_element(text):
+    output.print_html("<div class='element'>{}</div>".format(text))
+
+def print_sheet(text):
+    output.print_html("<div class='sheet'>{}</div>".format(text))
+
+def print_warn(text):
+    output.print_html("<div class='warn'>{}</div>".format(text))
+
+# ---------------------------------------------------------------------------
 # Helper: Safely get 'Name' from Revit elements
 # ---------------------------------------------------------------------------
 def safe_get_name(obj):
-    """Try multiple ways to get a readable name from a Revit object."""
+    """Try multiple ways to get a readable name from a Revit object.
+
+    Everything returns unicode: type names routinely carry non-ASCII (a Filled
+    Region called "Solid – 50%"), and a bare str() on a .NET string containing
+    those raises UnicodeEncodeError under IronPython 2. Same reasoning as
+    _revisions.safe_str().
+    """
     if obj is None:
-        return "Unknown"
-    
-    # Try getting name attribute
+        return u"Unknown"
+
+    # basestring, not str - a .NET name can arrive as unicode
     try:
         name = getattr(obj, 'Name', None)
-        if name and isinstance(name, str) and name.strip():
-            return name
+        if name and isinstance(name, basestring) and name.strip():
+            return unicode(name)
     except Exception:
         pass
-    
-    # Try built-in string representation
+
     try:
-        str_repr = str(obj)
+        str_repr = unicode(obj)
         if str_repr and str_repr.strip():
             return str_repr
     except Exception:
         pass
-    
-    # Fall back to ID
+
     try:
         if hasattr(obj, 'Id'):
-            return "ID: {}".format(obj.Id)
+            return u"ID: {}".format(obj.Id)
     except Exception:
         pass
-    
-    return "Unknown Element"
+
+    return u"Unknown Element"
 
 # ---------------------------------------------------------------------------
 # 1. Get all currently selected elements (anything the user picked)
@@ -86,9 +146,9 @@ for el in selected_elements:
             for item in collector:
                 search_ids.add(item.Id)
                 item_name = safe_get_name(item)
-                display_map[item.Id] = "{} – {}".format(cat_name, item_name)
+                display_map[item.Id] = u"{} – {}".format(cat_name, item_name)
             if not collector:
-                display_map[cat_id] = "Category: {} (no instances)".format(cat_name)
+                display_map[cat_id] = u"Category: {} (no instances)".format(cat_name)
             continue
     except Exception:
         pass
@@ -97,17 +157,18 @@ for el in selected_elements:
     try:
         if isinstance(el, DB.Family):
             fam_name = safe_get_name(el)
-            symbols = el.GetFamilySymbolIds()
-            for sym_id in symbols:
-                instances = DB.FilteredElementCollector(doc)\
-                              .OfClass(DB.FamilyInstance)\
-                              .WhereElementIsNotElementType()\
-                              .ToElements()
-                for inst in instances:
-                    if inst.Symbol.Id == sym_id:
-                        search_ids.add(inst.Id)
-                        inst_name = safe_get_name(inst)
-                        display_map[inst.Id] = "Family {} – {}".format(fam_name, inst_name)
+            # Collect once and match against the symbol set - re-running the
+            # collector per symbol is a full model sweep each time.
+            symbol_ids = set(el.GetFamilySymbolIds())
+            instances = DB.FilteredElementCollector(doc)\
+                          .OfClass(DB.FamilyInstance)\
+                          .WhereElementIsNotElementType()\
+                          .ToElements()
+            for inst in instances:
+                if inst.Symbol.Id in symbol_ids:
+                    search_ids.add(inst.Id)
+                    inst_name = safe_get_name(inst)
+                    display_map[inst.Id] = u"Family {} – {}".format(fam_name, inst_name)
             continue
     except Exception:
         pass
@@ -124,7 +185,7 @@ for el in selected_elements:
                 if inst.Symbol.Id == el.Id:
                     search_ids.add(inst.Id)
                     inst_name = safe_get_name(inst)
-                    display_map[inst.Id] = "Type {} – {}".format(sym_name, inst_name)
+                    display_map[inst.Id] = u"Type {} – {}".format(sym_name, inst_name)
             continue
     except Exception:
         pass
@@ -150,11 +211,11 @@ for el in selected_elements:
                 for same_el in same_elements:
                     search_ids.add(same_el.Id)
                     same_name = safe_get_name(same_el)
-                    display_map[same_el.Id] = "{} ({}) – {}".format(
+                    display_map[same_el.Id] = u"{} ({}) – {}".format(
                         cat_name, type_name, same_name)
             else:
                 search_ids.add(el.Id)
-                display_map[el.Id] = "{}: {} (no instances in model)".format(
+                display_map[el.Id] = u"{}: {} (no instances in model)".format(
                     cat_name, type_name)
             continue
     except Exception:
@@ -165,7 +226,7 @@ for el in selected_elements:
         if isinstance(el, DB.Group):
             grp_name = safe_get_name(el)
             search_ids.add(el.Id)
-            display_map[el.Id] = "Group: {}".format(grp_name)
+            display_map[el.Id] = u"Group: {}".format(grp_name)
             continue
     except Exception:
         pass
@@ -200,16 +261,16 @@ for el in selected_elements:
             for same_el in same_elements:
                 search_ids.add(same_el.Id)
                 same_name = safe_get_name(same_el)
-                display_map[same_el.Id] = "{} ({}) – {}".format(
+                display_map[same_el.Id] = u"{} ({}) – {}".format(
                     cat_name, type_name, same_name)
         else:
             # No type to match against, fall back to just this element
             elem_name = safe_get_name(el)
             search_ids.add(el.Id)
-            display_map[el.Id] = "{}: {}".format(cat_name, elem_name)
+            display_map[el.Id] = u"{}: {}".format(cat_name, elem_name)
     except Exception:
         search_ids.add(el.Id)
-        display_map[el.Id] = "Element: {}".format(el.Id)
+        display_map[el.Id] = u"Element: {}".format(el.Id)
 
 if not search_ids:
     forms.alert("No searchable elements were resolved from the selection.",
@@ -255,19 +316,25 @@ def get_visible_ids(view):
 # ---------------------------------------------------------------------------
 results = {}  # ElementId -> list of (sheet_number, sheet_name, view_name)
 for eid in search_ids:
-    hits = []
-    for sheet, view in placed_views:
-        if eid in get_visible_ids(view):
-            try:
-                hits.append((sheet.SheetNumber, sheet.Name, view.Name))
-            except Exception:
-                hits.append(("?", "?", "?"))
-    results[eid] = hits
+    results[eid] = []
+
+# Walk views once and intersect, rather than re-scanning every view per id -
+# expanding a type to all its instances can put thousands of ids in search_ids.
+for sheet, view in placed_views:
+    matched = search_ids.intersection(get_visible_ids(view))
+    if not matched:
+        continue
+    try:
+        entry = (sheet.SheetNumber, sheet.Name, view.Name)
+    except Exception:
+        entry = ("?", "?", "?")
+    for eid in matched:
+        results[eid].append(entry)
 
 # ---------------------------------------------------------------------------
 # 6. Report
 # ---------------------------------------------------------------------------
-output.print_md("## Element → Sheet Lookup")
+print_header("Element &rarr; Sheet Lookup")
 
 total_found = 0
 total_not_found = 0
@@ -276,19 +343,19 @@ for eid in sorted(results, key=lambda x: display_map.get(x, "")):
     label = display_map.get(eid, "Element {}".format(eid))
     hits = results[eid]
 
-    output.print_md("**{}** (id {})".format(label, output.linkify(eid)))
+    print_element("{} (id {})".format(label, output.linkify(eid)))
 
     if not hits:
-        output.print_md("- Not placed on any sheet")
+        print_warn("Not placed on any sheet")
         total_not_found += 1
     else:
         for sheet_number, sheet_name, view_name in hits:
-            output.print_md("- Sheet **{}** – {} (via view {})".format(
+            print_sheet("Sheet {} - {} (via view {})".format(
                 sheet_number, sheet_name, view_name))
         total_found += 1
 
 # Summary
-output.print_md("---")
-output.print_md("**Summary:** {} element(s) found on sheets · "
-                "{} element(s) not on any sheet".format(total_found,
+print_separator()
+print_element("Summary: {} element(s) found on sheets, "
+               "{} element(s) not on any sheet".format(total_found,
                                                          total_not_found))

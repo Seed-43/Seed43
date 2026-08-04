@@ -1,4 +1,45 @@
 {
+  "viewing": "PDF", 
+  "view_sel": {
+    "DWG": [], 
+    "IMG": [], 
+    "PDF": [], 
+    "NWC": [], 
+    "DGN": [], 
+    "IFC": []
+  }, 
+  "auto_overwrite": true, 
+  "formats": [
+    "PDF"
+  ], 
+  "dest": "file", 
+  "ifc": {
+    "version": "IFC 2x3 Coordination View 2.0"
+  }, 
+  "subfolders": true, 
+  "open_after": true, 
+  "folder": "N:\\(N) NAGEL CONSULTANTS LTD\\#JOB\\#JOB-4251-4300\\4293 - NTSRI - Amenities Pavilion\\PDF\\Internal\\Revit Prints\\", 
+  "naming": {
+    "DWG": "PySheets Default", 
+    "IMG": "PySheets Default", 
+    "PDF": "PySheets Default", 
+    "NWC": "PySheets Default", 
+    "DGN": "PySheets Default", 
+    "IFC": "PySheets Default"
+  }, 
+  "dwg": {
+    "export_setup_name": "<Revit Default>", 
+    "export_xrefs": false
+  }, 
+  "dgn": {
+    "export_setup_name": "<Revit Default>"
+  }, 
+  "img": {
+    "image_type": "PNG", 
+    "resolution": "150 DPI", 
+    "pixel_size": 2048
+  }, 
+  "folder_preset": "Project", 
   "pdf": {
     "printer": "PDF24", 
     "print_setting_name": "", 
@@ -14,37 +55,33 @@
     "raster_quality": "Low", 
     "colors": "Color", 
     "combine": true, 
-    "opt_links_blue": false, 
+    "opt_links_blue": true, 
     "opt_hide_refplanes": true, 
-    "opt_hide_unreftags": false, 
+    "opt_hide_unreftags": true, 
     "opt_hide_scopeboxes": true, 
     "opt_hide_cropbounds": true, 
     "opt_halftone_thin": false, 
     "opt_region_edges": false
   }, 
-  "subfolders": true, 
-  "ifc": {
-    "version": "IFC 2x3 Coordination View 2.0"
-  }, 
-  "naming": {
-    "PDF": "PySheets Default", 
-    "DGN": "PySheets Default", 
-    "IFC": "PySheets Default", 
-    "DWG": "PySheets Default", 
-    "NWC": "PySheets Default", 
-    "IMG": "PySheets Default"
-  }, 
   "sheet_sel": {
+    "DWG": [], 
+    "IMG": [], 
     "PDF": [
       2642327, 
       2758195, 
       2787441, 
       3429369, 
       3443087, 
+      3478555, 
       3492150, 
+      3494229, 
+      3494243, 
+      3494299, 
       3495627, 
-      3728913, 
-      3729173, 
+      3880518, 
+      3894150, 
+      3978620, 
+      3996148, 
       4001815, 
       4001829, 
       4001843, 
@@ -59,9 +96,15 @@
       4045717, 
       4047846, 
       4080356, 
+      4081880, 
       4081965, 
       4098764, 
+      4100687, 
       4106254, 
+      4163580, 
+      4172013, 
+      4175024, 
+      4175254, 
       4176298, 
       4185813, 
       4254839, 
@@ -71,43 +114,12 @@
       4336886, 
       4353129
     ], 
-    "DGN": [], 
-    "IFC": [], 
-    "DWG": [], 
     "NWC": [], 
-    "IMG": []
-  }, 
-  "view_sel": {
-    "PDF": [], 
     "DGN": [], 
-    "IFC": [], 
-    "DWG": [], 
-    "NWC": [], 
-    "IMG": []
-  }, 
-  "auto_overwrite": true, 
-  "dest": "file", 
-  "open_after": true, 
-  "dwg": {
-    "export_setup_name": "<Revit Default>", 
-    "export_xrefs": false
-  }, 
-  "dgn": {
-    "export_setup_name": "<Revit Default>"
+    "IFC": []
   }, 
   "nwc": {
     "shared_coords": true, 
     "convert_properties": true
-  }, 
-  "formats": [
-    "PDF"
-  ], 
-  "folder_preset": "Project", 
-  "img": {
-    "image_type": "PNG", 
-    "resolution": "150 DPI", 
-    "pixel_size": 2048
-  }, 
-  "viewing": "PDF", 
-  "folder": "N:\\(N) NAGEL CONSULTANTS LTD\\#JOB\\#JOB-3451-3500\\3488 - Ozone Redevelopment, 47 King Street, New Plymouth\\PDF\\Internal\\Revit Prints\\"
+  }
 }

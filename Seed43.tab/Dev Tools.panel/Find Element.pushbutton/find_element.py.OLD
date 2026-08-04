@@ -57,14 +57,8 @@ except Exception:
     pass
 
 if not selected_elements:
-    try:
-        selected_elements = revit.pick_elements(
-            "Select one or more elements to search for")
-    except Exception:
-        selected_elements = []
-
-if not selected_elements:
-    forms.alert("No elements were selected.", exitscript=True)
+    forms.alert("Select one or more elements first, then run the script.",
+                exitscript=True)
 
 # ---------------------------------------------------------------------------
 # 2. Resolve "search targets" from the selection.
@@ -129,37 +123,6 @@ for el in selected_elements:
     except Exception:
         pass
 
-    # --- Any other ElementType selected directly (e.g. Project Browser ----
-    # type node for a system family: FilledRegionType, WallType, FloorType,
-    # etc). These are not FamilySymbols but are still just a type, not an
-    # instance, so expand to every instance of that type.
-    try:
-        if isinstance(el, DB.ElementType) and not isinstance(el, DB.FamilySymbol):
-            type_name = safe_get_name(el)
-            cat_name = safe_get_name(el.Category) if hasattr(el, 'Category') and el.Category else "Unknown"
-
-            same_type_collector = DB.FilteredElementCollector(doc)\
-                                     .WhereElementIsNotElementType()
-            if hasattr(el, 'Category') and el.Category:
-                same_type_collector = same_type_collector.OfCategoryId(el.Category.Id)
-
-            same_elements = [e for e in same_type_collector.ToElements()
-                              if e.GetTypeId() == el.Id]
-
-            if same_elements:
-                for same_el in same_elements:
-                    search_ids.add(same_el.Id)
-                    same_name = safe_get_name(same_el)
-                    display_map[same_el.Id] = "{} ({}) – {}".format(
-                        cat_name, type_name, same_name)
-            else:
-                search_ids.add(el.Id)
-                display_map[el.Id] = "{}: {} (no instances in model)".format(
-                    cat_name, type_name)
-            continue
-    except Exception:
-        pass
-
     # --- Group ------------------------------------------------------------
     try:
         if isinstance(el, DB.Group):
@@ -171,44 +134,12 @@ for el in selected_elements:
         pass
 
     # --- Any other element (walls, doors, views, sheets, etc.) -------------
-    # Expand to every other element sharing the same type, not just the
-    # one that was picked.
     try:
         cat_name = safe_get_name(el.Category) if hasattr(el, 'Category') else "Unknown"
-
-        type_id = DB.ElementId.InvalidElementId
-        try:
-            type_id = el.GetTypeId()
-        except Exception:
-            pass
-
-        if type_id and type_id != DB.ElementId.InvalidElementId:
-            type_elem = doc.GetElement(type_id)
-            type_name = safe_get_name(type_elem)
-
-            same_type_collector = DB.FilteredElementCollector(doc)\
-                                     .WhereElementIsNotElementType()
-            if hasattr(el, 'Category') and el.Category:
-                same_type_collector = same_type_collector.OfCategoryId(el.Category.Id)
-
-            same_elements = [e for e in same_type_collector.ToElements()
-                              if e.GetTypeId() == type_id]
-
-            if not same_elements:
-                same_elements = [el]
-
-            for same_el in same_elements:
-                search_ids.add(same_el.Id)
-                same_name = safe_get_name(same_el)
-                display_map[same_el.Id] = "{} ({}) – {}".format(
-                    cat_name, type_name, same_name)
-        else:
-            # No type to match against, fall back to just this element
-            elem_name = safe_get_name(el)
-            search_ids.add(el.Id)
-            display_map[el.Id] = "{}: {}".format(cat_name, elem_name)
-    except Exception:
+        elem_name = safe_get_name(el)
         search_ids.add(el.Id)
+        display_map[el.Id] = "{}: {}".format(cat_name, elem_name)
+    except Exception:
         display_map[el.Id] = "Element: {}".format(el.Id)
 
 if not search_ids:

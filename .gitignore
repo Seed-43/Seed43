@@ -12,6 +12,9 @@ __pycache__/
 *.pyc
 *.pyo
 
+# Local palette editor (not shipped with the extension)
+lib/*.html
+
 # Exclude temp and BreakTime
 Seed43.tab/temp/
 Seed43.tab/Seed43.panel/BreakTime.pushbutton/

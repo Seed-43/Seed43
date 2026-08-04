@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 # studio_live_data.py
 #
-# Pulls real Revit + pyTransmit-settings data into a dict shaped exactly like
+# Pulls real Revit + pyTransmit-settings data into a dict shaped like
 # Layout/LayoutSettings.py's DUMMY (proj_org, proj_client, distribution,
-# revisions, reasons, methods, docs) so studio_blocks.render_block() can
-# render live data with the same code path it uses for an empty/no-data
-# state. Read-only: never writes to any Settings/*.json.
+# revisions, reasons, methods, docs), so studio_blocks.render_block() renders
+# live data through the same path as the empty state. Read-only: never writes
+# to Settings/*.json.
 
 import os
 import re

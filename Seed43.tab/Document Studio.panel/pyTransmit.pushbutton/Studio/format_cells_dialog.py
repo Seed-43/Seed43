@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 # format_cells_dialog.py
 #
-# "Format Cells..." dialog for pyTransmit Studio, opened via right-click on a
-# cell. Does the same things the Home ribbon does (font, fill, alignment,
-# borders) in one place, matching Excel's Format Cells dialog - just not
-# split into tabs, since the ribbon already covers the same ground and this
-# is meant as a single-stop equivalent, not a second UI to maintain in
-# parallel. Takes the already-open StudioSettingsWindow (`win`) so it can
-# reuse its selection helpers instead of duplicating them.
+# "Format Cells..." dialog for pyTransmit Studio, opened by right-clicking a
+# cell. Gathers what the Home ribbon does (font, fill, alignment, borders)
+# into one place, like Excel's Format Cells - untabbed, since the ribbon
+# already covers this ground and it isn't meant to be a second UI to
+# maintain. Takes the open StudioSettingsWindow (`win`) to reuse its
+# selection helpers rather than duplicating them.
 
 import clr
 clr.AddReference('PresentationFramework')
@@ -189,11 +188,10 @@ def open_format_cells_dialog(win):
     # -- Borders (reuses the same icon builder as the ribbon dropdown) --------
     root.Children.Add(_section_label('BORDERS'))
     border_state = {'preset': None}
-    # WrapPanel, not UniformGrid - UniformGrid's real CLR namespace is
-    # System.Windows.Controls.Primitives, which plain "import
-    # System.Windows.Controls" doesn't reliably expose. WrapPanel is already
-    # proven working (the Blocks panel uses it), so reuse that instead of a
-    # 3rd different container type just for a 3-per-row icon layout.
+    # WrapPanel, not UniformGrid: UniformGrid lives in
+    # System.Windows.Controls.Primitives, which a plain
+    # "import System.Windows.Controls" doesn't reliably expose. WrapPanel
+    # already works here (the Blocks panel uses it).
     border_grid = _SWC.WrapPanel()
     border_grid.Width = 3 * 40
     border_buttons = []

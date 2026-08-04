@@ -40,7 +40,7 @@ def _confirm(message, title='', no='No'):
 # xlsxwriter is bundled with pyRevit's IronPython environment, no install needed.
 
 # Database paths
-# Databases saved next to OptionsManager.py
+# Databases saved next to this file
 DB_FOLDER = os.path.dirname(os.path.abspath(__file__))
 REASON_DB = os.path.join(DB_FOLDER, 'reason.json')
 METHOD_DB = os.path.join(DB_FOLDER, 'method.json')

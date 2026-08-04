@@ -111,11 +111,10 @@ class TableRow(object):
 
 
 # ── Read spreadsheet metadata + cell data (format dispatch) ──
-# The actual xlsx/ods zip/XML parsing lives in tools/format/
-# (pylink_xlsx.py / pylink_ods.py) - these three functions only sniff
-# which format a file's zip actually is and hand off to the matching
-# reader, so create_schedule.py/create_legend.py/create_drafting.py
-# and ExcelCardMixin below stay entirely format-agnostic.
+# The zip/XML parsing lives in tools/format/ (pylink_xlsx.py, pylink_ods.py);
+# these three functions only sniff which format a file's zip really is and
+# hand off, keeping create_schedule/create_legend/create_drafting and
+# ExcelCardMixin format-agnostic.
 
 def _sniff_format(file_path):
     """'xlsx' or 'ods', from the zip's own namelist - or None if
@@ -191,17 +190,12 @@ def read_range_formatting(file_path, named_range, sheet_name):
 # No Key Schedule, no project parameters required.
 
 # ── pyLink text type manager ──
-# Text types are named "pyLink <N>pt <Font>" and matched by font/size ONLY -
-# bold/italic/underline are explicitly NOT part of a type's identity.
-# Revit's FormattedText API can apply bold/italic/underline to any
-# text RANGE within a TextNote instance, independent of its Type - so
-# one "pyLink 7pt" type serves every 7pt cell regardless of whether
-# that particular cell is bold, instead of a separate "pyLink 7pt
-# Bold" type existing purely to carry that one flag - avoids the
-# type-count bloat (100s of cells => 100s of near-duplicate types) a
-# per-cell-attribute naming scheme would otherwise cause.
-# If an existing type matches the fingerprint it is reused.
-# If not, a new one is created for that size.
+# Text types are named "pyLink <N>pt <Font>" and matched on font/size ONLY;
+# bold/italic/underline are deliberately not part of a type's identity.
+# FormattedText applies those per text RANGE inside a TextNote, independent of
+# Type, so one "pyLink 7pt" serves every 7pt cell whatever its weight. A
+# per-attribute naming scheme would instead bloat 100s of cells into 100s of
+# near-duplicate types. Matching types are reused, otherwise one is created.
 
 PREFIX = 'pyLink '
 
@@ -319,11 +313,10 @@ def get_or_create_text_type(font='Arial', size_mm=2.3):
                     ws_p = tt.get_Parameter(DB.BuiltInParameter.TEXT_WIDTH_SCALE)
                     if ws_p and not ws_p.IsReadOnly and abs(ws_p.AsDouble() - 0.75) > 1e-9:
                         fixes.append((ws_p, 0.75))
-                    # Bold/Italic are not type-level - an existing type
-                    # from an older pyLink version may still be marked
-                    # bold (e.g. a leftover "pyLink 7pt Bold" type
-                    # someone's cells still reference); force both off
-                    # here so formatting only ever comes from the
+                    # Bold/Italic aren't type-level, but a type from an older
+                    # pyLink version may still carry them (a leftover
+                    # "pyLink 7pt Bold" some cells still reference). Force
+                    # both off so formatting only ever comes from the
                     # per-instance FormattedText path in create_drafting.py.
                     b_p = tt.get_Parameter(DB.BuiltInParameter.TEXT_STYLE_BOLD)
                     if b_p and not b_p.IsReadOnly and b_p.AsInteger() != 0:
@@ -331,13 +324,11 @@ def get_or_create_text_type(font='Arial', size_mm=2.3):
                     i_p = tt.get_Parameter(DB.BuiltInParameter.TEXT_STYLE_ITALIC)
                     if i_p and not i_p.IsReadOnly and i_p.AsInteger() != 0:
                         fixes.append((i_p, 0))
-                    # Pick up naming-scheme changes on an existing type
-                    # too (e.g. old "pyLink 7pt" -> "pyLink 7pt font
-                    # type") rather than only applying new names to
-                    # brand new types - if another type is already
-                    # sitting on the target name, Set() below just
-                    # raises and this one keeps its current name; not
-                    # worth failing the whole reuse over.
+                    # Apply naming-scheme changes to existing types too, not
+                    # just new ones ("pyLink 7pt" -> "pyLink 7pt font type").
+                    # If another type already holds the target name, Set()
+                    # raises and this one keeps its current name - not worth
+                    # failing the whole reuse over.
                     if name != target_name:
                         name_p = tt.get_Parameter(
                             DB.BuiltInParameter.SYMBOL_NAME_PARAM)
@@ -378,12 +369,10 @@ def get_or_create_text_type(font='Arial', size_mm=2.3):
         for bip, val in [
             (DB.BuiltInParameter.TEXT_FONT,         font),
             (DB.BuiltInParameter.TEXT_SIZE,          size_ft),
-            # Always plain at the type level - bold/italic/underline
-            # are applied per-instance via FormattedText in
-            # create_drafting.py, using each cell's own Excel flags,
-            # so ONE type serves both a bold header and a regular
-            # data cell at the same point size instead of needing a
-            # separate type per combination.
+            # Always plain at type level: create_drafting.py applies
+            # bold/italic/underline per instance via FormattedText from each
+            # cell's own Excel flags, so ONE type covers both a bold header
+            # and a plain data cell at the same point size.
             (DB.BuiltInParameter.TEXT_STYLE_BOLD,    0),
             (DB.BuiltInParameter.TEXT_STYLE_ITALIC,  0),
             # Black, and transparent rather than opaque — an opaque
@@ -1081,16 +1070,12 @@ def apply_row(row):
     )
     cell_styles = fmt.get('cell_styles', {})
 
-    # Derive text size from Excel's OWN font size (already parsed into
-    # cell_styles as 'font_size', in points) rather than the fixed
-    # 2.5mm/2.3mm TableRow defaults, which have no connection to the
-    # actual spreadsheet at all - a 9pt Excel header was silently
-    # coming out at ~7pt in Revit because row.size_hdr_mm never
-    # reflected what the file actually said. Row (0,*) is the header,
-    # row (1,*) the first data row; take the first cell in each that
-    # actually specifies a size, falling back to the row default only
-    # if Excel genuinely has none (shouldn't normally happen - every
-    # cell has SOME font size, default 11pt, in a real xlsx).
+    # Take text size from Excel's own font_size in cell_styles, not the fixed
+    # 2.5mm/2.3mm TableRow defaults, which are unrelated to the file - a 9pt
+    # Excel header used to land at ~7pt because row.size_hdr_mm never reflected
+    # the source. Row (0,*) is the header, (1,*) the first data row; use the
+    # first cell in each that states a size, falling back to the row default
+    # only if Excel genuinely has none (rare - every real xlsx cell has one).
     def _first_font_size(row_idx, n_cols):
         for c in range(n_cols):
             fs = cell_styles.get((row_idx, c), {}).get('font_size')
@@ -1141,12 +1126,11 @@ def apply_row(row):
     hdr_tt_id = hdr_tt.Id if hdr_tt else DB.ElementId.InvalidElementId
     dat_tt_id = dat_tt.Id if dat_tt else DB.ElementId.InvalidElementId
 
-    # Pre-create types outside any transaction (Revit requires new
-    # types/subcategories to have their own transaction, separate from
-    # the drafting/legend/schedule transaction). line_ids is still used
-    # by create_schedule.py's own (unrelated) cell-style API. The
-    # drafting/legend fill uses a single reusable type, coloured per
-    # instance via view overrides rather than one Type per colour.
+    # Pre-create types outside any transaction - Revit needs new
+    # types/subcategories in their own transaction, separate from the
+    # drafting/legend/schedule one. line_ids feeds create_schedule.py's
+    # separate cell-style API. Drafting/legend fill uses one reusable type
+    # coloured per instance via view overrides, not a Type per colour.
     line_ids     = _pre_create_line_styles(cell_styles)
     fill_type_id = _get_or_create_pylink_fill_type()
 
@@ -1316,12 +1300,11 @@ class ExcelCardMixin(object):
         self._set_collapse_icon(collapse_btn, False)
         header_left.Children.Add(collapse_btn)
 
-        # Source-type badge (W / XL / ODS / ODT) — same look as the
-        # per-row badge, a touch bigger to hold its own at card-header
-        # scale. ODS routes through this same Excel code path as xlsx
-        # (source_type='xl'), so the real extension - not source_type -
-        # decides the label/colour; otherwise every LibreOffice Calc
-        # file would silently show as a plain Excel badge.
+        # Source-type badge (W / XL / ODS / ODT) - same look as the per-row
+        # badge, slightly bigger for card-header scale. ODS shares the xlsx
+        # code path (source_type='xl'), so the real extension, not
+        # source_type, picks the label/colour; otherwise every LibreOffice
+        # Calc file would show as a plain Excel badge.
         real_ext = os.path.splitext(fd.get('real_path', path) or '')[1].lower()
         if real_ext == '.ods':
             badge_key, badge_text = 'ods', 'ODS'

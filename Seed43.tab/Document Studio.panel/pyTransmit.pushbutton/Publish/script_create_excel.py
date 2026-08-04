@@ -807,11 +807,10 @@ for ri, row in enumerate(ROWS):
         rgt_b  = 1 if _cs.get('r', False) else 0
         _cell_bg = _cs.get('bg') or (_hex(b.get('bg_color'), None) if b.get('bg_color') else None)
         # ── Determine vertical Excel row span for this block ──────
-        # 'row_span' on the block is the authoritative vertical-span signal
-        # (set by the layout builder). merge_down alone is not used here,
-        # a None column in a following row can also be caused by horizontal
-        # span consumption from an earlier column in that row, which is not
-        # a vertical span of this block.
+        # 'row_span' (set by the layout builder) is the authoritative
+        # vertical-span signal. merge_down is not used: a None column in a
+        # following row can come from horizontal span consumption earlier in
+        # that row, which is not a vertical span of this block.
         er_end = er_start + er_count - 1
         if row_span > 1 and grp_end >= ri + row_span - 1:
             er_end = _row_excel_start[ri + row_span - 1] + _row_excel_count[ri + row_span - 1] - 1

@@ -122,17 +122,14 @@ class RevTableWindow(Window):
             _alert("Failed to load pyTransmit.xaml:\n\n{}".format(msg), exitscript=True)
 
         # -- Apply Seed43 theme (colours + sizing) ---------------------------------
-        # Must run AFTER LoadComponent (so our injected brushes win over the XAML's
-        # own Setters) and BEFORE any code below that builds dynamic UI or calls
-        # TryFindResource - otherwise those lookups return None. See
-        # seed43-pyrevit-ui skill, gotchas #3/#4.
+        # Must run AFTER LoadComponent (so injected brushes beat the XAML's own
+        # Setters) and BEFORE anything below that builds dynamic UI or calls
+        # TryFindResource, which would otherwise return None.
         #
-        # Styles themselves (PrimaryButtonStyle, ComboBoxStyle, CardStyle, etc)
-        # are NOT loaded from anywhere at runtime - they're declared locally in
-        # this window's own XAML, under the same names Seed43Styles.xaml uses as
-        # its naming/structure reference. Only the colour and size VALUES those
-        # local styles reference via DynamicResource come from seed43_palette.json,
-        # which is what these two calls inject.
+        # The styles themselves (PrimaryButtonStyle, ComboBoxStyle, ...) are
+        # declared locally in this window's XAML, named after Seed43Styles.xaml
+        # rather than loaded from it. Only the colour/size VALUES they pull via
+        # DynamicResource come from seed43_palette.json - what these calls inject.
         try:
             from Snippets.seed43_theme import apply_seed43_palette, apply_seed43_dimensions
             apply_seed43_palette(self, _SCRIPT_DIR_MAIN)
@@ -417,15 +414,12 @@ class RevTableWindow(Window):
             DB.BuiltInParameter.SHEET_NUMBER,
             DB.BuiltInParameter.SHEET_NAME
         ]
-        # String params (Text-type, e.g. Sheet Number/Name) plus ElementId
-        # params (Revit's newer "Dropdown List" parameter type, e.g. the
-        # Revit 2026 Sheet Collection parameter, is backed by ElementId, not
-        # String) - Integer/Double stays excluded, those are numeric/
-        # dimensional fields like Scale or Sheet Width, not meaningful text
-        # to group sheets by. Grouping/report code elsewhere already reads
-        # any parameter's value via AsString()-or-AsValueString(), which
-        # works for ElementId too, so this just lets those show up here as
-        # selectable options as well.
+        # String params (Sheet Number/Name) plus ElementId ones - Revit's newer
+        # "Dropdown List" type, e.g. the 2026 Sheet Collection parameter, is
+        # backed by ElementId, not String. Integer/Double stay excluded as
+        # numeric fields like Scale aren't meaningful text to group by.
+        # Grouping code already reads values via AsString()-or-AsValueString(),
+        # which handles ElementId, so these just become selectable here too.
         _USABLE_STORAGE_TYPES = (DB.StorageType.String, DB.StorageType.ElementId)
 
         def _has_usable_value(param):

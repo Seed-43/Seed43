@@ -104,11 +104,10 @@ def _brush(hexcolor):
 
 
 # -- Themed context menus ----------------------------------------------------
-# A ContextMenu/MenuItem only honours Background/Foreground so far: MenuItem's
-# stock template draws a fixed icon-and-checkmark gutter down the left, which
-# stays light no matter what colours are set on the menu. That pale strip is
-# native chrome, so removing it needs a real ControlTemplate - same reason the
-# ComboBox needed one rather than plain Setters.
+# Background/Foreground only go so far: MenuItem's stock template draws a
+# fixed icon-and-checkmark gutter down the left that stays light whatever
+# colours are set. That strip is native chrome, so removing it needs a real
+# ControlTemplate - same reason the ComboBox needed one.
 _MENU_XAML = (
     '<ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" '
     'xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" TargetType="ContextMenu">'
@@ -1753,11 +1752,10 @@ class StudioSettingsWindow(WPFWindow):
         x_breaks = self._page_break_positions(col_px, page_w_px)
         y_breaks = self._row_break_positions(row_px, grid.row_sections, page_h_px)
 
-        # The width line is a ruler, not just a break: it answers "do my
-        # columns fit the page I picked?", so it must show even when the
-        # content is narrower than the page (no overflow = no break, which
-        # is why it disappeared). Beyond the content there's no column edge
-        # to snap to, so it's drawn at the true page width.
+        # The width line is a ruler, not just a break - it answers "do my
+        # columns fit the page?", so it must show even when content is
+        # narrower than the page. Past the content there's no column edge to
+        # snap to, so draw it at the true page width.
         if page_w_px > content_w_px:
             x_breaks = list(x_breaks) + [page_w_px]
 

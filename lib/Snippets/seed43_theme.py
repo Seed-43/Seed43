@@ -7,20 +7,17 @@ SolidColorBrush resources into a window's Resources dictionary AFTER
 wpf.LoadComponent / forms.WPFWindow has already parsed the XAML.
 
 IMPORTANT - call order:
-    Every window in this extension is fully self-contained (its own XAML
-    embeds its own hardcoded colour Setters, no external merged
-    dictionary). Because of that, apply_seed43_palette() must be called
-    AFTER the window's XAML has been loaded, not before - the XAML's own
-    <Setter ... Value="{DynamicResource BrushXxx}"/> only shows whatever
-    is in Resources at the moment WPF needs to paint, and calling this
-    after load is what makes our injected brush win.
+    Each window is self-contained (its XAML embeds its own colour Setters,
+    no merged dictionary), so apply_seed43_palette() must run AFTER the XAML
+    has loaded. {DynamicResource BrushXxx} resolves against whatever is in
+    Resources when WPF paints, which is what lets the injected brush win.
 
 Usage in a tool's __init__:
 
     forms.WPFWindow.__init__(self, 'MyTool.xaml')   # or wpf.LoadComponent(...)
     apply_seed43_palette(self, _SCRIPT_DIR)
 
-Colours only for now - sizing/dimensions are not applied by this module.
+Sizing is handled separately by apply_seed43_dimensions(), same call order.
 """
 import os
 import json
@@ -74,15 +71,12 @@ _PALETTE_FILENAME = "seed43_palette.json"
 
 
 def _find_palette_path(start_dir=None):
-    """seed43_palette.json now lives alongside this module in lib/Snippets/,
-    same convention _icons.py already uses for _icons.json - found directly
-    via this module's own file location, not by walking up from an
-    arbitrary caller's script directory looking for a separate UI/ folder
-    at the extension root (that folder no longer exists).
+    """Locate seed43_palette.json, which sits alongside this module in
+    lib/Snippets/ - same convention _icons.py uses for _icons.json - so it
+    is resolved from this file's own location.
 
-    start_dir is accepted-but-unused: every existing call site across the
-    extension passes it, so the parameter stays for backward compatibility,
-    it just no longer does anything.
+    start_dir is accepted but unused; every call site still passes it, so
+    the parameter stays for backward compatibility.
     """
     here = os.path.dirname(os.path.abspath(__file__))
     candidate = os.path.join(here, _PALETTE_FILENAME)
@@ -114,14 +108,11 @@ def get_color(start_dir, semantic_key, profile=None, fallback="#FFFFFF"):
     in the active (or given) profile, read straight from the JSON file - no
     WPF resource dictionary involved at all.
 
-    For anywhere that needs a definite colour value at one point in time
-    rather than a live DynamicResource binding - most notably make_icon(),
-    whose icons are baked-in vector graphics with a fixed Fill colour set at
-    creation time, not something that re-resolves if the palette changes
-    later. Going straight to the JSON sidesteps any question of whether
-    TryFindResource has resolved correctly yet by the time an icon is built,
-    which self._theme_hex()-style helpers (window.TryFindResource(...)) are
-    exposed to.
+    For callers needing a fixed colour at one point in time rather than a
+    live DynamicResource binding - most notably make_icon(), whose vector
+    icons bake in their Fill at creation. Reading the JSON directly avoids
+    depending on TryFindResource having resolved by then, which
+    self._theme_hex()-style helpers are exposed to.
     """
     data = load_palette(start_dir)
     if not data:
@@ -200,11 +191,10 @@ def _hex_shade(hex_str, percent):
     return "#{0:02X}{1:02X}{2:02X}".format(r, g, b)
 
 
-# Maps a dot-path in the JSON's "dimensions" block to a resource key +
-# the WPF resource type it needs to be built as. Sizing needs several
-# different .NET types (Thickness for padding, CornerRadius for corners,
-# a plain double for font sizes/heights) unlike colours which are always
-# a SolidColorBrush - so each entry says how to construct its value.
+# Maps a dot-path in the JSON's "dimensions" block to a resource key and
+# the .NET type to build. Unlike colours (always a SolidColorBrush), sizing
+# needs Thickness, CornerRadius or a plain double, so each entry names its
+# own kind.
 DIM_TO_RESOURCE = {
     # (json path)                          (resource key)                (kind)
     "button_primary.corner_radius":        ("CornerRadiusButton",        "corner"),
@@ -220,11 +210,10 @@ DIM_TO_RESOURCE = {
     "button_round.width":                  ("WidthButtonRound",          "double"),
     "button_round.height":                 ("HeightButtonRound",         "double"),
     "button_round.corner_radius":          ("CornerRadiusButtonRound",   "corner"),
-    # Percentage (0-100) of button_round.width/height, NOT an absolute pixel
-    # size - a consumer computing an actual icon size needs
-    # round(width * (icon_size / 100.0)), same formula the palette editor's
-    # preview uses. Applies to the primary/delete round buttons only, not
-    # the toggle (whose icon fills the whole transparent button).
+    # Percentage (0-100) of button_round.width/height, NOT absolute pixels:
+    # compute with round(width * (icon_size / 100.0)), the same formula the
+    # palette editor previews with. Primary/delete round buttons only - the
+    # toggle's icon fills its whole transparent button.
     "button_round.icon_size":              ("SizeButtonRoundIcon",       "double"),
     "button_menu.width":                   ("WidthButtonMenu",           "double"),
     "button_menu.height":                  ("HeightButtonMenu",          "double"),
@@ -347,11 +336,9 @@ def apply_seed43_dimensions(window, start_dir):
 
 def set_accent(start_dir, hex_color, profiles=("dark", "light")):
     """Set a new accent colour, deriving hover/pressed/border/border_muted
-    from it with the same 8%/27% lighten gradient used everywhere else
-    in the palette, plus two darkened tints (selected_row_bg/
-    highlighted_row_bg) for list/grid row selection highlights - e.g.
-    pySheets' sheet/view list - so those track whatever accent the user
-    picks instead of staying a fixed colour. Writes both profiles by
+    with the palette's usual 8%/27% lighten gradient, plus two darkened
+    tints (selected_row_bg/highlighted_row_bg) so grid row highlights track
+    the chosen accent instead of staying fixed. Writes both profiles by
     default.
     """
     path = _find_palette_path(start_dir)

@@ -3,16 +3,13 @@
 #
 # Block catalog + per-cell renderer for pyTransmit Studio.
 #
-# This is a deliberate, self-contained fork of the palette/renderer ideas in
-# ../Layout/LayoutSettings.py's PALETTE and PreviewBuilder._block_el - NOT an
-# import of that module. Two reasons:
-#   1. LayoutSettings.py must stay completely untouched (existing tool).
-#   2. PreviewBuilder reads a module-level DUMMY dict directly instead of
-#      taking data as a parameter, so importing it and pointing DUMMY at live
-#      Revit data would mutate shared global state - if a user has both the
-#      old Layout Builder and Studio open at once, that would corrupt the
-#      old tool's preview. Studio's renderer takes `data` as an explicit
-#      argument instead, so the two tools can never interfere with each other.
+# A deliberate fork of ../Layout/LayoutSettings.py's PALETTE and
+# PreviewBuilder._block_el, NOT an import of them, because:
+#   1. LayoutSettings.py must stay untouched (existing tool).
+#   2. PreviewBuilder reads a module-level DUMMY dict rather than taking data
+#      as a parameter, so pointing DUMMY at live Revit data would mutate
+#      shared global state and corrupt the Layout Builder's preview if both
+#      tools are open. Studio's renderer takes `data` explicitly instead.
 
 import os
 
@@ -72,12 +69,11 @@ PALETTE = [
     ('print_size',         'Print Size',              'print_size',         'meta', ''),
 ]
 
-# Palette id -> (actual block type, extra defaults applied on insert).
-# Lets one block type appear more than once in the palette pre-configured
-# differently - the Reason/Method legends render either as stacked
-# code+label rows ('list') or spread across a single row ('row'), the same
-# two placements the Layout Builder exposes via its list_style option.
-# Anything not listed here maps to itself with no extra defaults.
+# Palette id -> (actual block type, extra defaults applied on insert), so one
+# block type can appear in the palette more than once pre-configured
+# differently: the Reason/Method legends render as stacked code+label rows
+# ('list') or across a single row ('row'), the same two placements the Layout
+# Builder exposes via list_style. Unlisted ids map to themselves.
 PALETTE_SPEC = {
     'reason_list':     ('reason_list', {'list_style': 'list'}),
     'reason_list_row': ('reason_list', {'list_style': 'row'}),
@@ -541,12 +537,11 @@ def render_block(block, data, scale, logo_path='', rev_index=0):
         return root
 
     # -- Spine blocks: ONE revision per cell -----------------------------------
-    # Excel model - a revision occupies its own column, so each cell renders
-    # a single revision rather than packing every revision into one cell the
-    # way the Layout Builder does. `rev_index` says which revision this cell
-    # is bound to; the caller derives it from the block's column position
-    # (see StudioSettings._rev_index_for_column), so dropping the same block
-    # in the next column automatically reads the next revision.
+    # Excel model - a revision owns its own column, so each cell renders one
+    # revision instead of packing them all into a single cell like the Layout
+    # Builder. `rev_index` binds the cell to a revision; the caller derives it
+    # from column position (StudioSettings._rev_index_for_column), so the same
+    # block dropped one column over reads the next revision.
     revs = data.get('revisions', [])
     if t.startswith('spine_'):
         rev_label = '(rev {})'.format(rev_index + 1)

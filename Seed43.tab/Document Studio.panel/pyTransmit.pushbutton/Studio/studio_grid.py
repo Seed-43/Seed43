@@ -25,11 +25,10 @@ PAGE_SIZES = {
     'Tabloid': (279, 432),
 }
 DEFAULT_PAGE_SIZE = 'A4'
-# Printable area = page minus a margin on each side. Studio previously had
-# no margin model, which made "does my content fit the page?" ambiguous:
-# the converted Layout Builder templates bake a 10mm side margin into their
-# column widths, so 190mm of columns on a 210mm sheet is an exact fit, not
-# 20mm of slack.
+# Printable area = page minus a margin per side. Without a margin model
+# "does my content fit?" is ambiguous: converted Layout Builder templates
+# bake a 10mm side margin into their column widths, so 190mm of columns on
+# a 210mm sheet is an exact fit, not 20mm of slack.
 DEFAULT_MARGIN_MM = 10.0
 # 'Custom' keeps whatever page_w_mm/page_h_mm are set rather than looking
 # them up - the Revit Drafting View / Legend / Schedule templates use a

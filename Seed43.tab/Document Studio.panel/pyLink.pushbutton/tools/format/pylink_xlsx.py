@@ -498,12 +498,10 @@ def read_xlsx_range_formatting(file_path, named_range, sheet_name):
                 if raw_align:
                     halign = raw_align.capitalize()
                 elif rotation:
-                    # Excel's own default rendering for ROTATED text
-                    # with no explicit horizontal alignment set is
-                    # visually centered in the column - "General"/
-                    # unset does not mean Left once rotation is
-                    # involved, unlike unrotated text where Left IS
-                    # the right default for General.
+                    # Excel renders ROTATED text with no explicit horizontal
+                    # alignment centered in the column: once rotation is
+                    # involved "General"/unset no longer means Left, though it
+                    # does for unrotated text.
                     halign = 'Center'
                 else:
                     halign = 'Left'
@@ -999,12 +997,10 @@ def _parse_xfs(xml_doc):
             })
 
     # --- parse cellXfs (per-cell formats) ---
-    # IMPORTANT: use ChildNodes not GetElementsByTagName.
-    # GetElementsByTagName('xf') on the cellXfs node also matches <xf>
-    # elements nested inside cellStyleXfs when namespace handling is
-    # inconsistent, returning fewer entries than actually exist.
-    # ChildNodes iterates only the direct children of cellXfs, which
-    # are exactly the 26 (or N) <xf> elements we want.
+    # NOTE: ChildNodes, not GetElementsByTagName. GetElementsByTagName('xf')
+    # on cellXfs also matches <xf> nested inside cellStyleXfs when namespace
+    # handling is inconsistent, returning fewer entries than exist.
+    # ChildNodes gives exactly cellXfs' direct <xf> children.
     xfs = []
     xfs_nodes = _get_xf_nodes('cellXfs')
     if xfs_nodes.Count == 0:

@@ -11,10 +11,9 @@ def get_revision_description(rev):
     """
     Return the user-visible description of a revision.
 
-    Tries the direct Description property first, since that's the standard
-    Revit API property and doesn't need a parameter lookup. Falls back to
-    the PROJECT_REVISION_REVISION_DESCRIPTION parameter, then the revision
-    Name, in case Description is ever unavailable. Returns "?" if all fail.
+    Prefers the Description property (no parameter lookup needed), then
+    PROJECT_REVISION_REVISION_DESCRIPTION, then Name. Returns "?" if all
+    three fail.
     """
     try:
         if rev.Description:

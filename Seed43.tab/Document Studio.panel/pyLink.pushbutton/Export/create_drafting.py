@@ -273,32 +273,23 @@ _TAB_MM = 1.0 * MM  # matches TEXT_TAB_SIZE forced on every pyLink text
                      # edge padding in the Middle-Align-always vertical
                      # positioning formula below.
 
-# Cache of measured probe offsets, keyed by every setting that can
-# change where Revit anchors a text box: (tt_id, width, halign, bold,
-# text-component). Bold is included because bold glyphs measure wider/
-# taller than regular ones at the same type/size, which is exactly why
-# bold is in the cache key even though it's no longer part of the TYPE
-# itself (see get_or_create_text_type in pylink_excel.py - bold/
-# italic/underline are applied per-instance via FormattedText below,
-# not baked into a dedicated "Bold" type per size).
+# Cache of measured probe offsets, keyed by everything that moves where Revit
+# anchors a text box: (tt_id, width, halign, bold, text-component). Bold is in
+# the key because bold glyphs measure larger at the same type/size, even though
+# it is no longer part of the TYPE (see get_or_create_text_type in
+# pylink_excel.py - FormattedText applies it per instance).
 #
-# The text-component (see _cache_text_component) is the cell's real
-# text for HEADER cells only, else a shared placeholder. Two different
-# strings sharing the same width/halign/bold can measure a different
-# bounding box if one wraps onto more lines than the other - narrow
-# header columns are exactly that case (several often share the same
-# Excel width, so a short one-line header and a long one that wraps to
-# 3 lines would otherwise land on the same key). Data cells share one
-# placeholder key per (type, width, halign, bold) regardless of their
-# own text - single-line values at a shared width/halign/bold measure
-# the same box height, and this keeps the cache doing its actual job:
-# a whole column of data (e.g. 40 rows of "Grade 8.8") shares ONE
-# probe instead of one per cell.
+# The text-component (see _cache_text_component) is the real text for HEADER
+# cells only, otherwise a shared placeholder. Two strings at the same
+# width/halign/bold can measure different boxes if one wraps to more lines,
+# which is exactly the narrow-header case. Data cells share one placeholder key
+# per (type, width, halign, bold), since single-line values at those settings
+# measure the same height - that is what keeps a 40-row column of "Grade 8.8"
+# on ONE probe instead of 40.
 #
-# Every key this table's text needs is pre-measured in a single batch
-# (_batch_measure_probes, called once per view) so the doc.Regenerate()
-# this all depends on - expensive, it walks the whole document, not
-# just the view - runs once per view instead of once per cache miss.
+# _batch_measure_probes pre-measures every key once per view, so the
+# doc.Regenerate() it depends on - expensive, it walks the whole document -
+# runs once per view rather than once per cache miss.
 _probe_cache = {}
 
 
@@ -501,25 +492,20 @@ def _draw_text(view, x, y, w, h, text, tt_id, color_rgb,
         if rotation_rad == 0:
             box_h = bmaxy - bminy
             box_w = bmaxx - bminx
-            # Full cell width (x, w), not the margin-inset mx/mw - the
-            # frame itself is declared at width=w (see "width" above),
-            # so the target has to match that exactly or the two
-            # disagree by the margin amount. Margin here is reserved
-            # for the perpendicular (vertical) axis only, same as the
-            # comment above already establishes.
+            # Full cell width (x, w), not the margin-inset mx/mw: the frame is
+            # declared at width=w above, so the target must match or the two
+            # disagree by the margin. Margin applies to the vertical axis only.
             target_left = {
                 'Left':   x,
                 'Center': x + (w - box_w) / 2.0,
                 'Right':  x + w - box_w,
             }.get(halign, x)
-            # Vertical: always target the text's CENTER line (Revit's
-            # own Middle Align, set below, is what actually holds it
-            # there) - Excel's Top/Center/Bottom become an offset FOR
-            # that center point, not an edge to match directly:
-            #   Top    -> center sits tab + half the text's own height
-            #             down from the cell's top line
-            #   Bottom -> mirror of that, up from the bottom line
-            #   Center -> the cell's own vertical middle, exactly
+            # Vertical: always target the text's CENTER line, held there by
+            # Revit's Middle Align set below. Excel's Top/Center/Bottom become
+            # an offset for that center point, not an edge to match:
+            #   Top    -> tab + half the text height down from the top line
+            #   Bottom -> mirrored, up from the bottom line
+            #   Center -> the cell's exact vertical middle
             half_text = box_h / 2.0
             target_center_y = {
                 'Top':    y - _TAB_MM - half_text,
@@ -576,18 +562,13 @@ def _draw_text(view, x, y, w, h, text, tt_id, color_rgb,
         pt = XYZ(ox, oy, 0)
         tn = TextNote.Create(doc, view.Id, pt, width, str(text), opts)
 
-        # NEITHER TextElement.HorizontalAlignment NOR .VerticalAlignment
-        # get set here post-creation, despite both being real, settable
-        # per-INSTANCE properties (since Revit 2016, replacing the old
-        # TextNote.Align). The manual math above already computes and
-        # lands on the exact correct position for both axes; setting
-        # either alignment property again AFTERWARD re-justifies the
-        # already-correctly-placed note against Revit's own internal
-        # reference instead of complementing the position that's
-        # already there. If Revit's own Paragraph-panel Vertical/
-        # Horizontal Align ever needs to show something other than its
-        # unset default for cosmetic/editability reasons, that's a
-        # SEPARATE concern from positioning, not assumed harmless.
+        # Deliberately sets NEITHER TextElement.HorizontalAlignment NOR
+        # .VerticalAlignment post-creation, though both are settable per
+        # instance since Revit 2016. The math above already lands the note
+        # exactly on both axes; setting either afterward re-justifies the
+        # already-placed note against Revit's internal reference rather than
+        # complementing it. Making the Paragraph panel show a non-default
+        # align for cosmetic reasons is a separate concern from positioning.
 
         if color_rgb:
             _override_color(tn.Id, color_rgb)
@@ -846,13 +827,12 @@ for r in range(n_total_rows):
             v_border_segments.append(
                 (x + w, y, y - h, right_rgb, _cell_border_weight(style, 'right')))
 
-        # Text spec — measured in pass 3 (one batch doc.Regenerate()
-        # for every distinct probe this table needs) and drawn in
-        # pass 4. Bold/italic/underline come from Excel's OWN per-cell
-        # flags, not assumed from the row being a header - the type
-        # itself is never bold (see get_or_create_text_type), so a
-        # header cell Excel didn't actually bold stays regular, and a
-        # data cell Excel DID bold comes through bold too.
+        # Text spec - measured in pass 3 (one batch doc.Regenerate() covering
+        # every distinct probe) and drawn in pass 4. Bold/italic/underline come
+        # from Excel's own per-cell flags rather than being inferred from
+        # header-ness, and the type is never bold (see get_or_create_text_type),
+        # so an unbolded header stays regular and a bolded data cell comes
+        # through bold.
         if is_header:
             text = fields[c] if c < len(fields) else ''
         else:

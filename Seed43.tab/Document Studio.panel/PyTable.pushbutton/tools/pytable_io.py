@@ -882,13 +882,10 @@ def write_ods(path, columns, rows):
             continue
         val_name = validation_names[col["key"]]
         # ODF list-from-values validation: of:cell-content-is-in-list("A";"B";"C").
-        # table:base-cell-address is REQUIRED - LO silently drops the whole
-        # condition without it (confirmed: a round-trip test without this
-        # attribute came back with the condition stripped, and when LO
-        # rewrote the file it auto-added its own base-cell-address, which is
-        # what revealed this). table:display-list="unsorted" is what
-        # actually renders the dropdown arrow - allow-empty-cell alone only
-        # restricts typed input, it doesn't add the UI affordance.
+        # table:base-cell-address is REQUIRED - LibreOffice silently strips the
+        # whole condition without it. table:display-list="unsorted" is what
+        # renders the dropdown arrow; allow-empty-cell only restricts typed
+        # input and adds no UI affordance.
         quoted_opts = u";".join(
             u"&quot;{0}&quot;".format(_xml_escape(o).replace(u'"', u"&quot;")) for o in opts)
         condition = u"of:cell-content-is-in-list({0})".format(quoted_opts)
@@ -926,12 +923,10 @@ def write_ods(path, columns, rows):
         u'</manifest:manifest>'
     )
 
-    # Freeze the header row on each category table so it stays visible
-    # while scrolling - ODF stores this as a per-table VIEW SETTING in
-    # settings.xml, not in content.xml. Best-effort / less certain than the
-    # rest of this file: VerticalSplitMode=2 + ActiveSplitRange=2 is my
-    # understanding of "frozen at row 1", worth confirming it actually
-    # shows a frozen header when opened.
+    # Freeze the header row per category table so it survives scrolling. ODF
+    # keeps this as a per-table view setting in settings.xml, not content.xml.
+    # TODO: VerticalSplitMode=2 + ActiveSplitRange=2 is the assumed encoding of
+    # "frozen at row 1" - unverified, confirm it renders frozen on open.
     table_view_entries = u"".join(
         u'<config:config-item-map-entry config:name="{name}">'
         u'<config:config-item config:name="VerticalSplitMode" config:type="short">2</config:config-item>'

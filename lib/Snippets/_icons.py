@@ -2,37 +2,16 @@
 __title__     = "Icons"
 __author__    = "Nagel Consultants"
 __doc__       = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 260515
-_____________________________________________________________________
-Description:
-Provides vector icons for use across all pyTransmit panels and scripts.
-Each icon is drawn as a sharp, scalable shape, not a bitmap image,
-so it stays crisp at any size.
+Vector icons for Seed43 panels and scripts. Each icon is a scalable shape
+rather than a bitmap, so it stays crisp at any size.
 
-_____________________________________________________________________
-How-to:
-In any script, add this near the top:
-
-    from icons import make_icon
-
-Then call it wherever you need an icon:
+    from Snippets._icons import make_icon
 
     btn.Content = make_icon("pdf_output", size=16, color="#FFFFFF")
 
-The icon name must match a key in _icons.json.
-Size is in pixels. Color is a hex string.
-
-_____________________________________________________________________
-Notes:
-- The JSON file must sit in the same folder as this file.
-- Icons are drawn on a 24x24 grid internally and scaled to fit.
-- Any WPF element that accepts a child (Button, StackPanel, etc.)
-  can receive the result of make_icon directly.
-
-_____________________________________________________________________
-Last update:
-260515, Initial version.
-_____________________________________________________________________
+The name must match a key in _icons.json, which sits in this folder. Icons
+are drawn on a 24x24 grid and scaled to fit, and the result drops straight
+into any WPF element that accepts a child.
 """
 
 import os
@@ -69,7 +48,7 @@ def make_icon(key, size=16, color="#FFFFFF"):
     Return a WPF Viewbox containing the named icon, ready to use as
     the Content of a Button, or a child of any layout panel.
 
-    key   : string matching a key in icon_standard_icons.json
+    key   : string matching a key in _icons.json
     size  : pixel width and height of the rendered icon
     color : fill color as a hex string, e.g. "#FFFFFF" or "#FF208A3C"
     """

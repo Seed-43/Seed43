@@ -163,14 +163,13 @@ def _safe_text(sec, r, c, text):
 #   5. Set the options back onto the style
 #   6. Apply to cell via SetCellStyle
 #
-# IMPORTANT naming quirks (from pyTransmit reference doc):
-#   property  style.TextColor   ← sets the font/text colour
-#   flag      opts.FontColor    ← enables the font colour override
-#   These two do not share the same name — both must be used together.
+# NOTE: the property and its override flag are named differently and must
+# both be set:
+#   style.TextColor  sets the font colour
+#   opts.FontColor   enables the override
 #
-# Border colours use named Lines subcategories (see line style registry
-# above).  There is no BorderXxxColor property — colour is baked into
-# the line style subcategory itself.
+# Border colours come from named Lines subcategories (see the line style
+# registry above) - there is no BorderXxxColor property.
 # ---------------------------------------------------------------------------
 
 def _excel_rotation_to_revit(excel_rot):
@@ -274,11 +273,10 @@ def _apply_style(sec, r, c,
         opts.VerticalAlignment   = True
 
         # ── Borders via line style ElementIds ────────────────────────────
-        # pyTransmit pattern: assign a coloured subcategory Id to show a
-        # border, assign the white 'pyT Off' Id to hide it.
-        # There is no opts.BorderXxxColor — colour lives in the subcategory.
-        # Master border override flag — required in addition to the four
-        # per-side flags or Revit ignores the per-side line style ids.
+        # pyTransmit pattern: a coloured subcategory Id shows a border, the
+        # white 'pyT Off' Id hides it - colour lives in the subcategory, there
+        # is no opts.BorderXxxColor. The master flag below is required on top
+        # of the four per-side ones or Revit ignores the per-side style ids.
         opts.BorderLineStyle = True
         sides = [
             (border_top,    border_top_color,    'BorderTopLineStyle'),
@@ -437,19 +435,15 @@ sched_def.AddFilter(ScheduleFilter(
     field_asm.FieldId, ScheduleFilterType.Equal, 'ALL VALUES FOUND'
 ))
 
-# ShowGridLines is Revit's own blanket default gridline layer, drawn
-# underneath/independent of per-cell border overrides. Any cell whose
-# override lookup didn't succeed (or was never set) still fell back to
-# this layer, which is why data cells with no Excel border were
-# showing a border anyway. Confirmed via user report: Excel only has
-# borders on the header row and under the last data row, but every
-# cell was rendering bordered. Turned off - borders now come *only*
-# from real per-cell TableCellStyle overrides (Excel-driven for the
-# header, explicitly suppressed for data rows below).
-# NOTE: Do NOT set ShowHeaders=False or ShowTitle=False on ScheduleDefinition.
-# Those properties collapse entire table sections and break Header rendering.
-# The Header section (SectionType.Header) is where all custom content lives —
-# it is always visible regardless of ShowHeaders/ShowTitle.
+# ShowGridLines is Revit's blanket gridline layer, drawn underneath and
+# independent of per-cell border overrides, so any cell without a successful
+# override still fell back to it - which is why data cells with no Excel
+# border rendered bordered anyway. Off, so borders come only from real
+# per-cell TableCellStyle overrides.
+#
+# NOTE: do NOT set ShowHeaders=False or ShowTitle=False on ScheduleDefinition.
+# They collapse whole table sections and break Header rendering, and
+# SectionType.Header is where all custom content lives.
 try:
     sched_def.ShowGridLines = False
 except Exception as ex:

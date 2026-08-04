@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# filter_save.py
+# pyfilter_save.py
 # Seed43 Filter Manager - grid rows, popup dialogs, save logic
 # pylint: disable=import-error,invalid-name,broad-except
 

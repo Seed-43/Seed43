@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# sync.py
+# pyfilter_sync.py
 # Seed43 Filter Manager - per-template two-way sync to a configurable server
 # path. Each synced template is one JSON file at server_path/<name>.json.
 # Sync rule: newer mtime wins. A locally-missing file that is on the sync list

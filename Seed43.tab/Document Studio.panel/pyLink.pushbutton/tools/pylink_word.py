@@ -70,11 +70,10 @@ SECTION_GROUPS_PATH = os.path.join(
 DEFAULT_SECTION_GROUPS = {'groups': []}
 
 # -- Strict-layout height-estimate constants --
-# Duplicated from Export/create_notes.py rather than imported -- that
-# module reads PYLINK_PAYLOAD from globals() at import time and is
-# only ever loaded via exec() with the payload injected, so a normal
-# import here would break. Keep these in sync by hand if the export
-# geometry ever changes.
+# HACK: duplicated from Export/create_notes.py rather than imported - that
+# module reads PYLINK_PAYLOAD from globals() at import time and is only ever
+# loaded via exec() with the payload injected, so a plain import breaks.
+# Keep in sync by hand if the export geometry changes.
 SHEET_WIDTHS_MM = {
     'A4 Landscape':  297.0, 'A4 Portrait':  210.0,
     'A3 Landscape':  420.0, 'A3 Portrait':  297.0,
@@ -351,14 +350,12 @@ class WordCardMixin(object):
     PyLinkWindow. Everything here assumes fd.get('source_type') == 'word'."""
 
     # ── Grouped-card rendering ──
-    # All fd entries sharing the same real_path (the original card
-    # plus every one added via '+ Add Row') render inside ONE outer
-    # card with ONE shared header (collapse / badge / path+date /
-    # + Add Row / reload / close). Each fd gets its own nested "view
-    # block": its own View Name/Sheet size/Columns/View Type, its own
-    # + Add Section, its own sections-collapse toggle, its own
-    # Strict/Manual + Batch, its own section rows. self._card_groups
-    # (set up in __init__) tracks {real_path: {...}} for this.
+    # All fd entries sharing a real_path (the original card plus each '+ Add
+    # Row') render inside ONE outer card with ONE shared header (collapse /
+    # badge / path+date / + Add Row / reload / close). Each fd gets its own
+    # nested view block: View Name/Sheet size/Columns/View Type, + Add
+    # Section, sections-collapse toggle, Strict/Manual + Batch, section rows.
+    # self._card_groups tracks {real_path: {...}} for this.
 
     def _make_word_card(self, path):
         fd = self._file_data[path]
@@ -1073,12 +1070,10 @@ class WordCardMixin(object):
         row._group_combo      = gr_combo
         sp.Children.Add(gr_combo)
 
-        # Col number textbox — this is the manual-mode column
-        # assignment (which column a section goes into when the card
-        # is in Manual layout, not Strict). Priority/Group only matter
-        # in Strict mode, but Column is the inverse: needed and
-        # editable in Manual, irrelevant once Strict auto-places
-        # everything - so it gets its own visibility, not combo_vis.
+        # Col number textbox - which column a section goes into under Manual
+        # layout. Priority/Group only matter in Strict; Column is the inverse,
+        # editable in Manual and irrelevant once Strict auto-places
+        # everything, so it needs its own visibility rather than combo_vis.
         col_vis = Visibility.Collapsed if strict_mode else Visibility.Visible
         col_tb = TextBox()
         col_tb.Text          = str(row.ColNo)
@@ -1110,14 +1105,11 @@ class WordCardMixin(object):
         row._refresh_btn    = rb
         sp.Children.Add(rb)
 
-        # Delete button — always-red DeleteButtonStyle, not the transparent-
-        # until-hover CloseButtonStyle (this removes the row, it isn't a
-        # window/card close action). Same size as every other round
-        # button now (WidthButtonRound/HeightButtonRound/
-        # CornerRadiusButtonRound) - a hardcoded 24x24 override used to
-        # sit here for a deliberate row-vs-card size tier, but that broke
-        # both size AND shape consistency the moment corner_radius was
-        # tuned independently of a fixed pixel size.
+        # Delete button - always-red DeleteButtonStyle, not the
+        # transparent-until-hover CloseButtonStyle, since this removes the row
+        # rather than closing a window/card. Sized from the shared round-button
+        # tokens: a hardcoded 24x24 gave a row-vs-card size tier, but broke
+        # shape once corner_radius was tuned independently of pixel size.
         db = Button()
         db.Content          = u'✕'
         db.FontSize         = 10

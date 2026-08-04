@@ -240,12 +240,11 @@ def compute_cell_styles(rows, groups, text_styles=None, max_rev_col=3, n_revs=10
         if cell['brd'].get('b', False): _row_bot[ri] = True
 
     # ── Pass 2b: on-beats-off shared edge resolution ─────────────────────────
-    # For non-content blocks: use row-level maps (_row_bot/_row_top) so that
-    # a border on any col in a row propagates to all cols (e.g. spine_rev b:True
-    # gives the "Revision" text cell its bottom line).
-    # For content blocks (reason_list/method_list): only check same-ci neighbours
-    # to avoid bleeding from spine_dates b:True into the legend content above/below.
-    # blank blocks are fully immune.
+    # Non-content blocks use row-level maps (_row_bot/_row_top), so a border on
+    # any col propagates across the row (spine_rev b:True gives the "Revision"
+    # cell its bottom line). Content blocks (reason_list/method_list) check
+    # only same-ci neighbours, so spine_dates b:True can't bleed into the
+    # legend above/below. blank blocks are immune.
     for (ri, ci), cell in raw.items():
         resolved_brd = dict(cell['brd'])
         _btype = cell.get('block', {}).get('type', '') if cell.get('block') else ''

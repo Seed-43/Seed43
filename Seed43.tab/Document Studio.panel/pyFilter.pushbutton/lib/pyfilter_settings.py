@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# settings_dialog.py
+# pyfilter_settings.py
 # Seed43 Filter Manager - sync settings window. XAML embedded inline so there
 # is no separate file to locate at runtime.
 # pylint: disable=import-error,invalid-name,broad-except

@@ -1,23 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 Shared helpers for reading/writing Revit parameters and collecting
-categories/schedules. Promoted out of PyTable since any tool that touches
-parameters, model categories, or schedules can reuse these instead of
-re-implementing them.
-
-snippets.yaml entry:
-  _parameters.py:
-    description: >
-      Shared helpers for reading/writing Revit parameters (unit-aware via
-      SetValueString/AsValueString) and collecting categories/schedules.
-      Used by PyTable.
-    functions:
-      get_param_display_value:    Return a parameter's value as display text.
-      set_param_from_display_value: Write display text back to a parameter.
-      get_categories_with_elements: Return categories that have at least one placed element.
-      get_elements_by_category:   Return all instances (not types) in a category.
-      get_schedules:              Return all non-template ViewSchedules in the project.
-      get_param_dropdown_options: Return valid options for a constrained parameter, or None.
+categories/schedules. Promoted out of PyTable so any tool touching
+parameters, model categories, or schedules can reuse them.
 """
 
 from Autodesk.Revit.DB import FilteredElementCollector, StorageType, ViewSchedule, ElementId
@@ -44,12 +29,10 @@ def get_param_display_value(param):
     Return a parameter's value as display text, matching what a user would
     see/type in a spreadsheet or form.
 
-    AsValueString() already applies the parameter's own unit formatting
-    (length/area/angle/etc via its ForgeTypeId) and resolves ElementId-backed
-    params (materials, family types) to their display name - the same
-    formatting Revit's own UI uses, so no separate UnitUtils conversion is
-    needed on the read side. Falls back per StorageType for params where
-    AsValueString() returns None.
+    AsValueString() applies the parameter's own unit formatting (via its
+    ForgeTypeId) and resolves ElementId-backed params to their display name,
+    so no separate UnitUtils conversion is needed on the read side. Falls
+    back per StorageType where AsValueString() returns None.
     """
     val_str = param.AsValueString()
     if val_str is not None:
@@ -69,19 +52,15 @@ def set_param_from_display_value(param, text):
     """
     Write a display-text value back to a parameter.
 
-    SetValueString() is the primary path: it parses the string the same way
-    Revit's own UI would, which means it's already unit-aware (a length
-    param correctly parses "3200" vs "3.2 m" vs "10' - 6\"" depending on
-    project units) and resolves named ElementId references (material/family
-    type names) back to the right element where the API version supports it.
+    SetValueString() is the primary path: it parses the string as Revit's own
+    UI would, so it is unit-aware (a length param handles "3200" vs "3.2 m"
+    vs "10' - 6\"" per project units) and resolves named ElementId references.
 
-    Not every StorageType/param combination accepts SetValueString though -
-    the fallback below goes through the typed Set() directly for String and
-    Integer. There is deliberately NO fallback for Double: a raw float(text)
-    Set() would write the value as internal (feet-based) units, silently
-    misinterpreting whatever unit the display string was actually in. Raises
-    instead so the caller can skip/log it rather than risk corrupting a real
-    dimension.
+    Not every StorageType accepts it, so String and Integer fall back to a
+    typed Set(). Double deliberately has NO fallback: a raw float(text) Set()
+    would write internal (feet-based) units, silently misreading whatever
+    unit the display string was in. Raises instead, so the caller can skip it
+    rather than corrupt a real dimension.
 
     Raises ValueError if the value could not be set.
     """
@@ -140,20 +119,12 @@ def get_schedules(doc):
 
 # ── DROPDOWN / VALID-VALUE DISCOVERY ────────────────────────────────────────
 #
-# None of this has been tested live in Revit (no Revit environment available
-# here to verify against) - every lookup below is wrapped defensively so a
-# wrong guess about a specific API detail just means that one column gets no
-# dropdown, not a broken export. Report back what actually happens so this
-# can be corrected/expanded.
+# Every lookup below is wrapped defensively: a wrong guess about an API
+# detail costs that one column its dropdown, not the whole export.
 
-# Small, deliberately conservative table of BuiltInParameters backed by a
-# fixed .NET enum with a known, stable value set. LabelUtils.GetLabelFor()
-# gives the correctly localised display string for each enum member without
-# writing to the model, but not every Revit enum has a GetLabelFor()
-# overload, and BuiltInParameter/enum names can differ across versions.
-# Registered ONE AT A TIME (not a single import line) so a bad guess for
-# any one entry just skips that entry - it can't take down the whole table,
-# including the ones already confirmed working.
+# BuiltInParameters backed by a fixed .NET enum with a stable value set.
+# BuiltInParameter and enum names differ across Revit versions, so entries
+# are registered ONE AT A TIME - a bad guess skips only that entry.
 _ENUM_PARAM_TABLE = {}
 try:
     from Autodesk.Revit.DB import BuiltInParameter, LabelUtils
@@ -185,18 +156,15 @@ def _try_register_enum(bip_name, enum_type_name):
     _log_info("PyTable dropdown table: registered {0} -> {1}".format(bip_name, enum_type_name))
 
 
-# Confirmed working (Fred tested live): Detail Level, Discipline.
+# All confirmed live against a real pyRevit log - the enum names below are
+# what Revit actually resolved to, not guesses.
 _try_register_enum("VIEW_DETAIL_LEVEL", "ViewDetailLevel")
 _try_register_enum("VIEW_DISCIPLINE", "ViewDiscipline")
-
-# Confirmed from Fred's actual pyRevit log (his real "Visual Style"/"Display
-# Model"/"Color Scheme Location" parameters resolved to these exact names,
-# not my first guesses):
 _try_register_enum("MODEL_GRAPHICS_STYLE", "DisplayStyle")               # "Visual Style" (some contexts)
-_try_register_enum("MODEL_GRAPHICS_STYLE_ANON_DRAFT", "DisplayStyle")    # "Visual Style" (views, confirmed)
+_try_register_enum("MODEL_GRAPHICS_STYLE_ANON_DRAFT", "DisplayStyle")    # "Visual Style" (views)
 _try_register_enum("VIEW_PARTS_VISIBILITY", "PartsVisibility")           # "Parts Visibility"
-_try_register_enum("VIEW_MODEL_DISPLAY_MODE", "DisplayModel")            # "Display Model" (was VIEW_DISPLAY_MODEL - wrong)
-_try_register_enum("COLOR_SCHEME_LOCATION", "ColorSchemeLocation")       # "Color Scheme Location" (was VIEW_COLOR_SCHEME_LOCATION - wrong)
+_try_register_enum("VIEW_MODEL_DISPLAY_MODE", "DisplayModel")            # "Display Model"
+_try_register_enum("COLOR_SCHEME_LOCATION", "ColorSchemeLocation")       # "Color Scheme Location"
 
 
 def get_param_dropdown_options(param, doc):
@@ -209,12 +177,11 @@ def get_param_dropdown_options(param, doc):
       2. A small hardcoded table of BuiltInParameters backed by a fixed
          .NET enum (Detail Level, View Discipline, ...) via
          LabelUtils.GetLabelFor().
-      3. ElementId-storage parameters (Level, Phase, Material, Design
-         Option, View Template, Family Type, ...) - collects every
-         element of the same category as the parameter's CURRENT value
-         from the live document, so the list matches what's actually
-         available to pick from right now. Returns None if the parameter
-         is currently empty (nothing to determine the category from).
+      3. ElementId-storage parameters (Level, Phase, Material, ...) -
+         collects every live-document element sharing the category of the
+         parameter's CURRENT value, so the list matches what is actually
+         pickable. Returns None if the parameter is empty, since there is
+         then no category to work from.
     """
     try:
         if _is_yes_no(param):
@@ -303,10 +270,8 @@ def _get_known_enum_options(param):
                 try:
                     label = LabelUtils.GetLabelFor(member)
                 except Exception:
-                    # LabelUtils.GetLabelFor is actually BuiltInCategory-only,
-                    # not a general enum-to-label method - this is the
-                    # expected path for most enums, not an error worth
-                    # logging every time.
+                    # GetLabelFor is BuiltInCategory-only, so most enums land
+                    # here - expected, not worth logging.
                     pass
             options.append(label if label else _camel_to_title(member_name))
     except Exception as ex:

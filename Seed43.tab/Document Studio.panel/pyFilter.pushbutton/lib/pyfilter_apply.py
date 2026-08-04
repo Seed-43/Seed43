@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# filter_apply.py
+# pyfilter_apply.py
 # Seed43 Filter Manager - Apply logic
 # pylint: disable=import-error,invalid-name,broad-except
 

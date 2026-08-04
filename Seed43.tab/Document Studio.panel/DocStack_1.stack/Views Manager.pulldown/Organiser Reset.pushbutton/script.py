@@ -4,11 +4,9 @@ import json
 from pyrevit import revit, DB, forms, script
 
 # ── LOCATE CONFIG ─────────────────────────────────────────────────────────────
-# Both pushbutton folders sit inside the same splitpushbutton folder.
-# view_organiser_config.json lives inside View Organiser.pushbutton/
-# __file__ = .../Organiser Reset.pushbutton/script.py
-# dirname  = .../Organiser Reset.pushbutton/
-# dirname  = .../Views & Viewports.splitpushbutton/   <-- shared parent
+# view_organiser_config.json lives in the sibling View Organiser.pushbutton,
+# so walk up two levels to the pulldown both buttons share:
+#   .../Views Manager.pulldown/Organiser Reset.pushbutton/script.py
 _split      = os.path.dirname(os.path.dirname(__file__))
 CONFIG_PATH = os.path.join(
     _split, "View Organiser.pushbutton", "view_organiser_config.json")

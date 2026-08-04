@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# pattern_preview.py
+# pyfilter_pattern_preview.py
 # Seed43 - Revit pattern preview renderer for WPF
 #
 # Parses Revit .pat files directly and renders accurate hatch previews.

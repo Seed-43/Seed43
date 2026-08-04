@@ -80,12 +80,10 @@ for i, note in enumerate(text_notes):
     merged_text += joiner + text
 
 # ── POST-PROCESS: COLLAPSE WRAPPED LINES ─────────────────────────────────────
-# Split merged text on \r\n (single) only.
-# For each line, estimate its fill % relative to the merged box width.
-# A line that is "full" (above threshold) followed by another line means
-# the \r\n between them should be replaced with a space (same paragraph).
-# A "short" line is the end of a paragraph — keep the \r\n after it.
-# \r\n\r\n (double) paragraph breaks are always preserved.
+# Split on single \r\n and estimate each line's fill % of the merged box
+# width. A "full" line (above threshold) followed by another is a wrap, so
+# that \r\n becomes a space; a short line ends a paragraph and keeps its
+# \r\n. Double \r\n\r\n paragraph breaks are always preserved.
 
 FULL_LINE_THRESHOLD = 0.72  # line must be >= 72% of box width to be "full"
 

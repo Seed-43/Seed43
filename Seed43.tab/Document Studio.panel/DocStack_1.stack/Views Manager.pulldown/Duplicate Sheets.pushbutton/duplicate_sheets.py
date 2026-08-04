@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# duplicate_sheets_views.py
+# duplicate_sheets.py
 #
 # Duplicates sheets and/or views selected from the project browser.
 # Sheets:  Duplicate Empty  |  Duplicate with Sheet Detailing  |  Duplicate with Views

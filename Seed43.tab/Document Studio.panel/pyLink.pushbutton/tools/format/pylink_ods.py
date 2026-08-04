@@ -118,12 +118,11 @@ def read_ods_named_ranges(file_path):
 
 
 # ── Cell data ──
-# _ods_read_table_grid() does the one grid walk both
-# read_ods_range_data and read_ods_range_formatting need (cell values,
-# table:style-name per cell, merges, row style names); the style:style
-# resolution further down turns those style names into the same
-# cell_styles/merges/row_heights/col_widths shape pylink_xlsx.py
-# returns for xlsx.
+# _ods_read_table_grid() does the single grid walk that both
+# read_ods_range_data and read_ods_range_formatting need (values,
+# table:style-name per cell, merges, row style names). The style:style
+# resolution below turns those names into the same
+# cell_styles/merges/row_heights/col_widths shape pylink_xlsx.py returns.
 
 _ODS_CELL_RE = re.compile(r'\$?([A-Za-z]+)\$?(\d+)')
 

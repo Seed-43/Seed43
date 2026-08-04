@@ -2,12 +2,10 @@
 # pyfilter_localcfg.py
 # Seed43 Filter Manager - local JSON settings store.
 #
-# Replaces pyrevit.script.get_config()/save_config(), which writes to
-# pyRevit's shared, global pyRevit_config.ini under the user's AppData
-# roaming folder (a file every pyRevit extension on the machine shares).
-# All pyFilter settings instead live in a single local JSON file inside
-# this extension's own folder, fully self-contained and easy to find,
-# back up, or delete.
+# Replaces pyrevit.script.get_config()/save_config(), which write to the
+# global pyRevit_config.ini in AppData that every extension on the machine
+# shares. pyFilter's settings instead live in one JSON file inside this
+# extension's folder - self-contained, easy to find, back up, or delete.
 #
 # File layout (settings.json, next to script.py):
 # {

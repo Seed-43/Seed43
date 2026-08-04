@@ -558,12 +558,11 @@ def load_pylink_state():
                     current['unlinked']  = parts.get('UL') == '1'
                     current['path_mode'] = parts.get('PM', 'absolute')
                     current['layout_mode'] = parts.get('LM', 'manual')
-                    # Backfill: state saved before this tracker existed
-                    # has no AVN token. Assume the view hasn't been
-                    # renamed since the last apply — the safest guess
-                    # for legacy state, and harmless if wrong (the
-                    # rename lookup just falls through to the old
-                    # search-then-create behaviour).
+                    # Backfill: state saved before this tracker existed has no
+                    # AVN token, so assume the view hasn't been renamed since
+                    # the last apply. Safest guess for legacy state, and
+                    # harmless if wrong - the rename lookup just falls back to
+                    # search-then-create.
                     current['applied_view_name'] = (
                         parts.get('AVN') or current['view_name'])
                     cat = parts.get('CAT', '')

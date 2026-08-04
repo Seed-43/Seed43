@@ -2988,32 +2988,26 @@ class LayoutSettingsWindow(WPFWindow):
         else:
             btn.Background = BK['accent'] if active else BK['sec_bg']
             btn.Foreground = BK['text']; btn.Cursor = _SWI.Cursors.Hand
-        # Applied either way: our custom template has no disabled-state
-        # override of its own (unlike WPF's default button chrome, which
-        # silently overrides Background/Foreground with its own generic grey
-        # whenever IsEnabled=False) - hover/pressed triggers simply never
-        # fire on a disabled button anyway, so this is safe for both states
-        # and is what makes dis_bg/dis_fg actually show up when disabled.
+        # Applied either way. Unlike WPF's default button chrome, which forces
+        # its own grey whenever IsEnabled=False, our template has no
+        # disabled-state override, and hover/pressed triggers never fire on a
+        # disabled button - so this is safe for both states and is what lets
+        # dis_bg/dis_fg show through.
         _apply_hover_template(btn, corner_radius=corner_radius)
         return btn
 
     def _make_settings_panel(self, target_sp, ri, ci, block, mx=4, in_group=False):
-        # Individual cards, one per section, matching _make_style_card's
-        # exact proven-working pattern (BgCard, CornerRadius=6, Bdr border,
-        # Padding=10, Margin bottom=8) instead of one outer card with
-        # nested rows inside it. The nested-card approach reliably showed
-        # a width gap that was never fully isolated even after multiple
-        # rounds of fixes; individual sibling cards, added directly to
-        # target_sp the same way Settings' Text Style cards are, is the
-        # confirmed-working pattern instead of continuing to debug why the
-        # nested version didn't behave the same way.
+        # One card per section, following _make_style_card's pattern (BgCard,
+        # CornerRadius=6, Bdr border, Padding=10, Margin bottom=8), rather
+        # than a single outer card with nested rows. HACK: the nested version
+        # produced a width gap that was never isolated - sibling cards added
+        # straight to target_sp, as Settings' Text Style cards are, avoid it.
 
-        # _current[0] is whichever card's inner panel is "open" right now -
-        # sec() below starts a new card and repoints this; row_sp() and
-        # every direct _current[0].Children.Add(...) call in this function
-        # targets it, so each section (HEIGHT, COL SPAN, JUSTIFY, etc)
-        # becomes its own card. Starts pointing at target_sp itself just as
-        # a safety net - every real code path below calls sec() first.
+        # _current[0] is whichever card's inner panel is currently open: sec()
+        # starts a new card and repoints it, and row_sp() plus every direct
+        # _current[0].Children.Add(...) below targets it, so each section
+        # (HEIGHT, COL SPAN, JUSTIFY, ...) becomes its own card. Points at
+        # target_sp initially as a safety net; every real path calls sec().
         _current = [target_sp]
 
         def sec(lbl):
@@ -3023,12 +3017,10 @@ class LayoutSettingsWindow(WPFWindow):
             card.Padding = _SW.Thickness(10); card.Margin = _SW.Thickness(0,0,0,8)
             body = _SWC.StackPanel()
             card.Child = body
-            # Grid, not a bare TextBlock added straight to the StackPanel -
-            # matches _make_style_card's header exactly (a Grid, whose
-            # ColumnDefinition() with no Width set defaults to 1* in .NET).
-            # Confirmed by direct comparison that this Grid is present in
-            # every working card and absent from every card that showed
-            # the width gap.
+            # Grid, not a bare TextBlock on the StackPanel - matches
+            # _make_style_card's header (a Grid whose ColumnDefinition with no
+            # Width defaults to 1*). Its presence is what separates the cards
+            # that lay out correctly from the ones that showed the width gap.
             hdr_grid = _SWC.Grid()
             tb = _SWC.TextBlock()
             tb.Text = lbl; tb.Foreground = BK['accent']; tb.FontSize = 11

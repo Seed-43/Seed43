@@ -275,14 +275,11 @@ class MainWindow(forms.WPFWindow):
             dt: {"key": dt, "kind": kind, "readonly": False, "options": None}
             for dt, (raw_name, kind) in wanted_map.items()
         }
-        # Yes/No and known-enum detection succeed on the first attempt
-        # regardless of value (they don't depend on the current value at
-        # all). Only the ElementId-category path needs a real, non-empty
-        # value to work from - and plenty of ElementId parameters (Scope
-        # Box, View Template, Design Option...) are empty on MOST elements.
-        # Giving up after a single element misses those entirely, so retry
-        # across elements (capped) until options are found or the cap is
-        # reached, rather than trying only the first element ever seen.
+        # Yes/No and known-enum detection don't depend on the current value, so
+        # they succeed on the first attempt. Only the ElementId-category path
+        # needs a non-empty value, and plenty of ElementId parameters (Scope
+        # Box, View Template, Design Option) are empty on most elements. Retry
+        # across elements up to the cap rather than giving up on the first.
         MAX_OPTION_DISCOVERY_ATTEMPTS = 25
         options_attempts = {}
         rows = []

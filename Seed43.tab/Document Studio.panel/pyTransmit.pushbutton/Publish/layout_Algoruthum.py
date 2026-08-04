@@ -38,11 +38,11 @@ def compute_row_heights(rows, groups, excel_starts, excel_counts,
         heights[er] = h
 
     # ── Pass 1: initial heights from single-row blocks ──────────────────────
-    # Skip spanning blocks, their height is handled in Pass 2 distribution.
-    # 'row_span' on a block is the authoritative signal for vertical spanning,
-    # set by the layout builder. merge_down only groups rows for borders and
-    # is NOT a reliable signal on its own (a None column can also be caused
-    # by horizontal span consumption from an earlier column in the same row).
+    # Skip spanning blocks, their height comes from Pass 2 distribution.
+    # 'row_span' (set by the layout builder) is the authoritative vertical-span
+    # signal. merge_down only groups rows for borders and is NOT reliable
+    # alone: a None column can also come from horizontal span consumption by
+    # an earlier column in the same row.
     def _is_spanning(ri, ci):
         """True if this block has row_span > 1 (spans into following rows)."""
         block = _get_block(rows[ri], ci)

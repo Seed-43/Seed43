@@ -1358,11 +1358,10 @@ class RecipientSettingsController(object):
             el = getattr(self, attr, None)
             if el: el.Visibility = V.Visible if active else V.Collapsed
 
-        # Swap tab button STYLE (not just colour) between active/inactive -
-        # each style owns its own correct hover/pressed behaviour, whereas
-        # setting .Background directly used to fight the style's hardcoded
-        # hover trigger (gotcha #8 - see SmallDangerButtonStyle comment in
-        # pyTransmit.xaml for the same issue elsewhere).
+        # Swap the whole STYLE between active/inactive, not just the colour:
+        # each style carries its own hover/pressed behaviour, whereas setting
+        # .Background directly fights the style's hardcoded hover trigger
+        # (same issue as SmallDangerButtonStyle in pyTransmit.xaml).
         for btn_attr, active_tab in [('rec_client_tab_btn', 'client'),
                                      ('rec_dist_tab_btn',   'dist')]:
             btn = getattr(self, btn_attr, None)

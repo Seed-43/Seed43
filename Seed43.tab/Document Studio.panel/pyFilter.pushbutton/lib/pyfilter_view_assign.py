@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# view_assign.py
+# pyfilter_view_assign.py
 # Seed43 Filter Manager - assign a saved template's filters to live
 # Views / View Templates.
 # pylint: disable=import-error,invalid-name,broad-except

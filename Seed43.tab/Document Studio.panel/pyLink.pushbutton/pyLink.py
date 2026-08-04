@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# PyLink.py
+# pyLink.py
 """
 pyLink - Import Excel named ranges and Word section notes into
 Revit as native views.
@@ -87,13 +87,10 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         forms.WPFWindow.__init__(self, 'PyLink.xaml')
 
         # -- Apply Seed43 theme (colours + sizing) ---------------------------------
-        # This window never had this wired up at all before now - every colour
-        # and size in PyLink.xaml was a hardcoded literal, disconnected from
-        # the shared palette entirely. Must run AFTER LoadComponent (so our
-        # injected brushes win over the XAML's own Setters) and BEFORE
-        # anything below that builds dynamic UI or calls TryFindResource -
-        # otherwise those lookups return None. See seed43-pyrevit-ui skill,
-        # gotchas #3/#4, and pyTransmit.py/about.py for the same pattern.
+        # Must run AFTER LoadComponent (so injected brushes beat the XAML's own
+        # Setters) and BEFORE anything below that builds dynamic UI or calls
+        # TryFindResource, which would otherwise return None. Same pattern as
+        # pyTransmit.py and about.py.
         try:
             _pt_script_dir = os.path.dirname(os.path.abspath(__file__))
             from Snippets.seed43_theme import apply_seed43_palette, apply_seed43_dimensions
@@ -236,16 +233,13 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         except Exception:
             pass
 
-    # ── Hand-built dropdown popups (MenuPopup, BatchPopup, and per-card
-    #    batch popups). The toolbar ones (MenuPopup/BatchPopup) bind
-    #    Popup.IsOpen directly to their anchor ToggleButton's own
-    #    IsChecked in XAML - the same proven pattern the Source/Type
-    #    filter dropdowns already use in this file - so there's no
-    #    manual open/close/outside-click bookkeeping needed for those at
-    #    all. Per-card popups (built fresh in code, anchored to a plain
-    #    Button with no IsChecked to bind) still open/close imperatively,
-    #    but StaysOpen="False" lets WPF's own native auto-dismiss handle
-    #    the outside-click case for them too. ──
+    # ── Hand-built dropdown popups (MenuPopup, BatchPopup, per-card popups).
+    #    The toolbar ones bind Popup.IsOpen straight to their anchor
+    #    ToggleButton's IsChecked in XAML, like the Source/Type filters here,
+    #    so they need no open/close/outside-click bookkeeping. Per-card popups
+    #    are built in code against a plain Button with no IsChecked to bind,
+    #    so they open/close imperatively - StaysOpen="False" still lets WPF
+    #    handle their outside-click dismiss. ──
 
     def _build_styled_dialog(self, title, width=380):
         """Build a secondary dialog window (Section Groups, Word Text
@@ -540,15 +534,12 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         row._refresh_btn    = rb
         sp.Children.Add(rb)
 
-        # Delete button — always-red DeleteButtonStyle, not the transparent-
-        # until-hover CloseButtonStyle (this removes the row, it isn't a
-        # window/card close action). Same size as every other round
-        # button now (WidthButtonRound/HeightButtonRound/
-        # CornerRadiusButtonRound) - a hardcoded 24x24 override used to
-        # sit here for a deliberate row-vs-card size tier, but that broke
-        # both size AND shape consistency the moment corner_radius was
-        # tuned independently of a fixed pixel size (a 24px box with an
-        # 8px radius isn't a circle the way a token-matched box is).
+        # Delete button - always-red DeleteButtonStyle, not the
+        # transparent-until-hover CloseButtonStyle, since this removes the row
+        # rather than closing a window/card. Sized from the shared round-button
+        # tokens: a hardcoded 24x24 gave a row-vs-card size tier, but broke
+        # shape once corner_radius was tuned independently (a 24px box with an
+        # 8px radius isn't the circle a token-matched box is).
         db = Button()
         db.Content          = u'\u2715'
         db.FontSize         = 10
@@ -1417,14 +1408,11 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             tr.view_scale  = getattr(row, 'ViewScale', 1)
             tr.file_path   = row.FilePath
             tr.auto_sync   = False
-            # A row already known to be 'pending' (checked above, before
-            # the blanket dot-reset) owns no live view by definition - so
-            # never hand its old ElementId/name into the ownership guard.
-            # Without this, a view deleted manually in Revit mid-session
-            # (no window reopen to clear it) can leave a stale id sitting
-            # in memory that's technically harmless once the view is
-            # actually gone, but there's no reason to carry it forward at
-            # all once the row itself has already told us it's pending.
+            # A row already known to be 'pending' (checked above, before the
+            # blanket dot-reset) owns no live view, so never feed its old
+            # ElementId/name to the ownership guard. Otherwise a view deleted
+            # in Revit mid-session leaves a stale id in memory - harmless once
+            # the view is gone, but pointless to carry forward.
             if getattr(row, '_was_pending_before_reset', False):
                 tr.applied_view_name = None
                 tr.applied_view_id   = None
@@ -1793,17 +1781,14 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                 row._applied_view_name = rdata.get('applied_view_name', None)
                 row.ViewScale       = int(rdata.get('view_scale', 1) or 1)
                 row._applied_view_id = rdata.get('applied_view_id', None)
-                # Row.__init__ defaults Enabled=False (right for a brand
-                # new blank row awaiting configuration) - but a row
-                # restored here already has its view name/sheet/range
-                # filled in from a previous session, so it should come
-                # back checked and ready to Apply, not silently excluded.
-                # Without this, every row reverts to unchecked on every
-                # reopen - and since the workflow requires closing pyLink
-                # to touch Revit at all, that means EVERY reapply after
-                # any Revit-side change (like deleting a view to test a
-                # recreate) silently does nothing until the user notices
-                # and rechecks the box by hand.
+                # Row.__init__ defaults Enabled=False, right for a blank new
+                # row but wrong here: a restored row already has its view
+                # name/sheet/range from a previous session, so it should come
+                # back checked and ready to Apply. Otherwise every row reverts
+                # to unchecked on reopen, and since the workflow requires
+                # closing pyLink to touch Revit, every reapply after a
+                # Revit-side change silently does nothing until the user
+                # notices and rechecks the box.
                 row.Enabled = rdata.get('enabled', True)
 
                 # ElementId is the authoritative link — if we have one,
@@ -1813,14 +1798,12 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                 # a stale label.
                 if row._applied_view_id is not None:
                     try:
-                        # A plain Python int is ambiguous against
-                        # ElementId's BuiltInParameter/BuiltInCategory/
-                        # Int64 constructor overloads under IronPython's
-                        # dynamic dispatch (Revit 2024+'s 64-bit ElementId
-                        # migration added the Int64 one alongside the two
-                        # enum-based ones that already existed) - raises
-                        # "Multiple targets could match" without an
-                        # explicit cast to force the Int64 overload.
+                        # HACK: a plain Python int is ambiguous against
+                        # ElementId's BuiltInParameter/BuiltInCategory/Int64
+                        # overloads under IronPython dispatch (Revit 2024+'s
+                        # 64-bit migration added Int64 alongside the enum
+                        # ones), raising "Multiple targets could match"
+                        # without an explicit cast to force Int64.
                         v = doc.GetElement(DB.ElementId(_Int64(row._applied_view_id)))
                         if v and v.IsValidObject:
                             live_name = v.Name

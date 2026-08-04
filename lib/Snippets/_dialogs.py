@@ -2,12 +2,8 @@
 """Seed43 shared dialogs: message, confirm, ask_string.
 
 Borderless rounded dark card with a green accent bar and drop shadow, no
-visible title bar, drag-movable by clicking anywhere on the card. This is
-the one popup style every Seed43 tool should use instead of building its
-own message box.
-
-Install: drop this file in Seed43.extension/lib/Snippets/ as _dialogs.py,
-then from any pushbutton:
+visible title bar, drag-movable by clicking anywhere on the card. The one
+popup style every Seed43 tool should use instead of rolling its own.
 
     from _dialogs import message, confirm, ask_string
 
@@ -24,11 +20,9 @@ except Exception:
     apply_seed43_palette = None
     get_color = None
 
-# Fallback literals only - used if seed43_palette.json can't be found/parsed,
-# so this module never hard-fails just because the palette is missing. Once
-# apply_seed43_palette() has run on a window, _res() below prefers the live
-# token (BrushCardBg/BrushPrimaryGreen/etc, the same names every other
-# Seed43 tool's XAML references) over these.
+# Fallbacks only, so a missing/unparseable seed43_palette.json never hard-
+# fails this module. Once apply_seed43_palette() has run, _res() prefers the
+# live Brush* tokens every other Seed43 XAML references.
 BG     = '#2B3340'
 HEADER = '#232933'
 GREEN  = '#208A3C'
@@ -43,9 +37,8 @@ def _brush(hexcolor):
 
 
 def _res(w, key, fallback_hex):
-    """Resolved (snapshot, not live-updating) brush for `key` - fine for a
-    modal popup that's built and closed in one shot. Falls back to the
-    literal hex above if the token isn't in the window's resources."""
+    """Snapshot (not live-updating) brush for `key` - fine for a modal built
+    and closed in one shot. Falls back to the literal hex above."""
     try:
         b = w.TryFindResource(key)
         if b:
@@ -60,11 +53,9 @@ def _button(w, text, primary=True):
     border = _res(w, 'BrushPrimaryGreen', GREEN)
     fg = _res(w, 'BrushTextPrimary', TEXT)
 
-    # The hover colour needs to end up as a literal hex string baked into a
-    # parsed XAML template (see below) - go straight to the palette JSON via
-    # get_color() rather than resolving a Brush and converting it back, so
-    # there's no dependency on TryFindResource returning something with a
-    # usable .Color at this point.
+    # Hover must be a literal hex baked into the XAML template below, so read
+    # the palette JSON directly rather than resolving a Brush and converting
+    # back - no dependency on TryFindResource returning a usable .Color.
     hover_fallback = GREENH if primary else '#333B48'
     if get_color:
         hover_hex = get_color(None, 'accent_hover' if primary else 'secondary_hover', fallback=hover_fallback)

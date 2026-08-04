@@ -356,12 +356,16 @@ def version_tuple(version_str):
         return (0, 0, 0)
 
 
-def sync_tree(src, dst):
+def sync_tree(src, dst, keep_json=True):
     """Sync src into dst file by file.
     - Copies all files from src, skipping .json files
     - Deletes files in dst that are not in src, but keeps .json files
     - Removes dirs in dst not in src only if they contain no .json files
     - Recurses into all subdirs
+
+    keep_json=False syncs everything including .json. Used for lib/, which is
+    shipped code rather than user settings - the .json-is-user-data rule holds
+    in Seed43.tab but not there.
     """
     if not os.path.isdir(dst):
         os.makedirs(dst)
@@ -374,8 +378,8 @@ def sync_tree(src, dst):
         s = os.path.join(src, name)
         d = os.path.join(dst, name)
         if os.path.isdir(s):
-            sync_tree(s, d)
-        elif not name.lower().endswith(".json"):
+            sync_tree(s, d, keep_json)
+        elif not (keep_json and name.lower().endswith(".json")):
             shutil.copy2(s, d)
 
     # Delete dst files/dirs not in src, but preserve .json files
@@ -383,10 +387,10 @@ def sync_tree(src, dst):
         if name not in src_names:
             d = os.path.join(dst, name)
             if os.path.isfile(d):
-                if not name.lower().endswith(".json"):
+                if not (keep_json and name.lower().endswith(".json")):
                     os.remove(d)
             elif os.path.isdir(d):
-                has_json = any(
+                has_json = keep_json and any(
                     f.lower().endswith(".json")
                     for _, _, files in os.walk(d)
                     for f in files
@@ -464,6 +468,14 @@ def download_and_apply_update(status_lbl, progress_bar):
 
         status_lbl.Text = "Applying update..."
         sync_tree(new_tab, TAB_DIR)
+
+        # ── Sync lib/ (shared Snippets modules) ───────────────────────────────
+        # Kept out of the root-file loop below, which only handles files. lib
+        # is code, not settings, so it syncs with keep_json=False - otherwise a
+        # new _icons.json or palette key would never reach an existing install.
+        new_lib = os.path.join(extracted_root, "lib")
+        if os.path.isdir(new_lib):
+            sync_tree(new_lib, os.path.join(EXTENSION_DIR, "lib"), keep_json=False)
 
         # ── Sync root files (startup.py, extension.json, etc.) ────────────────
         ROOT_SKIP = {

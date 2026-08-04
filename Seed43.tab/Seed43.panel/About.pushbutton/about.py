@@ -1084,6 +1084,15 @@ class Seed43Dialog(object):
                 log("Installing...")
                 skipped = sync_tree(new_tab, TAB_DIR_DEST)
 
+                # ── Sync lib/ (shared Snippets modules) ───────────────────────
+                # Skipped by the root-file loop below, which only handles
+                # files. Without this, lib/ stays frozen at whatever pyRevit
+                # cloned on first install and no shared-module fix ever lands.
+                new_lib = os.path.join(extracted_root, "lib")
+                if os.path.isdir(new_lib):
+                    log("Updating shared modules...")
+                    sync_tree(new_lib, os.path.join(S43_INSTALL, "lib"), skipped)
+
                 # ── Sync root files (startup.py, extension.json, etc.) ────────
                 ROOT_SKIP = {
                     "Seed43.tab", "lib",

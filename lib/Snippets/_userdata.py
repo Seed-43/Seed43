@@ -149,7 +149,7 @@ def migrate(legacy_path, new_path):
     return new_path
 
 
-def migrate_dir(legacy_dir, new_dir, suffix=".json"):
+def migrate_dir(legacy_dir, new_dir, suffix=".json", once_marker=None):
     """
     Move every matching file out of legacy_dir into new_dir, once each.
 
@@ -158,10 +158,19 @@ def migrate_dir(legacy_dir, new_dir, suffix=".json"):
     alone - the user's copy always wins - and only files actually copied are
     removed from legacy_dir.
 
+    once_marker makes the whole migration fire only once, ever. Needed when
+    legacy_dir is also the shipped folder: without it, the updater restores a
+    template the user deleted, migration finds it missing from new_dir and
+    faithfully moves it back - so deletions never stick. With the marker,
+    later runs ignore the folder entirely, which is what makes a deleted
+    template stay deleted through every future update.
+
     Returns how many files moved. Never raises.
     """
     moved = 0
     try:
+        if once_marker and os.path.isfile(once_marker):
+            return 0
         if not os.path.isdir(legacy_dir):
             return 0
         if not _try_makedirs(new_dir):
@@ -179,6 +188,10 @@ def migrate_dir(legacy_dir, new_dir, suffix=".json"):
                 moved += 1
             except Exception:
                 continue
+        # Stamped even when nothing moved: "this collection has been dealt
+        # with" is the fact worth recording, not "files were copied".
+        if once_marker:
+            _write_marker(once_marker)
     except Exception:
         pass
     return moved
@@ -239,7 +252,7 @@ def migrate_tree(legacy_dir, new_dir):
 
 # ── SHIPPED DEFAULTS ────────────────────────────────────────────────────────
 
-def seed_once(marker_path, defaults_dir, target_dir, suffix=".json"):
+def seed_once(marker_path, defaults_dir, target_dir, suffix=".json", names=None):
     """
     Copy shipped defaults into target_dir, but only the very first time.
 
@@ -258,14 +271,14 @@ def seed_once(marker_path, defaults_dir, target_dir, suffix=".json"):
     try:
         if os.path.isfile(marker_path):
             return False
-        seed_from_defaults(defaults_dir, target_dir, suffix)
+        seed_from_defaults(defaults_dir, target_dir, suffix, names)
         _write_marker(marker_path)
         return True
     except Exception:
         return False
 
 
-def seed_from_defaults(defaults_dir, target_dir, suffix=".json"):
+def seed_from_defaults(defaults_dir, target_dir, suffix=".json", names=None):
     """
     Copy shipped defaults into target_dir, skipping names already present.
 
@@ -273,9 +286,15 @@ def seed_from_defaults(defaults_dir, target_dir, suffix=".json"):
     button. Never overwrites what the user already has, so pressing it twice
     (or after editing a demo) is harmless.
 
+    names limits the copy to specific filenames. Needed where the defaults
+    folder is a live tool folder holding more than just templates - pyTransmit
+    ships branding.json beside its vocabularies, and one person's branding is
+    not a sensible starting point for everyone else.
+
     Returns how many files were copied. Never raises.
     """
     copied = 0
+    wanted = set(names) if names else None
     try:
         if not os.path.isdir(defaults_dir):
             return 0
@@ -283,6 +302,8 @@ def seed_from_defaults(defaults_dir, target_dir, suffix=".json"):
             return 0
         for name in sorted(os.listdir(defaults_dir)):
             if suffix and not name.lower().endswith(suffix):
+                continue
+            if wanted is not None and name not in wanted:
                 continue
             src = os.path.join(defaults_dir, name)
             dst = os.path.join(target_dir, name)

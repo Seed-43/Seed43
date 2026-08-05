@@ -39,7 +39,8 @@ snippets.yaml entry:
 import os
 import shutil
 
-__all__ = ["user_root", "user_path", "migrate"]
+__all__ = ["user_root", "user_path", "user_dir", "migrate", "migrate_dir",
+           "seed_once", "seed_from_defaults"]
 
 
 # ── LOCATION ────────────────────────────────────────────────────────────────
@@ -93,6 +94,18 @@ def user_path(tool, *parts):
     return full
 
 
+def user_dir(tool, *parts):
+    """
+    Like user_path(), but the result is itself a folder, so it is created
+    rather than just its parent. For tools that keep a directory of files:
+
+        user_dir("pyFilter", "templates")
+    """
+    full = os.path.join(user_root(), tool, *parts)
+    _try_makedirs(full)
+    return full
+
+
 # ── MIGRATION ───────────────────────────────────────────────────────────────
 
 def migrate(legacy_path, new_path):
@@ -134,3 +147,121 @@ def migrate(legacy_path, new_path):
         pass
 
     return new_path
+
+
+def migrate_dir(legacy_dir, new_dir, suffix=".json"):
+    """
+    Move every matching file out of legacy_dir into new_dir, once each.
+
+    The folder equivalent of migrate(), for tools keeping a directory of files
+    rather than one settings file. A name already present in new_dir is left
+    alone - the user's copy always wins - and only files actually copied are
+    removed from legacy_dir.
+
+    Returns how many files moved. Never raises.
+    """
+    moved = 0
+    try:
+        if not os.path.isdir(legacy_dir):
+            return 0
+        if not _try_makedirs(new_dir):
+            return 0
+        for name in os.listdir(legacy_dir):
+            if suffix and not name.lower().endswith(suffix):
+                continue
+            src = os.path.join(legacy_dir, name)
+            dst = os.path.join(new_dir, name)
+            if not os.path.isfile(src) or os.path.isfile(dst):
+                continue
+            try:
+                shutil.copy2(src, dst)
+                os.remove(src)
+                moved += 1
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return moved
+
+
+# ── SHIPPED DEFAULTS ────────────────────────────────────────────────────────
+
+def seed_once(marker_path, defaults_dir, target_dir, suffix=".json"):
+    """
+    Copy shipped defaults into target_dir, but only the very first time.
+
+    marker_path records an EVENT - "seeding happened" - not a state. Checking
+    "is target_dir empty?" instead cannot tell a brand new user apart from one
+    who deleted the demo deliberately, so it would keep resurrecting files
+    they threw away. Once the marker exists the answer is permanently no,
+    whatever they have since done to the folder.
+
+    So a deleted default never comes back on update, which is the point - but
+    it also cannot be recovered. Pair this with an explicit "load demo data"
+    action via seed_from_defaults() to give a way back.
+
+    Returns True if seeding ran. Never raises.
+    """
+    try:
+        if os.path.isfile(marker_path):
+            return False
+        seed_from_defaults(defaults_dir, target_dir, suffix)
+        _write_marker(marker_path)
+        return True
+    except Exception:
+        return False
+
+
+def seed_from_defaults(defaults_dir, target_dir, suffix=".json"):
+    """
+    Copy shipped defaults into target_dir, skipping names already present.
+
+    Unconditional, with no marker involved, so it can back a "load demo data"
+    button. Never overwrites what the user already has, so pressing it twice
+    (or after editing a demo) is harmless.
+
+    Returns how many files were copied. Never raises.
+    """
+    copied = 0
+    try:
+        if not os.path.isdir(defaults_dir):
+            return 0
+        if not _try_makedirs(target_dir):
+            return 0
+        for name in sorted(os.listdir(defaults_dir)):
+            if suffix and not name.lower().endswith(suffix):
+                continue
+            src = os.path.join(defaults_dir, name)
+            dst = os.path.join(target_dir, name)
+            if not os.path.isfile(src) or os.path.isfile(dst):
+                continue
+            try:
+                shutil.copy2(src, dst)
+                copied += 1
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return copied
+
+
+def _write_marker(marker_path):
+    """Stamp the marker with the extension version that seeded.
+
+    Costs nothing now, and lets a later version seed a newly added default for
+    existing users without resurrecting one they already deleted.
+    """
+    version = ""
+    try:
+        vf = os.path.join(_EXTENSION_ROOT, "version.txt")
+        if os.path.isfile(vf):
+            with open(vf, "r") as f:
+                version = f.read().strip()
+    except Exception:
+        pass
+    try:
+        _try_makedirs(os.path.dirname(marker_path))
+        with open(marker_path, "w") as f:
+            f.write('{"seeded_version": "%s"}' % version)
+    except Exception:
+        pass

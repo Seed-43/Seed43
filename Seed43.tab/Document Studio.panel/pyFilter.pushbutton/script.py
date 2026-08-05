@@ -32,6 +32,7 @@ import pyfilter_sync as sm
 import pyfilter_settings as settings_dialog
 from Snippets._revisions import safe_str
 from Snippets.seed43_theme import apply_seed43_palette
+from Snippets import _userdata
 
 doc    = revit.doc
 output = None  # pyRevit output panel disabled
@@ -59,12 +60,29 @@ def log_exc(context):
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# Shipped demo templates. Read-only, never what the tool reads from, so an
+# update can refresh them freely without anything reappearing for the user.
+DEFAULTS_DIR = os.path.join(SCRIPT_DIR, "defaults")
+
+
 def get_templates_folder():
-    data = os.path.join(SCRIPT_DIR, "templates")
-    if not os.path.isdir(data):
-        try: os.makedirs(data)
-        except Exception: pass
-    return data
+    """
+    The user's templates folder, under .user so updates cannot touch it.
+
+    Does three things, each at most once:
+      1. resolves .user/pyFilter/templates/
+      2. carries across templates saved beside the tool by older versions
+      3. seeds the shipped demos, first run only
+
+    Step 3 is marker-based on purpose: a demo the user deletes must stay
+    deleted through every future update. See _userdata.seed_once. "Load demo
+    data" in Settings is the way back if they change their mind.
+    """
+    folder = _userdata.user_dir("pyFilter", "templates")
+    _userdata.migrate_dir(os.path.join(SCRIPT_DIR, "templates"), folder)
+    _userdata.seed_once(
+        _userdata.user_path("pyFilter", ".seeded"), DEFAULTS_DIR, folder)
+    return folder
 
 def list_templates(folder):
     try:
@@ -128,6 +146,7 @@ class pyFilterWindow(WPFWindow):
 
         # Toolbar wiring -- templates mode
         self.BtnNewTemplate.Click    += self._on_new_template
+        self.BtnLoadDemo.Click       += self._on_load_demo
         self.BtnAddFilter.Click      += self._on_add_filters
         self.BtnDeleteFilter.Click   += self._on_remove_filter
 
@@ -1932,6 +1951,28 @@ class pyFilterWindow(WPFWindow):
             self._set_status("New template '{}' created. Use + Add Filter.".format(name))
         except Exception:
             log_exc("_on_new_template")
+
+    def _on_load_demo(self, sender, e):
+        """Copy the shipped example templates in, on request.
+
+        The way back from seed_once(): those only ever install on first run,
+        so a demo the user deleted is otherwise gone for good. Additive and
+        never overwrites, so pressing it twice, or after editing a demo, is
+        harmless.
+        """
+        try:
+            copied = _userdata.seed_from_defaults(DEFAULTS_DIR,
+                                                  self.templates_folder)
+            log("Load demo: copied {}".format(copied))
+            self._refresh_sidebar()
+            if copied:
+                self._set_status(
+                    "Added {} example template{}.".format(
+                        copied, "" if copied == 1 else "s"))
+            else:
+                self._set_status("Example templates are already loaded.")
+        except Exception:
+            log_exc("_on_load_demo")
 
     def _on_add_filters(self, sender, e):
         try:

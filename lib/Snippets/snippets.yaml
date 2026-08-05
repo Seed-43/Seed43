@@ -74,9 +74,13 @@ snippets:
       root, so the updater never has to protect scattered .json files.
       Migrates a tool's legacy beside-the-script file across on first run.
     functions:
-      user_root: Return the .user folder, creating it if needed.
-      user_path: Return a path inside .user/<tool>/, creating parent folders.
-      migrate:   Move a legacy file into .user once, then delete the original.
+      user_root:          Return the .user folder, creating it if needed.
+      user_path:          Return a path inside .user/<tool>/, creating parent folders.
+      user_dir:           Return a folder inside .user/<tool>/, creating it.
+      migrate:            Move a legacy file into .user once, then delete the original.
+      migrate_dir:        Move every matching file out of a legacy folder into .user.
+      seed_once:          Copy shipped defaults in on first run only, recorded by a marker.
+      seed_from_defaults: Copy shipped defaults in on request, never overwriting.
 
   seed43_theme.py:
     description: >

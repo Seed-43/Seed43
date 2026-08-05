@@ -108,12 +108,18 @@ def user_dir(tool, *parts):
 
 # ── MIGRATION ───────────────────────────────────────────────────────────────
 
-def migrate(legacy_path, new_path):
+def migrate(legacy_path, new_path, once_marker=None):
     """
     Move a legacy file to new_path once, and return new_path.
 
     Does nothing if new_path already exists - the user's current data always
     wins over whatever the updater may have restored to the old location.
+
+    once_marker additionally stops the move ever happening a second time, so
+    a shipped default the user deleted is not silently reinstated on the next
+    update. Use it for a shipped file the user is allowed to remove entirely
+    (pyTransmit's logo.png); omit it for a config that should simply be
+    recreated from the shipped copy if it goes missing.
     After a successful copy the original is deleted, so the old location
     drains and cannot drift out of sync.
 
@@ -126,6 +132,8 @@ def migrate(legacy_path, new_path):
     keeps reading and writing exactly where it always did rather than failing.
     """
     try:
+        if once_marker and os.path.isfile(once_marker):
+            return new_path
         if os.path.isfile(new_path):
             return new_path
 
@@ -146,6 +154,8 @@ def migrate(legacy_path, new_path):
     except Exception:
         pass
 
+    if once_marker:
+        _write_marker(once_marker)
     return new_path
 
 

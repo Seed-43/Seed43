@@ -24,7 +24,8 @@ import os
 import sys
 
 from pytransmit_paths import (
-    SETTINGS_DIR, LAYOUTS_DIR, LAYOUT_CONFIG, SYNC_FILE, settings_file,
+    SETTINGS_DIR, LAYOUTS_DIR, LAYOUT_CONFIG, SYNC_FILE, USER_DIR,
+    settings_file,
 )
 
 _SCRIPT_DIR_MAIN = os.path.dirname(os.path.abspath(__file__))
@@ -2604,6 +2605,7 @@ class RevTableWindow(Window):
                 # So the Publish scripts' convention-search fallback
                 # looks in .user too, not just beside the tool.
                 '_layouts_dir':      LAYOUTS_DIR,
+                '_user_dir':         USER_DIR,
                 'script_dir':        script_dir,
                 'rev_numbering_type': getattr(self, '_rev_numbering_type', ''),
                 '_open_file_dialog':  self._show_open_file_dialog,

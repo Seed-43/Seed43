@@ -577,8 +577,11 @@ def _get_or_create_logo():
     if LOGO_PATH and os.path.isfile(LOGO_PATH):
         _logo_file = LOGO_PATH
     else:
+        # .user first (where the logo lives now), then the old beside-the-tool
+        # spots, so an install that has not migrated yet still finds one.
         _sdir = _p.get('script_dir') or os.path.dirname(os.path.abspath(__file__))
-        for _sd in (os.path.join(_sdir, 'Settings'), _sdir):
+        _cands = [d for d in (_p.get('_settings_dir'), _p.get('_user_dir')) if d]
+        for _sd in _cands + [os.path.join(_sdir, 'Settings'), _sdir]:
             for _ext in ('png', 'jpg', 'jpeg', 'PNG', 'JPG', 'JPEG'):
                 _cand = os.path.join(_sd, 'logo.{}'.format(_ext))
                 if os.path.isfile(_cand):

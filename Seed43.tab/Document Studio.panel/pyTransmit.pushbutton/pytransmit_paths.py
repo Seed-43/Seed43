@@ -40,8 +40,8 @@ import os
 from Snippets import _userdata
 
 __all__ = [
-    "SETTINGS_DIR", "LAYOUTS_DIR", "STUDIO_LAYOUTS_DIR",
-    "LAYOUT_CONFIG", "STUDIO_CONFIG", "SYNC_FILE", "SETUP_FILE",
+    "USER_DIR", "SETTINGS_DIR", "LAYOUTS_DIR", "STUDIO_LAYOUTS_DIR",
+    "LAYOUT_CONFIG", "STUDIO_CONFIG", "SYNC_FILE", "SETUP_FILE", "LOGO_FILE",
     "settings_file", "restore_defaults",
 ]
 
@@ -65,6 +65,7 @@ TEMPLATE_SETTINGS = [
 
 # ── USER DATA ───────────────────────────────────────────────────────────────
 
+USER_DIR = _userdata.user_dir(TOOL)
 SETTINGS_DIR = _userdata.user_dir(TOOL, "Settings")
 LAYOUTS_DIR = _userdata.user_dir(TOOL, "Layouts")
 STUDIO_LAYOUTS_DIR = _userdata.user_dir(TOOL, "studio_layouts")
@@ -79,6 +80,11 @@ SYNC_FILE = _userdata.user_path(TOOL, "pytransmit_sync.json")
 #   Settings/ version    file naming and paths - output_path_template, ...
 # They sat in different folders before and still do, so nothing collides.
 SETUP_FILE = _userdata.user_path(TOOL, "pytransmit_setup.json")
+
+# The shipped fallback logo, once the user owns it. Branding's own
+# logo_source sync and any Settings/logo.* the user drops in both take
+# precedence - this is only the last resort.
+LOGO_FILE = _userdata.user_path(TOOL, "logo.png")
 
 
 def settings_file(name):
@@ -126,6 +132,12 @@ def _init_collections():
                       STUDIO_CONFIG)
     _userdata.migrate(os.path.join(_HERE, "pytransmit_sync.json"), SYNC_FILE)
     _userdata.migrate(os.path.join(_HERE, "pytransmit_setup.json"), SETUP_FILE)
+
+    # once_marker, unlike the configs above: the logo is a shipped default the
+    # user may legitimately replace or delete outright, so it must never be
+    # reinstated or overwritten by a later update.
+    _userdata.migrate(os.path.join(_HERE, "logo.png"), LOGO_FILE,
+                      once_marker=_userdata.user_path(TOOL, ".seeded_logo"))
 
 
 _init_collections()

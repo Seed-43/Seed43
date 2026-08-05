@@ -9,7 +9,7 @@ import sys as _sys
 _PT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _PT_ROOT not in _sys.path:
     _sys.path.insert(0, _PT_ROOT)
-from pytransmit_paths import SETTINGS_DIR
+from pytransmit_paths import SETTINGS_DIR, USER_DIR
 import json
 import shutil
 
@@ -91,10 +91,12 @@ class BrandingSettingsController(object):
             p = os.path.join(self._settings_dir, fname)
             if os.path.exists(p):
                 return p
-        # Fallback: script root folder
+        # Fallback: the shipped logo, once migrated into .user. Not the script
+        # folder any more - the user owns this file and may replace or delete
+        # it, so an update must not be able to reach it.
         for fname in ('logo.png', 'logo.PNG', 'logo.jpg', 'logo.JPG',
                       'logo.jpeg', 'logo.JPEG', 'Logo.png', 'Logo.jpg'):
-            p = os.path.join(self._script_dir, fname)
+            p = os.path.join(USER_DIR, fname)
             if os.path.exists(p):
                 return p
         return ''

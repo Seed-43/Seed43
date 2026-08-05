@@ -1,24 +1,12 @@
 title: "Grid"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
 tooltip: |
-  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟖𝟎𝟓
-  _____________________________________________________________________
+  __________________________________________________________________
   Description:
-  Sets the 3D view's section box to a thin vertical slice of the model
-  along a chosen grid - 500mm either side of the grid line, the full
-  length of the grid and the full height of the model. The box is
-  rotated to follow the grid, so it works on skewed grids too.
-  _____________________________________________________________________
-  How-to:
-  -> Open a 3D view
-  -> Run the tool and pick a grid
-  _____________________________________________________________________
-  Notes:
-  - Only works in 3D views, since section boxes are a 3D-view feature
-  - A curved grid gets an axis-aligned box around the arc instead, since
-    a rotated slice has no meaning along a curve
-  - Clear it with Revit's section box toggle in view properties
-  _____________________________________________________________________
-  Last update:
-  - Initial release
-  _____________________________________________________________________
+  Sets the 3D view's section box to a vertical slice of the model along
+  a chosen grid - 500mm either side of the grid line, the full length
+  of the grid and the full height of the model. The box rotates to
+  follow the grid, so skewed grids work too. Select a grid first, pick
+  one from the list, or click one in the model. Clear it with the
+  section box toggle in view properties.
+  __________________________________________________________________

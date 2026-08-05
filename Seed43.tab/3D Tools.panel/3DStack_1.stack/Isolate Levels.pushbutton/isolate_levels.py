@@ -11,9 +11,10 @@ from pyrevit import revit, DB, forms, script
 from System.Collections.Generic import List
 
 # ── [LIB] Snippets/_selection.py ─────────────────────────────────────────────
-from Snippets._selection import get_levels
+from Snippets._selection import get_levels, choose_datum
 
 doc = revit.doc
+uidoc = revit.uidoc
 
 # ── CONSTANTS ───────────────────────────────────────────────────────────────
 
@@ -66,14 +67,10 @@ LEVEL_PARAMS = _level_params()
 # ── LEVEL SELECTION ─────────────────────────────────────────────────────────
 
 def select_level(levels):
-    """Present a dialog to select a level, or None if cancelled."""
-    level_options = {level.Name: level for level in levels}
-    selected_name = forms.SelectFromList.show(
-        sorted(level_options.keys()),
-        title="Select a Level",
-        multiselect=False
-    )
-    return level_options.get(selected_name)
+    """Pick a level: pre-selection, the list, or clicking one in the model."""
+    return choose_datum(uidoc, doc, revit, forms, DB.Level, levels,
+                        title="Isolate which level?",
+                        pick_prompt="Click a level line")
 
 
 # ── ELEMENT COLLECTION ──────────────────────────────────────────────────────

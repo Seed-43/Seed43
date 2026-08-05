@@ -8,12 +8,13 @@
 from pyrevit import revit, DB, forms, script
 
 # ── [LIB] Snippets/_selection.py, Snippets/_sectionbox.py ────────────────────
-from Snippets._selection import get_levels
+from Snippets._selection import get_levels, choose_datum
 from Snippets._sectionbox import (
     mm_to_ft, require_3d_view, model_extents, apply_section_box,
 )
 
 doc = revit.doc
+uidoc = revit.uidoc
 
 # ── CONSTANTS ───────────────────────────────────────────────────────────────
 
@@ -38,13 +39,13 @@ def main():
                     title="Selection Box: Level")
         script.exit()
 
-    options = {level.Name: level for level in levels}
-    chosen = forms.SelectFromList.show(
-        sorted(options.keys()), title="Section box around which level?",
-        multiselect=False)
-    if not chosen:
+    # Selecting a level before running is the easy route here: levels are
+    # hidden in most 3D views, so clicking one often is not an option.
+    level = choose_datum(uidoc, doc, revit, forms, DB.Level, levels,
+                         title="Section box around which level?",
+                         pick_prompt="Click a level line")
+    if level is None:
         script.exit()
-    level = options[chosen]
 
     # Measured against the model, not the view: the view may already be
     # section-boxed, and measuring that would shrink the box a bit more on

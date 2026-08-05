@@ -7,12 +7,14 @@
 # """
 from pyrevit import revit, DB, forms, script
 
-# ── [LIB] Snippets/_sectionbox.py ───────────────────────────────────────────
+# ── [LIB] Snippets/_selection.py, Snippets/_sectionbox.py ───────────────────
+from Snippets._selection import choose_datum
 from Snippets._sectionbox import (
     mm_to_ft, require_3d_view, model_extents, apply_section_box,
 )
 
 doc = revit.doc
+uidoc = revit.uidoc
 
 # ── CONSTANTS ───────────────────────────────────────────────────────────────
 
@@ -111,13 +113,14 @@ def main():
                     title="Selection Box: Grid")
         script.exit()
 
-    options = {grid.Name: grid for grid in grids}
-    chosen = forms.SelectFromList.show(
-        [g.Name for g in grids], title="Section box around which grid?",
-        multiselect=False)
-    if not chosen:
+    # Clicking is the natural route for grids - the name rarely tells you
+    # which one you want, the position does. Selecting one in a plan view
+    # before switching to 3D also works, since the selection survives.
+    grid = choose_datum(uidoc, doc, revit, forms, DB.Grid, grids,
+                        title="Section box around which grid?",
+                        pick_prompt="Click a grid line")
+    if grid is None:
         script.exit()
-    grid = options[chosen]
 
     # Against the model, not the view - see the Level tool for why.
     extents = model_extents(doc)

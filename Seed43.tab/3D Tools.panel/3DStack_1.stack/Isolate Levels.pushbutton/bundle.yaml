@@ -3,8 +3,10 @@ author: "𝐒𝐄𝐄𝐃𝟒𝟑"
 tooltip: |
   __________________________________________________________________
   Description:
-  Temporarily isolates all model elements on a chosen level in the
-  active view. Pick a level from the list and the view will show only
-  elements that belong to that level. Use Revit's "Reset Temporary
-  Hide/Isolate" button to clear.
+  Temporarily isolates everything tied to a chosen level, so you can
+  see what deleting that level would take with it - Revit warns that
+  elements will be deleted but never says which ones. Matches on level
+  association, not height, so it finds a beam tied to this level but
+  drawn elsewhere. Select a level first, pick one from the list, or
+  click one in the model. Clear with Reset Temporary Hide/Isolate.
   __________________________________________________________________

@@ -119,3 +119,4 @@ snippets:
       get_element_category:      Return the Category for an element, falling back to its type.
       resolve_cad_instance:      Return the CAD ImportInstance to work with, from selection or pick.
       get_levels:                Return all levels in the project.
+      choose_datum:              Pick a level or grid from selection, a list, or by clicking it.

@@ -2,14 +2,17 @@
 import os
 import json
 from pyrevit import revit, DB, forms, script
+from Snippets import _userdata
 
 # ── LOCATE CONFIG ─────────────────────────────────────────────────────────────
-# view_organiser_config.json lives in the sibling View Organiser.pushbutton,
-# so walk up two levels to the pulldown both buttons share:
+# Shared with View Organiser, which owns this file - both must resolve it the
+# same way. The legacy path is the sibling pushbutton folder, two levels up:
 #   .../Views Manager.pulldown/Organiser Reset.pushbutton/script.py
+# Whichever tool the user opens first performs the move.
 _split      = os.path.dirname(os.path.dirname(__file__))
-CONFIG_PATH = os.path.join(
-    _split, "View Organiser.pushbutton", "view_organiser_config.json")
+CONFIG_PATH = _userdata.migrate(
+    os.path.join(_split, "View Organiser.pushbutton", "view_organiser_config.json"),
+    _userdata.user_path("ViewOrganiser", "view_organiser_config.json"))
 
 NONE_LABEL = "- None -"
 

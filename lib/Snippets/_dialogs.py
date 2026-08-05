@@ -23,12 +23,13 @@ except Exception:
 # Fallbacks only, so a missing/unparseable seed43_palette.json never hard-
 # fails this module. Once apply_seed43_palette() has run, _res() prefers the
 # live Brush* tokens every other Seed43 XAML references.
-BG     = '#2B3340'
-HEADER = '#232933'
-GREEN  = '#208A3C'
-GREENH = '#27AE60'
-TEXT   = '#F4FAFF'
-RED    = '#C53030'
+BG      = '#2B3340'
+HEADER  = '#232933'
+GREEN   = '#208A3C'
+GREENH  = '#27AE60'
+TEXT    = '#F4FAFF'
+RED     = '#C53030'
+INPUTBG = '#1D1D20'
 
 
 def _brush(hexcolor):
@@ -46,6 +47,54 @@ def _res(w, key, fallback_hex):
     except Exception:
         pass
     return _brush(fallback_hex)
+
+
+# pyTransmit's Settings/Dialogs.py calls this name. Kept as an alias rather
+# than renamed, so both spellings work.
+_theme_brush = _res
+
+
+def _theme_dim(w, key, fallback):
+    """Live sizing lookup (double / CornerRadius / Thickness). fallback must
+    already be the right type for the property it is assigned to."""
+    try:
+        v = w.TryFindResource(key)
+        if v is not None:
+            return v
+    except Exception:
+        pass
+    return fallback
+
+
+def _textblock_label(w, text):
+    """Small dim field label, used above folder/filename inputs."""
+    t = Windows.Controls.TextBlock()
+    t.Text = text
+    t.Foreground = _res(w, 'BrushTextPrimary', TEXT)
+    t.FontSize = 11
+    t.Opacity = 0.7
+    t.Margin = Windows.Thickness(0, 0, 0, 4)
+    return t
+
+
+def _plain_textbox(w):
+    """An editable box styled with direct properties only.
+
+    Deliberately NOT a custom ControlTemplate: the templated version this
+    replaces rendered with no visible text, which is why Dialogs.save_log
+    hand-rolls Border+TextBlock rather than reusing it. Same styling as
+    ask_string's box, which has always worked.
+    """
+    tb = Windows.Controls.TextBox()
+    tb.Height = 32
+    tb.FontSize = 12
+    tb.Padding = Windows.Thickness(8, 4, 8, 4)
+    tb.Background = _res(w, 'BrushInputBg', TEXT)
+    tb.Foreground = _res(w, 'BrushTextInput', HEADER)
+    tb.BorderBrush = _res(w, 'BrushBorderDefault', GREEN)
+    tb.BorderThickness = Windows.Thickness(1.5)
+    tb.Margin = Windows.Thickness(0, 0, 0, 16)
+    return tb
 
 
 def _button(w, text, primary=True):
@@ -159,7 +208,7 @@ def _textblock(w, text, error=False, title=False):
     return t
 
 
-def message(text, title=''):
+def message(text, title='', ok_label='OK'):
     """Themed OK-only info popup. Escape closes it, same as OK."""
     w = _window()
     root = _card(w)
@@ -169,7 +218,7 @@ def message(text, title=''):
     row = Windows.Controls.StackPanel()
     row.Orientation = Windows.Controls.Orientation.Horizontal
     row.HorizontalAlignment = Windows.HorizontalAlignment.Right
-    ok = _button(w, 'OK')
+    ok = _button(w, ok_label)
     ok.Click += lambda s, a: w.Close()
     row.Children.Add(ok)
     root.Children.Add(row)
@@ -255,3 +304,149 @@ def ask_string(prompt, title='', default='', error=''):
     w.ContentRendered += lambda s, a: (tb.Focus(), tb.SelectAll())
     w.ShowDialog()
     return result['text']
+
+
+def choice(text, options, title='', detail_text=''):
+    """Themed multi-button choice popup, for when confirm()'s two aren't
+    enough. `options` is a list of (key, label) tuples; the last is rendered
+    as the primary/green button, the rest secondary, left to right. Returns
+    the chosen key, or None if dismissed without choosing.
+
+    detail_text, if given, adds a read-only preview panel below the buttons -
+    a diff or log excerpt. Omitted entirely when empty.
+    """
+    w = _window()
+    root = _card(w)
+    result = {'key': None}
+    if title:
+        root.Children.Add(_textblock(w, title, title=True))
+    root.Children.Add(_textblock(w, text))
+
+    row = Windows.Controls.StackPanel()
+    row.Orientation = Windows.Controls.Orientation.Horizontal
+    row.HorizontalAlignment = Windows.HorizontalAlignment.Right
+
+    def _make_pick(key):
+        def _pick(s, a):
+            result['key'] = key
+            w.Close()
+        return _pick
+
+    last_index = len(options) - 1
+    for i, (key, label) in enumerate(options):
+        btn = _button(w, label, primary=(i == last_index))
+        btn.Click += _make_pick(key)
+        row.Children.Add(btn)
+    root.Children.Add(row)
+
+    if detail_text:
+        panel = Windows.Controls.Border()
+        panel.Background = _res(w, 'BrushHeaderBg', HEADER)
+        panel.CornerRadius = _theme_dim(w, 'CornerRadiusInput',
+                                        Windows.CornerRadius(6))
+        panel.Padding = Windows.Thickness(12)
+        panel.Margin = Windows.Thickness(0, 16, 0, 0)
+        detail = Windows.Controls.TextBlock()
+        detail.Text = detail_text
+        detail.Foreground = _res(w, 'BrushTextPrimary', TEXT)
+        detail.FontSize = 11
+        detail.Opacity = 0.85
+        detail.TextWrapping = Windows.TextWrapping.Wrap
+        detail.FontFamily = Windows.Media.FontFamily('Consolas')
+        panel.Child = detail
+        root.Children.Add(panel)
+
+    w.ShowDialog()
+    return result['key']
+
+
+def save_file_as(title, filename, ext, initial_folder=None):
+    """Themed 'save as': a folder with a native browse button, plus an
+    editable filename. Returns the full path, or None if cancelled.
+
+    The folder box is read-only on purpose - it is set via Browse, so there
+    is nothing to gain from letting a path be typed in wrong.
+    """
+    import os as _os
+
+    w = _window(width=480)
+    root = _card(w)
+    result = {'path': None}
+    root.Children.Add(_textblock(w, title, title=True))
+
+    root.Children.Add(_textblock_label(w, 'Folder'))
+    folder_row = Windows.Controls.Grid()
+    c0 = Windows.Controls.ColumnDefinition()
+    c0.Width = Windows.GridLength(1, Windows.GridUnitType.Star)
+    c1 = Windows.Controls.ColumnDefinition()
+    c1.Width = Windows.GridLength.Auto
+    folder_row.ColumnDefinitions.Add(c0)
+    folder_row.ColumnDefinitions.Add(c1)
+
+    folder_tb = _plain_textbox(w)
+    folder_tb.IsReadOnly = True
+    folder_tb.Margin = Windows.Thickness(0, 0, 6, 12)
+    Windows.Controls.Grid.SetColumn(folder_tb, 0)
+
+    browse_btn = _button(w, 'Browse')
+    browse_btn.Margin = Windows.Thickness(0, 0, 0, 12)
+    Windows.Controls.Grid.SetColumn(browse_btn, 1)
+
+    folder_row.Children.Add(folder_tb)
+    folder_row.Children.Add(browse_btn)
+    root.Children.Add(folder_row)
+
+    root.Children.Add(_textblock_label(w, 'File name'))
+    filename_tb = _plain_textbox(w)
+    root.Children.Add(filename_tb)
+
+    base = filename or ''
+    if base.lower().endswith('.' + ext.lower()):
+        base = base[:-(len(ext) + 1)]
+    filename_tb.Text = base
+
+    desktop = _os.path.join(_os.path.expanduser('~'), 'Desktop')
+    folder_tb.Text = (initial_folder
+                      if (initial_folder and _os.path.isdir(initial_folder))
+                      else desktop)
+
+    def on_browse(s, a):
+        try:
+            from System.Windows.Forms import FolderBrowserDialog, DialogResult
+            fb = FolderBrowserDialog()
+            fb.SelectedPath = folder_tb.Text or desktop
+            if fb.ShowDialog() == DialogResult.OK:
+                folder_tb.Text = fb.SelectedPath
+        except Exception:
+            pass
+    browse_btn.Click += on_browse
+
+    row = Windows.Controls.StackPanel()
+    row.Orientation = Windows.Controls.Orientation.Horizontal
+    row.HorizontalAlignment = Windows.HorizontalAlignment.Right
+
+    def on_save(s, a):
+        folder = (folder_tb.Text or '').strip()
+        name = (filename_tb.Text or '').strip()
+        if not name:
+            return
+        if not name.lower().endswith('.' + ext.lower()):
+            name = name + '.' + ext
+        result['path'] = _os.path.join(folder, name)
+        w.Close()
+
+    cancel_btn = _button(w, 'Cancel', primary=False)
+    cancel_btn.Click += lambda s, a: w.Close()
+    save_btn = _button(w, 'Save')
+    save_btn.Click += on_save
+    row.Children.Add(cancel_btn)
+    row.Children.Add(save_btn)
+    root.Children.Add(row)
+
+    def _key(s, a):
+        if a.Key == Windows.Input.Key.Escape:
+            w.Close()
+    w.KeyDown += _key
+
+    w.ShowDialog()
+    return result['path']

@@ -642,23 +642,44 @@ def _find_pysheets_dir():
 
 
 _PYSHEETS_DIR = _find_pysheets_dir()
-_SCHEDULE_FILE = (
+
+# PySheets keeps its settings in .user now (see Snippets/_userdata.py). The
+# path is built here rather than imported, to keep startup's import cost at
+# zero - if the layout there ever changes, this has to change with it.
+#
+# The legacy location is still checked as a fallback: a schedule armed before
+# PySheets first migrated sits beside the tool, and the move only happens when
+# the user next opens the window - which may be after this fires.
+_SCHEDULE_FILE_NEW = os.path.join(
+    EXTENSION_DIR, ".user", "PySheets", "settings", "scheduled_print.json")
+_SCHEDULE_FILE_OLD = (
     os.path.join(_PYSHEETS_DIR, "userdata", "settings", "scheduled_print.json")
     if _PYSHEETS_DIR else None
 )
+
+
+def _schedule_file():
+    """Return whichever schedule file exists, preferring the .user one."""
+    try:
+        if os.path.isfile(_SCHEDULE_FILE_NEW):
+            return _SCHEDULE_FILE_NEW
+        if _SCHEDULE_FILE_OLD and os.path.isfile(_SCHEDULE_FILE_OLD):
+            return _SCHEDULE_FILE_OLD
+    except Exception:
+        pass
+    return None
 _LIB_DIR = os.path.join(EXTENSION_DIR, "lib")
 
 _last_schedule_check = [0.0]
 
 
 def _read_schedule():
-    if not _SCHEDULE_FILE:
+    path = _schedule_file()
+    if not path:
         return None
     try:
-        if not File.Exists(_SCHEDULE_FILE):
-            return None
         import json
-        reader  = StreamReader(_SCHEDULE_FILE)
+        reader  = StreamReader(path)
         content = reader.ReadToEnd()
         reader.Close()
         return json.loads(content)

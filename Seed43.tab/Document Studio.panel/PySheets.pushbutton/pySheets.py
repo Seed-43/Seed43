@@ -66,6 +66,7 @@ if _lib_path and _lib_path not in _sys.path:
 
 from EditNamingFormats import EditNamingFormatsWindow, NamingFormat
 from Snippets import _dialogs as dlg
+from Snippets import _userdata
 from Snippets._icons import make_icon
 from Snippets.seed43_theme import apply_seed43_palette
 import FolderPresetManager as fpm_win
@@ -125,8 +126,15 @@ TAB_PRINT    = 2   # "Export" tab
 # Subfolder for per-format export settings scripts
 SETTINGS_FOLDER = op.join(op.dirname(__file__), 'settings')
 
-# All user data (profiles, naming formats) lives next to the script
-USERDATA_DIR = op.join(op.dirname(__file__), 'userdata')
+# All user data (profiles, naming formats, settings) lives in .user, where the
+# updater cannot reach it. Everything below derives from this one constant, and
+# the whole legacy userdata/ tree beside the script is carried across on first
+# run - structure intact, so the subpaths below are unchanged.
+#
+# NOTE: startup.py reads scheduled_print.json directly for the background
+# scheduler, so it resolves this same location. Keep the two in step.
+USERDATA_DIR = _userdata.user_dir('PySheets')
+_userdata.migrate_tree(op.join(op.dirname(__file__), 'userdata'), USERDATA_DIR)
 SCHEDULE_FILE = op.join(USERDATA_DIR, 'settings', 'scheduled_print.json')
 CUSTOM_COLUMNS_FILE = op.join(USERDATA_DIR, 'settings', 'custom_columns.json')
 

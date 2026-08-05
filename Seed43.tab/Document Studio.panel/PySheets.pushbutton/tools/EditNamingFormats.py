@@ -17,6 +17,7 @@ except Exception:
     dlg = None
 
 from Snippets.seed43_theme import apply_seed43_palette
+from Snippets import _userdata
 
 def _alert(message):
     """Themed popup when available, falls back to forms.alert."""
@@ -194,8 +195,10 @@ class EditNamingFormatsWindow(forms.WPFWindow):
             ),
         ]
 
-    # This module now lives in tools/, so userdata/ is one level up from here
-    NAMING_DIR = op.join(op.dirname(op.dirname(__file__)), 'userdata', 'naming')
+    # Resolved through _userdata rather than relative to this file, so it
+    # matches pySheets.py's USERDATA_DIR. pySheets.py owns the migration of
+    # the old userdata/ tree; by the time this runs it has already happened.
+    NAMING_DIR = _userdata.user_dir('PySheets', 'naming')
 
     @staticmethod
     def get_naming_formats(naming_dir=None, default_formats=None):

@@ -79,6 +79,7 @@ snippets:
       user_dir:           Return a folder inside .user/<tool>/, creating it.
       migrate:            Move a legacy file into .user once, then delete the original.
       migrate_dir:        Move every matching file out of a legacy folder into .user.
+      migrate_tree:       Move a whole legacy folder tree into .user, structure intact.
       seed_once:          Copy shipped defaults in on first run only, recorded by a marker.
       seed_from_defaults: Copy shipped defaults in on request, never overwriting.
 

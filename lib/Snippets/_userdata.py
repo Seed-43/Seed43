@@ -184,6 +184,59 @@ def migrate_dir(legacy_dir, new_dir, suffix=".json"):
     return moved
 
 
+def migrate_tree(legacy_dir, new_dir):
+    """
+    Move a whole folder tree into .user, once, preserving its structure.
+
+    For tools that keep a userdata/ folder with subfolders rather than a flat
+    list. Files already present in new_dir are left alone - the user's copy
+    always wins - and only files actually copied are removed, so anything that
+    fails to move stays put and is retried next run.
+
+    Empty folders left behind are pruned, but legacy_dir itself is kept: on an
+    existing install the updater may recreate it anyway, and removing it buys
+    nothing.
+
+    Returns how many files moved. Never raises.
+    """
+    moved = 0
+    try:
+        if not os.path.isdir(legacy_dir):
+            return 0
+        if not _try_makedirs(new_dir):
+            return 0
+
+        for root, dirs, files in os.walk(legacy_dir):
+            rel = os.path.relpath(root, legacy_dir)
+            target = new_dir if rel == "." else os.path.join(new_dir, rel)
+            if not _try_makedirs(target):
+                continue
+            for name in files:
+                src = os.path.join(root, name)
+                dst = os.path.join(target, name)
+                if os.path.isfile(dst):
+                    continue
+                try:
+                    shutil.copy2(src, dst)
+                    os.remove(src)
+                    moved += 1
+                except Exception:
+                    continue
+
+        # Prune folders that are now empty, deepest first.
+        for root, dirs, files in os.walk(legacy_dir, topdown=False):
+            if root == legacy_dir:
+                continue
+            try:
+                if not os.listdir(root):
+                    os.rmdir(root)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return moved
+
+
 # ── SHIPPED DEFAULTS ────────────────────────────────────────────────────────
 
 def seed_once(marker_path, defaults_dir, target_dir, suffix=".json"):

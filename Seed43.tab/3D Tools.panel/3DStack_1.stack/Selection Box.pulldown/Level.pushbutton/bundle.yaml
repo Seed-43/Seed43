@@ -1,0 +1,23 @@
+title: "Level"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: |
+  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟖𝟎𝟓
+  _____________________________________________________________________
+  Description:
+  Sets the 3D view's section box to a thin horizontal slice of the model
+  at a chosen level - 500mm above and below the level line, across the
+  full plan extent of the model.
+  _____________________________________________________________________
+  How-to:
+  -> Open a 3D view
+  -> Run the tool and pick a level
+  _____________________________________________________________________
+  Notes:
+  - Only works in 3D views, since section boxes are a 3D-view feature
+  - Measures the whole model, not the current view, so running it twice
+    does not keep shrinking the box
+  - Clear it with Revit's section box toggle in view properties
+  _____________________________________________________________________
+  Last update:
+  - Initial release
+  _____________________________________________________________________

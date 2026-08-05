@@ -98,6 +98,17 @@ snippets:
       set_active_profile:      Write a new active_profile ('dark'/'light') back to the JSON on disk.
       set_accent:              Set a new accent colour, deriving hover/pressed/border shades from it.
 
+  _sectionbox.py:
+    description: >
+      Helpers for tools that drive a 3D view's section box - model extents,
+      the 3D-view guard, and applying a box.
+      Used by Selection Box on Level and Selection Box on Grid.
+    functions:
+      mm_to_ft:          Convert millimetres to Revit's internal feet.
+      require_3d_view:   Return the active view if it can take a section box, else None.
+      model_extents:     Return a BoundingBoxXYZ enclosing every model element.
+      apply_section_box: Turn the section box on and set it, in one transaction.
+
   _selection.py:
     description: >
       Shared helpers for picking and resolving elements in Revit.

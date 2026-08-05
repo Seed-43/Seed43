@@ -1985,7 +1985,11 @@ class RevTableWindow(Window):
         return LAYOUTS_DIR
 
     def _layout_templates(self):
-        """Return sorted list of JSON template names from Layout/Layouts/."""
+        """Return sorted JSON template names from the user's Layouts folder.
+
+        A plain directory listing, so saving a new layout in Layout Builder
+        makes it appear in the format dropdowns with nothing else to update.
+        """
         d = self._layouts_dir()
         if not os.path.isdir(d): return []
         return sorted([os.path.splitext(f)[0] for f in os.listdir(d)

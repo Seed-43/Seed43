@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-Format-agnostic export/import I/O for PyTable.
+Format-agnostic export/import I/O for pyTable.
 
 Deliberately has ZERO third-party dependencies. xlsx and ods are both just
 zip archives of XML - this reads/writes that XML directly via zipfile and
 xml.etree.ElementTree, both in the Python 2.7 stdlib IronPython ships. No
-openpyxl, no odfpy, no xlsxwriter - PyTable's own xlsx code (pytable_excel.py)
+openpyxl, no odfpy, no xlsxwriter - pyTable's own xlsx code (pytable_excel.py)
 independently arrived at the same zipfile-based approach, confirming it's
 the right pattern for this environment (no pip under IronPython 2, so any
 third-party package would have to be manually vendored).
@@ -60,7 +60,7 @@ that categories get their own tabs.
 
 Lives in pyTable.pushbutton/tools/ alongside the rest of this tool's own
 code - not in the shared lib/Snippets, since this I/O format is specific
-to PyTable (same pattern as your existing PyTable's tools/pytable_excel.py).
+to pyTable (same pattern as your existing pyTable's tools/pytable_excel.py).
 
 ODS limitation: tab colour and Legend gridline removal are XLSX-only.
 ODF has no standard per-sheet gridline attribute (LibreOffice treats grid
@@ -190,7 +190,7 @@ def _group_rows_by_category(rows):
 
 
 LEGEND_INTRO_ROWS = [
-    (None, u"PyTable Export \u2014 Column Colour Legend"),
+    (None, u"pyTable Export \u2014 Column Colour Legend"),
     ("type", u"Type Parameter \u2014 editing this value updates every element sharing this Type"),
     ("readonly", u"Read-only \u2014 shown for reference only, will not be written back on import"),
     ("na", u"Not Applicable \u2014 this parameter doesn't exist on this particular element"),

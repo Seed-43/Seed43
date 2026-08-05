@@ -629,12 +629,12 @@ def _check_and_notify(ui_dispatcher):
 # planned V2 addition, not built yet.
 
 def _find_pysheets_dir():
-    """Locate PySheets.pushbutton under Seed43.tab. Returns the folder
+    """Locate pySheets.pushbutton under Seed43.tab. Returns the folder
     path, or None if it can't be found (extension reorganized, tool
     removed, etc, in which case the scheduler just does nothing)."""
     try:
         for root, _dirs, _files in os.walk(TAB_DIR):
-            # Case-insensitive: Windows treats PySheets and pySheets as the
+            # Case-insensitive: Windows treats pySheets and pySheets as the
             # same folder, but this comparison would not, so a rename that
             # looks like a no-op silently kills the scheduler.
             if os.path.basename(root).lower() == "pysheets.pushbutton":
@@ -646,15 +646,15 @@ def _find_pysheets_dir():
 
 _PYSHEETS_DIR = _find_pysheets_dir()
 
-# PySheets keeps its settings in .user now (see Snippets/_userdata.py). The
+# pySheets keeps its settings in .user now (see Snippets/_userdata.py). The
 # path is built here rather than imported, to keep startup's import cost at
 # zero - if the layout there ever changes, this has to change with it.
 #
 # The legacy location is still checked as a fallback: a schedule armed before
-# PySheets first migrated sits beside the tool, and the move only happens when
+# pySheets first migrated sits beside the tool, and the move only happens when
 # the user next opens the window - which may be after this fires.
 _SCHEDULE_FILE_NEW = os.path.join(
-    EXTENSION_DIR, ".user", "PySheets", "settings", "scheduled_print.json")
+    EXTENSION_DIR, ".user", "pySheets", "settings", "scheduled_print.json")
 _SCHEDULE_FILE_OLD = (
     os.path.join(_PYSHEETS_DIR, "userdata", "settings", "scheduled_print.json")
     if _PYSHEETS_DIR else None

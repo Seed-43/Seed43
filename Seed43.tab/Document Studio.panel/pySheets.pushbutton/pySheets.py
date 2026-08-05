@@ -133,7 +133,7 @@ SETTINGS_FOLDER = op.join(op.dirname(__file__), 'settings')
 #
 # NOTE: startup.py reads scheduled_print.json directly for the background
 # scheduler, so it resolves this same location. Keep the two in step.
-USERDATA_DIR = _userdata.user_dir('PySheets')
+USERDATA_DIR = _userdata.user_dir('pySheets')
 _userdata.migrate_tree(op.join(op.dirname(__file__), 'userdata'), USERDATA_DIR)
 SCHEDULE_FILE = op.join(USERDATA_DIR, 'settings', 'scheduled_print.json')
 CUSTOM_COLUMNS_FILE = op.join(USERDATA_DIR, 'settings', 'custom_columns.json')

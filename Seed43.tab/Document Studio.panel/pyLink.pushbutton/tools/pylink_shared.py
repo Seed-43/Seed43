@@ -47,7 +47,7 @@ Excel and Word sides of pyLink: the Row class, colour/status
 constants, the hb() colour helper, and Revit shared-parameter state
 persistence (save/load). Deliberately has NO dependency on
 pylink_excel.py or pylink_word.py, so both of those (and the main
-PyLink.py) can import from here with zero circularity risk.
+pyLink.py) can import from here with zero circularity risk.
 """
 
 

@@ -80,10 +80,10 @@ def user_path(tool, *parts):
     Return a path inside .user/<tool>/, creating the parent folders.
 
     tool is the folder name for the tool, normally its pushbutton name without
-    the suffix ("pyTransmit", "PySheets"). parts are further path segments, so
+    the suffix ("pyTransmit", "pySheets"). parts are further path segments, so
     a tool with its own structure can keep it:
 
-        user_path("PySheets", "settings", "lastsession.json")
+        user_path("pySheets", "settings", "lastsession.json")
 
     Creates directories but never the file itself, so callers can still test
     os.path.isfile() to detect first run. Never raises, for the same reason as

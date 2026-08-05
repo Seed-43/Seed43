@@ -31,7 +31,7 @@
 
         <!-- These 5 styles are looked up via FindResource() throughout
              pyLink_ui.py, so they must be declared in this file - the
-             one the window actually loads - not PyLinks.xaml, which
+             one the window actually loads - not pyLinks.xaml, which
              nothing loads. -->
         <Style x:Key="CardStyle" TargetType="Border">
                 <Setter Property="Background"    Value="{DynamicResource BrushCardBg}"/>
@@ -46,7 +46,7 @@
             </Style>
 
         <!-- SectionLabelStyle (dead code, removed) - confirmed zero
-             references anywhere in this file or in PyLink.py/
+             references anywhere in this file or in pyLink.py/
              pylink_excel.py/pylink_word.py/pylink_shared.py. -->
 
         <!-- Kept as its own local name rather than renamed to a canonical
@@ -54,7 +54,7 @@
              Tables", "Apply"), not tabs, but sized like button_small, not
              button_primary - same situation as Layout Builder's PBtn.
              Colours reconciled to the shared accent palette below; sizing
-             stays PyLink's own for now. -->
+             stays pyLink's own for now. -->
         <Style x:Key="SmallButtonStyle" TargetType="Button">
                 <Setter Property="Background"      Value="{DynamicResource BrushPrimaryGreen}"/>
                 <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>

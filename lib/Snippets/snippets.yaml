@@ -47,7 +47,7 @@ snippets:
     description: >
       Shared helpers for reading/writing Revit parameters (unit-aware via
       SetValueString/AsValueString) and collecting categories/schedules.
-      Used by PyTable.
+      Used by pyTable.
     functions:
       get_param_display_value:      Return a parameter's value as display text.
       set_param_from_display_value: Write display text back to a parameter.

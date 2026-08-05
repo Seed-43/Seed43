@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Shared helpers for reading/writing Revit parameters and collecting
-categories/schedules. Promoted out of PyTable so any tool touching
+categories/schedules. Promoted out of pyTable so any tool touching
 parameters, model categories, or schedules can reuse them.
 """
 
@@ -137,23 +137,23 @@ except Exception:
 
 def _try_register_enum(bip_name, enum_type_name):
     if BuiltInParameter is None or _DB is None:
-        _log_info("PyTable dropdown table: BuiltInParameter/Autodesk.Revit.DB import failed entirely - "
+        _log_info("pyTable dropdown table: BuiltInParameter/Autodesk.Revit.DB import failed entirely - "
                    "no enum-based dropdowns will work at all.")
         return
     try:
         bip = getattr(BuiltInParameter, bip_name)
     except AttributeError:
-        _log_info("PyTable dropdown table: BuiltInParameter.{0} does not exist on this Revit "
+        _log_info("pyTable dropdown table: BuiltInParameter.{0} does not exist on this Revit "
                    "version - skipped.".format(bip_name))
         return
     try:
         enum_type = getattr(_DB, enum_type_name)
     except AttributeError:
-        _log_info("PyTable dropdown table: Autodesk.Revit.DB.{0} does not exist on this Revit "
+        _log_info("pyTable dropdown table: Autodesk.Revit.DB.{0} does not exist on this Revit "
                    "version - skipped.".format(enum_type_name))
         return
     _ENUM_PARAM_TABLE[bip] = enum_type
-    _log_info("PyTable dropdown table: registered {0} -> {1}".format(bip_name, enum_type_name))
+    _log_info("pyTable dropdown table: registered {0} -> {1}".format(bip_name, enum_type_name))
 
 
 # All confirmed live against a real pyRevit log - the enum names below are
@@ -221,11 +221,11 @@ def _get_built_in_parameter(param):
         definition = param.Definition
         if isinstance(definition, InternalDefinition):
             return definition.BuiltInParameter
-        _log_info("PyTable dropdown: '{0}'.Definition is not an InternalDefinition ({1}) - "
+        _log_info("pyTable dropdown: '{0}'.Definition is not an InternalDefinition ({1}) - "
                    "can't check the enum table for it.".format(
                        getattr(definition, "Name", "?"), type(definition).__name__))
     except Exception as ex:
-        _log_info("PyTable dropdown: _get_built_in_parameter failed: {0}".format(ex))
+        _log_info("pyTable dropdown: _get_built_in_parameter failed: {0}".format(ex))
     return None
 
 
@@ -251,10 +251,10 @@ def _get_known_enum_options(param):
     name = getattr(param.Definition, "Name", "?")
     bip = _get_built_in_parameter(param)
     if bip is None:
-        _log_info("PyTable dropdown '{0}': not resolvable to a BuiltInParameter.".format(name))
+        _log_info("pyTable dropdown '{0}': not resolvable to a BuiltInParameter.".format(name))
         return None
     if bip not in _ENUM_PARAM_TABLE:
-        _log_info("PyTable dropdown '{0}': BuiltInParameter is {1}, not in the registered "
+        _log_info("pyTable dropdown '{0}': BuiltInParameter is {1}, not in the registered "
                    "enum table.".format(name, bip))
         return None
     enum_type = _ENUM_PARAM_TABLE[bip]
@@ -275,11 +275,11 @@ def _get_known_enum_options(param):
                     pass
             options.append(label if label else _camel_to_title(member_name))
     except Exception as ex:
-        _log_info("PyTable dropdown '{0}': found in table ({1}), but Enum.GetValues "
+        _log_info("pyTable dropdown '{0}': found in table ({1}), but Enum.GetValues "
                    "failed: {2}".format(name, enum_type, ex))
         return None
     if not options:
-        _log_info("PyTable dropdown '{0}': enum table entry found but produced zero options.".format(name))
+        _log_info("pyTable dropdown '{0}': enum table entry found but produced zero options.".format(name))
     return options or None
 
 

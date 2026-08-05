@@ -84,7 +84,7 @@ from pylink_word import (
 
 class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
     def __init__(self):
-        forms.WPFWindow.__init__(self, 'PyLink.xaml')
+        forms.WPFWindow.__init__(self, 'pyLink.xaml')
 
         # -- Apply Seed43 theme (colours + sizing) ---------------------------------
         # Must run AFTER LoadComponent (so injected brushes beat the XAML's own
@@ -245,7 +245,7 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         """Build a secondary dialog window (Section Groups, Word Text
         Size, etc.) that actually matches the app's theme instead of a
         plain Window with the OS's own white title bar and default
-        control chrome. A brand-new Window has none of PyLink's own
+        control chrome. A brand-new Window has none of pyLink's own
         Resources - two things are needed, matching the main window's
         own setup in __init__ exactly:
           1. apply_seed43_palette/apply_seed43_dimensions injected into

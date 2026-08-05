@@ -8,7 +8,7 @@
 
 | Tool | Description |
 |------|-------------|
-| **PyTransmit** | Transmit Revit files with automatic sheet and link management |
+| **pyTransmit** | Transmit Revit files with automatic sheet and link management |
 | **3D Tools** | A collection of 3D workflow tools for Revit |
 
 ---

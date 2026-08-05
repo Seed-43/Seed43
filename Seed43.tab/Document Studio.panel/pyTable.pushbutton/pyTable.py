@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-PyTable - export model/schedule parameters to Excel or ODS, edit externally,
+pyTable - export model/schedule parameters to Excel or ODS, edit externally,
 re-import with a diff preview before anything is written back to the model.
 
 𝐒𝐄𝐄𝐃𝟒𝟑
 """
 
-__title__ = "PyTable"
+__title__ = "pyTable"
 __author__ = "𝐒𝐄𝐄𝐃𝟒𝟑"
 __doc__ = "Export Revit parameters to Excel/ODS and import edits back with a preview step."
 
@@ -94,7 +94,7 @@ class DiffRow(object):
 class MainWindow(forms.WPFWindow):
 
     def __init__(self):
-        forms.WPFWindow.__init__(self, "PyTable.xaml")
+        forms.WPFWindow.__init__(self, "pyTable.xaml")
 
         # Rule #2: apply appearance immediately after load, before any
         # dynamic UI construction touches TryFindResource.
@@ -336,7 +336,7 @@ class MainWindow(forms.WPFWindow):
         ext = "xlsx" if fmt_index == 0 else "ods"
         filter_str = "Excel Workbook (*.xlsx)|*.xlsx" if ext == "xlsx" else "OpenDocument Spreadsheet (*.ods)|*.ods"
 
-        filepath = forms.save_file(file_ext=ext, files_filter=filter_str, default_name="PyTable Export")
+        filepath = forms.save_file(file_ext=ext, files_filter=filter_str, default_name="pyTable Export")
         if not filepath:
             return
 
@@ -366,11 +366,11 @@ class MainWindow(forms.WPFWindow):
                         self._set_status("Export cancelled.")
                         return
                 else:
-                    logger.error("PyTable export failed after {0} attempts: {1}".format(
+                    logger.error("pyTable export failed after {0} attempts: {1}".format(
                         MAX_SAVE_RETRIES, ex))
                     forms.alert(
                         "Could not save after {0} attempts:\n{1}".format(MAX_SAVE_RETRIES, ex),
-                        title="PyTable")
+                        title="pyTable")
                     self._set_status("Export failed after {0} attempts - see log.".format(MAX_SAVE_RETRIES))
                     return
 
@@ -380,7 +380,7 @@ class MainWindow(forms.WPFWindow):
         if not os.path.exists(filepath):
             forms.alert(
                 "write_workbook() returned without error but no file was "
-                "found at:\n{0}".format(filepath), title="PyTable")
+                "found at:\n{0}".format(filepath), title="pyTable")
             self._set_status("Export reported success but file was not found.")
             return
 
@@ -396,8 +396,8 @@ class MainWindow(forms.WPFWindow):
         try:
             headers, imported_rows = read_workbook(filepath)
         except Exception as ex:
-            logger.error("PyTable import (read) failed: {0}".format(ex))
-            forms.alert("Could not read file:\n{0}".format(ex), title="PyTable")
+            logger.error("pyTable import (read) failed: {0}".format(ex))
+            forms.alert("Could not read file:\n{0}".format(ex), title="pyTable")
             self._set_status("Import failed - see log.")
             return
 
@@ -477,7 +477,7 @@ class MainWindow(forms.WPFWindow):
             self._set_status("Nothing checked to apply.")
             return
 
-        t = Transaction(doc, "PyTable: Apply parameter changes")
+        t = Transaction(doc, "pyTable: Apply parameter changes")
         t.Start()
         applied = 0
         failed = []
@@ -497,14 +497,14 @@ class MainWindow(forms.WPFWindow):
             t.Commit()
         except Exception as ex:
             t.RollBack()
-            logger.error("PyTable import failed: {0}".format(ex))
-            forms.alert("Applying changes failed, nothing was written:\n{0}".format(ex), title="PyTable")
+            logger.error("pyTable import failed: {0}".format(ex))
+            forms.alert("Applying changes failed, nothing was written:\n{0}".format(ex), title="pyTable")
             self._set_status("Import failed, no changes were made - see log.")
             return
 
         if failed:
             for msg in failed:
-                logger.warning("PyTable: skipped - {0}".format(msg))
+                logger.warning("pyTable: skipped - {0}".format(msg))
 
         self._diff_rows.Clear()
         self.FindName("confirm_btn").IsEnabled = False
@@ -528,7 +528,7 @@ class MainWindow(forms.WPFWindow):
             return self._make_menu_item(label, fn, self.FindName("menu_popup"))
 
         panel.Children.Add(item(u'\u2753  Support', self._menu_support_click))
-        panel.Children.Add(item(u'\u2139  About PyTable', self._menu_about_click))
+        panel.Children.Add(item(u'\u2139  About pyTable', self._menu_about_click))
         panel.Children.Add(self._make_menu_separator())
         panel.Children.Add(item(u'\u2615  Support this project and help us grow',
                                  self._menu_donate_click))
@@ -591,11 +591,11 @@ class MainWindow(forms.WPFWindow):
         client, addressed to Seed43 support, with the extension version
         and which app it came from already filled in."""
         version = _find_seed43_version()
-        subject = "PyTable Support Ticket"
+        subject = "pyTable Support Ticket"
         body = (
             "Hi Seed43 Team,\n\n"
             "Support Request\n\n"
-            "App: PyTable\n"
+            "App: pyTable\n"
             "Seed43 Version: {0}\n\n"
             "Please describe your issue below:\n\n"
         ).format(version)
@@ -611,12 +611,12 @@ class MainWindow(forms.WPFWindow):
 
     def _menu_about_click(self, sender, args):
         forms.alert(
-            'PyTable\n'
+            'pyTable\n'
             'Part of the Seed43 pyRevit Extension.\n\n'
             'Exports model/schedule parameters to Excel or ODS, edit '
             'externally, reimport with a diff preview before writing '
             'changes back to Revit.',
-            title='About PyTable')
+            title='About pyTable')
 
     def _menu_donate_click(self, sender, args):
         self._open_url('https://buymeacoffee.com/seed43', title='Support')

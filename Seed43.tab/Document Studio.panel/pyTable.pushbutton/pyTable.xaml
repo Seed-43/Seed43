@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:sys="clr-namespace:System;assembly=mscorlib"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
-        Title="PyTable" Height="640" Width="980" MinHeight="480" MinWidth="760"
+        Title="pyTable" Height="640" Width="980" MinHeight="480" MinWidth="760"
         WindowStyle="None"
         ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
@@ -20,7 +20,7 @@
     <Window.Resources>
 
         <!-- No canonical token exists for a neutral (non-accent-green)
-             divider colour - same situation PyTable/pyTransmit hit, kept
+             divider colour - same situation pyTable/pyTransmit hit, kept
              as a local named brush for the same reason. -->
         <SolidColorBrush x:Key="LocalBrushMenuBorder" Color="#404553"/>
 

@@ -198,7 +198,7 @@ class EditNamingFormatsWindow(forms.WPFWindow):
     # Resolved through _userdata rather than relative to this file, so it
     # matches pySheets.py's USERDATA_DIR. pySheets.py owns the migration of
     # the old userdata/ tree; by the time this runs it has already happened.
-    NAMING_DIR = _userdata.user_dir('PySheets', 'naming')
+    NAMING_DIR = _userdata.user_dir('pySheets', 'naming')
 
     @staticmethod
     def get_naming_formats(naming_dir=None, default_formats=None):

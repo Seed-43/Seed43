@@ -49,7 +49,7 @@ native Legend/Drafting views of TextNotes from that data, the Strict-
 layout packing algorithm, section-group settings (userdata/
 section_groups.json), and WordCardMixin providing the Word-specific
 parts of the row/card UI (mixed into PyLinkWindow alongside
-ExcelCardMixin in PyLink.py).
+ExcelCardMixin in pyLink.py).
 """
 
 import sys as _sys

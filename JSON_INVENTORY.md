@@ -42,7 +42,7 @@ Fill in **Verdict**. Suggested values:
 | `pytransmit_setup.json` | 0.5 KB | 2026-07-26 | `show_method`, `out_pdf`, `recipient_mode`, `page_height_mm`, ... | USER/COMPANY - paths + naming templates | |
 | `pytransmit_sync.json` | 0.0 KB | 2026-08-04 | `group_label_on` | USER - single toggle | |
 
-## PySheets (5)
+## pySheets (5)
 
 | File | Size | Modified | Top-level keys | My guess | Verdict |
 |---|---:|---|---|---|---|

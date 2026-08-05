@@ -845,7 +845,7 @@ trigger, a reshaped template) need this file re-exported and re-merged.
          layer lists, panel lists, etc.) ────────────────────────────────────
          Same look as the Dropdown popup's own item row (hover = BrushDropdownItemHover,
          selected = accent fill + white text) - matches the Seed43 Palette Editor's
-         "List / Multi-select" preview component. Added 2026-08-01 when PyTable was found
+         "List / Multi-select" preview component. Added 2026-08-01 when pyTable was found
          to have 6 completely unstyled ListBoxes; LayerManager/ENFStyles/pyViewPlacer each
          already have their own near-duplicate of this same pattern under different names
          (LayerRowStyle, unkeyed ListBoxItem, PanelListBoxItemStyle) with slightly different
@@ -883,7 +883,7 @@ trigger, a reshaped template) need this file re-exported and re-merged.
          per-tool (RowBackground/AlternatingRowBackground), but WPF's default
          DataGridColumnHeader/Cell chrome doesn't inherit from that - without these,
          headers keep native Windows grey chrome and selected cells keep the native
-         blue highlight. Added 2026-08-01 alongside the PyTable fix that needed this. -->
+         blue highlight. Added 2026-08-01 alongside the pyTable fix that needed this. -->
     <Style x:Key="DataGridColumnHeaderStyle" TargetType="DataGridColumnHeader">
         <Setter Property="Background" Value="{DynamicResource BrushHeaderBg}"/>
         <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
@@ -897,7 +897,7 @@ trigger, a reshaped template) need this file re-exported and re-merged.
     <!-- ── Radio button (circular fill on IsChecked, not the native Windows dot) ──
          pyLink.xaml already has an identical copy of this under the same name/comment
          ("no canonical RadioButtonStyle exists anywhere in the lib yet") - added here
-         2026-08-01 alongside the PyTable fix that needed it, so it's finally on record. -->
+         2026-08-01 alongside the pyTable fix that needed it, so it's finally on record. -->
     <Style x:Key="RadioButtonStyle" TargetType="RadioButton">
         <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
         <Setter Property="FontSize"   Value="{DynamicResource FontSizeBody}"/>
@@ -926,7 +926,7 @@ trigger, a reshaped template) need this file re-exported and re-merged.
         </Setter>
     </Style>
 
-    <!-- ── TabItem (real WPF TabControl headers) ── PyTable is the only tool that
+    <!-- ── TabItem (real WPF TabControl headers) ── pyTable is the only tool that
          uses a real TabControl instead of the "fake tab strip of Buttons + manual
          active-state code" pattern everywhere else; without a Template override
          TabItem falls back to native Windows tab chrome (plain white/grey box on

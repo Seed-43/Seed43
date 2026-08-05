@@ -47,7 +47,7 @@ dispatching xlsx/ods reads to tools/format/ (the actual zip/XML
 parsing lives there - see pylink_xlsx.py and pylink_ods.py), building
 native Schedule/Legend/Drafting views from that data, and the
 ExcelCardMixin providing the Excel-specific parts of the row/card UI
-(mixed into PyLinkWindow alongside WordCardMixin in PyLink.py).
+(mixed into PyLinkWindow alongside WordCardMixin in pyLink.py).
 """
 
 import sys as _sys

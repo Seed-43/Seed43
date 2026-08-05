@@ -2,6 +2,14 @@
 # LayoutSettings.py
 
 import os
+
+# pytransmit_paths lives in the pushbutton root, which is not guaranteed to be
+# on sys.path - pyTransmit loads this module by inserting only its own folder.
+import sys as _sys
+_PT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PT_ROOT not in _sys.path:
+    _sys.path.insert(0, _PT_ROOT)
+from pytransmit_paths import LAYOUT_CONFIG, LAYOUTS_DIR
 import json
 import copy
 
@@ -1182,9 +1190,9 @@ class LayoutSettingsWindow(WPFWindow):
         if script_dir is None:
             script_dir = os.path.dirname(os.path.abspath(__file__))
         self._script_dir   = script_dir
-        # Config and layouts live alongside this script (in the Layout/ folder)
-        self._config_path  = os.path.join(script_dir, LAYOUT_CONFIG_FILE)
-        self._layouts_dir  = os.path.join(script_dir, LAYOUTS_SUBDIR)
+        # Config and layouts live in .user now, not beside this script.
+        self._config_path  = LAYOUT_CONFIG
+        self._layouts_dir  = LAYOUTS_DIR
 
         if not os.path.isdir(self._layouts_dir):
             try: os.makedirs(self._layouts_dir)

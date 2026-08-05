@@ -2,6 +2,14 @@
 # OptionsSettings.py
 
 import os
+
+# pytransmit_paths lives in the pushbutton root, which is not guaranteed to be
+# on sys.path - pyTransmit loads these modules by inserting only Settings/.
+import sys as _sys
+_PT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PT_ROOT not in _sys.path:
+    _sys.path.insert(0, _PT_ROOT)
+from pytransmit_paths import SETTINGS_DIR
 import json
 from pyrevit import forms, script
 from pyrevit.forms import WPFWindow
@@ -39,9 +47,10 @@ def _confirm(message, title='', no='No'):
 
 # xlsxwriter is bundled with pyRevit's IronPython environment, no install needed.
 
-# Database paths
-# Databases saved next to this file
-DB_FOLDER = os.path.dirname(os.path.abspath(__file__))
+# Database paths. The vocabularies live in .user now - see pytransmit_paths.
+# This used to be this module's own folder, which is why the shipped copy and
+# the user's copy were the same file.
+DB_FOLDER = SETTINGS_DIR
 REASON_DB = os.path.join(DB_FOLDER, 'reason.json')
 METHOD_DB = os.path.join(DB_FOLDER, 'method.json')
 FORMAT_DB = os.path.join(DB_FOLDER, 'format.json')

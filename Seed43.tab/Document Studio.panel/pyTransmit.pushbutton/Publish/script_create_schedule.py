@@ -72,6 +72,7 @@ def _load_schedule_layout():
         except Exception: pass
     _script_dir = (_p.get('script_dir') or _os.path.dirname(_os.path.abspath(__file__)))
     for _candidate in [
+        (_p.get('_layouts_dir') and _os.path.join(_p['_layouts_dir'], 'Revit Schedule.json')) or '',
         _os.path.join(_script_dir, 'Layout', 'Layouts', 'Revit Schedule.json'),
         _os.path.join(_os.path.dirname(_script_dir), 'Layout', 'Layouts', 'Revit Schedule.json'),
         _os.path.join(_script_dir, 'Revit Schedule.json'),

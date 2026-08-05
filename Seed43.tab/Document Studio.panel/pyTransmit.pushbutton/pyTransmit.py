@@ -23,6 +23,10 @@ import System.Windows.Media
 import os
 import sys
 
+from pytransmit_paths import (
+    SETTINGS_DIR, LAYOUTS_DIR, LAYOUT_CONFIG, SYNC_FILE, settings_file,
+)
+
 _SCRIPT_DIR_MAIN = os.path.dirname(os.path.abspath(__file__))
 
 try:
@@ -178,8 +182,7 @@ class RevTableWindow(Window):
         self._log_zip_path = ''
         try:
             import json as _lj
-            _lcfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                      'Settings', 'pytransmit_setup.json')
+            _lcfg_path = settings_file('pytransmit_setup.json')
             with open(_lcfg_path, 'r') as _lf:
                 _lcfg = _lj.load(_lf)
             self._log_zip_path = _lcfg.get('log_zip_path', '')
@@ -1597,8 +1600,7 @@ class RevTableWindow(Window):
         stack.Children.Clear()
         self._dist_rows = []
 
-        dist_file = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                 'Settings', 'distribution.json')
+        dist_file = settings_file('distribution.json')
         rows = []
         try:
             with open(dist_file, 'r') as f:
@@ -1753,8 +1755,7 @@ class RevTableWindow(Window):
     def _load_client_data(self):
         """Return list of {'company': str, 'attn': str} dicts from recipients.json."""
         import json as _json
-        rec_file = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                'Settings', 'recipients.json')
+        rec_file = settings_file('recipients.json')
         try:
             with open(rec_file, 'r') as f:
                 raw = _json.load(f)
@@ -1946,7 +1947,7 @@ class RevTableWindow(Window):
                 return  # no valid export path, skip silently
 
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            src_layouts = os.path.join(script_dir, 'Layout', 'Layouts')
+            src_layouts = LAYOUTS_DIR
             if not os.path.isdir(src_layouts):
                 return  # no layouts to export
 
@@ -1956,7 +1957,7 @@ class RevTableWindow(Window):
                 os.makedirs(dest_layouts)
 
             # Also copy layout_config.json
-            src_config = os.path.join(script_dir, 'Layout', 'layout_config.json')
+            src_config = LAYOUT_CONFIG
             if os.path.isfile(src_config):
                 import shutil
                 shutil.copy2(src_config, os.path.join(dest_settings, 'layout_config.json'))
@@ -1980,7 +1981,7 @@ class RevTableWindow(Window):
         self._save_layout_assignments()
 
     def _layouts_dir(self):
-        return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Layout', 'Layouts')
+        return LAYOUTS_DIR
 
     def _layout_templates(self):
         """Return sorted list of JSON template names from Layout/Layouts/."""
@@ -2104,7 +2105,7 @@ class RevTableWindow(Window):
     def _save_layout_assignments(self):
         """Persist layout combo selections to pytransmit_sync.json."""
         try:
-            sync_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pytransmit_sync.json')
+            sync_path = SYNC_FILE
             cfg = {}
             if os.path.isfile(sync_path):
                 with open(sync_path, 'r') as f: cfg = _json.load(f)
@@ -2118,7 +2119,7 @@ class RevTableWindow(Window):
     def _load_sync(self):
         """Load pytransmit_sync.json as a dict."""
         try:
-            sync_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pytransmit_sync.json')
+            sync_path = SYNC_FILE
             if os.path.isfile(sync_path):
                 with open(sync_path, 'r') as f: return _json.load(f)
         except Exception: pass
@@ -2127,7 +2128,7 @@ class RevTableWindow(Window):
     def _save_sync(self):
         """Persist non-layout settings (group_label_on, etc.) to pytransmit_sync.json."""
         try:
-            sync_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pytransmit_sync.json')
+            sync_path = SYNC_FILE
             cfg = self._load_sync()
             cfg['group_label_on'] = getattr(self, 'group_label_on', True)
             with open(sync_path, 'w') as f: _json.dump(cfg, f, indent=2)
@@ -2181,7 +2182,7 @@ class RevTableWindow(Window):
             if not os.path.isdir(src_layouts):
                 return
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            dest_layouts = os.path.join(script_dir, 'Layout', 'Layouts')
+            dest_layouts = LAYOUTS_DIR
             if not os.path.isdir(dest_layouts):
                 os.makedirs(dest_layouts)
             import shutil as _shutil
@@ -2192,7 +2193,7 @@ class RevTableWindow(Window):
             # Also import layout_config.json
             src_cfg = os.path.join(import_path, 'pyTransmit Settings', 'layout_config.json')
             if os.path.isfile(src_cfg):
-                _shutil.copy2(src_cfg, os.path.join(script_dir, 'Layout', 'layout_config.json'))
+                _shutil.copy2(src_cfg, LAYOUT_CONFIG)
         except Exception:
             pass
 
@@ -2214,8 +2215,7 @@ class RevTableWindow(Window):
         leaving all other keys intact."""
         try:
             import json as _lj
-            _lcfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                      'Settings', 'pytransmit_setup.json')
+            _lcfg_path = settings_file('pytransmit_setup.json')
             try:
                 with open(_lcfg_path, 'r') as _lf:
                     _lcfg = _lj.load(_lf)
@@ -2232,8 +2232,7 @@ class RevTableWindow(Window):
         """Last folder the user saved a log to, or None if never set."""
         try:
             import json as _lj
-            _lcfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                      'Settings', 'pytransmit_setup.json')
+            _lcfg_path = settings_file('pytransmit_setup.json')
             with open(_lcfg_path, 'r') as _lf:
                 return _lj.load(_lf).get('log_folder')
         except Exception:
@@ -2597,7 +2596,14 @@ class RevTableWindow(Window):
                 'title_fg_color':    _bc.get_title_fg_color()  if _bc else '#000000',
                 'header_bg_color':   _bc.get_header_bg_color() if _bc else '#FFFFFF',
                 'header_fg_color':   _bc.get_header_fg_color() if _bc else '#000000',
-                '_settings_dir':     settings_dir,
+                # The USER's Settings folder, not the code one above: the only
+                # consumer is script_create_schedule.py, which reads
+                # reason.json/method.json from it. legend and pdf resolve the
+                # code folder themselves, for sys.path.
+                '_settings_dir':     SETTINGS_DIR,
+                # So the Publish scripts' convention-search fallback
+                # looks in .user too, not just beside the tool.
+                '_layouts_dir':      LAYOUTS_DIR,
                 'script_dir':        script_dir,
                 'rev_numbering_type': getattr(self, '_rev_numbering_type', ''),
                 '_open_file_dialog':  self._show_open_file_dialog,

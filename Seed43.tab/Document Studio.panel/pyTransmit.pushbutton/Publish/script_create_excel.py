@@ -74,6 +74,7 @@ def _load_layout():
     script_dir = (_p.get('script_dir') or
                   os.path.dirname(os.path.abspath(__file__)))
     candidates = [
+        (_p.get('_layouts_dir') and os.path.join(_p['_layouts_dir'], 'Excel.json')) or '',
         os.path.join(script_dir, 'Layout', 'Layouts', 'Excel.json'),
         os.path.join(script_dir, 'Layouts', 'Excel.json'),
         os.path.join(script_dir, 'Excel.json'),

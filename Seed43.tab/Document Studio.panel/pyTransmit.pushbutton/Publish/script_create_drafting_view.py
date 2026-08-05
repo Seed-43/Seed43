@@ -76,6 +76,7 @@ def _load_layout():
             output.print_md("Warning: could not load assigned layout: {}".format(e))
     _script_dir = _p.get('script_dir') or os.path.dirname(os.path.abspath(__file__))
     _candidates = [
+        (_p.get('_layouts_dir') and os.path.join(_p['_layouts_dir'], 'Revit Drafting View.json')) or '',
         os.path.join(_script_dir, 'Layout', 'Layouts', 'Revit Drafting View.json'),
         os.path.join(_script_dir, 'Layouts', 'Revit Drafting View.json'),
         os.path.join(_script_dir, 'Revit Drafting View.json'),

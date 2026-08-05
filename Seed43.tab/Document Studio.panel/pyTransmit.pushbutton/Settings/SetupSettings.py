@@ -2,6 +2,14 @@
 # SetupSettings.py
 
 import os
+
+# pytransmit_paths lives in the pushbutton root, which is not guaranteed to be
+# on sys.path - pyTransmit loads these modules by inserting only Settings/.
+import sys as _sys
+_PT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PT_ROOT not in _sys.path:
+    _sys.path.insert(0, _PT_ROOT)
+from pytransmit_paths import SETUP_FILE
 import json
 
 # ── WPF imports ────────────────────────────────────────────────────────────────
@@ -58,10 +66,11 @@ class SetupSettingsController(object):
         ----------
         script_dir : str
             Absolute path of the folder that contains pyTransmit.py.
-            Config file is written here.
+            Kept for callers that still pass it; the config itself now lives
+            in .user, not here.
         """
         self._script_dir    = script_dir
-        self._config_path   = os.path.join(script_dir, self.CONFIG_FILE)
+        self._config_path   = SETUP_FILE
         self._cfg           = dict(self.DEFAULT_CFG)
         self._host          = None      # the WPFWindow (set by attach())
         self._applying      = False     # re-entrancy guard

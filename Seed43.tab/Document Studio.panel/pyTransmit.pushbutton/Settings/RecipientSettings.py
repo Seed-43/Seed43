@@ -2,6 +2,14 @@
 # RecipientSettings.py
 
 import os
+
+# pytransmit_paths lives in the pushbutton root, which is not guaranteed to be
+# on sys.path - pyTransmit loads these modules by inserting only Settings/.
+import sys as _sys
+_PT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PT_ROOT not in _sys.path:
+    _sys.path.insert(0, _PT_ROOT)
+from pytransmit_paths import SETTINGS_DIR
 import sys
 import json
 import csv
@@ -56,7 +64,10 @@ EXCEL_READ_SUPPORT = True  # COM is always available on Windows
 # DATABASE CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════
 
-DB_FOLDER = os.path.dirname(os.path.abspath(__file__))
+# The vocabularies now live in .user - see pytransmit_paths. This used to be
+# this module's own folder, which is why the shipped copy and the user's copy
+# were the same file.
+DB_FOLDER = SETTINGS_DIR
 DB_FILE   = os.path.join(DB_FOLDER, 'recipients.json')
 DIST_FILE = os.path.join(DB_FOLDER, 'distribution.json')
 

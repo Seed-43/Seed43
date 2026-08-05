@@ -8,6 +8,14 @@
 # fed by live Revit data instead of dummy placeholders.
 
 import os
+
+# pytransmit_paths lives in the pushbutton root, which is not guaranteed to be
+# on sys.path - pyTransmit loads this module by inserting only its own folder.
+import sys as _sys
+_PT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PT_ROOT not in _sys.path:
+    _sys.path.insert(0, _PT_ROOT)
+from pytransmit_paths import SETTINGS_DIR, STUDIO_LAYOUTS_DIR, STUDIO_CONFIG
 import json
 import string
 
@@ -205,8 +213,8 @@ class StudioSettingsWindow(WPFWindow):
         if script_dir is None:
             script_dir = os.path.dirname(os.path.abspath(__file__))
         self._script_dir = script_dir
-        self._layouts_dir = os.path.join(script_dir, 'studio_layouts')
-        self._settings_dir = os.path.join(os.path.dirname(script_dir), 'Settings')
+        self._layouts_dir = STUDIO_LAYOUTS_DIR
+        self._settings_dir = SETTINGS_DIR
         if not os.path.isdir(self._layouts_dir):
             try:
                 os.makedirs(self._layouts_dir)
@@ -410,7 +418,7 @@ class StudioSettingsWindow(WPFWindow):
     # ======================================================================
 
     def _last_file_marker(self):
-        return os.path.join(self._script_dir, 'studio_config.json')
+        return STUDIO_CONFIG
 
     def _load_last_or_default(self):
         marker = self._last_file_marker()

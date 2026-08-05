@@ -25,12 +25,19 @@ in slot 3 becomes a single cell spanning all of them.
 """
 
 import os
+
+import sys as _sys
+_PT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PT_ROOT not in _sys.path:
+    _sys.path.insert(0, _PT_ROOT)
+from pytransmit_paths import LAYOUTS_DIR, STUDIO_LAYOUTS_DIR
 import json
 import copy
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC_DIR = os.path.join(os.path.dirname(HERE), 'Layout', 'Layouts')
-OUT_DIR = os.path.join(HERE, 'studio_layouts')
+# Both live in .user now, not beside the tool.
+SRC_DIR = LAYOUTS_DIR
+OUT_DIR = STUDIO_LAYOUTS_DIR
 
 MM_PER_PT = 0.352778
 PAGE_SIZES = {'A4': (210, 297), 'A3': (297, 420), 'A2': (420, 594),

@@ -2,6 +2,14 @@
 # ImportSettings.py
 
 import os
+
+# pytransmit_paths lives in the pushbutton root, which is not guaranteed to be
+# on sys.path - pyTransmit loads these modules by inserting only Settings/.
+import sys as _sys
+_PT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PT_ROOT not in _sys.path:
+    _sys.path.insert(0, _PT_ROOT)
+from pytransmit_paths import SETTINGS_DIR, SYNC_FILE as _SYNC_PATH
 import json
 import shutil
 
@@ -34,8 +42,8 @@ class ImportSettingsController(object):
 
     def __init__(self, script_dir):
         self._script_dir   = script_dir
-        self._sync_path    = os.path.join(script_dir, self.SYNC_FILE)
-        self._settings_dir = os.path.join(script_dir, 'Settings')
+        self._sync_path    = _SYNC_PATH
+        self._settings_dir = SETTINGS_DIR
         self._host         = None
 
     # ── Attach ────────────────────────────────────────────────────────────────

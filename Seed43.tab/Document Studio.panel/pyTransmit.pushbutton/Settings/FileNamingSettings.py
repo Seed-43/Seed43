@@ -2,6 +2,14 @@
 # FileNamingSettings.py
 
 import os
+
+# pytransmit_paths lives in the pushbutton root, which is not guaranteed to be
+# on sys.path - pyTransmit loads these modules by inserting only Settings/.
+import sys as _sys
+_PT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PT_ROOT not in _sys.path:
+    _sys.path.insert(0, _PT_ROOT)
+from pytransmit_paths import SETTINGS_DIR
 import re
 import json
 
@@ -194,7 +202,7 @@ class FileNamingSettingsController(object):
 
     def __init__(self, script_dir):
         self._script_dir   = script_dir
-        self._settings_dir = os.path.join(script_dir, 'Settings')
+        self._settings_dir = SETTINGS_DIR
         self._config_path  = os.path.join(self._settings_dir, self.CONFIG_FILE)
         self._host         = None
         self._drop_pos      = 0

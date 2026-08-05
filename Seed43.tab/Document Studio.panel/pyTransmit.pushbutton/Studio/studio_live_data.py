@@ -5,7 +5,7 @@
 # Layout/LayoutSettings.py's DUMMY (proj_org, proj_client, distribution,
 # revisions, reasons, methods, docs), so studio_blocks.render_block() renders
 # live data through the same path as the empty state. Read-only: never writes
-# to Settings/*.json.
+# to the user's Settings/*.json under .user.
 
 import os
 import re
@@ -75,7 +75,8 @@ def empty_data():
 
 
 def get_live_data(settings_dir, max_revs=12):
-    """settings_dir = the pyTransmit.pushbutton/Settings folder, so this can
+    """settings_dir = the user's Settings folder (pytransmit_paths.SETTINGS_DIR),
+    passed in rather than resolved here, so this can
     read the same recipients/distribution/reason/method JSON pyTransmit
     itself uses, without touching pyTransmit.py's own payload-building code."""
     try:

@@ -41,7 +41,7 @@ from Snippets import _userdata
 
 __all__ = [
     "SETTINGS_DIR", "LAYOUTS_DIR", "STUDIO_LAYOUTS_DIR",
-    "LAYOUT_CONFIG", "STUDIO_CONFIG", "SYNC_FILE",
+    "LAYOUT_CONFIG", "STUDIO_CONFIG", "SYNC_FILE", "SETUP_FILE",
     "settings_file", "restore_defaults",
 ]
 
@@ -72,6 +72,13 @@ STUDIO_LAYOUTS_DIR = _userdata.user_dir(TOOL, "studio_layouts")
 LAYOUT_CONFIG = _userdata.user_path(TOOL, "layout_config.json")
 STUDIO_CONFIG = _userdata.user_path(TOOL, "studio_config.json")
 SYNC_FILE = _userdata.user_path(TOOL, "pytransmit_sync.json")
+
+# Two different files really are both called pytransmit_setup.json, holding
+# different keys for different owners:
+#   SETUP_FILE           SetupSettingsController - show_method, out_pdf, ...
+#   Settings/ version    file naming and paths - output_path_template, ...
+# They sat in different folders before and still do, so nothing collides.
+SETUP_FILE = _userdata.user_path(TOOL, "pytransmit_setup.json")
 
 
 def settings_file(name):
@@ -118,6 +125,7 @@ def _init_collections():
     _userdata.migrate(os.path.join(_HERE, "Studio", "studio_config.json"),
                       STUDIO_CONFIG)
     _userdata.migrate(os.path.join(_HERE, "pytransmit_sync.json"), SYNC_FILE)
+    _userdata.migrate(os.path.join(_HERE, "pytransmit_setup.json"), SETUP_FILE)
 
 
 _init_collections()

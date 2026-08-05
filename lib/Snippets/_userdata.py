@@ -51,11 +51,26 @@ _EXTENSION_ROOT = os.path.dirname(os.path.dirname(
 USER_DIRNAME = ".user"
 
 
+def _try_makedirs(path):
+    """Create path if missing. Return True if it exists afterwards."""
+    try:
+        if path and not os.path.isdir(path):
+            os.makedirs(path)
+        return os.path.isdir(path)
+    except Exception:
+        return False
+
+
 def user_root():
-    """Return the .user folder at the extension root, creating it if needed."""
+    """
+    Return the .user folder at the extension root, creating it if needed.
+
+    Never raises. Tools resolve their settings path at module scope, so an
+    unwritable or blocked location must not stop the tool loading - the path
+    comes back either way and the failure surfaces later, at save time.
+    """
     root = os.path.join(_EXTENSION_ROOT, USER_DIRNAME)
-    if not os.path.isdir(root):
-        os.makedirs(root)
+    _try_makedirs(root)
     return root
 
 
@@ -70,12 +85,11 @@ def user_path(tool, *parts):
         user_path("PySheets", "settings", "lastsession.json")
 
     Creates directories but never the file itself, so callers can still test
-    os.path.isfile() to detect first run.
+    os.path.isfile() to detect first run. Never raises, for the same reason as
+    user_root().
     """
     full = os.path.join(user_root(), tool, *parts)
-    parent = os.path.dirname(full)
-    if parent and not os.path.isdir(parent):
-        os.makedirs(parent)
+    _try_makedirs(os.path.dirname(full))
     return full
 
 
@@ -93,19 +107,24 @@ def migrate(legacy_path, new_path):
     Deliberately never raises: a tool must still open if its settings cannot
     be moved. A failed copy leaves the legacy file untouched, and a failed
     delete just leaves a harmless stale copy that the next run retries.
+
+    If .user cannot be created at all - blocked, read-only, a file sitting
+    where the folder should be - this falls back to legacy_path, so the tool
+    keeps reading and writing exactly where it always did rather than failing.
     """
     try:
         if os.path.isfile(new_path):
             return new_path
+
+        # Bail out to the old location if the destination is unusable.
+        if not _try_makedirs(os.path.dirname(new_path)):
+            return legacy_path
+
         if not os.path.isfile(legacy_path):
             return new_path
-
-        parent = os.path.dirname(new_path)
-        if parent and not os.path.isdir(parent):
-            os.makedirs(parent)
         shutil.copy2(legacy_path, new_path)
     except Exception:
-        return new_path
+        return legacy_path if os.path.isfile(legacy_path) else new_path
 
     # Only remove the original once the copy is definitely in place.
     try:

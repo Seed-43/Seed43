@@ -634,7 +634,10 @@ def _find_pysheets_dir():
     removed, etc, in which case the scheduler just does nothing)."""
     try:
         for root, _dirs, _files in os.walk(TAB_DIR):
-            if os.path.basename(root) == "PySheets.pushbutton":
+            # Case-insensitive: Windows treats PySheets and pySheets as the
+            # same folder, but this comparison would not, so a rename that
+            # looks like a no-op silently kills the scheduler.
+            if os.path.basename(root).lower() == "pysheets.pushbutton":
                 return root
     except Exception:
         pass

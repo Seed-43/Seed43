@@ -58,7 +58,7 @@ back into one row list (each row still carries "_category" from its
 original tab) - there's no single fixed "data sheet name" any more now
 that categories get their own tabs.
 
-Lives in PyTable.pushbutton/tools/ alongside the rest of this tool's own
+Lives in pyTable.pushbutton/tools/ alongside the rest of this tool's own
 code - not in the shared lib/Snippets, since this I/O format is specific
 to PyTable (same pattern as your existing PyTable's tools/pytable_excel.py).
 

@@ -1,11 +1,13 @@
 title: "Update Tag Value To All Elements"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Picks a tag, reads a text parameter from the element it is tagging,
-  then finds every element in the model that shares that value and
-  updates them all to a new value you type in. Useful for fixing a
-  parameter value that was applied inconsistently across many
-  elements.
+
+  Picks a tag, reads a text parameter from the element it is tagging, then
+  finds every element in the model that shares that value and updates them
+  all to a new value you type in. Useful for fixing a parameter value that
+  was applied inconsistently across many elements.
+
   __________________________________________________________________

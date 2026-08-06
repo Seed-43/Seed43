@@ -1,10 +1,13 @@
 title: "Filter Element (Linked)"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Creates View Filters for elements selected inside linked models,
-  based on category and type name. Remembers the selected linked
-  model so you can keep picking elements without re-selecting the
-  link, applying each filter to the active view or its template.
+
+  Creates View Filters for elements selected inside linked models, based on
+  category and type name. Remembers the selected linked model so you can
+  keep picking elements without re-selecting the link, applying each filter
+  to the active view or its template.
+
   __________________________________________________________________

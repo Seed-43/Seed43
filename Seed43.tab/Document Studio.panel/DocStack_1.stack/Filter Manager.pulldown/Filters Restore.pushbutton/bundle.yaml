@@ -1,10 +1,13 @@
 title: "Filter Restore"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Restores View Filters from the backup file created by Filter Delete
-  and Backup, with the option to overwrite existing filters. Filter
-  categories are restored automatically; rules must be manually
-  reconfigured, as they are not stored in the backup.
+
+  Restores View Filters from the backup file created by Filter Delete and
+  Backup, with the option to overwrite existing filters. Filter categories
+  are restored automatically; rules must be manually reconfigured, as they
+  are not stored in the backup.
+
   __________________________________________________________________

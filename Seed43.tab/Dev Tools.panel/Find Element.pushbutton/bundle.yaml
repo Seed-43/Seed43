@@ -1,10 +1,12 @@
 title: "Find Element"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Finds which sheet(s) the currently selected element(s) are placed
-  on. Works with any selection made from the Project Browser, a view,
-  the model, or a sheet - including groups, categories, and family
-  types.
+
+  Finds which sheet(s) the currently selected element(s) are placed on.
+  Works with any selection made from the Project Browser, a view, the model,
+  or a sheet - including groups, categories, and family types.
+
   __________________________________________________________________

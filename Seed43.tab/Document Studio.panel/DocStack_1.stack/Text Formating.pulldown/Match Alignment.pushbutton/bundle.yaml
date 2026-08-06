@@ -1,10 +1,13 @@
 title: "Match Alignment"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Matches paragraph alignment - horizontal, vertical, and leader
-  attachment point - from a reference Text Note to one or more target
-  Text Notes, for consistent annotation presentation. Does not modify
-  text content or leaders themselves.
+
+  Matches paragraph alignment - horizontal, vertical, and leader attachment
+  point - from a reference Text Note to one or more target Text Notes, for
+  consistent annotation presentation. Does not modify text content or
+  leaders themselves.
+
   __________________________________________________________________

@@ -143,15 +143,14 @@ class RevTableWindow(Window):
             pass
 
         # ── Load icon ─────────────────────────────────────────────────────────
-        _icon_path = os.path.join(_SCRIPT_DIR_MAIN, "icon.png")
-        if os.path.exists(_icon_path):
-            _img = self.FindName("header_icon")
-            if _img:
-                _bmp = BitmapImage()
-                _bmp.BeginInit()
-                _bmp.UriSource = Uri(_icon_path, UriKind.Absolute)
-                _bmp.EndInit()
-                _img.Source = _bmp
+        # Shared loader: it closes the file after reading, so the icon
+        # rebuilder can still overwrite icon.png while this window is open,
+        # and skips WPF's bitmap cache so a rebuilt icon actually shows.
+        try:
+            from Snippets._icons import set_header_icon
+            set_header_icon(self, _SCRIPT_DIR_MAIN)
+        except Exception:
+            pass
 
         # Initialise panel controllers (panels are now in pyTransmit.xaml directly)
         self._init_controllers()

@@ -52,6 +52,24 @@ SCRIPT_DIR = os.path.dirname(__file__)
 XAML_PATH  = os.path.join(SCRIPT_DIR, "About.xaml")
 ICON_PATH  = os.path.join(SCRIPT_DIR, "icon.png")
 
+
+def _log_icon_rebuild(written, problems):
+    """Record an icon rebuild that hit trouble, in startup.py's log.
+
+    Deliberately not printed: pyRevit surfaces print output as a window, and
+    nobody closing About asked to see one. Whatever failed here is retried at
+    the next Revit start anyway."""
+    try:
+        import datetime as _dt
+        stamp = _dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with open(os.path.join(EXTENSION_DIR, "startup_error.log"), "a") as f:
+            f.write("[{}] About icon rebuild: {} written, {} problem(s)\n".format(
+                stamp, len(written), len(problems)))
+            for problem in problems:
+                f.write("    {}\n".format(problem))
+    except Exception:
+        pass
+
 # Walk up to find the enclosing .tab folder for the tool scanner
 TAB_DIR  = None
 _current = SCRIPT_DIR
@@ -711,18 +729,27 @@ class Seed43Dialog(object):
     def __init__(self):
         self.window = load_xaml(XAML_PATH)
 
-        if os.path.exists(ICON_PATH):
-            img           = self.window.FindName("header_icon")
-            bmp           = BitmapImage()
-            bmp.BeginInit()
-            bmp.UriSource = Uri(ICON_PATH, UriKind.Absolute)
-            bmp.EndInit()
-            img.Source    = bmp
+        # Via the shared loader, which reads the file and closes the handle.
+        # Loading it the plain way keeps icon.png open for as long as this
+        # window lives, and the rebuild on close then cannot overwrite the
+        # very icon an accent change was meant to update.
+        try:
+            from Snippets._icons import set_header_icon
+            set_header_icon(self.window, SCRIPT_DIR)
+        except Exception:
+            pass
 
         self._bind()
         self._init_appearance()
         self._init_tools()
         self._check_versions()
+
+        # Button icons are baked PNGs, so they don't follow a live accent
+        # change the way the windows do. They are rebuilt from lib/icons on
+        # close, and only if the accent actually ended up different - not on
+        # every swatch click while the user is still trying colours out.
+        self._accent_at_open = getattr(self, "_current_accent", None)
+        self.window.Closed += self._on_window_closed
 
     def _bind(self):
         self.window.FindName("footer_reload").Click             += self._on_reload
@@ -733,6 +760,27 @@ class Seed43Dialog(object):
 
     def _on_close(self, sender, args):
         self.window.Close()
+
+    def _on_window_closed(self, sender, args):
+        """Rebuild the button icons if the accent changed while we were open.
+
+        Silent by design: this runs as the window is going away, so there is
+        nowhere sensible to report to, and a failed icon rebuild must never
+        be the thing that breaks closing About."""
+        try:
+            current = getattr(self, "_current_accent", None)
+            if not current or current == self._accent_at_open:
+                return
+            from Snippets import _svg_icons
+            written, problems = _svg_icons.rebuild_all(EXTENSION_DIR)
+            # Never print: in pyRevit that throws the output window in the
+            # user's face for something they did not ask to see. Anything
+            # that failed here is retried at the next Revit start, where the
+            # file is no longer open. The log is the place to look.
+            if problems:
+                _log_icon_rebuild(written, problems)
+        except Exception as ex:
+            _log_icon_rebuild([], ["{}: {}".format(type(ex).__name__, ex)])
 
     # -- Appearance section (dark/light + accent) ---------------------------
 

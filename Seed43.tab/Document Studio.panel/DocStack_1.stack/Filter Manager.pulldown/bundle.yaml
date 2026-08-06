@@ -1,14 +1,16 @@
 title: "Filter Manager"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
-  __________________________________________________________________
-  Description:
-  Tools for creating and managing Revit View Filters - build filters
-  from a selected host or linked element by type or family, delete
-  filters with automatic backup, restore from that backup, or open
-  pyFilter for full filter template management.
+tooltip: >
   __________________________________________________________________
 
+  Description:
+
+  Tools for creating and managing Revit View Filters - build filters from a
+  selected host or linked element by type or family, delete filters with
+  automatic backup, restore from that backup, or open pyFilter for full
+  filter template management.
+
+  __________________________________________________________________
 layout:
   - Filter Element (Host)
   - Filter Family (Host)

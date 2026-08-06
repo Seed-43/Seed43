@@ -1,12 +1,14 @@
 title: "Filter Annotations"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Creates smart View Filters for annotation and datum elements
-  directly from your selection. Automatically detects the best
-  parameter to build a filter from, applies it to the active view or
-  its template, and hides matching elements. Falls back to a
-  category-only filter (with a warning) if no valid parameter is
-  found.
+
+  Creates smart View Filters for annotation and datum elements directly from
+  your selection. Automatically detects the best parameter to build a filter
+  from, applies it to the active view or its template, and hides matching
+  elements. Falls back to a category-only filter (with a warning) if no
+  valid parameter is found.
+
   __________________________________________________________________

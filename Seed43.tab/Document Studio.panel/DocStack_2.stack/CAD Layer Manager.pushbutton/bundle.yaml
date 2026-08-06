@@ -1,11 +1,14 @@
 title: "CAD Layer Manager"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Shows or hides individual CAD layers directly from the view you're
-  working in, without digging through Visibility/Graphics. Layer
-  visibility updates live as you tick each one, and Cancel reverts
-  everything. Works with imported and linked CAD files, applying to
-  the view template automatically when one is in use.
+
+  Shows or hides individual CAD layers directly from the view you're working
+  in, without digging through Visibility/Graphics. Layer visibility updates
+  live as you tick each one, and Cancel reverts everything. Works with
+  imported and linked CAD files, applying to the view template automatically
+  when one is in use.
+
   __________________________________________________________________

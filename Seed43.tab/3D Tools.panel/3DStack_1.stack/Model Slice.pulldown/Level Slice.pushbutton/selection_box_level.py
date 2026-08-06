@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # selection_box_level.py
-# "Selection Box: Level"
+# "Level Slice"
 # "Seed43"
 # """
 # Section-box a thin horizontal slice of the model at a chosen level.
@@ -30,13 +30,13 @@ def main():
     if view is None:
         forms.alert("Section boxes only exist in 3D views.\n\n"
                     "Open a 3D view and try again.",
-                    title="Selection Box: Level")
+                    title="Level Slice")
         script.exit()
 
     levels = get_levels(doc)
     if not levels:
         forms.alert("No levels found in this model.",
-                    title="Selection Box: Level")
+                    title="Level Slice")
         script.exit()
 
     # Selecting a level before running is the easy route here: levels are
@@ -53,7 +53,7 @@ def main():
     extents = model_extents(doc)
     if extents is None:
         forms.alert("Could not measure the model extents - nothing with "
-                    "geometry was found.", title="Selection Box: Level")
+                    "geometry was found.", title="Level Slice")
         script.exit()
 
     offset = mm_to_ft(OFFSET_MM)
@@ -61,13 +61,13 @@ def main():
     box.Min = DB.XYZ(extents.Min.X, extents.Min.Y, level.Elevation - offset)
     box.Max = DB.XYZ(extents.Max.X, extents.Max.Y, level.Elevation + offset)
 
-    if not apply_section_box(view, box, "Selection Box: Level"):
+    if not apply_section_box(view, box, "Level Slice"):
         forms.alert("Could not set the section box on this view.",
-                    title="Selection Box: Level")
+                    title="Level Slice")
         script.exit()
 
     forms.alert("Section box set {:.0f}mm either side of {}.".format(
-        OFFSET_MM, level.Name), title="Selection Box: Level")
+        OFFSET_MM, level.Name), title="Level Slice")
 
 
 if __name__ == "__main__":

@@ -1,133 +1,104 @@
 # Seed43 JSON Inventory
 
-Every `.json` under `Seed43.tab` and `lib`, for deciding what moves into `.user`.
+Every `.json` under `Seed43.tab`, `lib` and `.user`, and whether it ships or belongs
+to the user.
 
-Generated 2026-08-05. **36 files, all currently git-tracked** - so each one ships as a
-default *and* is overwritten by the user at runtime. That is the problem being solved.
+Updated 2026-08-06. **38 files: 4 git-tracked, 34 in `.user/`.**
 
-Fill in **Verdict**. Suggested values:
+When this was first written (2026-08-05) there were 36 files and *all* were tracked, so
+every one shipped as a default and was then overwritten at runtime. That is no longer
+true. The migration is done bar one file.
 
-| Verdict | Meaning | Where it should live |
+| Verdict | Meaning | Where it lives |
 |---|---|---|
-| `USER` | personal, changes as they work | `.user/<Tool>/`, stop shipping |
-| `COMPANY` | shared config you want to push updates to | stays shipped, but needs an override in `.user` |
-| `SHIPPED` | pure app data, users never edit | stays exactly where it is |
-| `MIXED` | both - needs splitting | decide per key |
-
-
-## pyTransmit (22)
-
-| File | Size | Modified | Top-level keys | My guess | Verdict |
-|---|---:|---|---|---|---|
-| `Layout/Layouts/Excel.json` | 31.8 KB | 2026-08-04 | `page_w_mm`, `rev_count`, `hlines`, `vlines`, ... |  | |
-| `Layout/Layouts/PDF.json` | 31.9 KB | 2026-08-04 | `page_w_mm`, `rev_count`, `hlines`, `vlines`, ... |  | |
-| `Layout/Layouts/Revit Drafting View.json` | 15.9 KB | 2026-08-04 | `page_w_mm`, `rev_count`, `hlines`, `vlines`, ... |  | |
-| `Layout/Layouts/Revit Legend.json` | 19.6 KB | 2026-08-04 | `page_w_mm`, `rev_count`, `hlines`, `vlines`, ... |  | |
-| `Layout/Layouts/Revit Schedule.json` | 19.6 KB | 2026-08-04 | `page_w_mm`, `rev_count`, `hlines`, `vlines`, ... |  | |
-| `Layout/layout_config.json` | 0.7 KB | 2026-08-04 | `active_template`, `logo_path`, `text_styles`, `col_pct` | USER - active template + logo path | |
-| `Settings/branding.json` | 0.3 KB | 2026-07-25 | `header_fg_color`, `logo_source`, `title_fg_color`, `header_bg_color`, ... | COMPANY - logo/colours | |
-| `Settings/distribution.json` | 0.4 KB | 2026-07-25 | list of 4 items | COMPANY - distribution list | |
-| `Settings/format.json` | 0.1 KB | 2026-07-25 | list of 2 items | COMPANY - dropdown vocabulary | |
-| `Settings/method.json` | 0.5 KB | 2026-07-25 | list of 6 items | COMPANY - dropdown vocabulary | |
-| `Settings/printsize.json` | 0.1 KB | 2026-07-25 | list of 4 items | COMPANY - dropdown vocabulary | |
-| `Settings/pytransmit_setup.json` | 0.2 KB | 2026-08-04 | `output_path_template`, `projects_older_root`, `projects_root`, `transmittal_naming_template` | USER/COMPANY - paths + naming templates | |
-| `Settings/reason.json` | 0.3 KB | 2026-07-25 | list of 4 items | COMPANY - dropdown vocabulary | |
-| `Settings/recipients.json` | 1.2 KB | 2026-07-25 | list of 9 items | COMPANY - contact list | |
-| `Studio/studio_config.json` | 0.2 KB | 2026-08-04 | `last_file` | USER - remembers last opened file | |
-| `Studio/studio_layouts/Excel.json` | 111.2 KB | 2026-08-04 | `row_sections`, `n_cols`, `page_size_name`, `orientation`, ... |  | |
-| `Studio/studio_layouts/PDF.json` | 105.8 KB | 2026-08-03 | `name`, `n_rows`, `n_cols`, `row_heights`, ... |  | |
-| `Studio/studio_layouts/Revit Drafting View.json` | 54.3 KB | 2026-08-03 | `name`, `n_rows`, `n_cols`, `row_heights`, ... |  | |
-| `Studio/studio_layouts/Revit Legend.json` | 54.3 KB | 2026-08-03 | `name`, `n_rows`, `n_cols`, `row_heights`, ... |  | |
-| `Studio/studio_layouts/Revit Schedule.json` | 54.3 KB | 2026-08-03 | `name`, `n_rows`, `n_cols`, `row_heights`, ... |  | |
-| `pytransmit_setup.json` | 0.5 KB | 2026-07-26 | `show_method`, `out_pdf`, `recipient_mode`, `page_height_mm`, ... | USER/COMPANY - paths + naming templates | |
-| `pytransmit_sync.json` | 0.0 KB | 2026-08-04 | `group_label_on` | USER - single toggle | |
-
-## pySheets (5)
-
-| File | Size | Modified | Top-level keys | My guess | Verdict |
-|---|---:|---|---|---|---|
-| `userdata/folder_presets/folder_presets.json` | 0.2 KB | 2026-07-25 | `Project` | USER? - or company standard | |
-| `userdata/profiles/test.json` | 2.6 KB | 2026-08-04 | `viewing`, `view_sel`, `auto_overwrite`, `formats`, ... | USER - a saved profile | |
-| `userdata/settings/custom_columns.json` | 0.1 KB | 2026-07-25 | `sheet_columns`, `builtin_visible`, `view_columns` | USER - chosen columns | |
-| `userdata/settings/lastsession.json` | 1.9 KB | 2026-08-04 | `dwg`, `open_after`, `column_widths`, `dgn`, ... | USER - session state | |
-| `userdata/settings/naming_memory.json` | 0.2 KB | 2026-08-04 | `per_format` | USER - remembers last entries | |
-
-## pyLink (3)
-
-| File | Size | Modified | Top-level keys | My guess | Verdict |
-|---|---:|---|---|---|---|
-| `userdata/excel_font_settings.json` | 0.0 KB | 2026-07-31 | `fallback_font` | USER - font preference | |
-| `userdata/section_groups.json` | 0.6 KB | 2026-07-31 | `groups` | USER - user-built groups | |
-| `userdata/word_text_settings.json` | 0.1 KB | 2026-07-31 | `mode`, `size_mm`, `text_type_name` | USER - text preference | |
-
-## lib (2)
-
-| File | Size | Modified | Top-level keys | My guess | Verdict |
-|---|---:|---|---|---|---|
-| `Snippets/_icons.json` | 19.6 KB | 2026-07-25 | `about`, `arrow_down`, `arrow_left`, `arrow_right`, ... | SHIPPED - icon vector data | |
-| `Snippets/seed43_palette.json` | 5.2 KB | 2026-08-01 | `dimensions`, `profiles`, `active_profile` | MIXED - tokens shipped, active_profile is user | |
-
-## About (1)
-
-| File | Size | Modified | Top-level keys | My guess | Verdict |
-|---|---:|---|---|---|---|
-| `tool_order.json` | 2.7 KB | 2026-07-25 | `groups`, `panels` | SHIPPED - panel layout | |
-
-## Units (1)
-
-| File | Size | Modified | Top-level keys | My guess | Verdict |
-|---|---:|---|---|---|---|
-| `project_units.json` | 53.7 KB | 2026-07-25 | `autodesk.spec.aec:temperature-2.0.0`, `autodesk.spec.aec.hvac:velocity-2.0.0`, `autodesk.spec.aec.hvac:density-2.0.0`, `autodesk.spec.aec.structural:reinforcementArea-2.0.0`, ... | USER - snapshot of one project's units | |
-
-## View Organiser (1)
-
-| File | Size | Modified | Top-level keys | My guess | Verdict |
-|---|---:|---|---|---|---|
-| `view_organiser_config.json` | 0.1 KB | 2026-07-25 | `title_on_sheet_case`, `view_folder_param`, `sheet_folder_param`, `sheet_name_case` | USER - per-user preferences | |
-
-## pyFilter (1)
-
-| File | Size | Modified | Top-level keys | My guess | Verdict |
-|---|---:|---|---|---|---|
-| `templates/Rebar.json` | 8.6 KB | 2026-07-31 | `created`, `filters`, `name` | USER? - looks user-created (has 'created' key) | |
+| `USER` | personal, changes as they work | `.user/<Tool>/`, not tracked |
+| `SHIPPED` | app data, users never edit | tracked, beside the tool or in `lib` |
+| `DEFAULT` | shipped seed, copied into `.user` on first run | tracked, in a `defaults/` folder |
+| `MIXED` | both — needs splitting | see "Still open" |
 
 ---
 
-## Things to resolve while classifying
+## Still tracked (4)
 
-**1. `pytransmit_setup.json` exists twice, with different contents.**
+| File | Size | Modified | Top-level keys | Verdict |
+|---|---:|---|---|---|
+| `lib/Snippets/_icons.json` | 19.6 KB | 2026-07-25 | `about`, `arrow_down`, `arrow_left`, ... | `SHIPPED` — icon vector data |
+| `lib/Snippets/seed43_palette.json` | 5.2 KB | 2026-08-06 | `dimensions`, `active_profile`, `profiles` | **`MIXED`** — see below |
+| `Seed43.tab/.../About.pushbutton/tool_order.json` | 2.7 KB | 2026-07-25 | `groups`, `panels` | `SHIPPED` — panel layout |
+| `Seed43.tab/.../pyFilter.pushbutton/defaults/Rebar.json` | 8.6 KB | 2026-07-31 | `created`, `filters`, `name` | `DEFAULT` — seeds `.user/pyFilter/templates/` |
 
-| Path | Keys |
-|---|---|
-| `pytransmit_setup.json` | `show_method`, `out_pdf`, `recipient_mode`, `page_height_mm`, ... |
-| `Settings/pytransmit_setup.json` | `output_path_template`, `projects_older_root`, `projects_root`, `transmittal_naming_template` |
+---
 
-Same filename, different data. Which is live, and is the other dead?
+## Moved to `.user` (34)
 
-**2. `Studio/studio_layouts/` schemas disagree.**
+All untracked, so an update can never overwrite them.
 
-- `Excel.json` -> `row_sections`, `n_cols`, `page_size_name`, `orientation`, ...
-- `PDF.json` -> `name`, `n_rows`, `n_cols`, `row_heights`, ...
-- `Revit Drafting View.json` -> `name`, `n_rows`, `n_cols`, `row_heights`, ...
-- `Revit Legend.json` -> `name`, `n_rows`, `n_cols`, `row_heights`, ...
-- `Revit Schedule.json` -> `name`, `n_rows`, `n_cols`, `row_heights`, ...
+### pyTransmit (20)
 
-`Excel.json` opens with `row_sections`, the others with `name`. Same folder,
-different shape - worth knowing whether that is intentional before moving them.
+`Layouts/` (5), `studio_layouts/` (5), `Settings/` (8), plus `layout_config.json`,
+`pytransmit_setup.json`, `pytransmit_sync.json` and `studio_config.json`.
+The two largest files in the extension live here: `studio_layouts/Excel.json` (111 KB)
+and `studio_layouts/PDF.json` (106 KB).
 
-**3. `Layout/Layouts/` vs `Studio/studio_layouts/` share all five filenames**
-but hold different schemas, and the Studio ones are far larger (56-114 KB vs
-16-33 KB). Two separate systems, or one superseding the other?
+### pySheets (6)
 
-**4. `seed43_palette.json` is genuinely mixed** - `dimensions` and `profiles`
-are design tokens that should ship, but `active_profile` is the user's
-dark/light choice. Splitting may beat classifying.
+| File | Size | Modified | Top-level keys |
+|---|---:|---|---|
+| `profiles/test.json` | 2.8 KB | 2026-08-06 | `img`, `nwc`, `view_sel`, `ifc`, ... and `schedule` |
+| `settings/scheduled_print.json` | 0.1 KB | 2026-08-06 | `version`, `entries`, `grace_minutes`, `heartbeat_doc` |
+| `settings/lastsession.json` | 1.8 KB | 2026-08-06 | `formats`, `pdf`, `auto_overwrite`, `column_order` |
+| `settings/custom_columns.json` | 0.1 KB | 2026-07-25 | `sheet_columns`, `builtin_visible`, `view_columns` |
+| `settings/naming_memory.json` | 0.2 KB | 2026-08-06 | `per_format` |
+| `folder_presets/folder_presets.json` | 0.2 KB | 2026-07-25 | `Project` |
 
-**5. Largest files** (worth knowing what gets copied around):
+Two of these are new since the last revision, and both belong to scheduled printing:
 
-- 111 KB  `Seed43.tab/Document Studio.panel/pyTransmit.pushbutton/Studio/studio_layouts/Excel.json`
-- 106 KB  `Seed43.tab/Document Studio.panel/pyTransmit.pushbutton/Studio/studio_layouts/PDF.json`
-- 54 KB  `Seed43.tab/Document Studio.panel/pyTransmit.pushbutton/Studio/studio_layouts/Revit Drafting View.json`
-- 54 KB  `Seed43.tab/Document Studio.panel/pyTransmit.pushbutton/Studio/studio_layouts/Revit Schedule.json`
-- 54 KB  `Seed43.tab/Document Studio.panel/pyTransmit.pushbutton/Studio/studio_layouts/Revit Legend.json`
+- **`scheduled_print.json`** is runtime state only — which profiles are armed, the
+  document each was armed against, and when each is next due. Read by `startup.py` as
+  well as pySheets, via `lib/Snippets/_schedule.py`. Version `2`; a v1 file (a single
+  flat schedule) is upgraded on read.
+- **A `schedule` block inside each profile** holds that card's timing: hour, minute,
+  repeat mode, weekdays, start date. It lives on the profile so it travels with it.
+  Anything writing a profile must preserve this key — `_gather_profile()` does not
+  know about it.
 
+### pyLink (3), pyFilter (1), Units (1), View Organiser (1)
+
+`excel_font_settings.json`, `section_groups.json`, `word_text_settings.json`;
+`templates/Rebar.json`; `project_units.json` (53.7 KB); `view_organiser_config.json`.
+
+---
+
+## Resolved since the last revision
+
+**Duplicate `pytransmit_setup.json`.** Both copies still exist, now at
+`.user/pyTransmit/pytransmit_setup.json` (window state: `show_from`, `show_method`,
+`out_schedule`) and `.user/pyTransmit/Settings/pytransmit_setup.json` (paths and
+naming templates). Different data, so both are live — but the shared filename is still
+a trap for anyone reading the code.
+
+**`pyFilter/Rebar.json`.** Now correctly split: the shipped copy is a `DEFAULT` under
+`defaults/`, seeded into `.user/pyFilter/templates/` on first run. This is the pattern
+the other `MIXED` cases should follow.
+
+**`Layout/Layouts/` vs `Studio/studio_layouts/`.** Both moved to `.user/pyTransmit/`
+and kept their separate schemas, so they are two systems, not one superseding the
+other. `Excel.json` still opens with `row_sections` where the others open with `name`.
+
+---
+
+## Still open
+
+**`seed43_palette.json` is the last mixed file, and the only one an update can still
+clobber.** `dimensions` and `profiles` are design tokens that should ship, but
+`active_profile` is the user's dark/light choice, and `set_accent()` rewrites the
+colour values in place. So a user picking an accent dirties a tracked file, and an
+update overwrites their choice.
+
+Splitting still beats classifying: ship the tokens, keep the user's `active_profile`
+and accent override in `.user/`.
+
+Worth knowing when weighing that up: the icon renderer
+(`lib/Snippets/_svg_icons.py`) reads this file to recolour `lib/icons/*.svg` into each
+tool's `icon.png`, and treats the palette's timestamp as a staleness signal. Splitting
+the file means deciding which half the renderer watches.

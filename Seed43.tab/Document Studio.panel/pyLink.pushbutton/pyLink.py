@@ -96,6 +96,8 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             from Snippets.seed43_theme import apply_seed43_palette, apply_seed43_dimensions
             apply_seed43_palette(self, _pt_script_dir)
             apply_seed43_dimensions(self, _pt_script_dir)
+            from Snippets._icons import set_header_icon
+            set_header_icon(self, _pt_script_dir)
         except Exception as ex:
             logger.warning('Seed43 theme apply failed: {}'.format(ex))
 

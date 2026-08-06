@@ -1,10 +1,13 @@
 title: "Write Cloud Parameter"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Writes each revision cloud's sheet number and revision number to
-  the built-in Mark parameter (for example "S202 - C"), so clouds
-  carry their context wherever they appear - whether placed directly
-  on a sheet or inside a view placed on one.
+
+  Writes each revision cloud's sheet number and revision number to the
+  built-in Mark parameter (for example "S202 - C"), so clouds carry their
+  context wherever they appear - whether placed directly on a sheet or
+  inside a view placed on one.
+
   __________________________________________________________________

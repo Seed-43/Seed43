@@ -1,9 +1,12 @@
 title: "Find Type"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Finds all instances of selected Text Types across the project,
-  listing every view and legend that contains them with a count per
-  location and quick navigation to any result.
+
+  Finds all instances of selected Text Types across the project, listing
+  every view and legend that contains them with a count per location and
+  quick navigation to any result.
+
   __________________________________________________________________

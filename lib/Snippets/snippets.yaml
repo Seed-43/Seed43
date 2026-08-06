@@ -68,6 +68,46 @@ snippets:
       load_backup:               Load a backup JSON file and return it as a dict.
       save_backup:               Write a dict to disk as a JSON backup file.
 
+  _svg_icons.py:
+    description: >
+      Renders the extension's icon.png files from the SVG sources in
+      lib/icons, swapping the two brand greens (#1f893c, #1faa3c) for the
+      palette's accent and accent_hover. Button icons are baked PNGs, so
+      without this they keep the old green after an accent change while
+      every window follows the new one. Any other colour is left alone -
+      pyLink's #28b74a document is deliberately not an accent. Parsing is
+      plain Python (testable outside Revit); only rendering needs WPF.
+      A targeted reader for Inkscape output, not a general SVG engine.
+      Used by About, which rebuilds on close if the accent changed.
+    functions:
+      accent_mapping:     "Build {source_hex: replacement_hex} from the palette."
+      substitute_colours: Swap the brand greens in raw SVG text, case-insensitively.
+      parse_svg:          Flatten an SVG to (viewport, shapes, gradients, skipped).
+      parse_transform:    Reduce an SVG transform list to one matrix tuple.
+      render_png:         Draw parsed shapes to a PNG via WPF (IronPython only).
+      icon_targets:       Map each lib/icons SVG to the icon.png it writes.
+      rebuild_all:        Regenerate every icon; returns (written, problems), never raises.
+
+  _schedule.py:
+    description: >
+      Scheduled-print state for pySheets, shared with startup.py so the
+      background scheduler and the pySheets window follow identical rules
+      about when a card is due. A "card" is a saved profile with a schedule
+      attached; its timing lives in the profile's own JSON, while the armed
+      file holds only runtime state (which document, when next due).
+      Imports nothing from pyrevit - startup.py must stay cheap.
+      Used by pySheets and startup.py.
+    functions:
+      parse_ts:         Parse an armed-file timestamp, or None if unusable.
+      compute_next_run: Next datetime a schedule block should fire, or None.
+      read_armed_file:  Read the armed cards, defaulted, upgrading a v1 file on the way.
+      write_armed_file: Write the armed cards, returning False instead of raising.
+      sort_entries:     Order cards by due time then profile name.
+      window_owns:      True while an open pySheets window has claimed a card's document.
+      due_entries:      Armed cards whose time has come, filtered by document and heartbeat.
+      is_stale:         True when a due card missed its slot by more than the grace window.
+      advance_entry:    Roll a card to its next occurrence; False if it is spent.
+
   _userdata.py:
     description: >
       Per-tool user settings under a single .user folder at the extension
@@ -102,7 +142,7 @@ snippets:
     description: >
       Helpers for tools that drive a 3D view's section box - model extents,
       the 3D-view guard, and applying a box.
-      Used by Selection Box on Level and Selection Box on Grid.
+      Used by Grid Slice and Level Slice.
     functions:
       mm_to_ft:          Convert millimetres to Revit's internal feet.
       require_3d_view:   Return the active view if it can take a section box, else None.

@@ -43,6 +43,48 @@ def _parse_color(hex_color):
     return _SWM.Brushes.White
 
 # ── PUBLIC API ────────────────────────────────────────────────────────
+def set_header_icon(window, script_dir, element_name="header_icon"):
+    """Point a window's top-bar Image at that tool's own icon.png.
+
+    Two options matter here, and leaving either off causes a real problem:
+
+      OnLoad           reads the file up front and closes the handle. The
+                       default keeps it open for the life of the image, so
+                       the icon rebuilder cannot overwrite the PNG while any
+                       window that shows it is open.
+      IgnoreImageCache skips WPF's process-wide bitmap cache, which is keyed
+                       on the path. Without it a rebuilt icon keeps showing
+                       the old picture until Revit restarts.
+
+    Silent if the element or the file is missing - a tool must still open
+    when its icon does not exist yet.
+    """
+    try:
+        image = window.FindName(element_name)
+        if image is None:
+            return False
+        path = os.path.join(script_dir, "icon.png")
+        if not os.path.isfile(path):
+            return False
+
+        from System import Uri, UriKind
+        from System.Windows.Media.Imaging import (BitmapImage,
+                                                  BitmapCacheOption,
+                                                  BitmapCreateOptions)
+        bitmap = BitmapImage()
+        bitmap.BeginInit()
+        bitmap.CacheOption = BitmapCacheOption.OnLoad
+        bitmap.CreateOptions = BitmapCreateOptions.IgnoreImageCache
+        bitmap.UriSource = Uri(path, UriKind.Absolute)
+        bitmap.EndInit()
+        bitmap.Freeze()
+        image.Source = bitmap
+        return True
+    except Exception:
+        return False
+
+
+
 def make_icon(key, size=16, color="#FFFFFF"):
     """
     Return a WPF Viewbox containing the named icon, ready to use as

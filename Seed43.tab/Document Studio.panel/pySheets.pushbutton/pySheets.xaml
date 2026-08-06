@@ -60,7 +60,7 @@
         <Style x:Key="SectionLabel" TargetType="TextBlock">
             <Setter Property="Foreground"  Value="{DynamicResource BrushPrimaryGreen}"/>
             <Setter Property="FontWeight"  Value="SemiBold"/>
-            <Setter Property="FontSize"    Value="13"/>
+            <Setter Property="FontSize"    Value="{DynamicResource FontSizeSectionLabel}"/>
             <Setter Property="Margin"      Value="0,0,0,8"/>
         </Style>
 
@@ -70,7 +70,7 @@
         <Style x:Key="FieldLabel" TargetType="TextBlock">
             <Setter Property="Foreground"  Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="FontWeight"  Value="Medium"/>
-            <Setter Property="FontSize"    Value="12"/>
+            <Setter Property="FontSize"    Value="{DynamicResource FontSizeFieldLabel}"/>
             <Setter Property="Opacity"     Value="0.85"/>
             <Setter Property="Margin"      Value="0,0,0,4"/>
         </Style>
@@ -80,8 +80,8 @@
         ═══════════════════════════════════════════════════════════ -->
         <Style x:Key="Card" TargetType="Border">
             <Setter Property="Background"    Value="{DynamicResource BrushCardBg}"/>
-            <Setter Property="CornerRadius"  Value="8"/>
-            <Setter Property="Padding"       Value="14"/>
+            <Setter Property="CornerRadius"  Value="{DynamicResource CornerRadiusCard}"/>
+            <Setter Property="Padding"       Value="{DynamicResource PaddingCard}"/>
             <Setter Property="Margin"        Value="0,0,0,12"/>
             <Setter Property="Effect">
                 <Setter.Value>
@@ -96,11 +96,11 @@
         <Style x:Key="ModernTextBox" TargetType="TextBox">
             <Setter Property="Background"             Value="{DynamicResource BrushInputBg}"/>
             <Setter Property="Foreground"             Value="{DynamicResource BrushTextInput}"/>
-            <Setter Property="BorderBrush"            Value="{DynamicResource BrushPrimaryGreen}"/>
-            <Setter Property="BorderThickness"        Value="1.5"/>
-            <Setter Property="Padding"                Value="8,0"/>
-            <Setter Property="FontSize"               Value="12"/>
-            <Setter Property="Height"                 Value="32"/>
+            <Setter Property="BorderBrush"            Value="{DynamicResource BrushBorderDefault}"/>
+            <Setter Property="BorderThickness"        Value="{DynamicResource BorderThicknessInput}"/>
+            <Setter Property="Padding"                Value="{DynamicResource PaddingInput}"/>
+            <Setter Property="FontSize"               Value="{DynamicResource FontSizeInput}"/>
+            <Setter Property="Height"                 Value="{DynamicResource HeightInput}"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -109,7 +109,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6">
+                                CornerRadius="{DynamicResource CornerRadiusInput}">
                             <ScrollViewer x:Name="PART_ContentHost"
                                           Margin="{TemplateBinding Padding}"
                                           VerticalAlignment="Center"
@@ -118,10 +118,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushBorderHover}"/>
                             </Trigger>
                             <Trigger Property="IsFocused" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushBorderHover}"/>
                                 <Setter TargetName="Bd" Property="BorderThickness" Value="2"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -137,11 +137,11 @@
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Background"      Value="{DynamicResource BrushInputBg}"/>
             <Setter Property="Foreground"      Value="{DynamicResource BrushTextInput}"/>
-            <Setter Property="BorderBrush"     Value="{DynamicResource BrushPrimaryGreen}"/>
-            <Setter Property="BorderThickness" Value="1.5"/>
-            <Setter Property="Padding"         Value="8,0"/>
-            <Setter Property="FontSize"        Value="12"/>
-            <Setter Property="Height"          Value="32"/>
+            <Setter Property="BorderBrush"     Value="{DynamicResource BrushBorderDefault}"/>
+            <Setter Property="BorderThickness" Value="{DynamicResource BorderThicknessCombobox}"/>
+            <Setter Property="Padding"         Value="{DynamicResource PaddingCombobox}"/>
+            <Setter Property="FontSize"        Value="{DynamicResource FontSizeCombobox}"/>
+            <Setter Property="Height"          Value="{DynamicResource HeightCombobox}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ComboBox">
@@ -149,7 +149,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6">
+                                CornerRadius="{DynamicResource CornerRadiusCombobox}">
                             <Grid>
                                 <ToggleButton Background="Transparent"
                                               BorderThickness="0"
@@ -175,9 +175,9 @@
                                        Focusable="False"
                                        PopupAnimation="Slide">
                                     <Border Background="{DynamicResource BrushCardBg}"
-                                            BorderBrush="{DynamicResource BrushPrimaryGreen}"
+                                            BorderBrush="{DynamicResource BrushBorderDefault}"
                                             BorderThickness="1"
-                                            CornerRadius="6"
+                                            CornerRadius="{DynamicResource CornerRadiusDropdownPopup}"
                                             MinWidth="{TemplateBinding ActualWidth}">
                                         <ScrollViewer MaxHeight="260">
                                             <StackPanel IsItemsHost="True"/>
@@ -188,7 +188,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushBorderHover}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Bd" Property="Opacity" Value="0.5"/>
@@ -204,8 +204,8 @@
             <Setter Property="Background"  Value="{DynamicResource BrushCardBg}"/>
             <Setter Property="Foreground"  Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource BrushPillOffBorder}"/>
-            <Setter Property="FontSize"    Value="11"/>
-            <Setter Property="Height"      Value="24"/>
+            <Setter Property="FontSize"    Value="{DynamicResource FontSizeCombobox}"/>
+            <Setter Property="Height"      Value="{DynamicResource HeightCombobox}"/>
         </Style>
 
         <!-- Compact multi-select filter combo — used in Revision/Size/Collection
@@ -217,8 +217,8 @@
             <Setter Property="Background"  Value="{DynamicResource BrushCardBg}"/>
             <Setter Property="Foreground"  Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource BrushPillOffBorder}"/>
-            <Setter Property="Width"       Value="20"/>
-            <Setter Property="Height"      Value="20"/>
+            <Setter Property="Width"       Value="{DynamicResource WidthFilterCombo}"/>
+            <Setter Property="Height"      Value="{DynamicResource HeightFilterCombo}"/>
             <Setter Property="Padding"     Value="0"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -227,7 +227,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="4">
+                                CornerRadius="{DynamicResource CornerRadiusFilterCombo}">
                             <Grid>
                                 <ToggleButton Background="Transparent"
                                               BorderThickness="0"
@@ -246,7 +246,7 @@
                                     <Border Background="{DynamicResource BrushCardBg}"
                                             BorderBrush="{DynamicResource BrushPrimaryGreen}"
                                             BorderThickness="1"
-                                            CornerRadius="6"
+                                            CornerRadius="{DynamicResource CornerRadiusDropdownPopup}"
                                             MinWidth="160">
                                         <StackPanel Margin="4">
                                             <DockPanel Margin="4,2">
@@ -322,11 +322,11 @@
             <Setter Property="Background"      Value="{DynamicResource BrushSecondaryBg}"/>
             <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderBrush"     Value="{DynamicResource BrushPillOffBorder}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="BorderThickness" Value="{DynamicResource BorderThicknessInput}"/>
+            <Setter Property="FontSize"        Value="{DynamicResource FontSizeInput}"/>
             <Setter Property="FontWeight"      Value="SemiBold"/>
-            <Setter Property="Padding"         Value="8,0"/>
-            <Setter Property="Height"          Value="26"/>
+            <Setter Property="Padding"         Value="{DynamicResource PaddingInput}"/>
+            <Setter Property="Height"          Value="{DynamicResource HeightInput}"/>
             <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -336,7 +336,7 @@
                                     Background="{TemplateBinding Background}"
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="6">
+                                    CornerRadius="{DynamicResource CornerRadiusInput}">
                                 <Grid Margin="{TemplateBinding Padding}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -445,10 +445,10 @@
                                 Margin="2"/>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushSuccess}"/>
+                                <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
                             </Trigger>
                             <Trigger Property="IsDragging" Value="True">
-                                <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushSuccessHover}"/>
+                                <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -515,15 +515,15 @@
             <Setter Property="Foreground"   Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontWeight"   Value="SemiBold"/>
-            <Setter Property="FontSize"     Value="13"/>
-            <Setter Property="Padding"      Value="22,9"/>
+            <Setter Property="FontSize"     Value="{DynamicResource FontSizeButton}"/>
+            <Setter Property="Padding"      Value="{DynamicResource PaddingButtonPrimary}"/>
             <Setter Property="Cursor"       Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bd"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="8"
+                                CornerRadius="{DynamicResource CornerRadiusButton}"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
@@ -552,15 +552,15 @@
             <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontWeight"      Value="SemiBold"/>
-            <Setter Property="FontSize"        Value="13"/>
-            <Setter Property="Padding"         Value="22,9"/>
+            <Setter Property="FontSize"        Value="{DynamicResource FontSizeButtonSecondary}"/>
+            <Setter Property="Padding"         Value="{DynamicResource PaddingButtonSecondary}"/>
             <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bd"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="8"
+                                CornerRadius="{DynamicResource CornerRadiusButtonSecondary}"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
@@ -585,25 +585,25 @@
              SMALL SECONDARY BUTTON  (toolbar / browse buttons)
         ═══════════════════════════════════════════════════════════ -->
         <Style x:Key="SmallSecBtn" TargetType="Button" BasedOn="{StaticResource SecondaryBtn}">
-            <Setter Property="FontSize"   Value="11"/>
+            <Setter Property="FontSize"   Value="{DynamicResource FontSizeButtonSmall}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Padding"    Value="12,5"/>
+            <Setter Property="Padding"    Value="{DynamicResource PaddingButtonSmall}"/>
         </Style>
 
         <Style x:Key="SmallSecToggle" TargetType="ToggleButton">
             <Setter Property="Background"  Value="{DynamicResource BrushSecondaryBg}"/>
             <Setter Property="Foreground"  Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="FontSize"    Value="11"/>
+            <Setter Property="FontSize"    Value="{DynamicResource FontSizeButtonSmall}"/>
             <Setter Property="FontWeight"  Value="SemiBold"/>
-            <Setter Property="Padding"     Value="12,5"/>
+            <Setter Property="Padding"     Value="{DynamicResource PaddingButtonSmall}"/>
             <Setter Property="Cursor"      Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
                         <Border x:Name="Bd"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="6"
+                                CornerRadius="{DynamicResource CornerRadiusButtonSmall}"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center"/>
@@ -629,7 +629,7 @@
             <Setter Property="Background"                 Value="Transparent"/>
             <Setter Property="Foreground"                 Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness"             Value="0"/>
-            <Setter Property="Padding"                     Value="12,8"/>
+            <Setter Property="Padding"                     Value="{DynamicResource PaddingMenuItem}"/>
             <Setter Property="HorizontalContentAlignment"  Value="Left"/>
             <Setter Property="Cursor"                      Value="Hand"/>
             <Setter Property="Template">
@@ -653,8 +653,8 @@
             <Setter Property="Background"      Value="Transparent"/>
             <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Width"           Value="32"/>
-            <Setter Property="Height"          Value="32"/>
+            <Setter Property="Width"           Value="{DynamicResource WidthButtonClose}"/>
+            <Setter Property="Height"          Value="{DynamicResource HeightButtonClose}"/>
             <Setter Property="FontSize"        Value="13"/>
             <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="Template">
@@ -662,7 +662,7 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bd"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="16">
+                                CornerRadius="{DynamicResource CornerRadiusButtonClose}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -948,6 +948,25 @@
         </DataTemplate>
 
         <!-- Document item template (linked prefix) -->
+        <!-- Profile dropdown item: accent dot marks an armed schedule.
+             The ellipse is always present and only changes colour, so the
+             names stay aligned whether a card is armed or not. -->
+        <DataTemplate x:Key="ProfileItem">
+            <StackPanel Orientation="Horizontal">
+                <Ellipse x:Name="ArmedDot"
+                         Width="7" Height="7" Margin="0,0,6,0"
+                         VerticalAlignment="Center"
+                         Fill="Transparent"/>
+                <TextBlock Text="{Binding name}" VerticalAlignment="Center"/>
+            </StackPanel>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding armed}" Value="True">
+                    <Setter TargetName="ArmedDot" Property="Fill"
+                            Value="{DynamicResource BrushPrimaryGreen}"/>
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
         <DataTemplate x:Key="DocItem">
             <Grid>
                 <TextBlock x:Name="Normal"  Text="{Binding name}"/>
@@ -990,6 +1009,11 @@
                 <StackPanel Orientation="Horizontal"
                             VerticalAlignment="Center"
                             HorizontalAlignment="Left">
+                    <Image x:Name="header_icon"
+                           Width="{DynamicResource SizeTopBarLogo}"
+                           Height="{DynamicResource SizeTopBarLogo}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,10,0"/>
                     <TextBlock Text="py"
                                Foreground="{DynamicResource BrushPrimaryGreen}"
                                FontWeight="Bold"
@@ -1086,8 +1110,9 @@
                                VerticalAlignment="Center"
                                Margin="0,0,6,0"/>
                     <ComboBox x:Name="profile_cb"
-                              Width="140" Height="28"
+                              Width="140"
                               Style="{StaticResource DarkComboBox}"
+                              ItemTemplate="{StaticResource ProfileItem}"
                               SelectionChanged="profile_changed"
                               DropDownClosed="profile_dropdown_closed"
                               Margin="0,0,6,0"
@@ -1375,19 +1400,30 @@
                                     VerticalAlignment="Bottom"
                                     Click="save_sheet_set"/>
 
-                            <!-- Search box (right-aligned) -->
-                            <StackPanel Grid.Column="8" Orientation="Horizontal" VerticalAlignment="Bottom">
-                                <TextBlock Text="Search:"
-                                           Foreground="{DynamicResource BrushTextPrimary}"
-                                           FontSize="12"
-                                           Opacity="0.7"
-                                           VerticalAlignment="Center"
-                                           Margin="0,0,6,0"/>
+                            <!-- Search box (right-aligned). Per the palette
+                                 editor's Search Box: a plain text input on the
+                                 input_textbox tokens, with a muted search glyph
+                                 inset over it - no separate label. The 28px left
+                                 padding clears the icon, as padding-left does in
+                                 the editor's own preview. -->
+                            <Grid Grid.Column="8" Width="180" VerticalAlignment="Bottom">
+                                <!-- Alignment pinned locally: this is the one
+                                     input that stretches to its container
+                                     instead of carrying its own Width, and it
+                                     comes up centred without these. -->
                                 <TextBox x:Name="search_tb"
-                                         Width="180"
                                          Style="{StaticResource ModernTextBox}"
+                                         Padding="28,0,8,0"
+                                         HorizontalContentAlignment="Left"
+                                         TextAlignment="Left"
                                          TextChanged="search_changed"/>
-                            </StackPanel>
+                                <ContentControl x:Name="search_icon"
+                                                Width="14" Height="14"
+                                                HorizontalAlignment="Left"
+                                                VerticalAlignment="Center"
+                                                Margin="9,0,0,0"
+                                                IsHitTestVisible="False"/>
+                            </Grid>
                         </Grid>
 
                         <!-- Row 2: Sheets/Views toggle + Export As pills -->
@@ -2397,28 +2433,32 @@
             <!-- Schedule card -->
             <Border Grid.Row="1" Style="{StaticResource Card}">
                 <StackPanel>
-                    <TextBlock Text="Schedule (Revit and pySheets must stay open)"
+                    <TextBlock Text="Schedule (Revit and the project must stay open)"
                                Style="{StaticResource SectionLabel}"
                                FontSize="13" FontWeight="Bold" Margin="0,0,0,8"/>
                     <DockPanel LastChildFill="False" Margin="0,0,0,8">
-                        <CheckBox x:Name="sched_enable_cb"
-                                  Content="Enable"
-                                  Checked="sched_enable_changed"
-                                  Unchecked="sched_enable_changed"
-                                  DockPanel.Dock="Left"
-                                  VerticalAlignment="Center" Margin="0,0,16,0"/>
+                        <!-- Profile first, then Enable: pick the card you are
+                             scheduling, tick it on, and the timing unlocks. -->
                         <TextBlock Text="Profile"
                                    DockPanel.Dock="Left"
                                    Foreground="{DynamicResource BrushTextPrimary}"
                                    Opacity="0.7" FontSize="11"
                                    VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <ComboBox x:Name="sched_profile_cb"
-                                  Width="150" IsEnabled="False"
+                                  Width="150"
                                   DockPanel.Dock="Left"
                                   Style="{StaticResource DarkComboBox}"
-                                  SelectionChanged="sched_field_changed"
+                                  ItemTemplate="{StaticResource ProfileItem}"
+                                  SelectionChanged="sched_profile_changed"
                                   VerticalAlignment="Center" Margin="0,0,16,0"
-                                  ToolTip="Required — this profile is loaded when the schedule fires"/>
+                                  ToolTip="Pick the profile to schedule — its own time is shown, and Enable arms it"/>
+                        <CheckBox x:Name="sched_enable_cb"
+                                  Content="Enable"
+                                  Checked="sched_enable_changed"
+                                  Unchecked="sched_enable_changed"
+                                  DockPanel.Dock="Left"
+                                  VerticalAlignment="Center" Margin="0,0,16,0"
+                                  ToolTip="Arm this profile — it will print at the time set here, with pySheets closed"/>
                         <TextBlock Text="Time"
                                    DockPanel.Dock="Left"
                                    Foreground="{DynamicResource BrushTextPrimary}"

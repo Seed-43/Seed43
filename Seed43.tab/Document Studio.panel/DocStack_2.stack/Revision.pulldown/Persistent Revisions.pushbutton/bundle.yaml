@@ -1,11 +1,13 @@
 title: "Persistent Revisions"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Permanently links revision clouds to their parent sheets so
-  revision history is never lost, regardless of where the cloud is
-  placed. Scans every revision cloud in the model and propagates
-  revisions to the correct sheet automatically, without removing any
-  existing sheet revisions.
+
+  Permanently links revision clouds to their parent sheets so revision
+  history is never lost, regardless of where the cloud is placed. Scans
+  every revision cloud in the model and propagates revisions to the correct
+  sheet automatically, without removing any existing sheet revisions.
+
   __________________________________________________________________

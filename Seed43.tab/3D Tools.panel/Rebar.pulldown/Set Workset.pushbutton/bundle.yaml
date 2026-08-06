@@ -1,10 +1,13 @@
 title: "Set Rebar to Workset"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Assigns every rebar element in the model to a chosen workset. If
-  exactly one workset with "rebar" in its name exists it is used
-  automatically; otherwise pick from the existing worksets or create
-  a new one on the spot. Requires a workshared model.
+
+  Assigns every rebar element in the model to a chosen workset. If exactly
+  one workset with "rebar" in its name exists it is used automatically;
+  otherwise pick from the existing worksets or create a new one on the spot.
+  Requires a workshared model.
+
   __________________________________________________________________

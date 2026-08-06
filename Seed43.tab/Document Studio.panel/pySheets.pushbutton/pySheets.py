@@ -67,8 +67,10 @@ if _lib_path and _lib_path not in _sys.path:
 from EditNamingFormats import EditNamingFormatsWindow, NamingFormat
 from Snippets import _dialogs as dlg
 from Snippets import _userdata
-from Snippets._icons import make_icon
-from Snippets.seed43_theme import apply_seed43_palette
+from Snippets import _schedule
+from Snippets._icons import make_icon, set_header_icon
+from Snippets.seed43_theme import (apply_seed43_palette, apply_seed43_dimensions,
+                                   get_color)
 import FolderPresetManager as fpm_win
 import folder_preset_resolve as fpe_resolve
 import ManageProfiles as profiles_win
@@ -139,26 +141,49 @@ SCHEDULE_FILE = op.join(USERDATA_DIR, 'settings', 'scheduled_print.json')
 CUSTOM_COLUMNS_FILE = op.join(USERDATA_DIR, 'settings', 'custom_columns.json')
 
 
-def _write_schedule_file(data):
-    """Persist the armed schedule so startup.py's background Idling
-    handler can fire it even after this window closes. Silent on
-    failure, scheduling should never crash the UI over a disk error."""
-    try:
-        folder = op.dirname(SCHEDULE_FILE)
-        if not op.isdir(folder):
-            os.makedirs(folder)
-        with open(SCHEDULE_FILE, 'w') as f:
-            json.dump(data, f, indent=2)
-    except Exception as ex:
-        logger.warning('Could not write schedule file: %s', ex)
+# Each armed profile ("punch card") gets one entry in this file. The card's
+# own timing lives in its profile JSON under "schedule"; what lands here is
+# only the runtime state the scheduler needs - which document the card was
+# armed against, and when it next comes due.
+#
+# The rules themselves live in Snippets/_schedule.py because startup.py needs
+# exactly the same ones to fire a card once this window has closed. Aliased
+# here so the rest of this module reads as it always did.
+TS_FMT                 = _schedule.TS_FMT
+SCHEDULE_GRACE_MINUTES = _schedule.GRACE_MINUTES
+compute_next_run       = _schedule.compute_next_run
+_parse_ts              = _schedule.parse_ts
 
 
-def _clear_schedule_file():
-    try:
-        if op.isfile(SCHEDULE_FILE):
-            os.remove(SCHEDULE_FILE)
-    except Exception as ex:
-        logger.warning('Could not clear schedule file: %s', ex)
+def _xaml_path(name):
+    """Absolute path to one of this tool's .xaml files.
+
+    Bare names are resolved against this script's folder so a window opens
+    the same way however it was launched - by hand, or by the scheduler from
+    startup.py where the working script is somewhere else entirely."""
+    if op.isabs(name) or op.isfile(name):
+        return name
+    return op.join(op.dirname(__file__), name)
+
+
+class ExportBlocked(Exception):
+    """An export could not start (no formats, no destination, missing
+    folder). Raised only during a scheduled run, where the equivalent
+    dialog would block instead."""
+
+
+def _read_armed_file():
+    """The armed cards, with every key defaulted."""
+    return _schedule.read_armed_file(SCHEDULE_FILE)
+
+
+def _write_armed_file(data):
+    """Persist the armed cards. Silent on failure - scheduling should never
+    crash the UI over a disk error."""
+    if not _schedule.write_armed_file(SCHEDULE_FILE, data):
+        logger.warning('Could not write schedule file: %s', SCHEDULE_FILE)
+
+
 PROFILES_DIR = op.join(USERDATA_DIR, 'profiles')
 NAMING_FILE  = op.join(USERDATA_DIR, 'settings', 'naming_memory.json')
 COMBINED_NAMING_DIR = op.join(USERDATA_DIR, 'naming_combined')
@@ -578,6 +603,23 @@ class NamedSheetSet(object):
         return []
 
 
+# ── PROFILE DROPDOWN ITEM  (both profile combos) ──
+class ProfileItem(object):
+    """One saved profile as shown in a dropdown. `armed` drives the accent
+    dot in the item template, so the armed cards are visible without having
+    to select each one in turn.
+
+    Plain object, not forms.Reactive: the dropdowns are rebuilt wholesale
+    whenever the armed set changes, so there is nothing to notify about."""
+
+    def __init__(self, name, armed=False):
+        self.name  = name
+        self.armed = armed
+
+    def __str__(self):
+        return self.name
+
+
 # ── PRINT QUEUE ITEM  (used in Print tab DataGrid) ──
 class QueueItem(forms.Reactive):
     def __init__(self, number, filename, fmt, paper_size,
@@ -613,8 +655,16 @@ class PrintSheetsWindow(forms.WPFWindow):
 
     def __init__(self, xaml_file_name):
         self._loading = True   # suppress event handlers during init
-        forms.WPFWindow.__init__(self, xaml_file_name)
+        # Resolved against this file, not the caller's folder. pyRevit takes a
+        # bare name as relative to whatever script is running, which is this
+        # pushbutton when the user clicks it - but the extension root when a
+        # scheduled run opens the window from startup.py, and the XAML is not
+        # there.
+        forms.WPFWindow.__init__(self, _xaml_path(xaml_file_name))
         apply_seed43_palette(self, op.dirname(__file__))
+        # Sizing comes from the same palette as the colours. Both have to run
+        # after the XAML has loaded, or the window's own Setters win.
+        apply_seed43_dimensions(self, op.dirname(__file__))
 
         # ── Core state ──
         self._current_tab     = TAB_SELECT
@@ -658,7 +708,10 @@ class PrintSheetsWindow(forms.WPFWindow):
 
         # ── Schedule state ──
         self._sched_timer = None
-        self._sched_next  = None
+        # True only while a scheduled run is driving the window. Nothing may
+        # block on a dialog then - there is no one sitting in front of it.
+        self._unattended  = False
+        self._running_sched = False   # re-entrancy guard, see _sched_tick
 
         # ── Format state ──
         # enabled: set of format strings the user has toggled on
@@ -718,6 +771,13 @@ class PrintSheetsWindow(forms.WPFWindow):
         self._update_dest_label()
         self.settings_toggle_btn.Content = make_icon('menu', size=18, color='#F4FAFF')
         self.win_close_btn.Content = make_icon('close', size=14, color='#F4FAFF')
+        set_header_icon(self, op.dirname(__file__))
+        # Search glyph sitting inside the search field. Built here rather than
+        # in XAML because make_icon bakes the colour in at build time.
+        self.search_icon.Content = make_icon(
+            'search', size=14,
+            color=get_color(op.dirname(__file__), 'text_muted',
+                            fallback='#9CA3AF'))
         self._loading = False   # init complete, events now active
 
     # ── PROPERTIES ──
@@ -1998,17 +2058,25 @@ class PrintSheetsWindow(forms.WPFWindow):
         self.overall_progress.Value = 0
         self.overall_pct_tb.Text = 'Ready'
     # ── EXPORT ENGINE ──
+    def _stop(self, message):
+        """Refuse to export. Unattended runs raise instead of showing a
+        dialog - a modal box on a scheduled run would sit there blocking
+        Revit until someone came back and clicked it."""
+        if self._unattended:
+            raise ExportBlocked(message)
+        dlg.message(message)
+
     def _do_export(self):
         """Run the export queue across all enabled formats."""
         if not self._fmt_enabled:
-            dlg.message('No export formats selected.')
+            self._stop('No export formats selected.')
             return
         if self._get_print_destination() == 'none':
-            dlg.message('Please select a print destination (file or printer).')
+            self._stop('Please select a print destination (file or printer).')
             return
         base_folder = self.export_folder_tb.Text
         if not op.isdir(base_folder):
-            dlg.message('Export folder does not exist.')
+            self._stop('Export folder does not exist.')
             return
 
         queue = list(self.queue_dg.ItemsSource or [])
@@ -2016,7 +2084,7 @@ class PrintSheetsWindow(forms.WPFWindow):
             self._build_queue()
             queue = list(self.queue_dg.ItemsSource or [])
         if not queue:
-            dlg.message('No sheets or views selected.')
+            self._stop('No sheets or views selected.')
             return
 
         if not self.auto_overwrite_cb.IsChecked:
@@ -2028,7 +2096,11 @@ class PrintSheetsWindow(forms.WPFWindow):
                     len(existing), '\n'.join(shown))
                 if more > 0:
                     msg += '\n... and {} more'.format(more)
-                if not dlg.confirm(msg, yes='Overwrite'):
+                if self._unattended:
+                    # Overwrite rather than stall on the prompt, but say so.
+                    logger.warning('Scheduled export overwriting %d existing '
+                                   'file(s) in %s', len(existing), base_folder)
+                elif not dlg.confirm(msg, yes='Overwrite'):
                     return
 
         total = len(queue)
@@ -3186,7 +3258,7 @@ class PrintSheetsWindow(forms.WPFWindow):
     def edit_naming_formats(self, sender, args):
         """Open EditNamingFormats dialog."""
         EditNamingFormatsWindow(
-            'EditNamingFormats.xaml',
+            _xaml_path(op.join('tools', 'EditNamingFormats.xaml')),
             start_with=self._selected_naming_format
         ).show_dialog()
         # Refresh dropdown and filenames
@@ -3197,7 +3269,7 @@ class PrintSheetsWindow(forms.WPFWindow):
         """Open EditNamingFormats dialog against the Combined PDF Name's
         own independent naming store."""
         EditNamingFormatsWindow(
-            'EditNamingFormats.xaml',
+            _xaml_path(op.join('tools', 'EditNamingFormats.xaml')),
             start_with=self.combined_naming_cb.SelectedItem,
             naming_dir=COMBINED_NAMING_DIR,
             default_formats=COMBINED_DEFAULT_FORMATS
@@ -3779,26 +3851,106 @@ class PrintSheetsWindow(forms.WPFWindow):
             self._setup_profiles()
 
     # ── PROFILES  (save / load / import export settings) ──
+    @staticmethod
+    def _cb_name(combo):
+        """Selected profile name from either profile dropdown, or None.
+
+        Both dropdowns hold ProfileItem objects rather than plain strings, so
+        every read of .SelectedItem goes through here."""
+        try:
+            item = combo.SelectedItem
+        except Exception:
+            return None
+        return item.name if item is not None else None
+
+    @staticmethod
+    def _select_cb_name(combo, name):
+        """Select the ProfileItem called `name`, or clear the selection."""
+        try:
+            for item in (combo.ItemsSource or []):
+                if item.name == name:
+                    combo.SelectedItem = item
+                    return True
+            combo.SelectedIndex = -1
+        except Exception:
+            pass
+        return False
+
     def _setup_profiles(self, select=None):
-        """Scan the profiles folder and fill the header + schedule dropdowns."""
+        """Scan the profiles folder and fill the header + schedule dropdowns.
+
+        Rebuilt in full whenever the armed set changes, since that is what
+        repaints each item's accent dot."""
         try:
             if not op.isdir(PROFILES_DIR):
                 os.makedirs(PROFILES_DIR)
             names = sorted(op.splitext(f)[0]
                            for f in os.listdir(PROFILES_DIR)
                            if f.lower().endswith('.json'))
-            self.profile_cb.ItemsSource = names
-            if select and select in names:
-                self.profile_cb.SelectedItem = select
+            armed = self._armed_profile_names()
+
+            keep_header = select or self._cb_name(self.profile_cb)
+            keep_sched  = self._cb_name(self.sched_profile_cb)
+
+            # Rebuilding drops the selection and puts it back, which would
+            # otherwise fire sched_profile_changed twice and reload the card
+            # mid-arm. Nothing here is a user edit, so hold the guard.
+            was_loading = self._loading
+            self._loading = True
             try:
-                cur = self.sched_profile_cb.SelectedItem
-                self.sched_profile_cb.ItemsSource = names
-                if cur in names:
-                    self.sched_profile_cb.SelectedItem = cur
-            except Exception:
-                pass
+                # Separate item objects per dropdown: one ProfileItem can only
+                # sit in one ComboBox at a time.
+                self.profile_cb.ItemsSource = [
+                    ProfileItem(n, n in armed) for n in names]
+                self._select_cb_name(self.profile_cb, keep_header)
+                try:
+                    self.sched_profile_cb.ItemsSource = [
+                        ProfileItem(n, n in armed) for n in names]
+                    self._select_cb_name(self.sched_profile_cb, keep_sched)
+                except Exception:
+                    pass
+            finally:
+                self._loading = was_loading
         except Exception as ex:
             logger.warning('Profiles setup failed: %s', ex)
+
+    # ── Per-profile schedule block ──
+    # The card's timing lives in its own profile JSON, so it travels with the
+    # profile (import/export, copy to another machine). Deliberately kept out
+    # of _gather_profile/_apply_profile: those also drive lastsession.json,
+    # and restoring a session must never arm anything by itself.
+    def _read_profile_schedule(self, name):
+        """The `schedule` block of profile `name`, or None."""
+        try:
+            with open(self._profile_path(name), 'r') as f:
+                block = json.load(f).get('schedule')
+            return block if isinstance(block, dict) else None
+        except Exception:
+            return None
+
+    def _write_profile_schedule(self, name, block):
+        """Merge `block` into profile `name` as its `schedule` key, or drop
+        the key when block is None. Rewrites nothing else in the file."""
+        try:
+            path = self._profile_path(name)
+            with open(path, 'r') as f:
+                data = json.load(f)
+            if block is None:
+                data.pop('schedule', None)
+            else:
+                data['schedule'] = block
+            with open(path, 'w') as f:
+                json.dump(data, f, indent=2)
+        except Exception as ex:
+            logger.warning('Could not save schedule on profile "%s": %s',
+                           name, ex)
+
+    @staticmethod
+    def _armed_profile_names():
+        """Names of every card currently armed, from the runtime file."""
+        return set(e.get('profile_name')
+                   for e in _read_armed_file().get('entries', [])
+                   if e.get('profile_name'))
 
     def _gather_profile(self):
         """Collect all current UI settings into a serialisable dict."""
@@ -3888,33 +4040,47 @@ class PrintSheetsWindow(forms.WPFWindow):
         self._switch_viewing_format(self._fmt_viewing)
         self._apply_filter()
 
-    def _restore_schedule_ui(self, sched_data):
-        """Push a saved schedule dict back into the Schedule tab's own
-        controls (enable, profile, time, repeat mode, days). Used when
-        reopening from the background scheduler, where a fresh window
-        otherwise starts with the schedule tab blank/disabled."""
+    def _load_card_into_ui(self, name):
+        """Push profile `name`'s saved schedule into the Schedule tab controls.
+
+        Called whenever the schedule dropdown changes, and once at window
+        open for the card due next - so an armed schedule is visible again
+        instead of the tab coming up blank."""
+        block = self._read_profile_schedule(name) or {}
+        # Restore rather than clear: _setup_schedule calls this from __init__,
+        # where _loading is already True and must stay that way.
+        was_loading = self._loading
         self._loading = True
         try:
-            self.sched_enable_cb.IsChecked = True
-            name = sched_data.get('profile_name')
-            if name:
-                self.sched_profile_cb.SelectedItem = name
-            hour = sched_data.get('hour')
-            minute = sched_data.get('minute')
-            if hour is not None and minute is not None:
-                self._sched_time = (hour, minute)
-                self._apply_time_to_wheels(hour, minute)
-                h = ((hour - 1) % 12) + 1
-                ap = 'PM' if hour >= 12 else 'AM'
-                self.sched_time_btn.Content = '{:02d}:{:02d} {}'.format(h, minute, ap)
+            self._select_cb_name(self.sched_profile_cb, name)
+            self.sched_enable_cb.IsChecked = name in self._armed_profile_names()
+
+            hour, minute = block.get('hour'), block.get('minute')
+            if hour is None or minute is None:
+                hour, minute = self._current_time_rounded()
+            self._sched_time = (hour, minute)
+            self._apply_time_to_wheels(hour, minute)
+            self.sched_time_btn.Content = self._time_label(hour, minute)
+
             self.sched_repeat_cb.SelectedIndex = (
-                1 if sched_data.get('repeat_mode') == 'Repeat' else 0)
-            days = set(sched_data.get('days', []))
+                1 if block.get('repeat_mode') == 'Repeat' else 0)
+            days = set(block.get('days') or [])
             for i, n in enumerate(self.SCHED_DAYS):
                 getattr(self, n).IsChecked = (i in days)
+
+            raw = block.get('start_date')
+            if raw:
+                try:
+                    import System
+                    d = datetime.strptime(raw, '%Y-%m-%d')
+                    self.sched_date_dp.SelectedDate = System.DateTime(
+                        d.year, d.month, d.day)
+                except Exception:
+                    pass
         finally:
-            self._loading = False
-        self._sched_refresh()
+            self._loading = was_loading
+        self._update_sched_gates()
+        self._update_sched_status()
 
     def _profile_path(self, name):
         return op.join(PROFILES_DIR,
@@ -3930,7 +4096,7 @@ class PrintSheetsWindow(forms.WPFWindow):
         """Re-selecting the same profile also reloads it (reset to saved)."""
         if self._loading:
             return
-        name = self.profile_cb.SelectedItem
+        name = self._cb_name(self.profile_cb)
         if name:
             self._load_profile(name)
 
@@ -3961,13 +4127,20 @@ class PrintSheetsWindow(forms.WPFWindow):
             dlg.message('Could not save profile.\n\n' + str(ex))
 
     def profile_save_clicked(self, sender, args):
-        name = self.profile_cb.SelectedItem
+        name = self._cb_name(self.profile_cb)
         if not name:
             self.profile_new_clicked(sender, args)
             return
         try:
+            data = self._gather_profile()
+            # _gather_profile knows nothing about scheduling, so carry the
+            # card's timing across by hand - otherwise saving a profile
+            # silently throws away the schedule attached to it.
+            block = self._read_profile_schedule(name)
+            if block:
+                data['schedule'] = block
             with open(self._profile_path(name), 'w') as f:
-                json.dump(self._gather_profile(), f, indent=2)
+                json.dump(data, f, indent=2)
             dlg.message('Profile "{}" saved.'.format(name))
         except Exception as ex:
             dlg.message('Could not save profile.\n\n' + str(ex))
@@ -3986,11 +4159,14 @@ class PrintSheetsWindow(forms.WPFWindow):
         """Delete one profile file — used by the Manage Profiles window."""
         try:
             os.remove(self._profile_path(name))
+            # Its schedule died with it; leaving the card armed would have the
+            # background scheduler chasing a profile that no longer exists.
+            self._disarm_card(name)
         except Exception as ex:
             dlg.message('Could not delete profile.\n\n' + str(ex))
 
-    # ── SCHEDULING  (runs while this window and Revit stay open) ──
-    # ── Chain: Enable → Profile → Time → Repeat (→ Date + weekdays) ──
+    # ── SCHEDULING  (Revit and the project stay open, this window need not) ──
+    # ── Chain: Profile → Time → Repeat (→ Date + weekdays) → Enable ──
     SCHED_DAYS = ['sched_day_mon', 'sched_day_tue', 'sched_day_wed',
                   'sched_day_thu', 'sched_day_fri', 'sched_day_sat',
                   'sched_day_sun']
@@ -4013,9 +4189,33 @@ class PrintSheetsWindow(forms.WPFWindow):
         h24, m = self._current_time_rounded()
         self._sched_time = (h24, m)          # default shown immediately, like the date
         self._apply_time_to_wheels(h24, m)
+        self.sched_time_btn.Content = self._time_label(h24, m)
+
+        # Cards armed in an earlier session are still armed - show the one due
+        # next, and take ownership of this document's cards while open.
+        entries = _schedule.sort_entries(
+            [e for e in _read_armed_file().get('entries', []) if e.get('next_run')])
+        if entries:
+            # Prefer a card armed against this project: a card belonging to
+            # another model is still armed, but it is not what you opened
+            # this window to look at.
+            try:
+                here = op.normcase(revit.doc.PathName)
+            except Exception:
+                here = None
+            mine = [e for e in entries
+                    if here and op.normcase(e.get('document_path') or '') == here]
+            self._load_card_into_ui((mine or entries)[0].get('profile_name'))
+            self._start_timer()
+        else:
+            self._update_sched_gates()
+            self._update_sched_status()
+
+    @staticmethod
+    def _time_label(h24, minute):
+        """'08:05 PM' — the time picker button's caption."""
         h = ((h24 - 1) % 12) + 1
-        ap = 'PM' if h24 >= 12 else 'AM'
-        self.sched_time_btn.Content = '{:02d}:{:02d} {}'.format(h, m, ap)
+        return '{:02d}:{:02d} {}'.format(h, minute, 'PM' if h24 >= 12 else 'AM')
 
     @staticmethod
     def _current_time_rounded():
@@ -4168,38 +4368,71 @@ class PrintSheetsWindow(forms.WPFWindow):
         h, m, ap = self._tp_sel['h'], self._tp_sel['m'], self._tp_sel['ap']
         h24 = (h % 12) + (12 if ap == 'PM' else 0)
         self._sched_time = (h24, m)
-        self.sched_time_btn.Content = '{:02d}:{:02d} {}'.format(h, m, ap)
+        self.sched_time_btn.Content = self._time_label(h24, m)
         self.sched_time_btn.IsChecked = False   # close popup
-        self._sched_refresh()
+        self.sched_field_changed(sender, args)
 
     def tp_cancel_clicked(self, sender, args):
         self.sched_time_btn.IsChecked = False
 
-    def sched_enable_changed(self, sender, args):
+    def sched_profile_changed(self, sender, args):
+        """Schedule dropdown changed — load that card, wholesale.
+
+        Picking a card here loads the profile itself as well as its timing,
+        so the window shows exactly what that card will print: its sheets,
+        its views, its export settings. The header dropdown is moved to
+        match, since the two are now showing the same profile."""
         if self._loading:
+            return
+        name = self._cb_name(self.sched_profile_cb)
+        if not name:
+            self._update_sched_gates()
+            return
+        self._load_profile(name)
+        was_loading = self._loading
+        self._loading = True
+        try:
+            self._select_cb_name(self.profile_cb, name)
+        finally:
+            self._loading = was_loading
+        self._load_card_into_ui(name)
+
+    def sched_enable_changed(self, sender, args):
+        """Enable is per card: it arms or disarms whichever profile the
+        schedule dropdown is showing, and leaves every other card alone."""
+        if self._loading:
+            return
+        name = self._cb_name(self.sched_profile_cb)
+        if not name:
+            self._set_sched_enabled(False)
+            self._update_sched_gates()
+            self.sched_status_tb.Text = 'Pick a profile…'
             return
         if self.sched_enable_cb.IsChecked:
-            pass
+            self._arm_card(name)
         else:
-            # Reset: profile must be re-picked next time
-            self._loading = True
-            self.sched_profile_cb.SelectedIndex = -1
-            h24, m = self._current_time_rounded()
-            self._sched_time = (h24, m)
-            self._apply_time_to_wheels(h24, m)
-            h = ((h24 - 1) % 12) + 1
-            ap = 'PM' if h24 >= 12 else 'AM'
-            self.sched_time_btn.Content = '{:02d}:{:02d} {}'.format(h, m, ap)
-            self.sched_repeat_cb.SelectedIndex = 0
-            for n in self.SCHED_DAYS:
-                getattr(self, n).IsChecked = False
-            self._loading = False
-        self._sched_refresh()
+            self._disarm_card(name)
+        self._update_sched_gates()
 
     def sched_field_changed(self, sender, args):
+        """Time / repeat / weekday / start date edited.
+
+        The timing is written onto the profile either way — that is what
+        makes a profile a punch card. Arming is what adds it to the run
+        list, and re-arming here moves an armed card to the new time."""
         if self._loading:
             return
-        self._sched_refresh()
+        self._update_sched_gates()
+        name = self._cb_name(self.sched_profile_cb)
+        if not name:
+            return
+        if self.sched_enable_cb.IsChecked:
+            self._arm_card(name)
+        else:
+            block = self._sched_block_from_ui()
+            if block:
+                self._write_profile_schedule(name, block)
+            self._update_sched_status()
 
     def _sched_repeat_mode(self):
         try:
@@ -4223,97 +4456,180 @@ class PrintSheetsWindow(forms.WPFWindow):
         return datetime(d.Year, d.Month, d.Day).date()
 
     def _update_sched_gates(self):
-        """Unlock each control only when the previous step is set."""
-        en     = bool(self.sched_enable_cb.IsChecked)
-        prof   = en and bool(self.sched_profile_cb.SelectedItem)
-        t_ok   = prof and self._parse_sched_time() is not None
-        repeat = t_ok and self._sched_repeat_mode() == 'Repeat'
+        """Unlock each control only when the previous step is set.
 
-        self.sched_profile_cb.IsEnabled = en
-        self.sched_time_btn.IsEnabled   = prof
-        self.sched_repeat_cb.IsEnabled  = t_ok
+        Chain: pick a profile, tick Enable, then its timing opens up. The
+        profile has to come first because it decides which card everything
+        else is editing."""
+        prof   = bool(self._cb_name(self.sched_profile_cb))
+        on     = prof and bool(self.sched_enable_cb.IsChecked)
+        repeat = on and self._sched_repeat_mode() == 'Repeat'
+
+        self.sched_profile_cb.IsEnabled = True
+        self.sched_enable_cb.IsEnabled  = prof
+        self.sched_time_btn.IsEnabled   = on
+        self.sched_repeat_cb.IsEnabled  = on
         self.sched_date_dp.IsEnabled    = repeat
         self.sched_days_panel.Visibility = (
             Windows.Visibility.Visible if repeat
             else Windows.Visibility.Collapsed)
-        for ctrl, on in ((self.sched_profile_cb, en),
-                         (self.sched_time_btn, prof),
-                         (self.sched_repeat_cb, t_ok)):
-            ctrl.Opacity = 1.0 if on else 0.55
+        for ctrl, enabled in ((self.sched_enable_cb, prof),
+                              (self.sched_time_btn, on),
+                              (self.sched_repeat_cb, on)):
+            ctrl.Opacity = 1.0 if enabled else 0.55
 
-    def _compute_next_run(self):
-        """Next datetime the schedule should fire, or None."""
+    def _sched_block_from_ui(self):
+        """The Schedule tab's current fields as a profile schedule block."""
         t = self._parse_sched_time()
         if t is None:
             return None
-        hh, mm = t
-        now = datetime.now()
-        if self._sched_repeat_mode() == 'Once':
-            nxt = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
-            if nxt <= now:
-                nxt += timedelta(days=1)
-            return nxt
-        days = self._sched_checked_days()
-        if not days:
-            return None
-        base = max(self._sched_start_date(), now.date())
-        for i in range(8):
-            d = base + timedelta(days=i)
-            cand = datetime(d.year, d.month, d.day, hh, mm)
-            if cand.weekday() in days and cand > now:
-                return cand
-        return None
+        return {
+            'enabled':     bool(self.sched_enable_cb.IsChecked),
+            'hour':        t[0],
+            'minute':      t[1],
+            'repeat_mode': self._sched_repeat_mode(),
+            'days':        self._sched_checked_days(),
+            'start_date':  self._sched_start_date().strftime('%Y-%m-%d'),
+        }
 
-    def _sched_refresh(self):
-        """Re-evaluate gates and arm/disarm the timer."""
-        self._update_sched_gates()
-        self._stop_timer()
-        if not self.sched_enable_cb.IsChecked:
-            self.sched_status_tb.Text = 'Schedule off'
-            _clear_schedule_file()
-            return
-        if not self.sched_profile_cb.SelectedItem:
-            self.sched_status_tb.Text = 'Select a profile…'
-            _clear_schedule_file()
-            return
-        if self._parse_sched_time() is None:
+    # ── Arming ──
+    def _set_sched_enabled(self, on):
+        """Set the Enable tick without it looking like a user click."""
+        was_loading = self._loading
+        self._loading = True
+        try:
+            self.sched_enable_cb.IsChecked = bool(on)
+        finally:
+            self._loading = was_loading
+
+    def _arm_card(self, name):
+        """Add (or move) profile `name` in the run list, at the time now
+        showing in the Schedule tab."""
+        block = self._sched_block_from_ui()
+        if block is None:
             self.sched_status_tb.Text = 'Pick a time…'
-            _clear_schedule_file()
             return
-        if (self._sched_repeat_mode() == 'Repeat'
-                and not self._sched_checked_days()):
+        block['enabled'] = True
+        nxt = compute_next_run(block)
+        self._write_profile_schedule(name, block)
+        if nxt is None:
+            # Only reachable on Repeat with no weekday ticked. Drop the card
+            # rather than leave it armed - it still holds a next_run from
+            # before the days were cleared, and would fire on it.
+            self._disarm_card(name)
+            self._set_sched_enabled(False)
             self.sched_status_tb.Text = 'Pick at least one day…'
-            _clear_schedule_file()
             return
-        self._sched_next = self._compute_next_run()
-        if not self._sched_next:
-            self.sched_status_tb.Text = 'No valid run time'
-            _clear_schedule_file()
+
+        # An unsaved project has no path to match on later, so there would be
+        # nothing for the background scheduler to find when the time came.
+        doc_path = ''
+        try:
+            doc_path = revit.doc.PathName or ''
+        except Exception:
+            pass
+        if not doc_path:
+            self._disarm_card(name)
+            self._set_sched_enabled(False)
+            self.sched_status_tb.Text = 'Save the project first'
+            return
+
+        # The card is bound to the host project, not to whatever is picked in
+        # the documents dropdown - a linked document cannot be activated on
+        # its own, and it is the host that has to be left open anyway.
+        data = _read_armed_file()
+        entries = [e for e in data.get('entries', [])
+                   if e.get('profile_name') != name]
+        entries.append({
+            'profile_name':   name,
+            # Stored so the background scheduler can read this card's timing
+            # without having to guess how the name maps to a filename.
+            'profile_path':   self._profile_path(name),
+            'document_path':  doc_path,
+            'document_title': revit.doc.Title,
+            'next_run':       nxt.strftime(TS_FMT),
+        })
+        data['entries'] = entries
+        _write_armed_file(data)
+
+        self._start_timer()
+        self._setup_profiles()      # repaint the armed dots
+        self._update_sched_status()
+
+    def _disarm_card(self, name):
+        """Drop profile `name` from the run list. Its timing stays on the
+        profile, so re-arming it later brings the same time back."""
+        data = _read_armed_file()
+        data['entries'] = [e for e in data.get('entries', [])
+                           if e.get('profile_name') != name]
+        _write_armed_file(data)
+
+        block = self._read_profile_schedule(name)
+        if block:
+            block['enabled'] = False
+            self._write_profile_schedule(name, block)
+
+        if not data['entries']:
+            self._stop_timer()
+        self._setup_profiles()
+        self._update_sched_status()
+
+    def _update_sched_status(self):
+        """Green status line: what is armed, and when the next one fires."""
+        entries = [e for e in _read_armed_file().get('entries', [])
+                   if e.get('next_run')]
+        if not entries:
+            self.sched_status_tb.Text = 'Schedule off'
+            return
+        entries.sort(key=lambda e: (e['next_run'],
+                                    (e.get('profile_name') or '').lower()))
+        first = entries[0]
+        try:
+            when = datetime.strptime(first['next_run'], TS_FMT).strftime(
+                '%a %d %b %H:%M')
+        except Exception:
+            when = first['next_run']
+        if len(entries) == 1:
+            self.sched_status_tb.Text = 'Next run: {}'.format(when)
+        else:
+            self.sched_status_tb.Text = '{} armed — next {} ({})'.format(
+                len(entries), when, first.get('profile_name'))
+
+    def _start_timer(self):
+        """One timer for the window, however many cards are armed."""
+        if self._sched_timer:
+            self._beat()
             return
         self._sched_timer = Windows.Threading.DispatcherTimer()
         self._sched_timer.Interval = framework.System.TimeSpan.FromSeconds(20)
         self._sched_timer.Tick += self._sched_tick
         self._sched_timer.Start()
-        self.sched_status_tb.Text = 'Next run: {}'.format(
-            self._sched_next.strftime('%a %d %b %H:%M'))
+        self._beat()
 
-        # Persist so startup.py's background Idling handler can fire this
-        # even if this window closes before the scheduled time arrives.
+    def _beat(self):
+        """Claim this document's cards while the window is open.
+
+        startup.py skips any card whose document matches a fresh heartbeat,
+        so the window and the background handler can never both fire one.
+        Cards armed against a different project stay with the background
+        handler, since this window cannot switch documents."""
         try:
-            doc = self._selected_doc
-            _write_schedule_file({
-                'enabled':        True,
-                'profile_name':   self.sched_profile_cb.SelectedItem,
-                'repeat_mode':    self._sched_repeat_mode(),
-                'days':           self._sched_checked_days(),
-                'hour':           self._sched_time[0],
-                'minute':         self._sched_time[1],
-                'next_run':       self._sched_next.strftime('%Y-%m-%dT%H:%M:%S'),
-                'document_path':  doc.PathName,
-                'document_title': doc.Title,
-            })
-        except Exception as ex:
-            logger.warning('Could not persist schedule: %s', ex)
+            data = _read_armed_file()
+            data['heartbeat']     = datetime.now().strftime(TS_FMT)
+            data['heartbeat_doc'] = revit.doc.PathName
+            _write_armed_file(data)
+        except Exception:
+            pass
+
+    def _release_heartbeat(self):
+        """Hand this document's cards back to the background handler."""
+        try:
+            data = _read_armed_file()
+            data['heartbeat']     = None
+            data['heartbeat_doc'] = None
+            _write_armed_file(data)
+        except Exception:
+            pass
 
     def _stop_timer(self):
         if self._sched_timer:
@@ -4322,37 +4638,122 @@ class PrintSheetsWindow(forms.WPFWindow):
             except Exception:
                 pass
         self._sched_timer = None
-        self._sched_next  = None
 
-    def _stop_schedule(self):
-        """Full stop — also unticks Enable (used on close/errors)."""
-        self._stop_timer()
+    # ── Running due cards ──
+    def _sched_tick(self, sender, args):
+        """Every 20s while the window is open: renew the claim on this
+        document's cards, and run any that have come due."""
+        self._beat()
+        # _do_export pumps the dispatcher, which lets this timer tick again
+        # mid-export. Without this guard a long export starts itself twice.
+        if self._running_sched:
+            return
+        entries = self._due_entries()
+        if entries:
+            self._run_due_cards(entries)
+
+    def _due_entries(self):
+        """Armed cards for this document whose time has come.
+
+        respect_heartbeat is off because the heartbeat is this window's own
+        claim - honouring it here would mean never running anything."""
         try:
-            if self.sched_enable_cb.IsChecked:
-                self._loading = True
-                self.sched_enable_cb.IsChecked = False
-                self._loading = False
+            doc_path = revit.doc.PathName
+        except Exception:
+            return []
+        return _schedule.due_entries(_read_armed_file(), doc_path=doc_path,
+                                     respect_heartbeat=False)
+
+    def _run_due_cards(self, entries):
+        """Run each due card in turn — one export at a time, never two at once.
+
+        Ordered by due time, then profile name (the order the dropdowns list
+        them in). A card that fails is logged and the batch carries on, so one
+        bad profile cannot stop the other four."""
+        data    = _read_armed_file()
+        entries = _schedule.sort_entries(entries)
+        failed, missed, ran = [], [], []
+
+        # Show the Export tab: a scheduled run should come up on the queue and
+        # progress bar, not on whatever tab the window happens to open on.
+        try:
+            self._show_tab(TAB_PRINT)
         except Exception:
             pass
-        self.sched_status_tb.Text = 'Schedule off'
-        _clear_schedule_file()
 
-    def _sched_tick(self, sender, args):
-        if not self._sched_next or datetime.now() < self._sched_next:
-            return
+        self._running_sched = True
+        was_unattended = self._unattended
+        self._unattended = True
         try:
-            name = self.sched_profile_cb.SelectedItem
-            if name:
-                with open(self._profile_path(name), 'r') as f:
-                    self._apply_profile(json.load(f))
-            self._build_queue()
-            self._do_export()
-        except Exception as ex:
-            logger.error('Scheduled export failed: %s', ex)
-        if self._sched_repeat_mode() == 'Once':
-            self._stop_schedule()
-        else:
-            self._sched_refresh()
+            for entry in entries:
+                name = entry.get('profile_name')
+                if not name or not op.isfile(self._profile_path(name)):
+                    logger.warning('Scheduled card "%s" has no profile, dropped', name)
+                    self._disarm_card(name)
+                    continue
+                if _schedule.is_stale(data, entry):
+                    when = _parse_ts(entry.get('next_run'))
+                    logger.warning('Scheduled export "%s" missed its slot (%s) '
+                                   'by more than the grace window — skipped',
+                                   name,
+                                   when.strftime('%d %b %H:%M') if when else '?')
+                    missed.append(name)
+                else:
+                    try:
+                        self._run_one_card(name)
+                        ran.append(name)
+                    except Exception as ex:
+                        logger.error('Scheduled export "%s" failed: %s', name, ex)
+                        failed.append('{}: {}'.format(name, ex))
+                self._advance_card(name)
+        finally:
+            self._unattended = was_unattended
+            self._running_sched = False
+
+        self._setup_profiles()
+        self._update_sched_status()
+        sel = self._cb_name(self.sched_profile_cb)
+        if sel:
+            self._load_card_into_ui(sel)
+        self._report_sched_run(ran, missed, failed)
+
+    def _run_one_card(self, name):
+        """Load one profile and export it, exactly as pressing Print would."""
+        with open(self._profile_path(name), 'r') as f:
+            self._apply_profile(json.load(f))
+        self._build_queue()
+        self._do_export()
+
+    def _advance_card(self, name):
+        """Re-arm a repeating card for its next occurrence; retire a spent one."""
+        block = self._read_profile_schedule(name)
+        if block and block.get('repeat_mode') == 'Repeat':
+            nxt = compute_next_run(block)
+            if nxt:
+                data = _read_armed_file()
+                for entry in data.get('entries', []):
+                    if entry.get('profile_name') == name:
+                        entry['next_run'] = nxt.strftime(TS_FMT)
+                _write_armed_file(data)
+                return
+        self._disarm_card(name)
+
+    def _report_sched_run(self, ran, missed, failed):
+        """One summary at the end of the batch, never one dialog per card."""
+        if not (ran or missed or failed):
+            return
+        parts = []
+        if ran:
+            parts.append('Exported: {}'.format(', '.join(ran)))
+        if missed:
+            parts.append('Skipped (too late): {}'.format(', '.join(missed)))
+        if failed:
+            parts.append('Failed:\n  {}'.format('\n  '.join(failed)))
+        summary = '\n'.join(parts)
+        logger.info('Scheduled run finished. %s', summary.replace('\n', ' '))
+        if failed:
+            dlg.message('Scheduled export finished with errors.\n\n' + summary,
+                        title='pySheets')
 
     # ── XAML EVENT HANDLERS WINDOW ──
     LAST_SESSION = op.join(USERDATA_DIR, 'settings', 'lastsession.json')
@@ -4460,7 +4861,11 @@ class PrintSheetsWindow(forms.WPFWindow):
     def window_closing(self, sender, args):
         self._save_last_session()
         self._save_naming_memory()
-        self._stop_schedule()
+        # Only the in-window timer stops here. The armed cards stay armed -
+        # startup.py picks them up once the heartbeat is released, which is
+        # the whole point of scheduling from a window you then close.
+        self._stop_timer()
+        self._release_heartbeat()
         self._restore_print_settings()
 
     def close_window(self, sender, args):
@@ -4494,29 +4899,23 @@ def _set_child_text(border, text, foreground_brush):
 
 
 # ── ENTRY POINT ──
-def launch_scheduled(sched_data):
-    """Called by startup.py's Idling-based scheduler when an armed
-    schedule comes due and this window isn't already open. Opens the
-    window normally (steals focus like any manual launch), applies the
-    saved profile, and runs the same export pipeline the in-window
-    timer (_sched_tick) uses, then leaves the window open."""
+def launch_scheduled(entries):
+    """Called by startup.py's Idling-based scheduler when armed cards come
+    due and this window isn't already open. Opens the window normally
+    (steals focus like any manual launch), runs the given cards one at a
+    time, and leaves it open.
+
+    Every entry must belong to the document that is active right now -
+    startup.py activates it first and groups the batch by document, because
+    a window is built around whichever project was active when it opened
+    and cannot be pointed at another one afterwards."""
     win = PrintSheetsWindow('pySheets.xaml')
-    win.Show()   # non-modal: returns immediately so export can follow
-    win._restore_schedule_ui(sched_data)
+    win.Show()   # non-modal: returns immediately so the export can follow
     try:
-        name = sched_data.get('profile_name')
-        if name:
-            with open(win._profile_path(name), 'r') as f:
-                win._apply_profile(json.load(f))
-        win._build_queue()
-        win._do_export()
+        win._run_due_cards(entries)
     except Exception as ex:
-        logger.error('Scheduled export failed: %s', ex)
+        logger.error('Scheduled run failed: %s', ex)
         dlg.message('Scheduled export failed.\n\n' + str(ex), title='pySheets')
-    # "Once" already fired, disarm it. "Repeat" was already re-armed for
-    # its next occurrence inside _restore_schedule_ui above.
-    if win._sched_repeat_mode() == 'Once':
-        win._stop_schedule()
     return win
 
 

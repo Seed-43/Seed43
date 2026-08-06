@@ -1,10 +1,13 @@
 title: "Move Viewports"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Moves selected viewports and schedule instances from the current
-  sheet to a target sheet, preserving view/viewport type, title and
-  label position, and detail numbers - auto-resolving any numbering
-  conflicts and skipping views already on the target sheet.
+
+  Moves selected viewports and schedule instances from the current sheet to
+  a target sheet, preserving view/viewport type, title and label position,
+  and detail numbers - auto-resolving any numbering conflicts and skipping
+  views already on the target sheet.
+
   __________________________________________________________________

@@ -5,8 +5,8 @@ snippets.yaml entry:
   _sectionbox.py:
     description: >
       Helpers for tools that drive a 3D view's section box - model extents,
-      the 3D-view guard, and applying a box. Used by Selection Box on Level
-      and Selection Box on Grid.
+      the 3D-view guard, and applying a box. Used by Grid Slice and
+      Level Slice.
     functions:
       mm_to_ft:        Convert millimetres to Revit's internal feet.
       require_3d_view: Return the active view if it can take a section box, else None.

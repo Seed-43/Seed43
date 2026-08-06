@@ -1,10 +1,13 @@
 title: "View Organiser"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Renames every view placed on a sheet into a consistent Sheet
-  Number - Detail Number - View Title format and syncs browser folder
-  grouping from sheets to views across the project, all in one
-  automatic pass. Legends, schedules, and drawing sheets are excluded.
+
+  Renames every view placed on a sheet into a consistent Sheet Number -
+  Detail Number - View Title format and syncs browser folder grouping from
+  sheets to views across the project, all in one automatic pass. Legends,
+  schedules, and drawing sheets are excluded.
+
   __________________________________________________________________

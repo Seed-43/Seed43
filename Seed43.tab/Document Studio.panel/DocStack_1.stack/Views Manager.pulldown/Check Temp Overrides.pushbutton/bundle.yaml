@@ -1,10 +1,13 @@
 title: "Check Temp Overrides"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Scans all views placed on sheets and reports any with active
-  temporary graphic overrides - Hide/Isolate, Reveal Hidden Elements,
-  or Worksharing Display - grouped by sheet with clickable links to
-  jump straight to the sheet or view.
+
+  Scans all views placed on sheets and reports any with active temporary
+  graphic overrides - Hide/Isolate, Reveal Hidden Elements, or Worksharing
+  Display - grouped by sheet with clickable links to jump straight to the
+  sheet or view.
+
   __________________________________________________________________

@@ -1,12 +1,15 @@
 title: "Isolate Levels"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Temporarily isolates everything tied to a chosen level, so you can
-  see what deleting that level would take with it - Revit warns that
-  elements will be deleted but never says which ones. Matches on level
-  association, not height, so it finds a beam tied to this level but
-  drawn elsewhere. Select a level first, pick one from the list, or
-  click one in the model. Clear with Reset Temporary Hide/Isolate.
+
+  Temporarily isolates everything tied to a chosen level, so you can see
+  what deleting that level would take with it - Revit warns that elements
+  will be deleted but never says which ones. Matches on level association,
+  not height, so it finds a beam tied to this level but drawn elsewhere.
+  Select a level first, pick one from the list, or click one in the model.
+  Clear with Reset Temporary Hide/Isolate.
+
   __________________________________________________________________

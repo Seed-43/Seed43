@@ -41,8 +41,8 @@
 
         <Style x:Key="CardStyle" TargetType="Border">
             <Setter Property="Background"   Value="{DynamicResource BrushCardBg}"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding"      Value="16"/>
+            <Setter Property="CornerRadius" Value="{DynamicResource CornerRadiusCard}"/>
+            <Setter Property="Padding"      Value="{DynamicResource PaddingCard}"/>
             <Setter Property="Margin"       Value="0,0,0,12"/>
             <Setter Property="Effect">
                 <Setter.Value>
@@ -54,13 +54,13 @@
         <Style x:Key="SectionLabelStyle" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource BrushPrimaryGreen}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize"   Value="14"/>
+            <Setter Property="FontSize"   Value="{DynamicResource FontSizeSectionLabel}"/>
             <Setter Property="Margin"     Value="0,0,0,8"/>
         </Style>
 
         <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
-            <Setter Property="FontSize"   Value="12"/>
+            <Setter Property="FontSize"   Value="{DynamicResource FontSizeFieldLabel}"/>
             <Setter Property="Margin"     Value="0,0,0,4"/>
             <Setter Property="Opacity"    Value="0.9"/>
         </Style>
@@ -70,15 +70,15 @@
             <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontSize"        Value="18"/>
-            <Setter Property="Width"           Value="40"/>
-            <Setter Property="Height"          Value="40"/>
+            <Setter Property="Width"           Value="{DynamicResource WidthButtonMenu}"/>
+            <Setter Property="Height"          Value="{DynamicResource HeightButtonMenu}"/>
             <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
                         <Border x:Name="Bd"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="8">
+                                CornerRadius="{DynamicResource CornerRadiusButtonMenu}">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center"/>
                         </Border>
@@ -103,8 +103,8 @@
             <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontSize"        Value="14"/>
-            <Setter Property="Width"           Value="30"/>
-            <Setter Property="Height"          Value="30"/>
+            <Setter Property="Width"           Value="{DynamicResource WidthButtonClose}"/>
+            <Setter Property="Height"          Value="{DynamicResource HeightButtonClose}"/>
             <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="Content"         Value="&#x2716;"/>
             <Setter Property="Template">
@@ -112,7 +112,7 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bd"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="15">
+                                CornerRadius="{DynamicResource CornerRadiusButtonClose}">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center"/>
                         </Border>
@@ -134,8 +134,8 @@
             <Setter Property="Background"      Value="{DynamicResource BrushPrimaryGreen}"/>
             <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding"         Value="24,8"/>
-            <Setter Property="FontSize"        Value="14"/>
+            <Setter Property="Padding"         Value="{DynamicResource PaddingButtonPrimary}"/>
+            <Setter Property="FontSize"        Value="{DynamicResource FontSizeButton}"/>
             <Setter Property="FontWeight"      Value="SemiBold"/>
             <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="Template">
@@ -143,7 +143,7 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bd"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="6"
+                                CornerRadius="{DynamicResource CornerRadiusButton}"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center"/>
@@ -169,15 +169,15 @@
             <Setter Property="Background"      Value="{DynamicResource BrushSecondaryBg}"/>
             <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding"         Value="14,6"/>
-            <Setter Property="FontSize"        Value="12"/>
+            <Setter Property="Padding"         Value="{DynamicResource PaddingButtonSecondary}"/>
+            <Setter Property="FontSize"        Value="{DynamicResource FontSizeButtonSecondary}"/>
             <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bd"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="6"
+                                CornerRadius="{DynamicResource CornerRadiusButtonSecondary}"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center"/>
@@ -204,8 +204,8 @@
             <Setter Property="Background"      Value="{DynamicResource BrushPrimaryGreen}"/>
             <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding"         Value="12,0"/>
-            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="Padding"         Value="{DynamicResource PaddingButtonSmall}"/>
+            <Setter Property="FontSize"        Value="{DynamicResource FontSizeButtonSmall}"/>
             <Setter Property="FontWeight"      Value="SemiBold"/>
             <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="Height"          Value="24"/>
@@ -214,7 +214,7 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bd"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="4"
+                                CornerRadius="{DynamicResource CornerRadiusButtonSmall}"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center"/>
@@ -292,8 +292,8 @@
             <Setter Property="Background"      Value="{DynamicResource BrushSecondaryBg}"/>
             <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding"         Value="14,0"/>
-            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="Padding"         Value="{DynamicResource PaddingButtonSmall}"/>
+            <Setter Property="FontSize"        Value="{DynamicResource FontSizeButtonSmall}"/>
             <Setter Property="FontWeight"      Value="SemiBold"/>
             <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="Height"          Value="24"/>
@@ -302,7 +302,7 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bd"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="4"
+                                CornerRadius="{DynamicResource CornerRadiusButtonSmall}"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center"/>
@@ -321,10 +321,10 @@
             <Setter Property="Background"               Value="{DynamicResource BrushInputBg}"/>
             <Setter Property="Foreground"               Value="{DynamicResource BrushTextInput}"/>
             <Setter Property="BorderBrush"              Value="{DynamicResource BrushBorderDefault}"/>
-            <Setter Property="BorderThickness"          Value="1"/>
-            <Setter Property="Padding"                  Value="8,4"/>
-            <Setter Property="FontSize"                 Value="12"/>
-            <Setter Property="Height"                   Value="26"/>
+            <Setter Property="BorderThickness"          Value="{DynamicResource BorderThicknessInput}"/>
+            <Setter Property="Padding"                  Value="{DynamicResource PaddingInput}"/>
+            <Setter Property="FontSize"                 Value="{DynamicResource FontSizeInput}"/>
+            <Setter Property="Height"                   Value="{DynamicResource HeightInput}"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -333,7 +333,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="4"
+                                CornerRadius="{DynamicResource CornerRadiusInput}"
                                 Padding="{TemplateBinding Padding}">
                             <ScrollViewer x:Name="PART_ContentHost"
                                           Focusable="False"
@@ -359,7 +359,7 @@
             <Setter Property="Background"      Value="Transparent"/>
             <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding"         Value="10,7"/>
+            <Setter Property="Padding"         Value="{DynamicResource PaddingMenuItem}"/>
             <Setter Property="FontSize"        Value="12"/>
             <Setter Property="HorizontalContentAlignment" Value="Left"/>
             <Setter Property="Cursor"          Value="Hand"/>
@@ -507,10 +507,10 @@
                                 Margin="2,2,2,2"/>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushSuccess}"/>
+                                <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
                             </Trigger>
                             <Trigger Property="IsDragging" Value="True">
-                                <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushSuccessHover}"/>
+                                <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -600,6 +600,11 @@
                 <!-- Wordmark + contextual subtitle -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal"
                             VerticalAlignment="Center">
+                    <Image x:Name="header_icon"
+                           Width="{DynamicResource SizeTopBarLogo}"
+                           Height="{DynamicResource SizeTopBarLogo}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,10,0"/>
                     <TextBlock Text="py" FontWeight="Bold" FontSize="28"
                                Foreground="{DynamicResource BrushPrimaryGreen}" VerticalAlignment="Center"/>
                     <TextBlock Text="Filter" FontWeight="SemiBold" FontSize="28"
@@ -667,17 +672,23 @@
                 <!-- Right: normal mode (search + Apply + hamburger) -->
                 <StackPanel x:Name="HeaderNormalBtns" Grid.Column="3"
                             Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Background="{DynamicResource BrushInputBg}" CornerRadius="4" Padding="8,0"
-                            Height="26" VerticalAlignment="Center" Margin="0,0,8,0">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="&#x1F50D;" Foreground="{DynamicResource BrushTextMuted}" FontSize="11"
-                                       VerticalAlignment="Center" Margin="0,0,6,0"/>
-                            <TextBox x:Name="TxtSearch" Width="160" Height="22"
-                                     Background="Transparent" Foreground="{DynamicResource BrushTextInput}"
-                                     BorderThickness="0" VerticalContentAlignment="Center"
-                                     FontSize="11"/>
-                        </StackPanel>
-                    </Border>
+                    <!-- Search box: the canonical text input plus an inset
+                         search glyph, per the palette editor's Search Box.
+                         Was a hand-built Border wrapping a borderless TextBox,
+                         which matched none of the input tokens. -->
+                    <Grid Width="180" VerticalAlignment="Center" Margin="0,0,8,0">
+                        <TextBox x:Name="TxtSearch"
+                                 Style="{StaticResource ModernTextBoxStyle}"
+                                 Padding="28,0,8,0"
+                                 HorizontalContentAlignment="Left"
+                                 TextAlignment="Left"/>
+                        <ContentControl x:Name="search_icon"
+                                        Width="14" Height="14"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Center"
+                                        Margin="9,0,0,0"
+                                        IsHitTestVisible="False"/>
+                    </Grid>
                     <Button x:Name="BtnApply" Content="Apply"
                             Style="{StaticResource SmallButtonStyle}"
                             Padding="20,0" Margin="0,0,8,0"/>

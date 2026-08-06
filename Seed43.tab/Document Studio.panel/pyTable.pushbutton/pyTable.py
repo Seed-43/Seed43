@@ -100,6 +100,8 @@ class MainWindow(forms.WPFWindow):
         # dynamic UI construction touches TryFindResource.
         apply_seed43_palette(self, SCRIPT_DIR)
         apply_seed43_dimensions(self, SCRIPT_DIR)
+        from Snippets._icons import set_header_icon
+        set_header_icon(self, SCRIPT_DIR)
 
         self._pending_export_columns = []   # list of {"key","kind","readonly"}
         self._pending_export_rows = []       # list of dicts keyed by column + hidden keys

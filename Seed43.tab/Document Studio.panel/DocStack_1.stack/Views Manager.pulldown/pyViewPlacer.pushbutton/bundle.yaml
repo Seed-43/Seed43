@@ -1,10 +1,13 @@
 title: "pyViewPlacer"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Select view references (callouts, sections, elevations) in the
-  active view and place their associated views on a chosen sheet.
-  Includes options to apply a view template, pick a viewport type,
-  and reuse your last-used settings for speed and consistency.
+
+  Select view references (callouts, sections, elevations) in the active view
+  and place their associated views on a chosen sheet. Includes options to
+  apply a view template, pick a viewport type, and reuse your last-used
+  settings for speed and consistency.
+
   __________________________________________________________________

@@ -1,9 +1,12 @@
 title: "Organiser Reset"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Clears View Organiser's saved folder-parameter configuration, so
-  the source and destination parameters can be re-picked the next
-  time View Organiser runs.
+
+  Clears View Organiser's saved folder-parameter configuration, so the
+  source and destination parameters can be re-picked the next time View
+  Organiser runs.
+
   __________________________________________________________________

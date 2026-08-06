@@ -1,11 +1,14 @@
 title: "Project Units"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Saves and restores all project unit settings via a JSON file -
-  covering length, area, volume, angle, slope, currency, and more,
-  including accuracy, grouping, prefix, suffix, and display options.
-  Useful for applying a standard unit template across projects or
-  quickly restoring units after a project is shared or migrated.
+
+  Saves and restores all project unit settings via a JSON file - covering
+  length, area, volume, angle, slope, currency, and more, including
+  accuracy, grouping, prefix, suffix, and display options. Useful for
+  applying a standard unit template across projects or quickly restoring
+  units after a project is shared or migrated.
+
   __________________________________________________________________

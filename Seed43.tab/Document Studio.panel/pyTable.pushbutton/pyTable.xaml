@@ -538,6 +538,11 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Image x:Name="header_icon"
+                           Width="{DynamicResource SizeTopBarLogo}"
+                           Height="{DynamicResource SizeTopBarLogo}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,10,0"/>
                     <TextBlock Text="Py" FontWeight="Bold" FontSize="20"
                                Foreground="{DynamicResource BrushPrimaryGreen}" VerticalAlignment="Center"/>
                     <TextBlock Text="Table" FontWeight="SemiBold" FontSize="20"

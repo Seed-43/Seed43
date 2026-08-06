@@ -1,10 +1,13 @@
 title: "Filter Family (Linked)"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Creates View Filters for elements selected inside linked models,
-  based on family name. Remembers the selected linked model for fast
-  repeated selection, applying each filter to the active view or its
-  template and hiding matching elements.
+
+  Creates View Filters for elements selected inside linked models, based on
+  family name. Remembers the selected linked model for fast repeated
+  selection, applying each filter to the active view or its template and
+  hiding matching elements.
+
   __________________________________________________________________

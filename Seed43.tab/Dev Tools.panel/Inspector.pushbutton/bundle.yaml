@@ -1,11 +1,13 @@
 title: "Inspector"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Pick any element in the model and get a full breakdown of
-  everything Revit knows about it - identity, type parameters, family
-  info, location/geometry, mechanical connections, and every
-  parameter that can be used in view filters - shown as a
-  read-only report.
+
+  Pick any element in the model and get a full breakdown of everything Revit
+  knows about it - identity, type parameters, family info,
+  location/geometry, mechanical connections, and every parameter that can be
+  used in view filters - shown as a read-only report.
+
   __________________________________________________________________

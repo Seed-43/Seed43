@@ -782,11 +782,16 @@
                 <StackPanel Grid.Column="0"
                             Orientation="Horizontal"
                             VerticalAlignment="Center">
+                    <Image x:Name="header_icon"
+                           Width="{DynamicResource SizeTopBarLogo}"
+                           Height="{DynamicResource SizeTopBarLogo}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,10,0"/>
                     <TextBlock Text="py"
                                FontWeight="Bold" FontSize="20"
                                Foreground="{DynamicResource BrushPrimaryGreen}"
                                VerticalAlignment="Center"/>
-                    <TextBlock Text="Table"
+                    <TextBlock Text="Link"
                                FontWeight="SemiBold" FontSize="20"
                                Foreground="{DynamicResource BrushTextPrimary}"
                                Margin="4,0,0,0"

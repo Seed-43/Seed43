@@ -1,10 +1,13 @@
 title: "Change Type &/ Format"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Batch updates Text Notes across the project, changing their Text
-  Type and applying Bold, Italic, or Underline formatting. Handles
-  worksharing automatically, checking out required elements and
-  worksets as needed, with an optional sync at the end.
+
+  Batch updates Text Notes across the project, changing their Text Type and
+  applying Bold, Italic, or Underline formatting. Handles worksharing
+  automatically, checking out required elements and worksets as needed, with
+  an optional sync at the end.
+
   __________________________________________________________________

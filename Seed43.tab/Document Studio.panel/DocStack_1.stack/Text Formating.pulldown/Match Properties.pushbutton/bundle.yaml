@@ -1,10 +1,12 @@
 title: "Match Properties"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
+
   Matches Text Style, width, and horizontal/vertical alignment from a
-  reference annotation or text element to one or more target
-  elements, for consistent annotation across views, families, and
-  documentation sheets.
+  reference annotation or text element to one or more target elements, for
+  consistent annotation across views, families, and documentation sheets.
+
   __________________________________________________________________

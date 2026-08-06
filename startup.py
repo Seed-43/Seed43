@@ -302,6 +302,22 @@ ICON_PATH     = os.path.join(SCRIPT_DIR, "icon.png")
 _LOG_FILE     = os.path.join(SCRIPT_DIR, "startup_error.log")
 
 
+def _log_note(message):
+    """A stated condition in the same log as _log_error, without a traceback.
+
+    For the case that isn't an exception but still leaves the scheduler dead:
+    the Idling subscription failing outright. Nothing routine is logged here
+    - the handler runs every 20 seconds, and a note per pass would bury the
+    real errors."""
+    try:
+        import datetime as _dt
+        with open(_LOG_FILE, "a") as f:
+            f.write("[{}] {}\n".format(
+                _dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), message))
+    except Exception:
+        pass
+
+
 def _log_error(context):
     """Silent-by-design elsewhere in this file, but a swallowed exception
     here means the update popup just never appears with no way to tell
@@ -621,8 +637,14 @@ def _check_and_notify(ui_dispatcher):
 #
 # pySheets' own in-window scheduler (a DispatcherTimer) only runs while its
 # window is open, closing the window kills it. This registers a session-level
-# Application.Idling handler instead, so an armed schedule survives the
-# window closing, as long as Revit and the target document stay open.
+# Application.Idling handler instead, so armed schedules survive the window
+# closing, as long as Revit and the target document stay open.
+#
+# Several profiles ("punch cards") can be armed at once. Cards that come due
+# together run one at a time, grouped by document: a pySheets window is built
+# around whichever project was active when it opened, so each document needs
+# its own window, and the document that was active beforehand is restored at
+# the end.
 #
 # V1 only: if the target document isn't open when the schedule comes due, it
 # is skipped rather than opened automatically. Auto-opening the document is a
@@ -675,31 +697,66 @@ _LIB_DIR = os.path.join(EXTENSION_DIR, "lib")
 
 _last_schedule_check = [0.0]
 
+_UNSET = object()
+_sched_mod_cache = [_UNSET]
+
+
+def _schedule_mod():
+    """The shared schedule rules from lib/Snippets/_schedule.py.
+
+    Imported lazily and cached: it costs nothing but json/datetime, but there
+    is no reason to touch the disk on a Revit launch where nothing is armed.
+    Returns None if lib is missing, in which case the scheduler stands down."""
+    if _sched_mod_cache[0] is _UNSET:
+        _sched_mod_cache[0] = None
+        try:
+            import sys as _sys
+            if _LIB_DIR and os.path.isdir(_LIB_DIR) and _LIB_DIR not in _sys.path:
+                _sys.path.insert(0, _LIB_DIR)
+            from Snippets import _schedule
+            _sched_mod_cache[0] = _schedule
+        except Exception:
+            _log_error("_schedule_mod")
+    return _sched_mod_cache[0]
+
 
 def _read_schedule():
-    path = _schedule_file()
-    if not path:
+    """The armed cards file, already normalised (and upgraded from the old
+    single-schedule format if that is what is still on disk)."""
+    sched = _schedule_mod()
+    path  = _schedule_file()
+    if not sched or not path:
         return None
     try:
-        import json
-        reader  = StreamReader(path)
-        content = reader.ReadToEnd()
-        reader.Close()
-        return json.loads(content)
+        return sched.read_armed_file(path)
     except Exception:
         return None
 
 
-def _launch_pysheets_schedule(sched):
-    """Import pySheets fresh and hand it the due schedule. Imported lazily
-    here, not at module load, to keep it out of every Revit startup."""
+def _write_schedule(data):
+    """Write the armed cards back — used when retiring a card that missed
+    its slot, so it doesn't sit stale forever."""
+    sched = _schedule_mod()
+    path  = _schedule_file() or _SCHEDULE_FILE_NEW
+    if not sched or not path:
+        return
+    try:
+        sched.write_armed_file(path, data)
+    except Exception:
+        _log_error("_write_schedule")
+
+
+def _launch_pysheets_schedule(entries):
+    """Import pySheets fresh and hand it the cards due for the document that
+    is active right now. Imported lazily here, not at module load, to keep it
+    out of every Revit startup."""
     import sys as _sys
     if _PYSHEETS_DIR and _PYSHEETS_DIR not in _sys.path:
         _sys.path.insert(0, _PYSHEETS_DIR)
     if _LIB_DIR and os.path.isdir(_LIB_DIR) and _LIB_DIR not in _sys.path:
         _sys.path.insert(0, _LIB_DIR)
     import pySheets
-    pySheets.launch_scheduled(sched)
+    pySheets.launch_scheduled(entries)
 
 
 from Autodesk.Revit.UI import IExternalEventHandler, ExternalEvent
@@ -714,44 +771,102 @@ class _PySheetsScheduleHandler(IExternalEventHandler):
 
     def Execute(self, uiapp):
         try:
-            sched = _read_schedule()
-            if not sched or not sched.get("enabled"):
+            sched_mod = _schedule_mod()
+            sched     = _read_schedule()
+            if not sched_mod or not sched:
                 return
-            doc_path = sched.get("document_path")
-            if not doc_path:
+            due = sched_mod.due_entries(sched)
+            if not due:
                 return
 
-            target_doc = None
+            # Cards that missed their slot by more than the grace window are
+            # rolled straight on to their next occurrence here - no window
+            # opens, nothing prints. Doing it in this pass matters: otherwise
+            # a card missed over a weekend stays stuck in the past and can
+            # never fire again.
+            runnable, retired = [], False
+            for entry in due:
+                if not sched_mod.is_stale(sched, entry):
+                    runnable.append(entry)
+                    continue
+                retired = True
+                if not sched_mod.advance_entry(entry):
+                    sched["entries"] = [e for e in sched.get("entries") or []
+                                        if e is not entry]
+            if retired:
+                _write_schedule(sched)
+            if not runnable:
+                return
+            due = runnable
+
+            # Whatever the user was working in comes back at the end - a
+            # scheduled print should not quietly move them to another model.
+            previous_path = None
+            try:
+                previous_path = uiapp.ActiveUIDocument.Document.PathName
+            except Exception:
+                pass
+
+            open_paths = {}
             for d in uiapp.Application.Documents:
                 try:
-                    if d.PathName and os.path.normcase(d.PathName) == os.path.normcase(doc_path):
-                        target_doc = d
-                        break
+                    if d.PathName and not d.IsLinked:
+                        open_paths[os.path.normcase(d.PathName)] = d.PathName
                 except Exception:
                     continue
-            if target_doc is None:
-                return  # V1: not open, skip rather than open it
 
-            try:
-                model_path = ModelPathUtils.ConvertUserVisiblePathToModelPath(doc_path)
-                uiapp.OpenAndActivateDocument(model_path)
-            except Exception:
-                pass  # already open+active, activation failing here is not fatal
+            # One window per document, cards grouped so each window runs every
+            # card belonging to its own project before the next one opens.
+            by_doc = []
+            for entry in due:
+                key = os.path.normcase(entry.get("document_path") or "")
+                if key not in open_paths:
+                    continue        # V1: not open, skip rather than open it
+                for path, entries in by_doc:
+                    if path == key:
+                        entries.append(entry)
+                        break
+                else:
+                    by_doc.append((key, [entry]))
 
-            _launch_pysheets_schedule(sched)
+            for key, entries in by_doc:
+                try:
+                    model_path = ModelPathUtils.ConvertUserVisiblePathToModelPath(
+                        open_paths[key])
+                    uiapp.OpenAndActivateDocument(model_path)
+                except Exception:
+                    pass  # already open+active, activation failing is not fatal
+                try:
+                    _launch_pysheets_schedule(entries)
+                except Exception:
+                    _log_error("_launch_pysheets_schedule")
+
+            if previous_path and by_doc:
+                try:
+                    uiapp.OpenAndActivateDocument(
+                        ModelPathUtils.ConvertUserVisiblePathToModelPath(
+                            previous_path))
+                except Exception:
+                    pass
         except Exception:
-            pass
+            _log_error("_PySheetsScheduleHandler.Execute")
 
     def GetName(self):
         return "Seed43 pySheets Scheduled Print"
 
 
-_pysheets_schedule_event = ExternalEvent.Create(_PySheetsScheduleHandler())
+try:
+    _pysheets_schedule_event = ExternalEvent.Create(_PySheetsScheduleHandler())
+except Exception:
+    # Unwrapped, a failure here kills the whole module before the update
+    # check or the Idling subscription is reached, with nothing to say why.
+    _pysheets_schedule_event = None
+    _log_error("ExternalEvent.Create")
 
 
 def _on_idling(sender, args):
     """Cheap periodic check (throttled to roughly every 20 seconds) for
-    whether an armed pySheets schedule has come due."""
+    whether any armed pySheets card has come due."""
     try:
         import time
         now = time.time()
@@ -759,24 +874,22 @@ def _on_idling(sender, args):
             return
         _last_schedule_check[0] = now
 
-        sched = _read_schedule()
-        if not sched or not sched.get("enabled"):
-            return
-        next_run_str = sched.get("next_run")
-        if not next_run_str:
+        if _pysheets_schedule_event is None:
             return
 
-        from datetime import datetime
-        try:
-            next_run = datetime.strptime(next_run_str, "%Y-%m-%dT%H:%M:%S")
-        except Exception:
+        sched_mod = _schedule_mod()
+        sched     = _read_schedule()
+        if not sched_mod or not sched or not sched.get("entries"):
             return
-        if datetime.now() < next_run:
+        if not sched_mod.due_entries(sched):
             return
 
         _pysheets_schedule_event.Raise()
     except Exception:
-        pass
+        _log_error("_on_idling")
+
+
+_uiapp_ref = [None]
 
 
 def main():
@@ -789,10 +902,62 @@ def main():
     t.IsBackground = True
     t.Start()
 
+    _subscribe_idling()
+    _rebuild_stale_icons()
+
+
+def _rebuild_stale_icons():
+    """Redraw any button icon whose SVG or the palette is newer than its PNG.
+
+    About rebuilds on close when the accent changes, but Revit holds on to
+    the icon files it has already loaded, so a write can be refused or simply
+    not picked up until the next session. Checking again here closes that
+    gap. Deliberately on the UI thread rather than the worker above: WPF
+    rendering needs an STA thread, and this one is.
+
+    Costs a handful of stat calls when nothing has changed, which is the
+    normal case - nothing is rendered unless a source is actually newer."""
     try:
-        __revit__.Application.Idling += _on_idling
+        import sys as _sys
+        if _LIB_DIR and os.path.isdir(_LIB_DIR) and _LIB_DIR not in _sys.path:
+            _sys.path.insert(0, _LIB_DIR)
+        from Snippets import _svg_icons
+        written, problems = _svg_icons.rebuild_all(EXTENSION_DIR, only_stale=True)
+        if problems:
+            _log_note("icon rebuild: {} written, {} skipped".format(
+                len(written), len(problems)))
+            for problem in problems:
+                _log_note("  " + problem)
     except Exception:
-        pass
+        _log_error("_rebuild_stale_icons")
+
+
+def _subscribe_idling():
+    """Subscribe _on_idling to Revit's Idling event.
+
+    Idling lives on UIControlledApplication / UIApplication, NOT on the DB
+    Application - `__revit__.Application.Idling` raises AttributeError, which
+    is what silently kept this scheduler from ever running. What `__revit__`
+    itself is depends on the host, so try it directly first and fall back to
+    wrapping the DB application, recording which one worked."""
+    try:
+        __revit__.Idling += _on_idling
+        return True
+    except Exception:
+        _log_error("Idling subscribe on __revit__")
+
+    try:
+        from Autodesk.Revit.UI import UIApplication
+        # Kept on the module so the wrapper cannot be collected while it is
+        # holding the only reference to our subscription.
+        _uiapp_ref[0] = UIApplication(__revit__.Application)
+        _uiapp_ref[0].Idling += _on_idling
+        return True
+    except Exception:
+        _log_error("Idling subscribe on UIApplication")
+
+    _log_note("Idling could not be subscribed — scheduler is off")
+    return False
 
 
 if __name__ == "__main__":

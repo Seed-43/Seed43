@@ -1,10 +1,13 @@
 title: "Filter Family (Host)"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Creates View Filters for host model elements based on the family of
-  the selected element. Applies the filter to the active view or its
-  template and hides matching elements - built for fast isolation,
-  control, and cleanup of model elements by family.
+
+  Creates View Filters for host model elements based on the family of the
+  selected element. Applies the filter to the active view or its template
+  and hides matching elements - built for fast isolation, control, and
+  cleanup of model elements by family.
+
   __________________________________________________________________

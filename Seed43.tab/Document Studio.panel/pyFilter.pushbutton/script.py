@@ -31,7 +31,9 @@ import pyfilter_view_assign as va
 import pyfilter_sync as sm
 import pyfilter_settings as settings_dialog
 from Snippets._revisions import safe_str
-from Snippets.seed43_theme import apply_seed43_palette
+from Snippets.seed43_theme import (apply_seed43_palette, apply_seed43_dimensions,
+                                   get_color)
+from Snippets._icons import make_icon, set_header_icon
 from Snippets import _userdata
 
 doc    = revit.doc
@@ -108,6 +110,15 @@ class pyFilterWindow(WPFWindow):
         log("Loading XAML: {}".format(xaml_path))
         WPFWindow.__init__(self, xaml_path)
         apply_seed43_palette(self, SCRIPT_DIR)
+        # Sizing comes from the same palette as the colours. Both have to run
+        # after the XAML has loaded, or the window's own Setters win.
+        apply_seed43_dimensions(self, SCRIPT_DIR)
+        set_header_icon(self, SCRIPT_DIR)
+        # Search glyph sitting inside the search field. Built here rather than
+        # in XAML because make_icon bakes the colour in at build time.
+        self.search_icon.Content = make_icon(
+            'search', size=14,
+            color=get_color(SCRIPT_DIR, 'text_muted', fallback='#9CA3AF'))
 
         self.templates_folder  = get_templates_folder()
         self.active_template   = None

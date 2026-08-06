@@ -1,10 +1,13 @@
 title: "Find & Replace"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Finds and replaces text strings inside Revit Text Notes, scoped to
-  a selection, the active view, or the entire project, with
-  case-sensitive or case-insensitive matching. Leave the Replace
-  field blank to delete the matched text entirely.
+
+  Finds and replaces text strings inside Revit Text Notes, scoped to a
+  selection, the active view, or the entire project, with case-sensitive or
+  case-insensitive matching. Leave the Replace field blank to delete the
+  matched text entirely.
+
   __________________________________________________________________

@@ -1,10 +1,13 @@
 title: "Toggle Rebar Visibility"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Toggles rebar visibility between obscured and unobscured in the
-  current view. Detects the current state of all visible rebar and
-  switches it automatically - obscured shows rebar as dashed lines
-  behind concrete, unobscured shows it as solid lines.
+
+  Toggles rebar visibility between obscured and unobscured in the current
+  view. Detects the current state of all visible rebar and switches it
+  automatically - obscured shows rebar as dashed lines behind concrete,
+  unobscured shows it as solid lines.
+
   __________________________________________________________________

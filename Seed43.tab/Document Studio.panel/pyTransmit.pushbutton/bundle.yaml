@@ -1,15 +1,17 @@
 title: "pyTransmit"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Collects revision and issue details, then publishes a transmittal
-  document in your chosen output formats. Fill in the revision
-  details, pick the reason and method for issue, choose who it is
-  being sent to under Recipients, then click Publish to generate the
-  selected formats. Output formats and their layout templates are
-  configured under Settings, then Layout - each format can be given
-  its own layout.
+
+  Collects revision and issue details, then publishes a transmittal document
+  in your chosen output formats. Fill in the revision details, pick the
+  reason and method for issue, choose who it is being sent to under
+  Recipients, then click Publish to generate the selected formats. Output
+  formats and their layout templates are configured under Settings, then
+  Layout - each format can be given its own layout.
+
   __________________________________________________________________
 min_revit_ver: 2022
 max_revit_ver: 2026

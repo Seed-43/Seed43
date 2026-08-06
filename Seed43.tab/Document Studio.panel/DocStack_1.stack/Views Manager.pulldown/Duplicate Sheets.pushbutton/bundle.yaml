@@ -1,12 +1,14 @@
 title: "Duplicate Sheets"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Duplicates sheets and/or views selected from the Project Browser.
-  Sheets can be duplicated Empty, with Sheet Detailing, or with
-  Views; views can be duplicated normally, with Detailing, or as
-  Dependent. When duplicating a sheet with Views, each placed view is
-  duplicated using the chosen option and placed on the new sheet in
-  the same viewport position.
+
+  Duplicates sheets and/or views selected from the Project Browser. Sheets
+  can be duplicated Empty, with Sheet Detailing, or with Views; views can be
+  duplicated normally, with Detailing, or as Dependent. When duplicating a
+  sheet with Views, each placed view is duplicated using the chosen option
+  and placed on the new sheet in the same viewport position.
+
   __________________________________________________________________

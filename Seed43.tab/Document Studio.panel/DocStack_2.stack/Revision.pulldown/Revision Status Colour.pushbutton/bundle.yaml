@@ -1,10 +1,13 @@
 title: "Revision Status Colour"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Colours revision clouds and their tags across every view based on
-  whether the parent revision has been marked as issued - light gray
-  for issued, red for not yet issued. Runs automatically across the
-  whole project, not just the active view.
+
+  Colours revision clouds and their tags across every view based on whether
+  the parent revision has been marked as issued - light gray for issued, red
+  for not yet issued. Runs automatically across the whole project, not just
+  the active view.
+
   __________________________________________________________________

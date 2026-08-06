@@ -1,11 +1,13 @@
 title: "Filter Delete and Backup"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Manages Revit View Filters with built-in automatic backup and
-  version tracking. Lists every Parameter Filter for multi-select
-  deletion, and automatically backs up filter definitions next to the
-  Revit model before anything is removed, so deleted filters can be
-  restored later.
+
+  Manages Revit View Filters with built-in automatic backup and version
+  tracking. Lists every Parameter Filter for multi-select deletion, and
+  automatically backs up filter definitions next to the Revit model before
+  anything is removed, so deleted filters can be restored later.
+
   __________________________________________________________________

@@ -1,9 +1,12 @@
 title: "Fix Page Break"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
+tooltip: >
   __________________________________________________________________
+
   Description:
-  Removes or replaces embedded newline characters in Text Notes that
-  cause unexpected line breaks, scoped to the active view or the
-  entire project. Safe to run on workshared models.
+
+  Removes or replaces embedded newline characters in Text Notes that cause
+  unexpected line breaks, scoped to the active view or the entire project.
+  Safe to run on workshared models.
+
   __________________________________________________________________

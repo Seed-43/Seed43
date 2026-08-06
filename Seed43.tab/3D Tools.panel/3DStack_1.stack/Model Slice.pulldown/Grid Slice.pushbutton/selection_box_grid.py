@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # selection_box_grid.py
-# "Selection Box: Grid"
+# "Grid Slice"
 # "Seed43"
 # """
 # Section-box a thin vertical slice of the model along a chosen grid.
@@ -104,13 +104,13 @@ def main():
     if view is None:
         forms.alert("Section boxes only exist in 3D views.\n\n"
                     "Open a 3D view and try again.",
-                    title="Selection Box: Grid")
+                    title="Grid Slice")
         script.exit()
 
     grids = get_grids()
     if not grids:
         forms.alert("No grids found in this model.",
-                    title="Selection Box: Grid")
+                    title="Grid Slice")
         script.exit()
 
     # Clicking is the natural route for grids - the name rarely tells you
@@ -126,7 +126,7 @@ def main():
     extents = model_extents(doc)
     if extents is None:
         forms.alert("Could not measure the model extents - nothing with "
-                    "geometry was found.", title="Selection Box: Grid")
+                    "geometry was found.", title="Grid Slice")
         script.exit()
 
     offset = mm_to_ft(OFFSET_MM)
@@ -138,13 +138,13 @@ def main():
         shape = "\n\nThis grid is curved, so the box is aligned to the model " \
                 "axes around it rather than rotated along it."
 
-    if not apply_section_box(view, box, "Selection Box: Grid"):
+    if not apply_section_box(view, box, "Grid Slice"):
         forms.alert("Could not set the section box on this view.",
-                    title="Selection Box: Grid")
+                    title="Grid Slice")
         script.exit()
 
     forms.alert("Section box set {:.0f}mm either side of grid {}.{}".format(
-        OFFSET_MM, grid.Name, shape), title="Selection Box: Grid")
+        OFFSET_MM, grid.Name, shape), title="Grid Slice")
 
 
 if __name__ == "__main__":

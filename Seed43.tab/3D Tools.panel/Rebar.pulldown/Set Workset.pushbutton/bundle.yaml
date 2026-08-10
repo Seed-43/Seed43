@@ -5,9 +5,11 @@ tooltip: >
 
   Description:
 
-  Assigns every rebar element in the model to a chosen workset. If exactly
-  one workset with "rebar" in its name exists it is used automatically;
-  otherwise pick from the existing worksets or create a new one on the spot.
-  Requires a workshared model.
+  Assigns every reinforcement element in the model to a chosen workset -
+  rebar, area and path reinforcement, and fabric. If exactly one workset with
+  "rebar" in its name exists it is used automatically; otherwise pick from the
+  existing worksets or create a new one on the spot. Bars belonging to a
+  reinforcement system follow their parent's workset and are reported as
+  skipped. Requires a workshared model.
 
   __________________________________________________________________

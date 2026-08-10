@@ -142,33 +142,26 @@ ROW_SPACER =  2 * MM
 SCHEDULE_NAME = "pyTransmit Schedule 01-01"  # updated below once total_pages known
 
 def parse_date_long(raw):
-    """Parse any DD?MM?YYYY or DD?MM?YY date string -> '19 December 2025'."""
-    if not raw:
-        return ""
-    m = re.search(r'(\d{1,2})\D(\d{1,2})\D(\d{2,4})', str(raw).strip())
-    if not m:
-        return str(raw)
-    day, month, year = int(m.group(1)), int(m.group(2)), int(m.group(3))
-    if year < 100:
-        year += 2000
-    if 1 <= month <= 12:
-        return "{} {} {}".format(day, MONTHS[month - 1], year)
-    return str(raw)
+    """Print the revision date exactly as it was typed in Revit.
+
+    This used to re-parse and re-format it, and got it wrong for any
+    year-first date: (\\d{1,2})\\D(\\d{1,2})\\D(\\d{2,4}) cannot match a four
+    digit year in the first field, so on "2026/06/06" it skipped the leading
+    "20", read 26 / 06 / 06, then treated the "06" as a two digit year and
+    produced "26/06/2006" - a different date from the one the user typed.
+    """
+    return "" if not raw else str(raw).strip()
 
 def parse_date_short(raw):
-    """Parse any date string -> 'DD/MM/YYYY' for the Issued footer.
-    Uses \\D+ (one-or-more non-digits) so it correctly handles the \\r\\n
-    separators produced by format_revit_date as well as plain / . - separators.
+    """As typed - see parse_date_long() above.
+
+    The one thing still normalised is the \\r\\n that format_revit_date puts
+    between the parts, which would otherwise break the footer across lines.
+    That rewrites the separator, never the order or the values.
     """
     if not raw:
         return ""
-    m = re.search(r'(\d{1,2})\D+(\d{1,2})\D+(\d{2,4})', str(raw).strip())
-    if not m:
-        return str(raw).replace('\r', '').replace('\n', '/')
-    day, month, year = int(m.group(1)), int(m.group(2)), int(m.group(3))
-    if year < 100:
-        year += 2000
-    return "{:02d}/{:02d}/{}".format(day, month, year)
+    return str(raw).strip().replace('\r\n', '/').replace('\r', '').replace('\n', '/')
 
 # Column/row sizes now derived from JSON above
 

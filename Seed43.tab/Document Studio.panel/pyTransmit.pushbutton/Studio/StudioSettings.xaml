@@ -3,7 +3,7 @@
 StudioSettings.xaml  -  pyTransmit Studio (Excel-style Layout Builder)
 ===================================================================================
 Chrome: title bar + Save/Save As/Close
-Ribbon: Home (format/merge/rows/cols), grouped + labelled like a real Excel ribbon
+Ribbon: Home / Layout / Sheet Data tabs, grouped + labelled like Excel's
 Formula bar: shows/edits the active cell's block
 Body: row/column headers + free grid on the left, collapsible Blocks panel on the right
 -->
@@ -29,9 +29,178 @@ Body: row/column headers + free grid on the left, collapsible Blocks panel on th
     </shell:WindowChrome.WindowChrome>
 
     <Window.Resources>
-        <SolidColorBrush x:Key="LocalBrushRowBg"    Color="#323D4D"/>
-        <SolidColorBrush x:Key="LocalBrushHoverBg"  Color="#3A4760"/>
-        <SolidColorBrush x:Key="LocalBrushBorderNeutral" Color="#404E62"/>
+        <!-- Every colour and size below resolves through DynamicResource to a
+             token injected at runtime from lib/Snippets/seed43_palette.json by
+             apply_seed43_palette()/apply_seed43_dimensions() (called in
+             StudioSettings.py's __init__, after LoadComponent). Nothing here
+             hardcodes a hex value, so re-exporting the palette re-themes this
+             window along with every other Seed43 tool.
+
+             This window used to declare three literal brushes of its own
+             (#323D4D row bg, #3A4760 hover, #404E62 rule) - a second, private
+             copy of the theme that never moved when the palette did. They are
+             gone; the roles they filled now resolve to canonical tokens:
+                 input row background -> BrushInputBg
+                 hover fill           -> BrushDropdownItemHover
+                 neutral rule/divider -> BrushPillOffBorder
+             BrushPillOffBorder is the palette's only neutral outline token -
+             BrushBorderDefault is the accent green, which is wrong for grid
+             lines and dividers.
+
+             Style keys keep the same names Seed43Styles.xaml uses wherever
+             one exists (ComboBoxStyle, TextBoxStyle, MacScrollBar...). PBtn /
+             RibbonBtn / RibbonGroupCaption have no lib equivalent: they are
+             the compact ribbon-density variants this window needs, and are
+             built from the same tokens as their lib counterparts. -->
+        <!-- ══ Scrollbars ═════════════════════════════════════════════════
+             MacScrollBarThumb / MacScrollBar / MacScrollViewer are the
+             lib/Snippets/Seed43Styles.xaml definitions, same keys, same 8px
+             (10px hovered) accent thumb every other Seed43 window uses. This
+             window was still on WPF's stock grey scrollbars.
+
+             MacScrollBarH and MacScrollViewerXY have no lib equivalent: the
+             lib ScrollViewer is vertical-only, and the cell pane scrolls both
+             ways. They are the same thumb turned on its side and the same
+             template with a second bar - candidates to promote into the lib
+             if another two-axis surface ever needs them.
+
+             MacScrollViewerXY draws BOTH bars OVER the content (one Grid
+             cell, no column/row of their own) instead of beside it. That is
+             not cosmetic here: the row-header, column-header and cell panes
+             are three separate ScrollViewers kept in step by copying scroll
+             offsets. Bars that take layout space would shrink only the cell
+             pane's viewport, so its ScrollableHeight would exceed the row
+             header's, and ScrollToVerticalOffset would silently clamp at the
+             bottom of the sheet - the row numbers would stop lining up with
+             the rows they label. Overlaid bars keep all three viewports the
+             same size, so the offsets stay exact. -->
+        <Style x:Key="MacScrollBarThumb" TargetType="Thumb">
+            <Setter Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border x:Name="thumb" Background="{TemplateBinding Background}"
+                                CornerRadius="3" Margin="2,2,2,2"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="MacScrollBar" TargetType="ScrollBar">
+            <Setter Property="Orientation" Value="Vertical"/>
+            <Setter Property="Width"       Value="8"/>
+            <Setter Property="MinWidth"    Value="8"/>
+            <Setter Property="Background"  Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid x:Name="GridRoot" Width="8">
+                            <Track x:Name="PART_Track" Orientation="Vertical" IsDirectionReversed="True">
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource MacScrollBarThumb}"/>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="GridRoot" Property="Width" Value="10"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="MacScrollBarH" TargetType="ScrollBar">
+            <Setter Property="Orientation" Value="Horizontal"/>
+            <Setter Property="Height"      Value="8"/>
+            <Setter Property="MinHeight"   Value="8"/>
+            <Setter Property="Background"  Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid x:Name="GridRoot" Height="8">
+                            <Track x:Name="PART_Track" Orientation="Horizontal">
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource MacScrollBarThumb}"/>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="GridRoot" Property="Height" Value="10"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="MacScrollViewer" TargetType="ScrollViewer">
+            <Setter Property="VerticalScrollBarVisibility"   Value="Auto"/>
+            <Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollViewer">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <ScrollContentPresenter Grid.Column="0"
+                                                    Margin="{TemplateBinding Padding}"
+                                                    HorizontalAlignment="Stretch"
+                                                    CanContentScroll="{TemplateBinding CanContentScroll}"/>
+                            <ScrollBar x:Name="PART_VerticalScrollBar" Grid.Column="1" Orientation="Vertical"
+                                       Style="{StaticResource MacScrollBar}"
+                                       Value="{TemplateBinding VerticalOffset}"
+                                       Maximum="{TemplateBinding ScrollableHeight}"
+                                       ViewportSize="{TemplateBinding ViewportHeight}"
+                                       Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="MacScrollViewerXY" TargetType="ScrollViewer">
+            <Setter Property="VerticalScrollBarVisibility"   Value="Auto"/>
+            <Setter Property="HorizontalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollViewer">
+                        <Grid>
+                            <ScrollContentPresenter Margin="{TemplateBinding Padding}"
+                                                    CanContentScroll="{TemplateBinding CanContentScroll}"/>
+                            <ScrollBar x:Name="PART_VerticalScrollBar" Orientation="Vertical"
+                                       Style="{StaticResource MacScrollBar}"
+                                       HorizontalAlignment="Right" VerticalAlignment="Stretch"
+                                       Margin="0,0,0,10"
+                                       Value="{TemplateBinding VerticalOffset}"
+                                       Maximum="{TemplateBinding ScrollableHeight}"
+                                       ViewportSize="{TemplateBinding ViewportHeight}"
+                                       Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"/>
+                            <ScrollBar x:Name="PART_HorizontalScrollBar" Orientation="Horizontal"
+                                       Style="{StaticResource MacScrollBarH}"
+                                       VerticalAlignment="Bottom" HorizontalAlignment="Stretch"
+                                       Margin="0,0,10,0"
+                                       Value="{TemplateBinding HorizontalOffset}"
+                                       Maximum="{TemplateBinding ScrollableWidth}"
+                                       ViewportSize="{TemplateBinding ViewportWidth}"
+                                       Visibility="{TemplateBinding ComputedHorizontalScrollBarVisibility}"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
         <Style x:Key="PBtn" TargetType="Button">
             <Setter Property="Background"      Value="{DynamicResource BrushPrimaryGreen}"/>
@@ -57,6 +226,65 @@ Body: row/column headers + free grid on the left, collapsible Blocks panel on th
             </Setter>
         </Style>
 
+        <!-- Window chrome close button: transparent until hovered, then
+             danger red. Same key and template as Seed43Styles.xaml, so this
+             window's ✕ behaves like every other Seed43 window's. -->
+        <Style x:Key="CloseButtonStyle" TargetType="Button">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width"           Value="{DynamicResource WidthButtonClose}"/>
+            <Setter Property="Height"          Value="{DynamicResource HeightButtonClose}"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                CornerRadius="{DynamicResource CornerRadiusButtonClose}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushDanger}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- "Delete this item" - the small, permanently red round dot, as
+             used for the row delete in pyLink. Deliberately NOT the close
+             button: this removes a saved thing, it does not close a window,
+             and it uses the round-button size tokens rather than the window
+             chrome ones. -->
+        <Style x:Key="DeleteButtonStyle" TargetType="Button">
+            <Setter Property="Background"      Value="{DynamicResource BrushDanger}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width"           Value="{DynamicResource WidthButtonRound}"/>
+            <Setter Property="Height"          Value="{DynamicResource HeightButtonRound}"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                CornerRadius="{DynamicResource CornerRadiusButtonRound}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.8"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="RibbonBtn" TargetType="ToggleButton">
             <Setter Property="Background"      Value="Transparent"/>
             <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
@@ -73,8 +301,148 @@ Body: row/column headers + free grid on the left, collapsible Blocks panel on th
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="bd" Property="Background" Value="{StaticResource LocalBrushHoverBg}"/></Trigger>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushDropdownItemHover}"/></Trigger>
                             <Trigger Property="IsChecked"   Value="True"><Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/></Trigger>
+                            <!-- Condense Rows and Group Text are disabled when
+                                 they would do nothing (a table already short
+                                 enough, no grouping parameter picked), so the
+                                 style has to actually look disabled. -->
+                            <Trigger Property="IsEnabled"   Value="False"><Setter Property="Opacity" Value="0.4"/></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Ribbon tab. Excel's look: the selected tab reads as the sheet of
+             ribbon below it (same background, accent underline), the rest are
+             muted labels. Mutual exclusivity is handled in Python rather than
+             with RadioButton grouping, so the same code can restore the last
+             tab used on open. -->
+        <!-- Blocks-panel button: the lib PrimaryButtonStyle SHAPE - same
+             corner radius, padding, font size and weight tokens - but its
+             fill comes from the block's own group colour, set in Python.
+             That is why this is a separate style rather than the lib one:
+             PrimaryButtonStyle's hover and pressed triggers set the accent
+             green explicitly, which would repaint every block button the
+             same colour the moment the mouse touched it. Here hover and
+             pressed are opacity changes instead, so whatever colour the
+             group carries survives them. -->
+        <Style x:Key="BlockButtonStyle" TargetType="Button">
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"         Value="{DynamicResource PaddingButtonPrimary}"/>
+            <Setter Property="FontSize"        Value="{DynamicResource FontSizeButton}"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                CornerRadius="{DynamicResource CornerRadiusButton}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.65"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushSecondaryDisabledBg}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource BrushSecondaryDisabledFg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="RibbonTab" TargetType="ToggleButton">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextMuted}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"         Value="12,0"/>
+            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Margin"          Value="0,0,2,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                CornerRadius="4,4,0,0" Padding="{TemplateBinding Padding}"
+                                BorderBrush="Transparent" BorderThickness="0,0,0,2">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushDropdownItemHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushCardBg}"/>
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreen}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Split-button halves. A split control is ONE control that happens
+             to have two hit areas, so the halves are rounded only on their
+             outer edges and butt together in the middle - two separately
+             rounded pills read as two unrelated buttons. Otherwise identical
+             to RibbonBtn, including the checked/hover/disabled states. -->
+        <Style x:Key="RibbonSplitMain" TargetType="ToggleButton" BasedOn="{StaticResource RibbonBtn}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                CornerRadius="4,0,0,4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushDropdownItemHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="RibbonSplitChevron" TargetType="ToggleButton" BasedOn="{StaticResource RibbonBtn}">
+            <Setter Property="Padding"  Value="3,4"/>
+            <Setter Property="MinWidth" Value="14"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                CornerRadius="0,4,4,0" Padding="{TemplateBinding Padding}"
+                                BorderBrush="{DynamicResource BrushPillOffBorder}"
+                                BorderThickness="1,0,0,0">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushDropdownItemHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource BrushDropdownItemHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4"/>
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -95,9 +463,9 @@ Body: row/column headers + free grid on the left, collapsible Blocks panel on th
              Background/Foreground setters above it. This full template is
              the proven fix already used by the Layout Builder. -->
         <Style x:Key="ComboBoxStyle" TargetType="ComboBox">
-            <Setter Property="Background"           Value="{StaticResource LocalBrushRowBg}"/>
+            <Setter Property="Background"           Value="{DynamicResource BrushInputBg}"/>
             <Setter Property="Foreground"           Value="{DynamicResource BrushTextPrimary}"/>
-            <Setter Property="BorderBrush"          Value="{StaticResource LocalBrushBorderNeutral}"/>
+            <Setter Property="BorderBrush"          Value="{DynamicResource BrushPillOffBorder}"/>
             <Setter Property="BorderThickness"      Value="{DynamicResource BorderThicknessInput}"/>
             <Setter Property="Padding"              Value="{DynamicResource PaddingCombobox}"/>
             <Setter Property="FontSize"             Value="{DynamicResource FontSizeCombobox}"/>
@@ -121,7 +489,7 @@ Body: row/column headers + free grid on the left, collapsible Blocks panel on th
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsHighlighted" Value="True">
-                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource LocalBrushHoverBg}"/>
+                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushDropdownItemHover}"/>
                                         </Trigger>
                                         <Trigger Property="IsSelected" Value="True">
                                             <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
@@ -195,13 +563,14 @@ Body: row/column headers + free grid on the left, collapsible Blocks panel on th
                                         MinWidth="{TemplateBinding ActualWidth}"
                                         MaxHeight="{TemplateBinding MaxDropDownHeight}"
                                         Background="{DynamicResource BrushCardBg}"
-                                        BorderBrush="{StaticResource LocalBrushBorderNeutral}"
+                                        BorderBrush="{DynamicResource BrushPillOffBorder}"
                                         CornerRadius="{DynamicResource CornerRadiusDropdownPopup}"
                                         BorderThickness="1">
                                     <Border.Effect>
                                         <DropShadowEffect Color="Black" Opacity="0.4" ShadowDepth="3" BlurRadius="8"/>
                                     </Border.Effect>
-                                    <ScrollViewer CanContentScroll="True" VerticalScrollBarVisibility="Auto">
+                                    <ScrollViewer Style="{StaticResource MacScrollViewer}"
+                                                  CanContentScroll="True" VerticalScrollBarVisibility="Auto">
                                         <StackPanel IsItemsHost="True"
                                                     KeyboardNavigation.DirectionalNavigation="Contained"/>
                                     </ScrollViewer>
@@ -213,10 +582,11 @@ Body: row/column headers + free grid on the left, collapsible Blocks panel on th
             </Setter>
         </Style>
 
+
         <Style x:Key="TextBoxStyle" TargetType="TextBox">
-            <Setter Property="Background"               Value="{StaticResource LocalBrushRowBg}"/>
+            <Setter Property="Background"               Value="{DynamicResource BrushInputBg}"/>
             <Setter Property="Foreground"               Value="{DynamicResource BrushTextPrimary}"/>
-            <Setter Property="BorderBrush"              Value="{StaticResource LocalBrushBorderNeutral}"/>
+            <Setter Property="BorderBrush"              Value="{DynamicResource BrushPillOffBorder}"/>
             <Setter Property="BorderThickness"          Value="{DynamicResource BorderThicknessInput}"/>
             <Setter Property="Padding"                  Value="{DynamicResource PaddingInput}"/>
             <Setter Property="FontSize"                 Value="{DynamicResource FontSizeInput}"/>
@@ -255,131 +625,280 @@ Body: row/column headers + free grid on the left, collapsible Blocks panel on th
         <!-- ── Title bar ─────────────────────────────────────────────────────── -->
         <Border DockPanel.Dock="Top" Height="54" Background="{DynamicResource BrushHeaderBg}">
             <Grid Margin="16,0">
+                <!-- Wordmark: the pyTransmit tool icon plus the green "py" /
+                     white name split every Seed43 window uses (see
+                     ../pyTransmit.xaml). The icon is pointed at
+                     pyTransmit.pushbutton/icon.png from Python by
+                     Snippets._icons.set_header_icon. -->
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="pyTransmit Studio" FontSize="15" FontWeight="Bold"
+                    <Image x:Name="header_icon" Width="24" Height="24"
+                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <TextBlock Text="py" FontSize="20" FontWeight="Bold"
+                               Foreground="{DynamicResource BrushPrimaryGreen}" VerticalAlignment="Center"/>
+                    <TextBlock Text="Transmit" FontSize="20" FontWeight="SemiBold"
                                Foreground="{DynamicResource BrushTextPrimary}" VerticalAlignment="Center"/>
-                    <TextBlock x:Name="active_file_label" Text=""  Margin="12,0,0,0" FontSize="11"
-                               Foreground="{DynamicResource BrushTextMuted}" VerticalAlignment="Center"/>
+                    <TextBlock Text="  |  Studio" FontSize="14" FontWeight="SemiBold" Opacity="0.75"
+                               Foreground="{DynamicResource BrushTextPrimary}"
+                               VerticalAlignment="Bottom" Margin="4,0,0,3"/>
+                    <!-- The active template name is already shown in the
+                         Template picker at the other end of the title bar;
+                         repeating it here was noise. Kept (collapsed) so the
+                         code that writes to it needs no guarding. -->
+                    <TextBlock x:Name="active_file_label" Text="" Visibility="Collapsed"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"
                             shell:WindowChrome.IsHitTestVisibleInChrome="True">
                     <TextBlock Text="Template" VerticalAlignment="Center" FontSize="11" Margin="0,0,6,0"
                                Foreground="{DynamicResource BrushTextMuted}"/>
                     <ComboBox x:Name="template_combo" Style="{StaticResource ComboBoxStyle}" Width="150" Margin="0,0,4,0"/>
-                    <Button x:Name="tmpl_delete_btn" Content="✕" Style="{StaticResource PBtn}" Width="26" Padding="0"
+                    <Button x:Name="tmpl_delete_btn" Content="✕" FontSize="10"
+                            Style="{StaticResource DeleteButtonStyle}"
                             Margin="0,0,10,0" ToolTip="Delete the selected template"/>
                     <Button x:Name="refresh_btn" Content="Refresh Live Data" Style="{StaticResource PBtn}" Margin="4,0" Click="refresh_click"/>
                     <Button x:Name="new_btn"     Content="New"      Style="{StaticResource PBtn}" Margin="4,0" Click="new_click"/>
                     <Button x:Name="save_btn"    Content="Save"     Style="{StaticResource PBtn}" Margin="4,0" Click="save_click"/>
                     <Button x:Name="save_as_btn" Content="Save As"  Style="{StaticResource PBtn}" Margin="4,0" Click="save_as_click"/>
-                    <Button x:Name="close_btn"   Content="✕"        Style="{StaticResource PBtn}" Margin="12,0,0,0" Width="30" Click="close_click"/>
+                    <Button x:Name="close_btn"   Content="✕" Style="{StaticResource CloseButtonStyle}"
+                            Margin="12,0,0,0" ToolTip="Close" Click="close_click"/>
                 </StackPanel>
             </Grid>
         </Border>
 
-        <!-- ── Ribbon: Home (grouped + labelled like a real Excel ribbon) ──────── -->
-        <Border x:Name="ribbon_home" DockPanel.Dock="Top" Height="88" Background="{DynamicResource BrushHeaderBg}"
-                BorderBrush="{StaticResource LocalBrushBorderNeutral}" BorderThickness="0,0,0,1">
-            <StackPanel Orientation="Horizontal" Margin="10,4" VerticalAlignment="Stretch">
+        <!-- ── Ribbon: Excel-style tabs ───────────────────────────────────────
+             One tab shown at a time. The ribbon used to be a single row of
+             every group, which was wider than the window at its default size,
+             so the last groups were off-screen on open. Splitting it the way
+             Excel does keeps each tab comfortably inside the 900px minimum
+             width. The horizontal scroller stays as a backstop for a window
+             dragged narrower still. -->
+        <Border x:Name="ribbon_bar" DockPanel.Dock="Top" Height="112" Background="{DynamicResource BrushHeaderBg}"
+                BorderBrush="{DynamicResource BrushPillOffBorder}" BorderThickness="0,0,0,1">
+            <DockPanel>
 
-                <!-- Font + Alignment stacked in one column: alignment sits
-                     under the font row rather than beside it, which frees a
-                     good chunk of ribbon width for the groups to the right. -->
-                <StackPanel Margin="0,0,10,0">
-                    <StackPanel Orientation="Horizontal">
-                        <ComboBox x:Name="font_family_combo" Style="{StaticResource ComboBoxStyle}" Width="100" Margin="0,0,4,0"/>
-                        <ComboBox x:Name="font_size_combo"    Style="{StaticResource ComboBoxStyle}" Width="50"  Margin="0,0,6,0"/>
-                        <ToggleButton x:Name="bold_btn"      Content="B" Style="{StaticResource RibbonBtn}" FontWeight="Bold"/>
-                        <ToggleButton x:Name="italic_btn"    Content="I" Style="{StaticResource RibbonBtn}" FontStyle="Italic"/>
-                        <ToggleButton x:Name="underline_btn" Content="U" Style="{StaticResource RibbonBtn}"/>
-                        <Button x:Name="font_color_btn" Content="A" Style="{StaticResource PBtn}" Width="26" Padding="0" Margin="6,0,0,0"/>
-                        <Button x:Name="fill_color_btn" Content="Fill" Style="{StaticResource PBtn}" Width="40" Padding="0" Margin="4,0,0,0"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                        <ToggleButton x:Name="align_left_btn"   Style="{StaticResource RibbonBtn}" ToolTip="Align left"/>
-                        <ToggleButton x:Name="align_center_btn" Style="{StaticResource RibbonBtn}" ToolTip="Align centre"/>
-                        <ToggleButton x:Name="align_right_btn"  Style="{StaticResource RibbonBtn}" ToolTip="Align right"/>
-                        <ToggleButton x:Name="valign_top_btn" Style="{StaticResource RibbonBtn}" Margin="8,0,0,0" ToolTip="Align top"/>
-                        <ToggleButton x:Name="valign_mid_btn" Style="{StaticResource RibbonBtn}" ToolTip="Align middle"/>
-                        <ToggleButton x:Name="valign_bot_btn" Style="{StaticResource RibbonBtn}" ToolTip="Align bottom"/>
-                    </StackPanel>
-                    <TextBlock Text="Font &amp; Alignment" Style="{StaticResource RibbonGroupCaption}"/>
+                <!-- Tab strip -->
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Height="24" Margin="10,2,10,0">
+                    <ToggleButton x:Name="tab_home_btn"   Content="Home"       Style="{StaticResource RibbonTab}"/>
+                    <ToggleButton x:Name="tab_layout_btn" Content="Layout"     Style="{StaticResource RibbonTab}"/>
+                    <ToggleButton x:Name="tab_data_btn"   Content="Sheet Data" Style="{StaticResource RibbonTab}"/>
                 </StackPanel>
-                <Rectangle Width="1" Fill="{StaticResource LocalBrushBorderNeutral}" Margin="0,2,10,2"/>
 
-                <!-- Borders: Excel/Calc-style split button with an icon-grid dropdown -->
-                <StackPanel Margin="0,0,10,0" VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal">
-                        <ToggleButton x:Name="borders_btn" Style="{StaticResource RibbonBtn}" Padding="6,4" Width="Auto">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="⊞" FontSize="14" Margin="0,0,4,0"/>
-                                <TextBlock Text="▾" FontSize="8" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </ToggleButton>
-                        <Popup x:Name="borders_popup" PlacementTarget="{Binding ElementName=borders_btn}"
-                               Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
-                            <Border Background="{DynamicResource BrushCardBg}" BorderBrush="{StaticResource LocalBrushBorderNeutral}"
-                                    BorderThickness="1" CornerRadius="4" Padding="8">
-                                <StackPanel>
-                                    <TextBlock Text="Borders" Foreground="{DynamicResource BrushTextMuted}" FontSize="10" Margin="2,0,0,6"/>
-                                    <UniformGrid x:Name="borders_grid" Columns="3"/>
+                <ScrollViewer Style="{StaticResource MacScrollViewerXY}"
+                              HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <Grid>
+                        <StackPanel x:Name="tab_home_panel" Orientation="Horizontal" Margin="10,2"
+                                    VerticalAlignment="Stretch">
+                            <!-- Font + Alignment stacked in one column: alignment sits
+                                 under the font row rather than beside it, which frees a
+                                 good chunk of ribbon width for the groups to the right. -->
+                            <StackPanel Margin="0,0,10,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <ComboBox x:Name="font_family_combo" Style="{StaticResource ComboBoxStyle}" Width="100" Margin="0,0,4,0"/>
+                                    <ComboBox x:Name="font_size_combo"    Style="{StaticResource ComboBoxStyle}" Width="50"  Margin="0,0,6,0"/>
+                                    <ToggleButton x:Name="bold_btn"      Content="B" Style="{StaticResource RibbonBtn}" FontWeight="Bold"/>
+                                    <ToggleButton x:Name="italic_btn"    Content="I" Style="{StaticResource RibbonBtn}" FontStyle="Italic"/>
+                                    <ToggleButton x:Name="underline_btn" Content="U" Style="{StaticResource RibbonBtn}"/>
+                                    <ToggleButton x:Name="strike_btn" Content="S" Style="{StaticResource RibbonBtn}"
+                                                  ToolTip="Strikethrough"/>
+                                    <!-- Content is built in Python: a glyph over a bar
+                                         showing the colour currently applied, the way
+                                         Excel's own A / highlighter buttons work. -->
+                                    <Button x:Name="font_color_btn" Style="{StaticResource PBtn}" Width="28" Padding="0" Margin="6,0,0,0"
+                                            ToolTip="Text colour"/>
+                                    <Button x:Name="fill_color_btn" Style="{StaticResource PBtn}" Width="28" Padding="0" Margin="4,0,0,0"
+                                            ToolTip="Cell fill colour"/>
                                 </StackPanel>
-                            </Border>
-                        </Popup>
-                    </StackPanel>
-                    <TextBlock Text="Borders" Style="{StaticResource RibbonGroupCaption}"/>
-                </StackPanel>
-                <Rectangle Width="1" Fill="{StaticResource LocalBrushBorderNeutral}" Margin="0,2,10,2"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                    <ToggleButton x:Name="align_left_btn"   Style="{StaticResource RibbonBtn}" ToolTip="Align left"/>
+                                    <ToggleButton x:Name="align_center_btn" Style="{StaticResource RibbonBtn}" ToolTip="Align centre"/>
+                                    <ToggleButton x:Name="align_right_btn"  Style="{StaticResource RibbonBtn}" ToolTip="Align right"/>
+                                    <ToggleButton x:Name="valign_top_btn" Style="{StaticResource RibbonBtn}" Margin="8,0,0,0" ToolTip="Align top"/>
+                                    <ToggleButton x:Name="valign_mid_btn" Style="{StaticResource RibbonBtn}" ToolTip="Align middle"/>
+                                    <ToggleButton x:Name="valign_bot_btn" Style="{StaticResource RibbonBtn}" ToolTip="Align bottom"/>
+                                </StackPanel>
+                                <TextBlock Text="Font &amp; Alignment" Style="{StaticResource RibbonGroupCaption}"/>
+                            </StackPanel>
+                            <Rectangle Width="1" Fill="{DynamicResource BrushPillOffBorder}" Margin="0,2,10,2"/>
+                            <!-- Borders: Excel/Calc-style split button with an icon-grid dropdown -->
+                            <StackPanel Margin="0,0,10,0" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <!-- The grid glyph carries this button on its own - there is no
+                                         text label - so it is sized to read at a glance rather than
+                                         at the 14px it shared with the B / I / U letters beside it. -->
+                                    <!-- One control, two hit areas: the glyph half
+                                         and the chevron half butt together, same
+                                         as the Merge split button. -->
+                                    <ToggleButton x:Name="borders_btn" Style="{StaticResource RibbonSplitMain}" Padding="7,2">
+                                        <TextBlock Text="⊞" FontSize="22" VerticalAlignment="Center"/>
+                                    </ToggleButton>
+                                    <ToggleButton x:Name="borders_menu_btn" Style="{StaticResource RibbonSplitChevron}"
+                                                  ToolTip="Border options">
+                                        <TextBlock Text="▾" FontSize="10" VerticalAlignment="Center"/>
+                                    </ToggleButton>
+                                    <Popup x:Name="borders_popup" PlacementTarget="{Binding ElementName=borders_btn}"
+                                           Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                                        <Border Background="{DynamicResource BrushCardBg}" BorderBrush="{DynamicResource BrushPillOffBorder}"
+                                                BorderThickness="1" CornerRadius="4" Padding="8">
+                                            <StackPanel>
+                                                <TextBlock Text="Borders" Foreground="{DynamicResource BrushTextMuted}" FontSize="10" Margin="2,0,0,6"/>
+                                                <UniformGrid x:Name="borders_grid" Columns="3"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </Popup>
+                                </StackPanel>
+                                <TextBlock Text="Borders" Style="{StaticResource RibbonGroupCaption}"/>
+                            </StackPanel>
+                            <Rectangle Width="1" Fill="{DynamicResource BrushPillOffBorder}" Margin="0,2,10,2"/>
+                            <!-- Cells -->
+                            <StackPanel Margin="0,0,10,0" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <!-- Split button, like Excel's: the left
+                                         half toggles the default merge, the
+                                         chevron opens the variants. The
+                                         toggle keeps its old name so the
+                                         existing merge/unmerge wiring and
+                                         its lit-when-merged state are
+                                         unchanged. -->
+                                    <ToggleButton x:Name="merge_toggle_btn" Content="Merge &amp; Center"
+                                                  Style="{StaticResource RibbonSplitMain}" Padding="8,4"/>
+                                    <ToggleButton x:Name="merge_menu_btn" Style="{StaticResource RibbonSplitChevron}"
+                                                  ToolTip="More merge options">
+                                        <TextBlock Text="▾" FontSize="10" VerticalAlignment="Center"/>
+                                    </ToggleButton>
+                                    <Popup x:Name="merge_popup" PlacementTarget="{Binding ElementName=merge_menu_btn}"
+                                           Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                                        <Border Background="{DynamicResource BrushCardBg}" BorderBrush="{DynamicResource BrushPillOffBorder}"
+                                                BorderThickness="1" CornerRadius="4" Padding="4">
+                                            <StackPanel x:Name="merge_menu_panel"/>
+                                        </Border>
+                                    </Popup>
+                                </StackPanel>
+                                <TextBlock Text="Cells" Style="{StaticResource RibbonGroupCaption}"/>
+                            </StackPanel>
+                            <Rectangle Width="1" Fill="{DynamicResource BrushPillOffBorder}" Margin="10,2,10,2"/>
 
-                <!-- Cells -->
-                <StackPanel Margin="0,0,10,0" VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal">
-                        <ToggleButton x:Name="merge_toggle_btn" Content="Merge Cells" Style="{StaticResource RibbonBtn}" Padding="8,4"/>
-                    </StackPanel>
-                    <TextBlock Text="Cells" Style="{StaticResource RibbonGroupCaption}"/>
-                </StackPanel>
-                <Rectangle Width="1" Fill="{StaticResource LocalBrushBorderNeutral}" Margin="0,2,10,2"/>
+                            <!-- Colours: everything that fills a cell rather
+                                 than shaping it. Banding and the group-header
+                                 fill live on the block, so they travel with
+                                 the layout and the exporter reads the same
+                                 two fields. -->
+                            <StackPanel VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <ToggleButton x:Name="band_btn" Content="Banded" Style="{StaticResource RibbonBtn}" Padding="8,4"
+                                                  ToolTip="Shade every other row of the list - white, colour, white..."/>
+                                    <Button x:Name="band_color_btn" Content="Band" Style="{StaticResource PBtn}" Width="46" Padding="0" Margin="4,0,0,0"
+                                            ToolTip="Colour of the shaded rows (pick white for a plain band)"/>
+                                    <Button x:Name="group_color_btn" Content="Header" Style="{StaticResource PBtn}" Width="56" Padding="0" Margin="4,0,0,0"
+                                            ToolTip="Fill colour of the sheet-grouping header rows"/>
+                                </StackPanel>
+                                <TextBlock Text="Colours" Style="{StaticResource RibbonGroupCaption}"/>
+                            </StackPanel>
+                        </StackPanel>
 
-                <!-- Size -->
-                <StackPanel VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="Row H" Foreground="{DynamicResource BrushTextMuted}" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                        <TextBox x:Name="row_h_box" Style="{StaticResource TextBoxStyle}" Width="36" Margin="0,0,8,0"/>
-                        <TextBlock Text="Col W" Foreground="{DynamicResource BrushTextMuted}" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                        <TextBox x:Name="col_w_box" Style="{StaticResource TextBoxStyle}" Width="36" Margin="0,0,8,0"/>
-                        <Button x:Name="fit_width_btn" Content="Fit Width" Style="{StaticResource PBtn}" Margin="0,0,4,0"
-                                ToolTip="Scale every column proportionally to fill the printable width"/>
-                        <Button x:Name="distribute_btn" Content="Distribute" Style="{StaticResource PBtn}"
-                                ToolTip="Make the selected columns equal width (all columns if none selected)"/>
-                    </StackPanel>
-                    <TextBlock Text="Size (mm) - or drag a header edge" Style="{StaticResource RibbonGroupCaption}"/>
-                </StackPanel>
-                <Rectangle Width="1" Fill="{StaticResource LocalBrushBorderNeutral}" Margin="0,2,10,2"/>
+                        <StackPanel x:Name="tab_layout_panel" Orientation="Horizontal" Margin="10,2"
+                                    VerticalAlignment="Stretch" Visibility="Collapsed">
+                            <!-- Size -->
+                            <StackPanel VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <ToggleButton x:Name="lock_width_btn" Content="🔒 Width" Style="{StaticResource RibbonBtn}"
+                                                  Padding="8,4"
+                                                  ToolTip="Pin the columns to the page guide: widening one narrows the others, so the sheet never grows past the printable width"/>
+                                    <ToggleButton x:Name="auto_row_btn" Content="Auto Row H" Style="{StaticResource RibbonBtn}"
+                                                  Padding="8,4" Margin="4,0,0,0"
+                                                  ToolTip="Selected rows size themselves to their content. Typing a height or dragging the edge turns this off for that row."/>
+                                </StackPanel>
+                                <TextBlock Text="Sizing - right-click a header for more" Style="{StaticResource RibbonGroupCaption}"/>
+                            </StackPanel>
+                            <Rectangle Width="1" Fill="{DynamicResource BrushPillOffBorder}" Margin="0,2,10,2"/>
+                            <!-- Page Layout: print size + orientation, with a page-boundary
+                                 overlay on the canvas so the sheet shows what will actually
+                                 fit on one printed page, the way Excel's own Page Layout /
+                                 Page Break Preview views do. -->
+                            <StackPanel VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <ComboBox x:Name="page_size_combo" Style="{StaticResource ComboBoxStyle}" Width="80" Margin="0,0,4,0"/>
+                                    <ComboBox x:Name="page_orientation_combo" Style="{StaticResource ComboBoxStyle}" Width="90" Margin="0,0,8,0"/>
+                                    <TextBlock Text="Margin" Foreground="{DynamicResource BrushTextMuted}" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                    <TextBox x:Name="margin_box" Style="{StaticResource TextBoxStyle}" Width="34"
+                                             ToolTip="Margin on each side, in mm"/>
+                                </StackPanel>
+                                <TextBlock Text="Page Layout" Style="{StaticResource RibbonGroupCaption}"/>
+                            </StackPanel>
+                            <Rectangle Width="1" Fill="{DynamicResource BrushPillOffBorder}" Margin="10,2,10,2"/>
+                            <!-- Logo library. Works the way the Template
+                                 picker does - pick one, Load… adds a new one,
+                                 ✕ deletes it - but the files live in the
+                                 user's own Logos folder, so a layout that
+                                 names a logo still finds it on another
+                                 machine. -->
+                            <StackPanel VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <ComboBox x:Name="logo_combo" Style="{StaticResource ComboBoxStyle}" Width="140"
+                                              Margin="0,0,4,0"
+                                              ToolTip="Logo used by every Logo block in this layout"/>
+                                    <Button x:Name="logo_load_btn" Content="Load…" Style="{StaticResource PBtn}"
+                                            Margin="0,0,4,0"
+                                            ToolTip="Copy an image file into the logo library and use it"/>
+                                    <Button x:Name="logo_delete_btn" Content="✕" FontSize="10"
+                                            Style="{StaticResource DeleteButtonStyle}"
+                                            ToolTip="Delete the selected logo from the library"/>
+                                </StackPanel>
+                                <TextBlock Text="Logo" Style="{StaticResource RibbonGroupCaption}"/>
+                            </StackPanel>
+                        </StackPanel>
 
-                <!-- Page Layout: print size + orientation, with a page-boundary
-                     overlay on the canvas so the sheet shows what will actually
-                     fit on one printed page, the way Excel's own Page Layout /
-                     Page Break Preview views do. -->
-                <StackPanel VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal">
-                        <ComboBox x:Name="page_size_combo" Style="{StaticResource ComboBoxStyle}" Width="80" Margin="0,0,4,0"/>
-                        <ComboBox x:Name="page_orientation_combo" Style="{StaticResource ComboBoxStyle}" Width="90" Margin="0,0,8,0"/>
-                        <TextBlock Text="Margin" Foreground="{DynamicResource BrushTextMuted}" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                        <TextBox x:Name="margin_box" Style="{StaticResource TextBoxStyle}" Width="34"
-                                 ToolTip="Margin on each side, in mm"/>
-                    </StackPanel>
-                    <TextBlock Text="Page Layout" Style="{StaticResource RibbonGroupCaption}"/>
-                </StackPanel>
-            </StackPanel>
+                        <StackPanel x:Name="tab_data_panel" Orientation="Horizontal" Margin="10,2"
+                                    VerticalAlignment="Stretch" Visibility="Collapsed">
+                            <!-- Sheet Grouping: the preview side of pyTransmit's own
+                                 "Sheet Parameters / Grouping Drawing Sheets by Selected
+                                 Parameters" option. Seeded from what pyTransmit has saved,
+                                 so opening Studio shows the grouping the next transmittal
+                                 will actually publish; changing it here is a preview
+                                 override and is not written back to pyTransmit's setup. -->
+                            <StackPanel VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <ComboBox x:Name="group_param_combo" Style="{StaticResource ComboBoxStyle}" Width="150"
+                                              Margin="0,0,6,0"
+                                              ToolTip="Group the drawing sheets by a sheet parameter"/>
+                                    <ToggleButton x:Name="group_label_btn" Content="Group Text"
+                                                  Style="{StaticResource RibbonBtn}" Padding="8,4"
+                                                  ToolTip="Show the group name in the header row, or leave it blank as a plain separator"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                    <ToggleButton x:Name="space_first_btn" Content="Gap ▲ 1st" Style="{StaticResource RibbonBtn}" Padding="8,4"
+                                                  ToolTip="Blank row above the FIRST group header, the one under the column headings"/>
+                                    <ToggleButton x:Name="space_between_btn" Content="Gap ▲ Groups" Style="{StaticResource RibbonBtn}" Padding="8,4" Margin="4,0,0,0"
+                                                  ToolTip="Blank row above every LATER group header, between one group's last sheet and the next"/>
+                                </StackPanel>
+                                <TextBlock Text="Sheet Grouping" Style="{StaticResource RibbonGroupCaption}"/>
+                            </StackPanel>
+                            <Rectangle Width="1" Fill="{DynamicResource BrushPillOffBorder}" Margin="10,2,10,2"/>
+                            <!-- Sheet Rows: preview-only row condensing (see
+                                 studio_blocks.sheet_row_plan). -->
+                            <StackPanel VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <ToggleButton x:Name="condense_btn" Content="Condense Rows"
+                                                  Style="{StaticResource RibbonBtn}" Padding="8,4"
+                                                  ToolTip="Preview the sheet list as first 5 / … / last 5 instead of every sheet"/>
+                                    <TextBlock x:Name="rows_count_label" Text="" Margin="8,0,0,0" FontSize="10"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource BrushTextMuted}"/>
+                                </StackPanel>
+                                <TextBlock Text="Sheet Rows" Style="{StaticResource RibbonGroupCaption}"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                    </Grid>
+                </ScrollViewer>
+            </DockPanel>
         </Border>
 
         <!-- ── Formula bar ──────────────────────────────────────────────────── -->
         <Border DockPanel.Dock="Top" Height="34" Background="{DynamicResource BrushCardBg}"
-                BorderBrush="{StaticResource LocalBrushBorderNeutral}" BorderThickness="0,0,0,1">
+                BorderBrush="{DynamicResource BrushPillOffBorder}" BorderThickness="0,0,0,1">
             <DockPanel Margin="10,4">
                 <TextBlock x:Name="formula_cell_label" Text="A1" Width="50" FontWeight="Bold"
                            Foreground="{DynamicResource BrushTextPrimary}" VerticalAlignment="Center" DockPanel.Dock="Left"/>
-                <Rectangle Width="1" Fill="{StaticResource LocalBrushBorderNeutral}" Margin="6,0" DockPanel.Dock="Left"/>
+                <Rectangle Width="1" Fill="{DynamicResource BrushPillOffBorder}" Margin="6,0" DockPanel.Dock="Left"/>
                 <Button x:Name="formula_change_btn" Content="Change block…" Style="{StaticResource PBtn}"
                         DockPanel.Dock="Right" Margin="6,0,0,0" Visibility="Collapsed"/>
                 <TextBlock x:Name="section_label" DockPanel.Dock="Right" VerticalAlignment="Center"
@@ -425,8 +944,9 @@ Body: row/column headers + free grid on the left, collapsible Blocks panel on th
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <Border x:Name="corner_host" Grid.Row="0" Grid.Column="0" Background="#2B3340"
-                        BorderBrush="#404E62" BorderThickness="0,0,1,1"/>
+                <Border x:Name="corner_host" Grid.Row="0" Grid.Column="0"
+                        Background="{DynamicResource BrushCardBg}"
+                        BorderBrush="{DynamicResource BrushPillOffBorder}" BorderThickness="0,0,1,1"/>
 
                 <ScrollViewer x:Name="colhdr_scroll" Grid.Row="0" Grid.Column="1"
                               HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
@@ -438,14 +958,19 @@ Body: row/column headers + free grid on the left, collapsible Blocks panel on th
                     <StackPanel x:Name="rowhdr_root"/>
                 </ScrollViewer>
 
+                <!-- MacScrollViewerXY, not the stock ScrollViewer: its bars
+                     overlay the content, which is what keeps this pane's
+                     viewport the same size as the two header panes beside it
+                     (see the style's comment above). -->
                 <ScrollViewer x:Name="grid_scroll" Grid.Row="1" Grid.Column="1"
+                              Style="{StaticResource MacScrollViewerXY}"
                               HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                     <StackPanel x:Name="grid_root"/>
                 </ScrollViewer>
             </Grid>
 
             <Border Grid.Column="1" Background="{DynamicResource BrushHeaderBg}"
-                    BorderBrush="{StaticResource LocalBrushBorderNeutral}" BorderThickness="1,0,0,0">
+                    BorderBrush="{DynamicResource BrushPillOffBorder}" BorderThickness="1,0,0,0">
                 <DockPanel>
                     <Grid DockPanel.Dock="Top" Height="30">
                         <TextBlock x:Name="blocks_title_label" Text="Blocks" Margin="10,0" VerticalAlignment="Center"
@@ -453,7 +978,8 @@ Body: row/column headers + free grid on the left, collapsible Blocks panel on th
                         <ToggleButton x:Name="blocks_collapse_btn" Content="»" Style="{StaticResource RibbonBtn}"
                                       HorizontalAlignment="Right" Margin="0,0,4,0" Width="24"/>
                     </Grid>
-                    <ScrollViewer x:Name="blocks_scroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer x:Name="blocks_scroll" Style="{StaticResource MacScrollViewer}"
+                                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel x:Name="blocks_panel_content" Margin="8" Orientation="Vertical"/>
                     </ScrollViewer>
                 </DockPanel>

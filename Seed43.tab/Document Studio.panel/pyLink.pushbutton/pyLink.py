@@ -24,9 +24,7 @@ import json as _json
 import zipfile as _zipfile
 import re
 import time as _time
-import threading as _threading
 import wpf
-from System import Action as _Action
 from System import Int64 as _Int64
 from System.Windows import (
     Visibility, Thickness,
@@ -61,10 +59,25 @@ try:
 except Exception:
     _mi = None
 
+
+def _github_menu_label():
+    """Return the ☰ 'Report an issue' label as a GitHub mark plus text, or a
+    plain string if the shared icon/theme modules aren't available."""
+    text = u'Report an issue on GitHub'
+    try:
+        from Snippets._icons import make_icon_with_label
+        from Snippets.seed43_theme import get_color
+        here = os.path.dirname(os.path.abspath(__file__))
+        return make_icon_with_label(
+            'github', text, icon_size=14,
+            color=get_color(here, 'text_primary', fallback='#F4FAFF'))
+    except Exception:
+        return text
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools'))
 from pylink_shared import (
     hb, Row, VIEW_TYPES, WORD_VIEW_TYPES, SHEET_SIZES, SRC_COLOURS,
-    STATUS_COLOURS, _alert, _confirm, _find_seed43_version,
+    STATUS_COLOURS, _alert, _confirm,
     _get_pylink_param, _doc_base_dir, _to_relative, _to_absolute,
     save_pylink_state, load_pylink_state, _run_export_script,
     PYLINK_PARAM_GUID, PYLINK_PARAM_NAME, PYLINK_PARAM_FILE,
@@ -1059,62 +1072,33 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         panel.Children.Add(item(u'\U0001F9F9  Purge Unused Text Types',
             self._menu_purge_text_types_click))
         panel.Children.Add(self._make_menu_separator())
-        panel.Children.Add(item(u'\u2753  Support', self._menu_support_click))
+        panel.Children.Add(item(u'\u2709  Email support', self._menu_support_click))
+        # Vector GitHub mark rather than a glyph. make_icon bakes its colour in
+        # at build time, which is fine here - this menu is rebuilt every time it
+        # opens, so a theme change is picked up on the next open.
+        panel.Children.Add(item(
+            _github_menu_label(), self._menu_issue_click))
         panel.Children.Add(item(u'\u2139  About pyLink', self._menu_about_click))
         panel.Children.Add(self._make_menu_separator())
         panel.Children.Add(item(u'\u2615  Support this project and help us grow',
                              self._menu_donate_click))
 
-    _last_url_open_time = 0.0
-
     def _open_url(self, url, title=''):
-        """Open a URL in the default browser without blocking the UI
-        thread. subprocess.Popen('cmd /c start ...') spawns cmd.exe as a
-        shell wrapper, and that first launch can hang for a long time
-        from inside Revit's process, running synchronously on the UI
-        thread would freeze the whole window for that entire time.
-        os.startfile skips the shell wrapper entirely, and running it on
-        a background thread means even a slow launch can never block
-        the UI."""
-        now_t = _time.time()
-        if now_t - self._last_url_open_time < 2.0:
-            return
-        self._last_url_open_time = now_t
-
-        def _launch():
-            try:
-                os.startfile(url)
-            except Exception:
-                try:
-                    import subprocess
-                    subprocess.Popen(['cmd', '/c', 'start', '', url])
-                except Exception as ex:
-                    def _show():
-                        _alert("Could not open browser:\n{}".format(str(ex)), title=title)
-                    try:
-                        self.Dispatcher.Invoke(_Action(_show))
-                    except Exception:
-                        pass
-
-        _threading.Thread(target=_launch).start()
+        """Open a URL in the default browser. The launch itself lives in
+        Snippets._support.open_url; this only supplies pyLink's error
+        reporting."""
+        from Snippets._support import open_url
+        open_url(url, window=self,
+                 on_error=lambda msg: _alert(msg, title=title))
 
     def _menu_support_click(self, sender, e):
-        """☰ → Support: open a pre-filled support email in the default
-        mail client, addressed to Seed43 support, with the extension
-        version and which app it came from already filled in."""
-        version = _find_seed43_version()
-        subject = "pyLink Support Ticket"
-        body = (
-            "Hi Seed43 Team,\n\n"
-            "Support Request\n\n"
-            "App: pyLink\n"
-            "Seed43 Version: {}\n\n"
-            "Please describe your issue below:\n\n"
-        ).format(version)
-        import urllib
-        mailto = "mailto:{}?subject={}&body={}".format(
-            'support@seed43.org', urllib.quote(subject), urllib.quote(body))
-        self._open_url(mailto, title="Support")
+        """☰ → Email support: open a pre-filled support email in the default
+        mail client, addressed to Seed43 support, with the extension version
+        and which app it came from already filled in."""
+        from Snippets._support import support_mailto
+        self._open_url(
+            support_mailto('pyLink', os.path.dirname(os.path.abspath(__file__))),
+            title="Support")
 
     def _menu_purge_text_types_click(self, sender, e):
         """☰ → Purge Unused Text Types: delete every 'pyLink <N>pt'
@@ -1225,13 +1209,19 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         root.Children.Add(btn_row)
         w.ShowDialog()
 
+    def _menu_issue_click(self, sender, e):
+        """Report an issue: open a new GitHub issue, pre-filled with the app
+        name, Seed43 version and Revit version."""
+        from Snippets._support import github_issue_url
+        self._open_url(
+            github_issue_url('pyLink', os.path.dirname(os.path.abspath(__file__))),
+            title='Report an issue')
+
+    ABOUT_URL = 'https://seed43.org/pylink/'
+
     def _menu_about_click(self, sender, e):
-        _alert(
-            'pyLink\n'
-            'Part of the Seed43 pyRevit Extension.\n\n'
-            'Links Excel and Word documents to Revit views.',
-            title='About pyLink'
-        )
+        """Open this tool's own page, the way pyTransmit and pyFilter do."""
+        self._open_url(self.ABOUT_URL, title='About')
 
     def _menu_donate_click(self, sender, e):
         self._open_url('https://buymeacoffee.com/seed43', title='Support')

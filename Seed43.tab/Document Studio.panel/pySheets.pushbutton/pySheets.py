@@ -39,25 +39,7 @@ def _find_seed43_lib():
     return None
 
 
-def _find_seed43_version():
-    """Walk up from this pushbutton to Seed43.extension/version.txt and
-    return just the version string (its first line). Returns 'unknown'
-    if the file can't be found or read."""
-    folder = op.dirname(__file__)
-    for _ in range(6):
-        candidate = op.join(folder, 'version.txt')
-        if os.path.isfile(candidate):
-            try:
-                with open(candidate, 'r') as f:
-                    return f.readline().strip()
-            except Exception:
-                return 'unknown'
-        folder = op.dirname(folder)
-    return 'unknown'
-
-
-ABOUT_URL = "https://seed43.org"
-SUPPORT_EMAIL = "support@seed43.org"
+ABOUT_URL = "https://seed43.org/pysheets/"
 
 
 _lib_path = _find_seed43_lib()
@@ -68,7 +50,8 @@ from EditNamingFormats import EditNamingFormatsWindow, NamingFormat
 from Snippets import _dialogs as dlg
 from Snippets import _userdata
 from Snippets import _schedule
-from Snippets._icons import make_icon, set_header_icon
+from Snippets._icons import make_icon, make_icon_with_label, set_header_icon
+from Snippets._support import github_issue_url, open_url, support_mailto
 from Snippets.seed43_theme import (apply_seed43_palette, apply_seed43_dimensions,
                                    get_color)
 import FolderPresetManager as fpm_win
@@ -778,6 +761,12 @@ class PrintSheetsWindow(forms.WPFWindow):
             'search', size=14,
             color=get_color(op.dirname(__file__), 'text_muted',
                             fallback='#9CA3AF'))
+        # Same reason: the GitHub mark on the ☰ menu is a vector icon, so it has
+        # to be built here rather than declared as text in the XAML.
+        self.issue_btn.Content = make_icon_with_label(
+            'github', u'Report an issue on GitHub', icon_size=14,
+            color=get_color(op.dirname(__file__), 'text_primary',
+                            fallback='#F4FAFF'))
         self._loading = False   # init complete, events now active
 
     # ── PROPERTIES ──
@@ -2958,22 +2947,11 @@ class PrintSheetsWindow(forms.WPFWindow):
             self.do_print_clicked(sender, args)
 
     def help_clicked(self, sender, args):
-        """☰ → Support: open a pre-filled support email in the default
-        mail client, addressed to Seed43 support, with the extension
-        version and which app it came from already filled in."""
-        version = _find_seed43_version()
-        subject = "pySheets Support Ticket"
-        body = (
-            "Hi Seed43 Team,\n\n"
-            "Support Request\n\n"
-            "App: pySheets\n"
-            "Seed43 Version: {}\n\n"
-            "Please describe your issue below:\n\n"
-        ).format(version)
-        import urllib
-        mailto = "mailto:{}?subject={}&body={}".format(
-            SUPPORT_EMAIL, urllib.quote(subject), urllib.quote(body))
-        self._open_url(mailto, title="Support")
+        """☰ → Email support: open a pre-filled support email in the default
+        mail client, addressed to Seed43 support, with the extension version
+        and which app it came from already filled in."""
+        self._open_url(support_mailto("pySheets", op.dirname(__file__)),
+                       title="Support")
 
     def settings_toggle_preview_down(self, sender, args):
         """Explicit close-on-reclick. Popup StaysOpen=False already auto-closes
@@ -2986,46 +2964,22 @@ class PrintSheetsWindow(forms.WPFWindow):
             self.settings_toggle_btn.IsChecked = False
             args.Handled = True
 
+    def issue_clicked(self, sender, args):
+        """☰ → Report an issue: open a new GitHub issue, pre-filled with the
+        app name, Seed43 version and Revit version."""
+        self._open_url(github_issue_url("pySheets", op.dirname(__file__)),
+                       title="Report an issue")
+
     def about_clicked(self, sender, args):
         """☰ → About: open ABOUT_URL in the default browser."""
         self._open_url(ABOUT_URL, title="About")
 
-    _last_url_open_time = 0.0
-
     def _open_url(self, url, title=''):
-        """Open a URL in the default browser without blocking the UI thread.
-        subprocess.Popen('cmd /c start ...') spawns cmd.exe as a shell
-        wrapper, and that first launch can hang for a long time from inside
-        Revit's process (shell resolution, security scanning), and since it
-        ran synchronously on the UI thread, the whole window would freeze
-        for that entire time, any clicks made during the freeze then all
-        fired at once the moment it finally unblocked. os.startfile skips
-        the shell wrapper entirely, and running it on a background thread
-        means even a slow launch can never block the UI."""
-        import time
-        now = time.time()
-        if now - self._last_url_open_time < 2.0:
-            return
-        self._last_url_open_time = now
-
-        def _launch():
-            try:
-                os.startfile(url)
-            except Exception:
-                try:
-                    import subprocess
-                    subprocess.Popen(['cmd', '/c', 'start', '', url])
-                except Exception as ex:
-                    def _show():
-                        dlg.message('Could not open browser.\n\n' + str(ex), title=title)
-                    try:
-                        import System
-                        self.Dispatcher.Invoke(System.Action(_show))
-                    except Exception:
-                        pass
-
-        import threading
-        threading.Thread(target=_launch).start()
+        """Open a URL in the default browser. The launch itself lives in
+        Snippets._support.open_url; this only supplies pySheets' error
+        reporting."""
+        open_url(url, window=self,
+                 on_error=lambda msg: dlg.message(msg, title=title))
 
     def support_clicked(self, sender, args):
         """☰ → Support: open the Buy Me a Coffee page in the default browser."""
@@ -3788,7 +3742,7 @@ class PrintSheetsWindow(forms.WPFWindow):
         presets = self._load_folder_presets()
         if not presets:
             tb = Windows.Controls.TextBlock()
-            tb.Text = 'No presets saved yet — see \u2630 Manage Folder Presets'
+            tb.Text = 'No presets saved yet — see \u2630 Export Location Presets'
             tb.Foreground = self.FindResource('BrushTextPrimary')
             tb.Opacity = 0.5
             tb.FontSize = 11
@@ -4146,7 +4100,7 @@ class PrintSheetsWindow(forms.WPFWindow):
             dlg.message('Could not save profile.\n\n' + str(ex))
 
     def _list_profile_names(self):
-        """All saved profile names — used by the Manage Profiles window."""
+        """All saved profile names — used by the Profiles window."""
         try:
             if not op.isdir(PROFILES_DIR):
                 return []
@@ -4156,7 +4110,7 @@ class PrintSheetsWindow(forms.WPFWindow):
             return []
 
     def _delete_profile_by_name(self, name):
-        """Delete one profile file — used by the Manage Profiles window."""
+        """Delete one profile file — used by the Profiles window."""
         try:
             os.remove(self._profile_path(name))
             # Its schedule died with it; leaving the card armed would have the

@@ -8,7 +8,7 @@
         SizeToContent="Height"
         Width="480"
         MinHeight="200"
-        Title="Manage Profiles"
+        Title="Profiles"
         Background="{DynamicResource BrushWindowBg}">
 
     <shell:WindowChrome.WindowChrome>
@@ -122,7 +122,7 @@
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
                     <TextBlock Text="py" FontWeight="Bold" FontSize="22" Foreground="{DynamicResource BrushPrimaryGreen}"/>
                     <TextBlock Text="Sheets" FontWeight="Bold" FontSize="22" Foreground="{DynamicResource BrushTextPrimary}"/>
-                    <TextBlock Text="  |  Manage Profiles" FontSize="14"
+                    <TextBlock Text="  |  Profiles" FontSize="14"
                                Foreground="{DynamicResource BrushTextPrimary}" Opacity="0.6"
                                VerticalAlignment="Bottom" Margin="4,0,0,4"/>
                 </StackPanel>

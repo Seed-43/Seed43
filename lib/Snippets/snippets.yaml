@@ -160,3 +160,15 @@ snippets:
       resolve_cad_instance:      Return the CAD ImportInstance to work with, from selection or pick.
       get_levels:                Return all levels in the project.
       choose_datum:              Pick a level or grid from selection, a list, or by clicking it.
+
+  _support.py:
+    description: >
+      Shared helpers behind every Seed43 tool's hamburger menu: the installed
+      version lookup, the pre-filled support email, and the pre-filled GitHub
+      issue link. Used by pySheets, pyLink, pyTable, pyFilter and pyTransmit.
+    functions:
+      find_seed43_version: Walk up from start_dir to Seed43.extension/version.txt and return just the version string.
+      revit_version:       Return the running Revit version, or 'unknown' outside Revit.
+      open_url:            Open a URL or mailto link in the default handler, without blocking the UI thread.
+      support_mailto:      Return a mailto URI for a support email, pre-filled with the app name, the installed Seed43 version and the Revit version.
+      github_issue_url:    Return a GitHub 'new issue' URL for the Seed43 repo, pre-filled with the app name, Seed43 version and Revit version.

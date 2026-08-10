@@ -23,14 +23,16 @@ from System.Windows.Controls import ListBoxItem, Button
 from System.Windows.Shapes import Rectangle
 from System.Collections.ObjectModel import ObservableCollection
 
-import threading
 
 from Autodesk.Revit.DB import Transaction
 
 from pyrevit import revit, DB, script, forms
 
-from Snippets.seed43_theme import apply_seed43_palette, apply_seed43_dimensions
+from Snippets.seed43_theme import (apply_seed43_palette, apply_seed43_dimensions,
+                                   get_color)
+from Snippets._icons import make_icon_with_label
 from Snippets._selection import get_element_type
+from Snippets._support import github_issue_url, open_url, support_mailto
 from Snippets._parameters import (
     get_param_display_value,
     set_param_from_display_value,
@@ -46,21 +48,6 @@ from pytable_io import write_workbook, read_workbook, HIDDEN_COLUMNS
 SCRIPT_DIR = os.path.dirname(__file__)
 
 
-def _find_seed43_version():
-    """Walk up from this pushbutton to Seed43.extension/version.txt and
-    return just the version string (its first line). Returns 'unknown'
-    if the file can't be found or read."""
-    folder = SCRIPT_DIR
-    for _ in range(6):
-        candidate = os.path.join(folder, 'version.txt')
-        if os.path.isfile(candidate):
-            try:
-                with open(candidate, 'r') as f:
-                    return f.readline().strip()
-            except Exception:
-                return 'unknown'
-        folder = os.path.dirname(folder)
-    return 'unknown'
 doc = revit.doc
 logger = script.get_logger()
 
@@ -529,7 +516,15 @@ class MainWindow(forms.WPFWindow):
         def item(label, fn):
             return self._make_menu_item(label, fn, self.FindName("menu_popup"))
 
-        panel.Children.Add(item(u'\u2753  Support', self._menu_support_click))
+        panel.Children.Add(item(u'\u2709  Email support', self._menu_support_click))
+        # Vector GitHub mark rather than a glyph. make_icon bakes its colour in
+        # at build time, which is fine here - this menu is rebuilt every time it
+        # opens, so a theme change is picked up on the next open.
+        panel.Children.Add(item(
+            make_icon_with_label(
+                'github', u'Report an issue on GitHub', icon_size=14,
+                color=get_color(SCRIPT_DIR, 'text_primary', fallback='#F4FAFF')),
+            self._menu_issue_click))
         panel.Children.Add(item(u'\u2139  About pyTable', self._menu_about_click))
         panel.Children.Add(self._make_menu_separator())
         panel.Children.Add(item(u'\u2615  Support this project and help us grow',
@@ -562,63 +557,29 @@ class MainWindow(forms.WPFWindow):
             logger.warning('Failed to apply LocalBrushMenuBorder: {0}'.format(ex))
         return sep
 
-    _last_url_open_time = 0.0
-
     def _open_url(self, url, title=u''):
-        """Open a URL in the default browser without blocking the UI
-        thread - os.startfile skips the cmd.exe shell-wrapper subprocess
-        launch that can otherwise hang for a while from inside Revit's
-        process, and running it on a background thread means even a slow
-        launch can never freeze the window."""
-        import time
-        now_t = time.time()
-        if now_t - self._last_url_open_time < 2.0:
-            return
-        self._last_url_open_time = now_t
-
-        def _launch():
-            try:
-                os.startfile(url)
-            except Exception:
-                try:
-                    import subprocess
-                    subprocess.Popen(['cmd', '/c', 'start', '', url])
-                except Exception as ex:
-                    logger.error("Could not open browser: {0}".format(ex))
-
-        threading.Thread(target=_launch).start()
+        """Open a URL in the default browser. The launch itself lives in
+        Snippets._support.open_url; this only supplies pyTable's error
+        reporting."""
+        open_url(url, window=self, on_error=lambda msg: logger.error(msg))
 
     def _menu_support_click(self, sender, args):
-        """Support: open a pre-filled support email in the default mail
-        client, addressed to Seed43 support, with the extension version
-        and which app it came from already filled in."""
-        version = _find_seed43_version()
-        subject = "pyTable Support Ticket"
-        body = (
-            "Hi Seed43 Team,\n\n"
-            "Support Request\n\n"
-            "App: pyTable\n"
-            "Seed43 Version: {0}\n\n"
-            "Please describe your issue below:\n\n"
-        ).format(version)
-        try:
-            import urllib
-            quote = urllib.quote
-        except ImportError:
-            import urllib.parse
-            quote = urllib.parse.quote
-        mailto = "mailto:{0}?subject={1}&body={2}".format(
-            'support@seed43.org', quote(subject), quote(body))
-        self._open_url(mailto, title="Support")
+        """Email support: open a pre-filled support email in the default mail
+        client, addressed to Seed43 support, with the extension version and
+        which app it came from already filled in."""
+        self._open_url(support_mailto('pyTable', SCRIPT_DIR), title="Support")
+
+    def _menu_issue_click(self, sender, args):
+        """Report an issue: open a new GitHub issue, pre-filled with the app
+        name, Seed43 version and Revit version."""
+        self._open_url(github_issue_url('pyTable', SCRIPT_DIR),
+                       title='Report an issue')
+
+    ABOUT_URL = 'https://seed43.org/pytable/'
 
     def _menu_about_click(self, sender, args):
-        forms.alert(
-            'pyTable\n'
-            'Part of the Seed43 pyRevit Extension.\n\n'
-            'Exports model/schedule parameters to Excel or ODS, edit '
-            'externally, reimport with a diff preview before writing '
-            'changes back to Revit.',
-            title='About pyTable')
+        """Open this tool's own page, the way pyTransmit and pyFilter do."""
+        self._open_url(self.ABOUT_URL, title='About')
 
     def _menu_donate_click(self, sender, args):
         self._open_url('https://buymeacoffee.com/seed43', title='Support')

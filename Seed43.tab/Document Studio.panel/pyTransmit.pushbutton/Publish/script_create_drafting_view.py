@@ -217,20 +217,19 @@ def natural_sort_key(s):
     return [int(p) if p.isdigit() else p.lower() for p in parts]
 
 def parse_date_slash(raw):
-    if not raw: return ""
-    m = re.search(r'(\d{1,2})\D(\d{1,2})\D(\d{2,4})', str(raw).strip())
-    if not m: return str(raw)
-    d, mo, yr = int(m.group(1)), int(m.group(2)), int(m.group(3))
-    if yr < 100: yr += 2000
-    return "{:02d}/{:02d}/{}".format(d, mo, yr)
+    """Print the revision date exactly as it was typed in Revit.
+
+    These used to re-parse and re-format the date, and got it wrong for any
+    year-first date: (\\d{1,2})\\D(\\d{1,2})\\D(\\d{2,4}) cannot match a four
+    digit year in the first field, so on "2026/06/06" it skipped the leading
+    "20", read 26 / 06 / 06, then treated the "06" as a two digit year and
+    wrote "26/06/2006" - a different date from the one the user typed.
+    """
+    return "" if not raw else str(raw).strip()
 
 def parse_date_long(raw):
-    if not raw: return ""
-    m = re.search(r'(\d{1,2})\D(\d{1,2})\D(\d{2,4})', str(raw).strip())
-    if not m: return str(raw)
-    d, mo, yr = int(m.group(1)), int(m.group(2)), int(m.group(3))
-    if yr < 100: yr += 2000
-    return "{} {} {}".format(d, MONTHS[mo-1], yr) if 1 <= mo <= 12 else str(raw)
+    """As typed - see parse_date_slash() above."""
+    return "" if not raw else str(raw).strip()
 
 def get_param(el, name):
     try:

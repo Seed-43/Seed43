@@ -725,7 +725,8 @@
                                     </Button.Content>
                                 </Button>
                                 <Rectangle Fill="{DynamicResource BrushBorderMuted}" Height="1" Margin="0,2"/>
-                                <Button x:Name="help_btn"  Content="&#x2753;  Support"               Style="{StaticResource MenuItemStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_help_click"/>
+                                <Button x:Name="help_btn"  Content="&#x2709;  Email support"        Style="{StaticResource MenuItemStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_help_click"/>
+                                <Button x:Name="issue_btn" Content="Report an issue on GitHub" Style="{StaticResource MenuItemStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_issue_click"/>
                                 <Button x:Name="about_btn" Content="&#x2139;  About pyTransmit" Style="{StaticResource MenuItemStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_about_click"/>
                                 <Rectangle Fill="{DynamicResource BrushBorderMuted}" Height="1" Margin="0,2"/>
                                 <Button x:Name="support_btn" Content="&#x2615;  Support this project and help us grow" Style="{StaticResource MenuItemStyle}" Foreground="{DynamicResource BrushTextPrimary}" Click="menu_support_click"/>

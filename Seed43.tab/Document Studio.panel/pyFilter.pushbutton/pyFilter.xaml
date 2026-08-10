@@ -333,8 +333,11 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="{DynamicResource CornerRadiusInput}"
-                                Padding="{TemplateBinding Padding}">
+                                CornerRadius="{DynamicResource CornerRadiusInput}">
+                            <!-- No Padding="{TemplateBinding Padding}" on this
+                                 Border. WPF already applies TextBox.Padding to
+                                 the element named PART_ContentHost, so setting
+                                 it here doubles it. -->
                             <ScrollViewer x:Name="PART_ContentHost"
                                           Focusable="False"
                                           HorizontalScrollBarVisibility="Hidden"
@@ -725,11 +728,20 @@
                                             Foreground="{DynamicResource BrushTextPrimary}"/>
                                     <Rectangle Fill="{DynamicResource BrushSecondaryBg}" Height="1" Margin="0,2"/>
                                     <Button x:Name="MenuHelp"
-                                            Content="&#x2753;  Help"
+                                            Content="&#x2709;  Email support"
+                                            Style="{StaticResource MenuItemButtonStyle}"
+                                            Foreground="{DynamicResource BrushTextPrimary}"/>
+                                    <Button x:Name="MenuIssue"
+                                            Content="Report an issue on GitHub"
                                             Style="{StaticResource MenuItemButtonStyle}"
                                             Foreground="{DynamicResource BrushTextPrimary}"/>
                                     <Button x:Name="MenuAbout"
                                             Content="&#x2139;  About pyFilter"
+                                            Style="{StaticResource MenuItemButtonStyle}"
+                                            Foreground="{DynamicResource BrushTextPrimary}"/>
+                                    <Rectangle Fill="{DynamicResource BrushSecondaryBg}" Height="1" Margin="0,2"/>
+                                    <Button x:Name="MenuDonate"
+                                            Content="&#x2615;  Support this project and help us grow"
                                             Style="{StaticResource MenuItemButtonStyle}"
                                             Foreground="{DynamicResource BrushTextPrimary}"/>
                                 </StackPanel>

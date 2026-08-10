@@ -61,8 +61,26 @@ _temp_dir  = tempfile.gettempdir()
 _temp_xlsx = os.path.join(_temp_dir, "{}_TEMP.xlsx".format(_safe_base))
 
 # ── Step 1: Generate temp Excel ───────────────────────────────────────────────
+# The PDF is the Excel workbook converted, so it runs whichever Excel writer
+# matches the assigned layout. pyTransmit sets _layout_is_studio; when this
+# script is run on its own, fall back to reading the layout's schema, since a
+# Studio layout handed to the Layout Builder writer produces a blank PDF.
 _script_dir = os.path.dirname(os.path.abspath(__file__))
-_excel_path = os.path.join(_script_dir, 'script_create_excel.py')
+_is_studio = _p.get('_layout_is_studio')
+if _is_studio is None:
+    _is_studio = False
+    _lp = _p.get('layout_json_path')
+    if _lp and os.path.isfile(_lp):
+        try:
+            import json as _json_probe
+            with open(_lp, 'r') as _lf:
+                _ld = _json_probe.load(_lf)
+            _is_studio = ('cells' in _ld and 'rows' not in _ld)
+        except Exception:
+            pass
+_excel_path = os.path.join(
+    _script_dir,
+    'script_create_excel_studio.py' if _is_studio else 'script_create_excel.py')
 
 import sys as _sys
 _settings_dir = os.path.join(os.path.dirname(_script_dir), 'Settings')
@@ -70,7 +88,8 @@ if _settings_dir not in _sys.path:
     _sys.path.insert(0, _settings_dir)
 
 if not os.path.exists(_excel_path):
-    _alert("script_create_excel.py not found at:\n{}".format(_excel_path), exitscript=True)
+    _alert("{} not found at:\n{}".format(
+        os.path.basename(_excel_path), _excel_path), exitscript=True)
 
 _payload_for_excel = dict(_p)
 _payload_for_excel['_pdf_temp_xlsx_path'] = _temp_xlsx
@@ -128,15 +147,22 @@ output.print_md("PDF path: `{}`".format(_pdf_path))
 output.print_md("Exporting to PDF...")
 
 # Delete existing PDF first so converter can write cleanly
-if os.path.exists(_pdf_path):
+# Retry rather than abandon the run: the temp workbook has already been built
+# by this point, and the usual cause - the previous PDF still open in a viewer
+# - takes seconds to fix.
+while os.path.exists(_pdf_path):
     try:
         os.remove(_pdf_path)
+        break
     except Exception as _del_existing:
-        _alert(
-            "Cannot overwrite the existing PDF, it may be open in another program. Please close it and try again.",
-            title="File In Use"
-        )
-        sys.exit(0)
+        if not _confirm(
+                "Cannot overwrite the existing PDF - it is probably open in "
+                "another program.\n\nClose it, then choose Retry.\n\nFile:\n{}".format(_pdf_path),
+                title="File In Use", no="Cancel"):
+            output.print_md("PDF export cancelled - {} is in use.".format(_pdf_path))
+            try: os.remove(_temp_xlsx)
+            except Exception: pass
+            sys.exit(0)
 
 import subprocess as _sp
 

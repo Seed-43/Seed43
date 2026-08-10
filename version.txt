@@ -6,24 +6,22 @@ Last update:
   Disclaimer:
   - Seed43 tools are under active development and provided as-is.
 
-  pyTransmit
-  - Schedule: group sorting removed, span detection rewritten, border and group gap logic simplified
-  - Excel: span detection updated to match schedule changes
-  - Legend: CopyElements switched back to batch copy instead of one-at-a-time loop
-  - write_rev_param: revision position calculation moved inside _calc_mark instead of precomputed
-  - Dialogs: title now set directly in XAML string instead of via FindName after load
-  - SetupSettings: fixed bad DB import causing revision query to fail
-  - script: auto-update check added
+  New
+  - pyLink - links Excel and Word documents to Revit views (replaces PyTables)
+  - Isolate Levels - isolates everything tied to a chosen level
+  - Model Slice - section box to a thin slice at a level or grid
+  - pySheets - scheduled printing, arm a profile and it prints with the
+    window closed
 
-  View Organiser
-  - Split casing into two separate settings for Title on Sheet and Sheet Name
-  - Added sanitize_name() and read-only guard
-  - Organiser Reset updated to match
+  User settings
+  - All tool settings moved to .user; updates no longer overwrite them
+  - Settings from renamed tools are carried across automatically
 
-  PyTables
-  - Full rewrite from xlsx range importer to WPF link manager with drag-drop, card UI and ExtensibleStorage persistence
+  General
+  - Shared palette now drives sizes as well as colours across all tools
+  - Toolbar icons recolour to the chosen accent
+  - Tooltips and UI tidied up throughout
 
-  About
-  - Drag-and-drop reordering removed, tool order now follows bundle.yaml
-  - Added Update Seed43 button to header
+  Updated
+  - pyTransmit, pyFilter, Find Element, About
 _____________________________________________________________________

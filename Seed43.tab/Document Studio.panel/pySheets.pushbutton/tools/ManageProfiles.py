@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # ManageProfiles.py
-"""Manage Profiles window — view / delete saved pySheets profiles.
+"""Profiles window — view / delete saved pySheets profiles.
 Creating and saving profiles still happens from the header (+ / save);
 this window is delete-only, mirroring FolderPresetManager's row style."""
 import os.path as op

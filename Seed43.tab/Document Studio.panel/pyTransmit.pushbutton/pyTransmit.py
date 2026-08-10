@@ -12,7 +12,7 @@ from itertools import groupby
 from pyrevit.forms import WPFWindow  # kept for other uses
 import wpf
 from System.Windows import Window
-from System import Uri, UriKind, Action
+from System import Uri, UriKind
 from System.Windows.Media.Imaging import BitmapImage
 import clr
 clr.AddReference("PresentationFramework")
@@ -24,8 +24,8 @@ import os
 import sys
 
 from pytransmit_paths import (
-    SETTINGS_DIR, LAYOUTS_DIR, LAYOUT_CONFIG, SYNC_FILE, USER_DIR,
-    settings_file,
+    SETTINGS_DIR, LAYOUTS_DIR, STUDIO_LAYOUTS_DIR, LAYOUT_CONFIG, SYNC_FILE,
+    USER_DIR, settings_file,
 )
 
 _SCRIPT_DIR_MAIN = os.path.dirname(os.path.abspath(__file__))
@@ -54,23 +54,6 @@ def _confirm(message, title='', no='No'):
 # ── EXTERNAL URLS ──
 # Update these to change where Help and About point
 ABOUT_URL = "https://seed43.org/pytransmit/"
-SUPPORT_EMAIL = "support@seed43.org"
-
-def _find_seed43_version():
-    """Walk up from this pushbutton to Seed43.extension/version.txt and
-    return just the version string (its first line). Returns 'unknown'
-    if the file can't be found or read."""
-    folder = _SCRIPT_DIR_MAIN
-    for _ in range(6):
-        candidate = os.path.join(folder, 'version.txt')
-        if os.path.isfile(candidate):
-            try:
-                with open(candidate, 'r') as f:
-                    return f.readline().strip()
-            except Exception:
-                return 'unknown'
-        folder = os.path.dirname(folder)
-    return 'unknown'
 SUPPORT_URL = "https://buymeacoffee.com/seed43"
 
 import json as _json
@@ -170,6 +153,12 @@ class RevTableWindow(Window):
                 if _btn:
                     _btn.Content = _mi('close', size=14, color=_icon_color)
             self.options_btn.Content = _mi('menu', size=18, color=_icon_color)
+            # GitHub mark on the ☰ menu, built here for the same reason the
+            # close icons are: make_icon bakes its colour in at build time.
+            from Snippets._icons import make_icon_with_label as _mil
+            self.issue_btn.Content = _mil(
+                'github', u'Report an issue on GitHub', icon_size=14,
+                color=_icon_color)
             # ── Log menu warning icon ─────────────────────────────────────────
             _log_holder = self.FindName('log_icon_holder')
             if _log_holder:
@@ -1037,7 +1026,13 @@ class RevTableWindow(Window):
             if _studio_dir not in sys.path:
                 sys.path.insert(0, _studio_dir)
             from StudioSettings import StudioSettingsWindow
-            win = StudioSettingsWindow(_studio_dir)
+            # Reason / Method / Document Format / Page Size live in this
+            # window's combo boxes and are only written onto a revision once a
+            # transmittal has been published, so Studio cannot read them from
+            # the model. Handed over here, the canvas previews the issue the
+            # user is actually about to send instead of ghost placeholders.
+            win = StudioSettingsWindow(_studio_dir,
+                                       meta_rows=self._current_meta_rows())
             win.ShowDialog()
         except Exception as e:
             _alert(
@@ -1124,41 +1119,13 @@ class RevTableWindow(Window):
         self.options_btn.IsChecked = False
         self._show_panel("options")
 
-    _last_url_open_time = 0.0
-
     def _open_url(self, url, title=''):
-        """Open a URL in the default browser without blocking the UI thread.
-        subprocess.Popen('cmd /c start ...') spawns cmd.exe as a shell
-        wrapper, and that first launch can hang for a long time from inside
-        Revit's process (shell resolution, security scanning), and since it
-        ran synchronously on the UI thread, the whole window would freeze
-        for that entire time, any clicks made during the freeze then all
-        fired at once the moment it finally unblocked. os.startfile skips
-        the shell wrapper entirely, and running it on a background thread
-        means even a slow launch can never block the UI."""
-        import time
-        now = time.time()
-        if now - self._last_url_open_time < 2.0:
-            return
-        self._last_url_open_time = now
-
-        def _launch():
-            try:
-                os.startfile(url)
-            except Exception:
-                try:
-                    import subprocess
-                    subprocess.Popen(['cmd', '/c', 'start', '', url])
-                except Exception as e:
-                    def _show():
-                        _alert("Could not open browser:\n{}".format(str(e)), title=title)
-                    try:
-                        self.Dispatcher.Invoke(Action(_show))
-                    except Exception:
-                        pass
-
-        import threading
-        threading.Thread(target=_launch).start()
+        """Open a URL in the default browser. The launch itself lives in
+        Snippets._support.open_url; this only supplies pyTransmit's error
+        reporting."""
+        from Snippets._support import open_url
+        open_url(url, window=self,
+                 on_error=lambda msg: _alert(msg, title=title))
 
     def options_btn_click(self, sender, args):
         """Toggle the options menu open/closed. With the Popup's own
@@ -1204,6 +1171,15 @@ class RevTableWindow(Window):
             except Exception:
                 return False
         return False
+
+    def menu_issue_click(self, sender, args):
+        """☰ → Report an issue: open a new GitHub issue, pre-filled with the
+        app name, Seed43 version and Revit version."""
+        from Snippets._support import github_issue_url
+        self.OptionsPopup.IsOpen   = False
+        self.options_btn.IsChecked = False
+        self._open_url(github_issue_url("pyTransmit", _SCRIPT_DIR_MAIN),
+                       title="Report an issue")
 
     def menu_about_click(self, sender, args):
         """☰ → About: open ABOUT_URL in the default browser."""
@@ -1983,16 +1959,50 @@ class RevTableWindow(Window):
     def _layouts_dir(self):
         return LAYOUTS_DIR
 
-    def _layout_templates(self):
-        """Return sorted JSON template names from the user's Layouts folder.
+    # Both builders keep their own templates, in their own folders, and both
+    # can hold one called "Excel". The dropdowns therefore say which builder
+    # each entry came from rather than listing two identical-looking names.
+    LB_PREFIX = 'LB - '
+    STUDIO_PREFIX = 'Studio - '
 
-        A plain directory listing, so saving a new layout in Layout Builder
-        makes it appear in the format dropdowns with nothing else to update.
+    def _layout_template_map(self):
+        """OrderedDict of {dropdown label: full path to the template JSON},
+        covering the Layout Builder's folder and Studio's.
+
+        A plain directory listing of each, so saving a new layout in either
+        builder makes it appear in the format dropdowns with nothing else to
+        update.
         """
-        d = self._layouts_dir()
-        if not os.path.isdir(d): return []
-        return sorted([os.path.splitext(f)[0] for f in os.listdir(d)
-                       if f.lower().endswith('.json')])
+        from collections import OrderedDict
+        out = OrderedDict()
+        for prefix, folder in ((self.LB_PREFIX, self._layouts_dir()),
+                               (self.STUDIO_PREFIX, STUDIO_LAYOUTS_DIR)):
+            if not os.path.isdir(folder):
+                continue
+            for f in sorted(os.listdir(folder)):
+                if f.lower().endswith('.json'):
+                    out[prefix + os.path.splitext(f)[0]] = os.path.join(folder, f)
+        return out
+
+    def _layout_templates(self):
+        """Dropdown labels for every template, both builders."""
+        return list(self._layout_template_map().keys())
+
+    def _resolve_layout_label(self, saved, default):
+        """Which dropdown entry a stored assignment means.
+
+        Assignments saved before Studio templates were listed hold a bare
+        name ("Excel") - those were always Layout Builder templates, so they
+        resolve to the LB entry. Falls back to the format's default name,
+        then to '(none)'.
+        """
+        labels = self._layout_templates()
+        for candidate in (saved, self.LB_PREFIX + str(saved or ''),
+                          self.STUDIO_PREFIX + str(saved or ''),
+                          self.LB_PREFIX + default, self.STUDIO_PREFIX + default):
+            if candidate and candidate in labels:
+                return candidate
+        return '(none)'
 
     _LAYOUT_COMBOS = {
         'layout_schedule_cb': 'Revit Schedule',
@@ -2102,9 +2112,8 @@ class RevTableWindow(Window):
             cb.Items.Add('(none)')
             for t in templates:
                 cb.Items.Add(t)
-            sel = saved.get(cb_name, default)
-            cb.SelectedItem = sel if sel in templates else \
-                (default if default in templates else templates[0] if templates else '(none)')
+            cb.SelectedItem = self._resolve_layout_label(
+                saved.get(cb_name), default)
 
     def _save_layout_assignments(self):
         """Persist layout combo selections to pytransmit_sync.json."""
@@ -2149,15 +2158,78 @@ class RevTableWindow(Window):
 
     def get_layout_for_output(self, output_type):
         """Return the full path to the selected layout JSON for a given output type.
-        output_type: 'excel', 'pdf', 'schedule', 'drafting', 'legend'"""
+        output_type: 'excel', 'pdf', 'schedule', 'drafting', 'legend'
+
+        Resolved through _layout_template_map() rather than by joining a name
+        onto the Layouts folder, since the label now says which builder the
+        template belongs to and Studio's live somewhere else entirely.
+        """
         cb_map = {'excel': 'layout_excel_cb', 'pdf': 'layout_pdf_cb',
                   'schedule': 'layout_schedule_cb', 'drafting': 'layout_drafting_cb',
                   'legend': 'layout_legend_cb'}
         cb = getattr(self, cb_map.get(output_type, ''), None)
-        name = str(cb.SelectedItem) if cb and cb.SelectedItem else output_type.capitalize()
-        if name == '(none)': return None
-        path = os.path.join(self._layouts_dir(), name + '.json')
+        label = str(cb.SelectedItem) if cb and cb.SelectedItem else ''
+        if not label or label == '(none)':
+            return None
+        path = self._layout_template_map().get(label)
+        if not path:
+            # Legacy assignment, or a template deleted since it was chosen.
+            path = os.path.join(self._layouts_dir(), label + '.json')
         return path if os.path.isfile(path) else None
+
+    def _current_meta_rows(self):
+        """The issue metadata currently selected in this window.
+
+        Same (label, value) pairs the export payload carries as 'meta_rows',
+        read straight from the combos. Used to seed pyTransmit Studio's
+        preview; every lookup is guarded because a combo may not be built yet
+        depending on which panel the user has opened.
+        """
+        rows = []
+
+        def _code(combo_name, data_name, attr):
+            try:
+                combo = getattr(self, combo_name, None)
+                data = list(getattr(self.opt_ctrl, data_name, []) or [])
+                idx = combo.SelectedIndex if combo else 0
+                if idx > 0 and idx - 1 < len(data):
+                    return getattr(data[idx - 1], attr, '') or ''
+            except Exception:
+                pass
+            return ''
+
+        try:
+            initials = getattr(self, 'initials_tb', None)
+            if initials is not None and (initials.Text or '').strip():
+                rows.append(('Issued By', initials.Text.strip()))
+        except Exception:
+            pass
+        for label, combo_name, data_name, attr in (
+                ('Reason for Issue', 'reason_cb', 'reason_data', 'Code'),
+                ('Method of Issue', 'method_cb', 'method_data', 'Code'),
+                ('Document Format', 'format_cb', 'format_data', 'Value'),
+                ('Paper Size', 'printsize_cb', 'printsize_data', 'Value')):
+            value = _code(combo_name, data_name, attr)
+            if value:
+                rows.append((label, value))
+        return rows
+
+    def is_studio_layout(self, path):
+        """Is this a Studio template rather than a Layout Builder one?
+
+        The two schemas are unmistakable - Layout Builder has 'rows', Studio
+        has 'cells' - and each has its own writer, so the caller uses this to
+        pick between them. Unreadable files answer False so the Layout
+        Builder writer reports the read error, which it already does well.
+        """
+        if not path or not os.path.isfile(path):
+            return False
+        try:
+            with open(path, 'r') as f:
+                data = _json.load(f)
+        except Exception:
+            return False
+        return 'cells' in data and 'rows' not in data
 
     # ── Import panel handlers ─────────────────────────────────────────────
 
@@ -2270,24 +2342,14 @@ class RevTableWindow(Window):
             _alert('Could not set log path: ' + str(e))
 
     def menu_help_click(self, sender, args):
-        """☰ → Support: open a pre-filled support email in the default
-        mail client, addressed to Seed43 support, with the extension
-        version and which app it came from already filled in."""
+        """☰ → Email support: open a pre-filled support email in the default
+        mail client, addressed to Seed43 support, with the extension version
+        and which app it came from already filled in."""
+        from Snippets._support import support_mailto
         self.OptionsPopup.IsOpen   = False
         self.options_btn.IsChecked = False
-        version = _find_seed43_version()
-        subject = "pyTransmit Support Ticket"
-        body = (
-            "Hi Seed43 Team,\n\n"
-            "Support Request\n\n"
-            "App: pyTransmit\n"
-            "Seed43 Version: {}\n\n"
-            "Please describe your issue below:\n\n"
-        ).format(version)
-        import urllib
-        mailto = "mailto:{}?subject={}&body={}".format(
-            SUPPORT_EMAIL, urllib.quote(subject), urllib.quote(body))
-        self._open_url(mailto, title="Support")
+        self._open_url(support_mailto("pyTransmit", _SCRIPT_DIR_MAIN),
+                       title="Support")
 
     def run_excel_export(self):
         """Run Excel export, loads script_excel.py in a clean namespace."""
@@ -2722,8 +2784,17 @@ class RevTableWindow(Window):
             # ── Dispatch each selected output type ────────────────────────────
             for output_type in output_types:
 
+                # Each layout schema has its own writer, chosen from the
+                # assigned template rather than from a setting - the two
+                # cannot read each other's files, so the template itself is
+                # the only honest thing to decide on.
+                _assigned = self.get_layout_for_output(output_type)
+                _is_studio = self.is_studio_layout(_assigned)
+
                 if output_type == 'excel':
-                    target_script = os.path.join(publish_dir, 'script_create_excel.py')
+                    target_script = os.path.join(
+                        publish_dir, 'script_create_excel_studio.py' if _is_studio
+                        else 'script_create_excel.py')
                     script_name   = 'excel_export'
                     err_label     = 'Excel script'
                 elif output_type == 'pdf':
@@ -2749,7 +2820,10 @@ class RevTableWindow(Window):
                     continue
 
                 payload['output_type']      = output_type
-                payload['layout_json_path'] = self.get_layout_for_output(output_type)
+                payload['layout_json_path'] = _assigned
+                # PDF builds its workbook by running the Excel writer, so it
+                # has to be told which one to run.
+                payload['_layout_is_studio'] = _is_studio
                 ns = {
                     '__name__':    script_name,
                     '__file__':    target_script,

@@ -133,17 +133,61 @@ KV_MAP = {
 }
 
 
+# ============================================================================
+# Sheet row plan
+# ============================================================================
+# Moved out to studio_rows.py, which is pure Python: the Studio publisher
+# needs exactly this logic and must not have to import WPF to get it. Names
+# are re-exported here so callers that already ask studio_blocks for them
+# keep working, and so there is still only ONE definition of how the
+# documentation table is grouped and condensed.
+from studio_rows import (                                   # noqa: F401
+    SHEET_ROW_TYPES, RECIPIENT_ROW_TYPES, REPEAT_TYPES,
+    CONDENSE_HEAD, CONDENSE_TAIL, CONDENSE_MAX_ROWS,
+    GROUP_LABEL_SEP, CONDENSE_GLYPH, ROW_PADDING_MM,
+    repeat_domain, natural_row_height_mm, group_label_for,
+    condense_plan, sheet_row_plan, plan_summary, repeat_cell_text,
+    expand_rows, band_indices,
+)
+
+
+# Stripe indices are the same for every cell in one render, so they are worked
+# out once per plan rather than per cell - recomputing them inside the cell
+# loop would be quadratic on a 2000 sheet transmittal. Keyed by the plan
+# object, and only the latest is kept.
+_band_cache = {}
+
+
+def band_index_for(block, row_plan, item):
+    """Stripe index for one repeated row, or None for a row that takes no
+    part in the banding. See studio_rows.band_indices()."""
+    if repeat_domain(block) != 'sheet':
+        return item          # recipient lists band straight down
+    if item is None:
+        return None
+    key = id(row_plan)
+    cached = _band_cache.get(key)
+    if cached is None or cached[0] is not row_plan:
+        cached = (row_plan, band_indices(row_plan))
+        _band_cache.clear()
+        _band_cache[key] = cached
+    idx = cached[1]
+    return idx[item] if 0 <= item < len(idx) else None
+
+
 def new_block(t, **kw):
     """Same shape as LayoutSettings._mk() - the schema is shared even though
     the code isn't, so a block dict looks familiar to anyone who knows the
     original tool."""
     d = {
         'type': t, 'label': '', 'enabled': True,
-        'just': 'left', 'v_just': 'middle',
+        'just': 'left', 'v_just': 'middle', 'strike': False,
         'borders': {'t': True, 'b': True, 'l': False, 'r': False},
         'data_borders': {'h': True, 'v': True},
         'list_style': 'list', 'bg_color': None,
         'alt_rows': False, 'alt_color': '#F5F7FA',
+        # Fill for a sheet-grouping header row. None = the default grey.
+        'group_color': None,
         'content': '', 'rotation': 0,
         'prefix': '', 'suffix': '',
         'page_format': 'Page X of Y',
@@ -171,11 +215,18 @@ def _brush(r, g, b, a=255):
     return _SWM.SolidColorBrush(_SWM.Color.FromArgb(a, r, g, b))
 
 
-def _hbrush(h):
-    h = (h or '#000000').lstrip('#')
-    if len(h) == 3:
-        h = h[0] * 2 + h[1] * 2 + h[2] * 2
-    return _brush(int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+def _hbrush(h, fallback='#000000'):
+    """Hex string -> brush, never raising. An unparseable colour from a saved
+    layout falls back instead of breaking the whole render."""
+    for candidate in (h, fallback):
+        s = str(candidate or '').lstrip('#')
+        if len(s) == 3:
+            s = s[0] * 2 + s[1] * 2 + s[2] * 2
+        try:
+            return _brush(int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16))
+        except Exception:
+            continue
+    return BLACK
 
 
 WHITE = _SWM.Brushes.White
@@ -211,7 +262,16 @@ def _apply_text_style(el, block_or_font, just, scale):
     el.FontSize = max(4, st.get('size_mm', DEFAULT_FONT['size_mm']) * scale)
     el.FontWeight = _SW.FontWeights.Bold if st.get('bold') else _SW.FontWeights.Normal
     el.FontStyle = _SW.FontStyles.Italic if st.get('italic') else _SW.FontStyles.Normal
-    el.TextDecorations = _SW.TextDecorations.Underline if st.get('underline') else None
+    # Underline and strikethrough are independent and can both apply, so the
+    # decorations are accumulated rather than one winning.
+    _decor = None
+    if st.get('underline') or st.get('strike'):
+        _decor = _SW.TextDecorationCollection()
+        if st.get('underline'):
+            _decor.Add(_SW.TextDecorations.Underline[0])
+        if st.get('strike'):
+            _decor.Add(_SW.TextDecorations.Strikethrough[0])
+    el.TextDecorations = _decor
     try:
         el.Foreground = _hbrush(st.get('color', DEFAULT_FONT['color']))
     except Exception:
@@ -276,13 +336,28 @@ def placeholder(block, scale, note=''):
     return g
 
 
-def render_block(block, data, scale, logo_path='', rev_index=0):
+def render_block(block, data, scale, logo_path='', rev_index=0, row_plan=None,
+                 item=None):
     """Render one block's content, given an explicit `data` dict shaped like
     Layout/LayoutSettings.py's DUMMY (proj_org, proj_client, distribution,
     revisions, reasons, methods, docs, ...). Returns a UIElement suitable as
-    a cell's content, or None for an empty/disabled block."""
+    a cell's content, or None for an empty/disabled block.
+
+    row_plan: the shared documentation row list from sheet_row_plan(). Every
+    per-sheet block in one layout must be passed the SAME plan or the columns
+    of the printed table stop lining up (see the Sheet row plan section
+    above). Defaults to one row per sheet, ungrouped and uncondensed.
+
+    item: for a repeating block (see REPEAT_TYPES), which single row of its
+    list to draw - the grid has given that row its own grid row, so the block
+    renders one value, not a stack. None means "not a repeating block, or
+    render it as a self-contained stack" (the old behaviour, kept for the
+    placeholder path and for any caller that wants a preview thumbnail).
+    """
     if not block or not block.get('enabled', True):
         return None
+    if row_plan is None:
+        row_plan = [('doc', d) for d in (data.get('docs', []) or [])]
 
     t = block.get('type', '')
     pad = max(1, int(2 * scale))
@@ -333,17 +408,49 @@ def render_block(block, data, scale, logo_path='', rev_index=0):
         wrapper.Padding = _SW.Thickness(pad * 2)
         wrapper.HorizontalAlignment = _h_align(block.get('just'))
         wrapper.VerticalAlignment = _v_align(block.get('v_just'))
-        inner = _SWC.Border()
-        inner.Background = _hbrush('#E8E8E8')
-        inner.BorderBrush = _hbrush('#AAAAAA')
-        inner.BorderThickness = _SW.Thickness(1)
-        tb = _SWC.TextBlock()
-        fname = os.path.basename(logo_path) if logo_path else ''
-        tb.Text = '[ {} ]'.format(fname) if fname else '[ LOGO ]'
-        tb.Padding = _SW.Thickness(pad * 2, pad, pad * 2, pad)
-        _apply_text_style(tb, DEFAULT_FONT, 'center', scale)
-        inner.Child = tb
-        wrapper.Child = inner
+        # The real image, so the cell shows what will actually be printed.
+        # OnLoad closes the file handle straight away, otherwise the library
+        # could not delete or replace a logo while a layout using it is open;
+        # IgnoreImageCache skips WPF's process-wide cache, which is keyed on
+        # the path and would keep serving the old picture after a replace.
+        image = None
+        if logo_path and os.path.isfile(logo_path):
+            try:
+                from System import Uri, UriKind
+                from System.Windows.Media.Imaging import (BitmapImage,
+                                                          BitmapCacheOption,
+                                                          BitmapCreateOptions)
+                bitmap = BitmapImage()
+                bitmap.BeginInit()
+                bitmap.CacheOption = BitmapCacheOption.OnLoad
+                bitmap.CreateOptions = BitmapCreateOptions.IgnoreImageCache
+                bitmap.UriSource = Uri(logo_path, UriKind.Absolute)
+                bitmap.EndInit()
+                bitmap.Freeze()
+                image = _SWC.Image()
+                image.Source = bitmap
+                image.Stretch = _SWM.Stretch.Uniform
+                image.StretchDirection = _SWC.StretchDirection.DownOnly
+                image.HorizontalAlignment = _h_align(block.get('just'))
+                image.VerticalAlignment = _v_align(block.get('v_just'))
+            except Exception:
+                image = None
+        if image is not None:
+            wrapper.Child = image
+        else:
+            # No logo chosen, or the file has gone - say which, rather than
+            # leaving a cell that looks like the block was never placed.
+            inner = _SWC.Border()
+            inner.Background = _hbrush('#E8E8E8')
+            inner.BorderBrush = _hbrush('#AAAAAA')
+            inner.BorderThickness = _SW.Thickness(1)
+            tb = _SWC.TextBlock()
+            fname = os.path.basename(logo_path) if logo_path else ''
+            tb.Text = '[ {} missing ]'.format(fname) if fname else '[ LOGO ]'
+            tb.Padding = _SW.Thickness(pad * 2, pad, pad * 2, pad)
+            _apply_text_style(tb, DEFAULT_FONT, 'center', scale)
+            inner.Child = tb
+            wrapper.Child = inner
         root.Children.Add(wrapper)
         return root
 
@@ -377,10 +484,14 @@ def render_block(block, data, scale, logo_path='', rev_index=0):
         wrapper.HorizontalAlignment = _h_align(block.get('just'))
         wrapper.VerticalAlignment = _v_align(block.get('v_just'))
         tb = _SWC.TextBlock()
-        total = len(data.get('docs', []))
+        # The page TOTAL is only known once the document is paginated, which
+        # happens in Excel, not here - the writer emits &P/&N and Excel fills
+        # them in. This used to print the sheet COUNT in its place, so a two
+        # page transmittal of 36 sheets claimed "Page 1 of 36". X stands for
+        # the number Excel will supply.
         fmt = block.get('page_format', 'Page X of Y')
-        val = {'Page X': 'Page 1', 'Page X of Y': 'Page 1 of {}'.format(total),
-               'X of Y': '1 of {}'.format(total), 'X / Y': '1 / {}'.format(total)}.get(fmt, str(total))
+        val = {'Page X': 'Page 1', 'Page X of Y': 'Page 1 of X',
+               'X of Y': '1 of X', 'X / Y': '1 / X'}.get(fmt, 'Page 1 of X')
         parts = [block.get('prefix', ''), val, block.get('suffix', '')]
         tb.Text = ' '.join(p for p in parts if p)
         _apply_text_style(tb, block, block.get('just', 'left'), scale)
@@ -433,11 +544,98 @@ def render_block(block, data, scale, logo_path='', rev_index=0):
         row_b.Child = tb
         return row_b
 
+    # -- One repeated row -------------------------------------------------
+    # The grid has already given this item its own row and drawn the cell's
+    # borders around it, so all that is left is the text and, for a group or
+    # condensed-marker row, the band colour that distinguishes it from data.
+    if item is not None and t in REPEAT_TYPES:
+        text, kind = repeat_cell_text(block, data, row_plan, item, rev_index)
+        if kind == 'group':
+            root.Background = _hbrush(block.get('group_color') or '#E8E8E8')
+            style = dict(block, bold=True)
+            fg = None
+        elif kind == 'more':
+            root.Background = _hbrush('#EEF2F7')
+            style = dict(block, italic=True, bold=False)
+            fg = _hbrush('#5A6674')
+        else:
+            bi = band_index_for(block, row_plan, item)
+            if block.get('alt_rows') and bi is not None and bi % 2 == 1:
+                root.Background = _hbrush(block.get('alt_color', '#F5F7FA'))
+            style = block
+            fg = None
+        wrapper = _SWC.Border()
+        wrapper.Padding = _SW.Thickness(pad * 2, 0, pad * 2, 0)
+        wrapper.VerticalAlignment = _SW.VerticalAlignment.Center
+        tb = _SWC.TextBlock()
+        tb.Text = text
+        tb.TextTrimming = _SW.TextTrimming.CharacterEllipsis
+        tb.VerticalAlignment = _SW.VerticalAlignment.Center
+        _apply_text_style(tb, style,
+                          'center' if kind == 'more' else block.get('just', 'left'),
+                          scale)
+        if fg is not None:
+            tb.Foreground = fg
+        wrapper.Child = tb
+        root.Children.Add(wrapper)
+        return root
+
+    def group_row(label, show_h=True):
+        """Group header row - full-width, bold, no side rules, exactly how
+        script_create_excel.py writes it into the published sheet. `label` is
+        '' when the user has group text switched off, which still leaves the
+        band that separates one group from the next."""
+        row_b = _SWC.Border()
+        row_b.Background = _hbrush(block.get('group_color') or '#E8E8E8')
+        row_b.BorderBrush = _hbrush('#CCCCCC')
+        row_b.BorderThickness = _SW.Thickness(0, 0, 0, 1 if show_h else 0)
+        row_b.Height = data_row_h
+        tb = _SWC.TextBlock()
+        tb.Text = str(label or '')
+        tb.Padding = thick
+        tb.TextTrimming = _SW.TextTrimming.CharacterEllipsis
+        tb.VerticalAlignment = _SW.VerticalAlignment.Center
+        _apply_text_style(tb, dict(block, bold=True), just_val, scale)
+        row_b.Child = tb
+        return row_b
+
+    def more_row(n):
+        """The one row that stands in for everything Condense Rows hid.
+
+        Drawn as a marker (muted, italic, ellipsis) rather than as data,
+        because it never reaches the published document - condensing shortens
+        the preview, not the transmittal. This is the wide-column version,
+        carrying the count; the narrow revision columns build a glyph-only
+        row of the same height in the spine_rev branch below.
+        """
+        row_b = _SWC.Border()
+        row_b.Background = _hbrush('#EEF2F7')
+        row_b.BorderBrush = _hbrush('#B9C4D2')
+        row_b.BorderThickness = _SW.Thickness(0, 1, 0, 1)
+        row_b.Height = data_row_h
+        tb = _SWC.TextBlock()
+        tb.Text = u'{0}  {1:,} more rows  {0}'.format(CONDENSE_GLYPH, n)
+        tb.Padding = thick
+        tb.TextTrimming = _SW.TextTrimming.CharacterEllipsis
+        tb.VerticalAlignment = _SW.VerticalAlignment.Center
+        _apply_text_style(tb, dict(block, italic=True, bold=False), 'center', scale)
+        tb.Foreground = _hbrush('#5A6674')
+        row_b.Child = tb
+        return row_b
+
+    def blank_row(i, show_h=True):
+        b = _SWC.Border()
+        b.Background = _hbrush(alt_c) if (alt and i % 2 == 1) else WHITE
+        b.BorderBrush = _hbrush('#E8E8E8')
+        b.BorderThickness = _SW.Thickness(0, 0, 0, 1 if show_h else 0)
+        b.Height = data_row_h
+        return b
+
+    # Distribution-driven blocks: one row per recipient, so the sheet row
+    # plan (grouping / condensing) does not apply to them.
     ROW_DATA = {
         'sent_to':      [d.get('to', '') for d in data.get('distribution', [])],
         'attn_to':      [d.get('attn', '') for d in data.get('distribution', [])],
-        'sheet_number': [d.get('sheet', '') for d in data.get('docs', [])],
-        'sheet_desc':   [d.get('desc', '') for d in data.get('docs', [])],
     }
     if t in ROW_DATA:
         db = block.get('data_borders', {'h': True, 'v': True})
@@ -453,35 +651,52 @@ def render_block(block, data, scale, logo_path='', rev_index=0):
         root.Children.Add(sp)
         return root
 
+    # Sheet-driven blocks: one row per row_plan entry.
+    DOC_FIELD = {'sheet_number': 'sheet', 'sheet_desc': 'desc'}
+    if t in DOC_FIELD:
+        db = block.get('data_borders', {'h': True, 'v': True})
+        show_h = bool(db.get('h', True))
+        field = DOC_FIELD[t]
+        docs = [d for kind, d in row_plan if kind == 'doc']
+        if not [d for d in docs if str(d.get(field, '') or '').strip()]:
+            return placeholder(block, scale, '(no data)')
+        for i, (kind, value) in enumerate(row_plan):
+            if kind == 'group':
+                sp.Children.Add(group_row(value, show_h))
+            elif kind == 'more':
+                sp.Children.Add(more_row(value))
+            else:
+                sp.Children.Add(tb_row(value.get(field, ''), alt and i % 2 == 1, show_h))
+        sp.VerticalAlignment = _v_align(block.get('v_just'))
+        root.Children.Add(sp)
+        return root
+
     if t == 'drawing_group':
         db = block.get('data_borders', {'h': True, 'v': True})
         show_h = bool(db.get('h', True))
-        last_g = ''
-        docs = data.get('docs', [])
-        if not docs:
+        if not [1 for kind, _v in row_plan if kind == 'doc']:
             return placeholder(block, scale, '(no sheets)')
-        for i, doc in enumerate(docs):
-            sheet = doc.get('sheet', '')
-            g = sheet.rstrip('0123456789.').rstrip('0123456789')
-            if g != last_g:
-                last_g = g
-                grp_b = _SWC.Border()
-                grp_b.Background = _hbrush('#E8E8E8')
-                grp_b.BorderBrush = _hbrush('#CCCCCC')
-                grp_b.BorderThickness = _SW.Thickness(0, 0, 0, 1 if show_h else 0)
-                grp_tb = _SWC.TextBlock()
-                grp_tb.Text = g
-                grp_tb.Padding = thick
-                grp_tb.FontWeight = _SW.FontWeights.Bold
-                _apply_text_style(grp_tb, dict(DEFAULT_FONT, bold=True, size_mm=2.6), just_val, scale)
-                grp_b.Child = grp_tb
-                sp.Children.Add(grp_b)
-            empty_b = _SWC.Border()
-            empty_b.Background = _hbrush(alt_c) if (alt and i % 2 == 1) else WHITE
-            empty_b.BorderBrush = _hbrush('#E8E8E8')
-            empty_b.BorderThickness = _SW.Thickness(0, 0, 0, 1 if show_h else 0)
-            empty_b.Height = data_row_h
-            sp.Children.Add(empty_b)
+        # With sheet grouping configured the plan already carries the real
+        # group headers, so use those. Without it, fall back to deriving a
+        # group from the sheet number's non-numeric prefix - the original
+        # behaviour, and still the only thing available when no grouping
+        # parameter has been picked.
+        has_plan_groups = any(kind == 'group' for kind, _v in row_plan)
+        last_g = ''
+        for i, (kind, value) in enumerate(row_plan):
+            if kind == 'group':
+                sp.Children.Add(group_row(value, show_h))
+                continue
+            if kind == 'more':
+                sp.Children.Add(more_row(value))
+                continue
+            if not has_plan_groups:
+                sheet = value.get('sheet', '')
+                g = sheet.rstrip('0123456789.').rstrip('0123456789')
+                if g != last_g:
+                    last_g = g
+                    sp.Children.Add(group_row(g, show_h))
+            sp.Children.Add(blank_row(i, show_h))
         sp.VerticalAlignment = _v_align(block.get('v_just'))
         root.Children.Add(sp)
         return root
@@ -587,9 +802,11 @@ def render_block(block, data, scale, logo_path='', rev_index=0):
 
         if t == 'spine_rev':
             # Revision marks are per-document, so this renders a column of
-            # marks (one row per sheet) for THIS revision only.
-            docs = data.get('docs', [])
-            if not docs:
+            # marks for THIS revision only - one row per row_plan entry, the
+            # same plan the Sheet Number / Description columns beside it use,
+            # so group headers and the condensed row line up across all of
+            # them.
+            if not [1 for kind, _v in row_plan if kind == 'doc']:
                 return placeholder(block, scale, rev_label)
             sp_db = block.get('data_borders', {'h': True, 'v': True})
             show_h = bool(sp_db.get('h', True))
@@ -597,13 +814,31 @@ def render_block(block, data, scale, logo_path='', rev_index=0):
             alt_c = block.get('alt_color', '#F5F7FA')
             row_h = max(10, int(block.get('size_mm', DEFAULT_FONT['size_mm']) * scale * 1.8 + 2 * pad))
             stack = _SWC.StackPanel()
-            for i, doc in enumerate(docs):
-                marks = doc.get('revs', [])
-                val = marks[rev_index] if rev_index < len(marks) else ''
+            for i, (kind, value) in enumerate(row_plan):
                 rb = _SWC.Border()
                 rb.Height = row_h
                 rb.BorderBrush = _hbrush('#E8E8E8')
                 rb.BorderThickness = _SW.Thickness(0, 0, 0, 1 if show_h else 0)
+                if kind == 'group':
+                    # A group header spans the whole table, so inside a
+                    # revision column it is a banded row with no mark in it.
+                    rb.Background = _hbrush('#E8E8E8')
+                    stack.Children.Add(rb)
+                    continue
+                if kind == 'more':
+                    rb.Background = _hbrush('#EEF2F7')
+                    rb.BorderBrush = _hbrush('#B9C4D2')
+                    rb.BorderThickness = _SW.Thickness(0, 1, 0, 1)
+                    gtb = _SWC.TextBlock()
+                    gtb.Text = CONDENSE_GLYPH
+                    gtb.VerticalAlignment = _SW.VerticalAlignment.Center
+                    _apply_text_style(gtb, dict(block, italic=True), 'center', scale)
+                    gtb.Foreground = _hbrush('#5A6674')
+                    rb.Child = gtb
+                    stack.Children.Add(rb)
+                    continue
+                marks = value.get('revs', [])
+                val = marks[rev_index] if rev_index < len(marks) else ''
                 if alt and i % 2 == 1:
                     rb.Background = _hbrush(alt_c)
                 mtb = _SWC.TextBlock()

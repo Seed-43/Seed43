@@ -33,11 +33,16 @@ import pyfilter_settings as settings_dialog
 from Snippets._revisions import safe_str
 from Snippets.seed43_theme import (apply_seed43_palette, apply_seed43_dimensions,
                                    get_color)
-from Snippets._icons import make_icon, set_header_icon
+from Snippets._icons import make_icon, make_icon_with_label, set_header_icon
 from Snippets import _userdata
+from Snippets._support import support_mailto, github_issue_url, DONATE_URL
 
 doc    = revit.doc
 output = None  # pyRevit output panel disabled
+
+# ── EXTERNAL URLS ─────────────────────────────────────────────────────────────
+# Update these to change where Help and About point
+ABOUT_URL = "https://seed43.org/pyfilter/"
 
 # ── LOGGING ───────────────────────────────────────────────────────────────────
 # IMPORTANT: pyRevit auto-opens its console window on the first print() call
@@ -119,6 +124,11 @@ class pyFilterWindow(WPFWindow):
         self.search_icon.Content = make_icon(
             'search', size=14,
             color=get_color(SCRIPT_DIR, 'text_muted', fallback='#9CA3AF'))
+        # Same reason: the GitHub mark on the ☰ menu is a vector icon, so it has
+        # to be built here rather than declared as text in the XAML.
+        self.MenuIssue.Content = make_icon_with_label(
+            'github', u'Report an issue on GitHub', icon_size=14,
+            color=get_color(SCRIPT_DIR, 'text_primary', fallback='#F4FAFF'))
 
         self.templates_folder  = get_templates_folder()
         self.active_template   = None
@@ -178,7 +188,9 @@ class pyFilterWindow(WPFWindow):
         self.MenuImport.Click   += self._on_menu_import
         self.MenuResetColumns.Click += self._on_menu_reset_columns
         self.MenuHelp.Click     += self._on_menu_help
+        self.MenuIssue.Click    += self._on_menu_issue
         self.MenuAbout.Click    += self._on_menu_about
+        self.MenuDonate.Click   += self._on_menu_donate
 
         # Inline panel close + action buttons
         self.BtnExportNow.Click      += self._on_export_execute
@@ -314,25 +326,43 @@ class pyFilterWindow(WPFWindow):
             log_exc("_on_menu_reset_columns")
 
     def _on_menu_help(self, sender, e):
+        """☰ → Support: open a pre-filled support email in the default mail
+        client, addressed to Seed43 support, with the extension version and
+        which app it came from already filled in."""
         try:
             self.options_btn.IsChecked = False
             import webbrowser
-            webbrowser.open("https://seed43.org/pyfilter/")
+            webbrowser.open(support_mailto("pyFilter", SCRIPT_DIR))
         except Exception:
             log_exc("_on_menu_help")
 
-    def _on_menu_about(self, sender, e):
+    def _on_menu_issue(self, sender, e):
+        """☰ → Report an issue: open a new GitHub issue, pre-filled with the
+        app name, Seed43 version and Revit version."""
         try:
             self.options_btn.IsChecked = False
-            forms.alert(
-                "pyFilter\n"
-                "Part of the Seed43 extension suite\n\n"
-                "Manage, save, push and pull Revit view filters "
-                "across templates and views.\n\n"
-                "seed43.org",
-                title="About pyFilter")
+            import webbrowser
+            webbrowser.open(github_issue_url("pyFilter", SCRIPT_DIR))
+        except Exception:
+            log_exc("_on_menu_issue")
+
+    def _on_menu_about(self, sender, e):
+        """☰ → About: open ABOUT_URL in the default browser."""
+        try:
+            self.options_btn.IsChecked = False
+            import webbrowser
+            webbrowser.open(ABOUT_URL)
         except Exception:
             log_exc("_on_menu_about")
+
+    def _on_menu_donate(self, sender, e):
+        """☰ → Support this project: open the Buy Me a Coffee page."""
+        try:
+            self.options_btn.IsChecked = False
+            import webbrowser
+            webbrowser.open(DONATE_URL)
+        except Exception:
+            log_exc("_on_menu_donate")
 
     # ── EXPORT PANEL ──────────────────────────────────────────────────────────
 
@@ -2256,8 +2286,9 @@ class pyFilterWindow(WPFWindow):
                     Background="{TemplateBinding Background}"
                     BorderBrush="{TemplateBinding BorderBrush}"
                     BorderThickness="{TemplateBinding BorderThickness}"
-                    CornerRadius="6"
-                    Padding="{TemplateBinding Padding}">
+                    CornerRadius="6">
+              <!-- WPF already applies TextBox.Padding to PART_ContentHost;
+                   setting it again here doubles it. -->
               <ScrollViewer x:Name="PART_ContentHost" Focusable="False"
                             HorizontalScrollBarVisibility="Hidden"
                             VerticalScrollBarVisibility="Hidden"

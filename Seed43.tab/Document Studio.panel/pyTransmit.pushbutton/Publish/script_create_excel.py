@@ -149,32 +149,27 @@ def natural_sort_key(s):
     return [int(p) if p.isdigit() else p.lower() for p in parts]
 
 def parse_date(raw, fmt='dd/MM/yyyy'):
-    if not raw: return ""
-    m = re.search(r'(\d{1,2})\D(\d{1,2})\D(\d{2,4})', str(raw).strip())
-    if not m: return str(raw)
-    d, mo, yr = int(m.group(1)), int(m.group(2)), int(m.group(3))
-    if yr < 100: yr += 2000
-    if not (1 <= mo <= 12): return str(raw)
-    sep = '/' if '/' in (fmt or '') else ('.' if '.' in (fmt or '') else '-')
-    if fmt and 'MMMM' in fmt:
-        if 'dddd' in fmt:
-            import datetime
-            try:
-                dt = datetime.date(yr, mo, d)
-                return dt.strftime('%A, %d %B %Y')
-            except: pass
-        return "{} {} {}".format(d, MONTHS[mo-1], yr)
-    short_yr = fmt and 'yy' in fmt and 'yyyy' not in fmt
-    yr_str = str(yr)[2:] if short_yr else str(yr)
-    return "{:02d}{}{:02d}{}{}".format(d, sep, mo, sep, yr_str)
+    """Print the revision date exactly as it was typed in Revit.
+
+    This used to re-parse and re-format the date, and got it wrong for any
+    year-first date. The pattern (\\d{1,2})\\D(\\d{1,2})\\D(\\d{2,4}) cannot
+    match a four digit year in the first field, so on "2026/06/06" it skipped
+    the leading "20" and locked onto 26 / 06 / 06 - then, seeing a two digit
+    year, added 2000 to it and wrote "26/06/2006". A date the user had typed
+    correctly came out as a different date entirely, which is worse than any
+    formatting is worth on a document that goes out to consultants.
+
+    The date is now passed straight through. `fmt` is accepted and ignored so
+    every existing call site and saved layout keeps working; if per-block date
+    formatting is ever wanted back, it needs a parser that understands
+    year-first input rather than this one.
+    """
+    return "" if not raw else str(raw).strip()
 
 def parse_date_long(raw):
-    if not raw: return ""
-    m = re.search(r'(\d{1,2})\D(\d{1,2})\D(\d{2,4})', str(raw).strip())
-    if not m: return str(raw)
-    d, mo, yr = int(m.group(1)), int(m.group(2)), int(m.group(3))
-    if yr < 100: yr += 2000
-    return "{} {} {}".format(d, MONTHS[mo-1], yr) if 1 <= mo <= 12 else str(raw)
+    """As typed, like parse_date() above - see the note there for why the old
+    re-parsing was removed."""
+    return "" if not raw else str(raw).strip()
 
 def get_param(el, name):
     try:

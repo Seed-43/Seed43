@@ -181,25 +181,6 @@ def _confirm(message, title='', yes='Yes', no='No'):
         return sdlg.confirm(message, title=title, yes=yes, no=no)
     return bool(forms.alert(message, title=title, ok=False, yes=True, no=True))
 
-def _find_seed43_version():
-    """Walk up from this pushbutton to Seed43.extension/version.txt and
-    return just the version string (its first line). Returns 'unknown'
-    if the file can't be found or read."""
-    # tools/ is one level deeper than the pushbutton root the original
-    # walk started from, so start one level higher to compensate.
-    folder = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    for _ in range(6):
-        candidate = os.path.join(folder, 'version.txt')
-        if os.path.isfile(candidate):
-            try:
-                with open(candidate, 'r') as f:
-                    return f.readline().strip()
-            except Exception:
-                return 'unknown'
-        folder = os.path.dirname(folder)
-    return 'unknown'
-
-
 # ── Constants ──
 VIEW_TYPE_LEGEND   = 'Legend View'
 VIEW_TYPE_SCHEDULE = 'Schedule View'

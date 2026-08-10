@@ -15,6 +15,10 @@ __pycache__/
 # Local palette editor (not shipped with the extension)
 lib/*.html
 
+# Website guides and site CSS - working copies, published to seed43.org
+# rather than shipped with the extension
+lib/guides/
+
 # Per-tool user settings - never shipped, never updated (see _userdata.py)
 .user/
 

@@ -89,8 +89,10 @@
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="6">
+                            <!-- WPF already applies TextBox.Padding to
+                                 PART_ContentHost; setting it again here
+                                 doubles it. -->
                             <ScrollViewer x:Name="PART_ContentHost"
-                                          Margin="{TemplateBinding Padding}"
                                           VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>

@@ -30,6 +30,8 @@ DEFAULT_PAGE_SIZE = 'A4'
 # bake a 10mm side margin into their column widths, so 190mm of columns on
 # a 210mm sheet is an exact fit, not 20mm of slack.
 DEFAULT_MARGIN_MM = 10.0
+MIN_COL_MM = 5.0        # narrowest a column may be squeezed to
+MIN_AUTO_ROW_MM = 4.5   # floor for an auto-fitted row
 # 'Custom' keeps whatever page_w_mm/page_h_mm are set rather than looking
 # them up - the Revit Drafting View / Legend / Schedule templates use a
 # 185x200 sheet that matches no standard paper size.
@@ -80,6 +82,33 @@ class Grid(object):
         self.page_h_mm = 297
         self._recompute_page_size()
         self.logo_path = ''
+        # Blank row before a sheet-group header.
+        #
+        # FOUR switches, not two: the gap you want depends on whether group
+        # text is showing. With a named header band above each group a gap may
+        # be unnecessary; with the text off the gap IS the only thing
+        # separating one group from the next, so the same template usually
+        # wants different answers. pyTransmit's own Text On/Off toggle chooses
+        # which pair applies, so one template covers both.
+        #
+        #   *_first   : above the FIRST group, the one under the column headings
+        #   *_between : above every LATER group header
+        self.space_first_on = False
+        self.space_between_on = False
+        self.space_first_off = False
+        self.space_between_off = False
+        # Column widths pinned to the printable width. With this on, widening
+        # one column narrows the others instead of growing the sheet - so the
+        # total always equals the page guide and the export never has to scale
+        # down to fit. See lock_column_width().
+        self.lock_width = False
+        # Per row: True = height follows the content, False = the user set it.
+        # Parallel to row_heights, kept in step by insert/delete/move_rows.
+        self.row_auto = [True] * n_rows
+        # NOTE: group text on/off is deliberately NOT stored here. pyTransmit's
+        # Text On/Off toggle owns that, and the layout owns the layout - the
+        # gaps above, the colours, where things sit. A layout that also decided
+        # whether to name its groups would silently override the toggle.
         self.cells = {}
         for r in range(n_rows):
             for c in range(n_cols):
@@ -109,6 +138,53 @@ class Grid(object):
             return
         factor = self.printable_w_mm() / total
         self.col_widths = [round(w * factor, 2) for w in self.col_widths]
+
+    def lock_column_width(self, changed_idx):
+        """Absorb a column's change into the others, keeping the total pinned.
+
+        With lock_width on, the dragged column keeps the width the user gave
+        it and every OTHER column is scaled so the row still totals exactly
+        the printable width. That is what stops the sheet creeping past the
+        page guide - the export then never has to scale down to fit, which is
+        where the stray 1% and the white band on the right came from.
+
+        Returns False and changes nothing if it cannot be done: one column
+        only, or the others would have to go below MIN_COL_MM to absorb it.
+        """
+        target = self.printable_w_mm()
+        n = len(self.col_widths)
+        if n < 2 or not (0 <= changed_idx < n):
+            return False
+        fixed = self.col_widths[changed_idx]
+        if fixed >= target:
+            return False
+        others = [i for i in range(n) if i != changed_idx]
+        current = sum(self.col_widths[i] for i in others)
+        room = target - fixed
+        if current <= 0 or room < MIN_COL_MM * len(others):
+            return False
+        factor = room / current
+        for i in others:
+            self.col_widths[i] = round(self.col_widths[i] * factor, 2)
+        # Rounding leaves a few hundredths; put them on the widest of the
+        # others so the total is exact rather than nearly right.
+        drift = round(target - sum(self.col_widths), 2)
+        if abs(drift) >= 0.01:
+            widest = max(others, key=lambda i: self.col_widths[i])
+            self.col_widths[widest] = round(self.col_widths[widest] + drift, 2)
+        return True
+
+    def auto_row_height_mm(self, idx, blocks):
+        """Height row `idx` wants for its content - the tallest block's own
+        line height. Single-line: wrapped text would need real text
+        measurement, which the model has no access to."""
+        natural = 0.0
+        for b in blocks:
+            if not b:
+                continue
+            size_mm = b.get('size_mm') or (9 * 0.352778)
+            natural = max(natural, round(size_mm * 1.3 + 1.6, 2))
+        return max(natural, MIN_AUTO_ROW_MM)
 
     def distribute_columns(self, first=None, last=None):
         """Equal widths across a column range (all columns when unspecified),
@@ -140,6 +216,17 @@ class Grid(object):
             return self.row_sections[idx]
         except Exception:
             return SECTION_BODY
+
+    def gaps_for(self, group_label_on):
+        """(first, between) for the given group-text state."""
+        if group_label_on:
+            return self.space_first_on, self.space_between_on
+        return self.space_first_off, self.space_between_off
+
+    def set_gap(self, group_label_on, which, value):
+        """Set one gap switch for the given group-text state."""
+        suffix = 'on' if group_label_on else 'off'
+        setattr(self, 'space_{}_{}'.format(which, suffix), bool(value))
 
     def set_orientation(self, orientation):
         if orientation in ('portrait', 'landscape'):
@@ -192,6 +279,7 @@ class Grid(object):
         self.cells = new_cells
         self.row_heights.insert(at, height_mm)
         self.row_sections.insert(at, SECTION_BODY)
+        self.row_auto.insert(at, True)
         self.n_rows += 1
 
     def delete_row(self, at):
@@ -214,7 +302,72 @@ class Grid(object):
         self.cells = new_cells
         del self.row_heights[at]
         del self.row_sections[at]
+        del self.row_auto[at]
         self.n_rows -= 1
+
+    # -- reordering rows ---------------------------------------------------------
+    def _swap_rows(self, a, b):
+        """Exchange two rows outright - contents, height and section.
+
+        covered_by holds absolute coordinates, so a horizontal merge's covered
+        cells have to be re-pointed at their origin's new row; can_move_rows()
+        has already ruled out vertical merges, whose origin and covered cells
+        would otherwise be torn apart by the move.
+        """
+        remap = {a: b, b: a}
+        new_cells = {}
+        for (r, c), cell in self.cells.items():
+            nr = remap.get(r, r)
+            cb = cell.get('covered_by')
+            if cb:
+                new_cells[(nr, c)] = {'covered_by': (remap.get(cb[0], cb[0]), cb[1])}
+            else:
+                new_cells[(nr, c)] = cell
+        self.cells = new_cells
+        self.row_heights[a], self.row_heights[b] = self.row_heights[b], self.row_heights[a]
+        self.row_sections[a], self.row_sections[b] = self.row_sections[b], self.row_sections[a]
+        self.row_auto[a], self.row_auto[b] = self.row_auto[b], self.row_auto[a]
+
+    def can_move_rows(self, r0, r1, delta):
+        """Can rows r0..r1 swap places with the row above (delta -1) or below
+        (delta +1)?
+
+        No, if any row involved - the block or the row it would swap with -
+        is part of a cell merged across rows. Half a merged cell cannot be
+        somewhere else, and silently unmerging to allow the move would lose
+        work the user did deliberately. Merges within a single row travel
+        with it and are fine.
+        """
+        if delta not in (-1, 1):
+            return False
+        if not (0 <= r0 <= r1 < self.n_rows):
+            return False
+        target = r0 - 1 if delta < 0 else r1 + 1
+        if not (0 <= target < self.n_rows):
+            return False
+        for r in range(min(r0, target), max(r1, target) + 1):
+            for c in range(self.n_cols):
+                orig = self.origin_of(r, c)
+                if self.span_of(orig[0], orig[1])[0] > 1:
+                    return False
+        return True
+
+    def move_rows(self, r0, r1, delta):
+        """Move rows r0..r1 one place up or down. Returns False (changing
+        nothing) when can_move_rows() says no.
+
+        Walked as a run of adjacent swaps, in the order that keeps the block
+        together: upwards from the top row, downwards from the bottom one.
+        """
+        if not self.can_move_rows(r0, r1, delta):
+            return False
+        if delta < 0:
+            for r in range(r0, r1 + 1):
+                self._swap_rows(r, r - 1)
+        else:
+            for r in range(r1, r0 - 1, -1):
+                self._swap_rows(r, r + 1)
+        return True
 
     def insert_col(self, at, width_mm=DEFAULT_COL_W_MM):
         at = max(0, min(at, self.n_cols))
@@ -297,6 +450,41 @@ class Grid(object):
                     continue
                 self.cells[(r, c)] = {'covered_by': (r0, c0)}
 
+    def merge_across(self, r0, c0, r1, c1):
+        """Merge each ROW of the rectangle on its own, Excel's "Merge Across".
+
+        Four rows of six columns become four merged cells, not one - which is
+        what you want for a stack of full-width labels. Rows that cannot be
+        merged (they already contain a merge, or are a single column) are
+        skipped rather than aborting the lot, so one awkward row does not stop
+        the rest. Returns how many rows were merged.
+        """
+        r0, r1 = min(r0, r1), max(r0, r1)
+        c0, c1 = min(c0, c1), max(c0, c1)
+        merged = 0
+        for r in range(r0, r1 + 1):
+            if self.can_merge(r, c0, r, c1):
+                self.merge(r, c0, r, c1)
+                merged += 1
+        return merged
+
+    def unmerge_all(self, r0, c0, r1, c1):
+        """Unmerge every merge the rectangle touches. Returns the count."""
+        r0, r1 = min(r0, r1), max(r0, r1)
+        c0, c1 = min(c0, c1), max(c0, c1)
+        origins = []
+        for r in range(r0, r1 + 1):
+            for c in range(c0, c1 + 1):
+                orig = self.origin_of(r, c)
+                if orig in origins:
+                    continue
+                rs, cs = self.span_of(orig[0], orig[1])
+                if rs > 1 or cs > 1:
+                    origins.append(orig)
+        for (mr, mc) in origins:
+            self.unmerge(mr, mc)
+        return len(origins)
+
     def unmerge(self, r, c):
         orig = self.origin_of(r, c)
         cell = self.cells.get(orig)
@@ -326,10 +514,16 @@ class Grid(object):
             'n_rows': self.n_rows, 'n_cols': self.n_cols,
             'row_heights': self.row_heights, 'col_widths': self.col_widths,
             'row_sections': self.row_sections,
+            'row_auto': self.row_auto,
+            'lock_width': self.lock_width,
             'page_size_name': self.page_size_name, 'orientation': self.orientation,
             'margin_mm': self.margin_mm,
             'page_w_mm': self.page_w_mm, 'page_h_mm': self.page_h_mm,
             'logo_path': self.logo_path,
+            'space_first_on': self.space_first_on,
+            'space_between_on': self.space_between_on,
+            'space_first_off': self.space_first_off,
+            'space_between_off': self.space_between_off,
             'cells': cell_list,
         }
 
@@ -343,6 +537,12 @@ class Grid(object):
         secs = list(d.get('row_sections') or [])
         secs = (secs + [SECTION_BODY] * g.n_rows)[:g.n_rows]
         g.row_sections = [s if s in SECTION_LABELS else SECTION_BODY for s in secs]
+        auto = list(d.get('row_auto') or [])
+        # Older layouts have no row_auto. Their heights were all set by
+        # hand, so they are adopted as manual - auto-fitting them on load
+        # would silently redesign someone's template.
+        g.row_auto = (auto + [False] * g.n_rows)[:g.n_rows]
+        g.lock_width = bool(d.get('lock_width', False))
         g.margin_mm = float(d.get('margin_mm', DEFAULT_MARGIN_MM))
         g.page_size_name = d.get('page_size_name', DEFAULT_PAGE_SIZE)
         g.orientation = d.get('orientation', 'portrait')
@@ -350,6 +550,15 @@ class Grid(object):
         g.page_h_mm = d.get('page_h_mm', g.page_h_mm)
         g._recompute_page_size()
         g.logo_path = d.get('logo_path', '')
+        # Layouts saved with the earlier single pair carry that setting
+        # into BOTH states, so they keep the spacing they were designed
+        # with whichever way the text toggle is set.
+        _legacy_first = bool(d.get('space_first_group', False))
+        _legacy_between = bool(d.get('space_between_groups', False))
+        g.space_first_on = bool(d.get('space_first_on', _legacy_first))
+        g.space_between_on = bool(d.get('space_between_on', _legacy_between))
+        g.space_first_off = bool(d.get('space_first_off', _legacy_first))
+        g.space_between_off = bool(d.get('space_between_off', _legacy_between))
         g.cells = {}
         for r in range(g.n_rows):
             for c in range(g.n_cols):

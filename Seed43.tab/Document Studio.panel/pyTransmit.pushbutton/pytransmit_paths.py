@@ -41,6 +41,7 @@ from Snippets import _userdata
 
 __all__ = [
     "USER_DIR", "SETTINGS_DIR", "LAYOUTS_DIR", "STUDIO_LAYOUTS_DIR",
+    "LOGOS_DIR",
     "LAYOUT_CONFIG", "STUDIO_CONFIG", "SYNC_FILE", "SETUP_FILE", "LOGO_FILE",
     "settings_file", "restore_defaults",
 ]
@@ -69,6 +70,14 @@ USER_DIR = _userdata.user_dir(TOOL)
 SETTINGS_DIR = _userdata.user_dir(TOOL, "Settings")
 LAYOUTS_DIR = _userdata.user_dir(TOOL, "Layouts")
 STUDIO_LAYOUTS_DIR = _userdata.user_dir(TOOL, "studio_layouts")
+
+# The user's own logo library, added when Studio grew a logo picker. Nothing
+# is shipped into it - a logo is by definition the user's, so there is no
+# seeding step and no marker: the folder simply starts empty and fills up as
+# logos are loaded. A layout stores the path of the logo it uses, which is why
+# they are copied in here rather than referenced where they were found: a logo
+# left on someone's Desktop breaks the moment the layout is opened elsewhere.
+LOGOS_DIR = _userdata.user_dir(TOOL, "Logos")
 
 LAYOUT_CONFIG = _userdata.user_path(TOOL, "layout_config.json")
 STUDIO_CONFIG = _userdata.user_path(TOOL, "studio_config.json")

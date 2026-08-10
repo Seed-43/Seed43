@@ -110,8 +110,12 @@
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="{DynamicResource CornerRadiusInput}">
+                            <!-- No Margin="{TemplateBinding Padding}" here.
+                                 WPF already applies TextBox.Padding to the
+                                 element named PART_ContentHost, so setting it
+                                 again doubles it - text clipped top and bottom
+                                 and pushed in from the left. -->
                             <ScrollViewer x:Name="PART_ContentHost"
-                                          Margin="{TemplateBinding Padding}"
                                           VerticalAlignment="Center"
                                           HorizontalScrollBarVisibility="Hidden"
                                           VerticalScrollBarVisibility="Hidden"/>
@@ -1238,11 +1242,11 @@
                                 </Border.Effect>
                                 <StackPanel>
                                     <Button x:Name="manage_presets_btn"
-                                            Content="📁  Manage Folder Presets"
+                                            Content="📁  Export Location Presets"
                                             Style="{StaticResource HamburgerMenuItem}"
                                             Click="manage_presets_clicked"/>
                                     <Button x:Name="manage_profiles_btn"
-                                            Content="🗂  Manage Profiles"
+                                            Content="🗂  Profiles"
                                             Style="{StaticResource HamburgerMenuItem}"
                                             Click="manage_profiles_clicked"/>
                                     <Button x:Name="manage_columns_btn"
@@ -1260,9 +1264,13 @@
                                             Click="import_settings_clicked"/>
                                     <Rectangle Fill="{DynamicResource BrushSecondaryBg}" Height="1" Margin="0,2"/>
                                     <Button x:Name="help_btn"
-                                            Content="?  Support"
+                                            Content="&#x2709;  Email support"
                                             Style="{StaticResource HamburgerMenuItem}"
                                             Click="help_clicked"/>
+                                    <Button x:Name="issue_btn"
+                                            Content="Report an issue on GitHub"
+                                            Style="{StaticResource HamburgerMenuItem}"
+                                            Click="issue_clicked"/>
                                     <Rectangle Fill="{DynamicResource BrushSecondaryBg}" Height="1" Margin="0,2"/>
                                     <Button x:Name="about_btn"
                                             Content="ℹ  About pySheets"
@@ -1447,8 +1455,7 @@
 
 
                             <!-- Divider -->
-                            <Rectangle Width="1" Height="22"
-                                       Fill="{DynamicResource BrushSecondaryBg}"
+                            <Rectangle Width="1"                                        Fill="{DynamicResource BrushSecondaryBg}"
                                        VerticalAlignment="Center"
                                        Margin="0,0,12,0"/>
 
@@ -1649,15 +1656,13 @@
                                                                VerticalAlignment="Center"/>
                                                     <Button Content="…"
                                                             DockPanel.Dock="Right"
-                                                            Width="26" Height="22"
-                                                            Margin="4,0,0,0"
+                                                            Width="26"                                                             Margin="4,0,0,0"
                                                             Style="{StaticResource SmallSecBtn}"
                                                             Padding="0"
                                                             Click="edit_naming_formats"
                                                             ToolTip="Edit naming formats"/>
                                                     <ComboBox x:Name="namingformat_cb"
-                                                              Height="22"
-                                                              Style="{StaticResource DarkComboBox}"
+                                                                                                                            Style="{StaticResource DarkComboBox}"
                                                               SelectionChanged="naming_format_changed">
                                                         <ComboBox.ItemTemplate>
                                                             <DataTemplate>
@@ -2046,7 +2051,7 @@
                                                        Margin="0,0,4,0"/>
                                             <TextBox x:Name="offset_x_tb"
                                                      Text="0.0000"
-                                                     Width="58" Height="24"
+                                                     Width="58"
                                                      Style="{StaticResource ModernTextBox}"
                                                      IsEnabled="{Binding IsChecked,
                                                                  ElementName=placement_offset_rb}"/>
@@ -2057,7 +2062,7 @@
                                                        Margin="10,0,4,0"/>
                                             <TextBox x:Name="offset_y_tb"
                                                      Text="0.0000"
-                                                     Width="58" Height="24"
+                                                     Width="58"
                                                      Style="{StaticResource ModernTextBox}"
                                                      IsEnabled="{Binding IsChecked,
                                                                  ElementName=placement_offset_rb}"/>
@@ -2147,7 +2152,7 @@
                                                          Margin="0,0,8,0"/>
                                             <TextBox x:Name="zoom_pct_tb"
                                                      Text="100"
-                                                     Width="56" Height="26"
+                                                     Width="56"
                                                      Style="{StaticResource ModernTextBox}"
                                                      IsEnabled="{Binding IsChecked, ElementName=zoom_pct_rb}"/>
                                             <TextBlock Text="%"

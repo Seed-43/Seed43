@@ -71,7 +71,50 @@ def empty_data():
         'proj_org': '', 'proj_client': '', 'proj_number': '', 'proj_name': '',
         'doc_type': '', 'print_size': '',
         'distribution': [], 'revisions': [], 'reasons': [], 'methods': [], 'docs': [],
+        'sheet_params': [],
     }
+
+
+def _groupable_sheet_params(sheets):
+    """Sheet parameters that can be grouped on, by the same rule pyTransmit's
+    own Sheet Parameters picker uses (pyTransmit.py get_sheet_parameters):
+    text-backed parameters plus ElementId ones, which is how Revit 2026's
+    Dropdown List parameters (e.g. Sheet Collection) are stored. Integer and
+    Double are left out - a Scale of 100 is not a meaningful group heading.
+
+    Sampled from one sheet, again like pyTransmit, because sheets in a project
+    share a parameter set and reading every sheet's full parameter list is
+    needlessly slow on a 2000-sheet model.
+    """
+    from pyrevit import DB
+    sample = next(iter(sheets), None)
+    if sample is None:
+        return []
+
+    names = set()
+    for bip in (DB.BuiltInParameter.SHEET_NUMBER, DB.BuiltInParameter.SHEET_NAME):
+        try:
+            p = sample.get_Parameter(bip)
+            if p and p.StorageType == DB.StorageType.String:
+                names.add(p.Definition.Name)
+        except Exception:
+            pass
+
+    usable = (DB.StorageType.String, DB.StorageType.ElementId)
+    try:
+        ordered = sample.GetOrderedParameters()
+    except Exception:
+        ordered = []
+    for p in ordered:
+        try:
+            if not p.Definition or p.StorageType not in usable:
+                continue
+            if p.StorageType == DB.StorageType.ElementId and not p.AsValueString():
+                continue
+            names.add(p.Definition.Name)
+        except Exception:
+            continue
+    return sorted(names)
 
 
 def get_live_data(settings_dir, max_revs=12):
@@ -179,6 +222,12 @@ def get_live_data(settings_dir, max_revs=12):
              if any(rid in set(s.GetAllRevisionIds()) for rid in issued_ids)],
             key=lambda s: _natural_sort_key(s.SheetNumber)
         )
+        # Values for every groupable parameter, read once per sheet here so
+        # studio_blocks.sheet_row_plan() can group without touching Revit -
+        # the renderer runs on every repaint, the model does not.
+        param_names = _groupable_sheet_params(sheets)
+        data['sheet_params'] = param_names
+
         docs = []
         for s in sheets:
             sheet_revs = set(s.GetAllRevisionIds())
@@ -187,10 +236,12 @@ def get_live_data(settings_dir, max_revs=12):
                 'desc': s.Name,
                 'revs': [r['rev'] if r_obj.Id in sheet_revs else ''
                          for r, r_obj in zip(revisions, issued_revs)],
+                'params': dict((pn, _get_param(s, pn)) for pn in param_names),
             })
         data['docs'] = docs
     except Exception:
         data.setdefault('revisions', [])
         data.setdefault('docs', [])
+        data.setdefault('sheet_params', [])
 
     return data

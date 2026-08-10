@@ -8,7 +8,7 @@
         SizeToContent="Height"
         Width="700"
         MinHeight="300"
-        Title="Export Folder Preset"
+        Title="Export Location Preset"
         Background="{DynamicResource BrushWindowBg}">
 
     <shell:WindowChrome.WindowChrome>
@@ -123,8 +123,10 @@
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="6">
+                            <!-- WPF already applies TextBox.Padding to
+                                 PART_ContentHost; setting it again here
+                                 doubles it. -->
                             <ScrollViewer x:Name="PART_ContentHost"
-                                          Margin="{TemplateBinding Padding}"
                                           VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
@@ -196,7 +198,7 @@
                                Foreground="{DynamicResource BrushPrimaryGreen}"/>
                     <TextBlock Text="Sheets" FontWeight="Bold" FontSize="26"
                                Foreground="{DynamicResource BrushTextPrimary}"/>
-                    <TextBlock Text="  |  Export Folder Preset" FontSize="16"
+                    <TextBlock Text="  |  Export Location Preset" FontSize="16"
                                Foreground="{DynamicResource BrushTextPrimary}" Opacity="0.6"
                                VerticalAlignment="Bottom" Margin="4,0,0,4"/>
                 </StackPanel>
@@ -217,7 +219,7 @@
                     Margin="20"
                     Padding="20">
                 <StackPanel>
-                    <TextBlock Text="Export Folder Preset" Style="{StaticResource Section}"/>
+                    <TextBlock Text="Export Location Preset" Style="{StaticResource Section}"/>
                     <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,10"
                                Text="Set the root folder where project folders are stored, then build the full export path using tokens below."/>
 

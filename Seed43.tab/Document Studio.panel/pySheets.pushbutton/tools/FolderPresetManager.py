@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # FolderPresetManager.py
-"""Manage Folder Presets window — create / edit / delete list."""
+"""Export Location Presets window — create / edit / delete list."""
 import os.path as op
 from pyrevit import forms
 from pyrevit.framework import Windows

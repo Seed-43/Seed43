@@ -179,12 +179,20 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TextBox">
-                        <Border Background="{TemplateBinding Background}"
+                        <Border x:Name="MainBorder"
+                                Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="{DynamicResource CornerRadiusInput}"
-                                Padding="{TemplateBinding Padding}">
-                            <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center"/>
+                                CornerRadius="{DynamicResource CornerRadiusInput}">
+                            <!-- No Padding/Margin="{TemplateBinding Padding}" here.
+                                 WPF already applies TextBox.Padding to the element
+                                 named PART_ContentHost, so setting it again doubles
+                                 it - text clipped top and bottom. -->
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Focusable="False"
+                                          VerticalAlignment="Center"
+                                          HorizontalScrollBarVisibility="Hidden"
+                                          VerticalScrollBarVisibility="Hidden"/>
                         </Border>
                     </ControlTemplate>
                 </Setter.Value>
@@ -249,12 +257,18 @@
 
         <!-- ── Header ──────────────────────────────────────────────────── -->
         <Border Background="{DynamicResource BrushHeaderBg}" Height="56"
-                DockPanel.Dock="Top" CornerRadius="0,0,12,12">
+                DockPanel.Dock="Top" CornerRadius="10,10,12,12">
             <Border.Effect>
                 <DropShadowEffect Color="Black" Opacity="0.3" ShadowDepth="2" BlurRadius="6"/>
             </Border.Effect>
             <Grid Margin="20,0,16,0">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
+                    <!-- Source set from Python by Snippets._icons.set_header_icon -->
+                    <Image x:Name="header_icon"
+                           Width="{DynamicResource SizeTopBarLogo}"
+                           Height="{DynamicResource SizeTopBarLogo}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,10,0"/>
                     <TextBlock Text="Batch" FontWeight="Bold" FontSize="22"
                                Foreground="{DynamicResource BrushPrimaryGreen}"/>
                     <TextBlock Text="Upgrade" FontWeight="Bold" FontSize="22"

@@ -28,6 +28,7 @@ if SCRIPT_DIR not in sys.path:
 from pyrevit import forms, script, HOST_APP
 from pyrevit.framework import Windows
 
+from Snippets._icons import set_header_icon
 from Snippets.seed43_theme import apply_seed43_palette, apply_seed43_dimensions
 
 from tools import file_scan
@@ -252,6 +253,7 @@ class BatchUpgradeWindow(forms.WPFWindow):
         self._bind()
         apply_seed43_palette(self, SCRIPT_DIR)
         apply_seed43_dimensions(self, SCRIPT_DIR)
+        set_header_icon(self, SCRIPT_DIR)
         self._build_version_grid()
         self._refresh()
 

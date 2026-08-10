@@ -1,31 +1,20 @@
 title: "Batch Upgrade"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
-  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟖𝟏𝟎
-  _____________________________________________________________________
+tooltip: >
+  __________________________________________________________________
+
   Description:
+
   Saves upgraded copies of a batch of Revit files - projects, families and
-  templates - in one or more target Revit versions. Copies land in a
-  per-version subfolder of the output folder, so the originals are never
-  touched and several target versions can be produced in one run.
-  _____________________________________________________________________
-  How-to:
-  -> Run the tool
-  -> Add Files... or Add Folder... to build the list
-  -> Browse to an output folder
-  -> Tick every Revit version you want copies for
-  -> Hit Upgrade, then read the report in the pyRevit output window
-  _____________________________________________________________________
-  Notes:
-  - Revit can only save in its own version, so any target other than the
-    running one is driven by launching that Revit through the pyRevit CLI.
-    Versions without the CLI, or not installed, show greyed out.
-  - Revit cannot open a file newer than itself, so downgrades are skipped
-    with a reason rather than attempted.
-  - Workshared central models are skipped on purpose - copying one detaches
-    it and orphans every local.
-  - Dialogs and warnings are auto-dismissed for the length of the run.
-  _____________________________________________________________________
-  Last update:
-  - Initial release
-  _____________________________________________________________________
+  templates - in one or more target Revit versions. Add files or a folder,
+  pick an output folder, tick every Revit version you want copies for, then
+  hit Upgrade. Copies land in a per-version subfolder so the originals are
+  never touched. Revit can only save in its own version, so any target other
+  than the running one is produced by launching that Revit through the
+  pyRevit CLI - versions that are not installed show greyed out. Downgrades,
+  workshared central models and unreadable files are skipped with a reason,
+  and a full report is written to the output window and a log file.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

@@ -15,10 +15,11 @@ popup style every Seed43 tool should use instead of rolling its own.
 from pyrevit.framework import Windows
 
 try:
-    from Snippets.seed43_theme import apply_seed43_palette, get_color
+    from Snippets.seed43_theme import apply_seed43_palette, get_color, load_palette
 except Exception:
     apply_seed43_palette = None
     get_color = None
+    load_palette = None
 
 # Fallbacks only, so a missing/unparseable seed43_palette.json never hard-
 # fails this module. Once apply_seed43_palette() has run, _res() prefers the
@@ -30,6 +31,10 @@ GREENH  = '#27AE60'
 TEXT    = '#F4FAFF'
 RED     = '#C53030'
 INPUTBG = '#1D1D20'
+BORDERH = '#32934C'
+BORDERP = '#5CAA71'
+INPUTH  = '#2F2F32'
+INPUTP  = '#5A5A5C'
 
 
 def _brush(hexcolor):
@@ -66,6 +71,83 @@ def _theme_dim(w, key, fallback):
     return fallback
 
 
+def _hex(key, fallback):
+    """Literal hex for a semantic palette key, for baking into a hand-built
+    ControlTemplate below (a trigger's Setter needs a value, not a brush
+    resolved out of TryFindResource)."""
+    if get_color:
+        try:
+            return get_color(None, key, fallback=fallback)
+        except Exception:
+            pass
+    return fallback
+
+
+def _dim(dotted_path, fallback):
+    """Sizing number straight out of the palette JSON's `dimensions`.
+
+    _theme_dim() reads the window's resources, but _window() only injects
+    the palette brushes - not apply_seed43_dimensions - so the sizing keys
+    are never in a dialog's resource chain to be found.
+    """
+    if not load_palette:
+        return fallback
+    try:
+        node = (load_palette() or {}).get('dimensions') or {}
+        for part in dotted_path.split('.'):
+            node = node[part]
+        return node
+    except Exception:
+        return fallback
+
+
+def _input_template():
+    """ControlTemplate matching the canonical TextBoxStyle in
+    Seed43Styles.xaml - rounded green-bordered box with green hover/focus.
+
+    Needed because a plain TextBox keeps the OS default template, whose own
+    IsMouseOver/IsKeyboardFocused triggers repaint the inner border blue and
+    beat the BorderBrush set on the control - which is why ask_string's box
+    rendered with a blue focus ring instead of the Seed43 green.
+
+    The earlier hand-rolled template that rendered no visible text (see
+    _plain_textbox's history) was missing PART_ContentHost; WPF routes the
+    text into that named part, so it is reproduced here exactly as the
+    canonical style declares it, Padding included via WPF's own auto-apply
+    rather than a second Margin binding.
+    """
+    import System.Windows.Markup as _Markup
+    xaml = (
+        '<ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" '
+        'xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" '
+        'TargetType="TextBox">'
+        '<Border x:Name="Bd" Background="{{TemplateBinding Background}}" '
+        'BorderBrush="{{TemplateBinding BorderBrush}}" '
+        'BorderThickness="{{TemplateBinding BorderThickness}}" '
+        'CornerRadius="{radius}">'
+        '<ScrollViewer x:Name="PART_ContentHost" Focusable="False" '
+        'HorizontalScrollBarVisibility="Hidden" '
+        'VerticalScrollBarVisibility="Hidden"/>'
+        '</Border>'
+        '<ControlTemplate.Triggers>'
+        '<Trigger Property="IsMouseOver" Value="True">'
+        '<Setter TargetName="Bd" Property="BorderBrush" Value="{bhover}"/>'
+        '<Setter TargetName="Bd" Property="Background" Value="{bghover}"/>'
+        '</Trigger>'
+        '<Trigger Property="IsFocused" Value="True">'
+        '<Setter TargetName="Bd" Property="BorderBrush" Value="{bfocus}"/>'
+        '</Trigger>'
+        '</ControlTemplate.Triggers>'
+        '</ControlTemplate>'
+    ).format(
+        radius=_dim('input_textbox.corner_radius', 6),
+        bhover=_hex('border_hover', BORDERH),
+        bghover=_hex('input_bg_hover', INPUTH),
+        bfocus=_hex('border_pressed', BORDERP),
+    )
+    return _Markup.XamlReader.Parse(xaml)
+
+
 def _textblock_label(w, text):
     """Small dim field label, used above folder/filename inputs."""
     t = Windows.Controls.TextBlock()
@@ -78,22 +160,32 @@ def _textblock_label(w, text):
 
 
 def _plain_textbox(w):
-    """An editable box styled with direct properties only.
+    """The one editable box every dialog here uses - same look as the
+    canonical TextBoxStyle, via _input_template().
 
-    Deliberately NOT a custom ControlTemplate: the templated version this
-    replaces rendered with no visible text, which is why Dialogs.save_log
-    hand-rolls Border+TextBlock rather than reusing it. Same styling as
-    ask_string's box, which has always worked.
+    NOTE: the canonical style also swaps the background to input_bg_pressed
+    on focus; that is skipped here, since these boxes are focused for the
+    whole life of the popup and a mid-grey fill under white text is worse to
+    type into than the plain input_bg. The border still turns green.
     """
     tb = Windows.Controls.TextBox()
-    tb.Height = 32
-    tb.FontSize = 12
-    tb.Padding = Windows.Thickness(8, 4, 8, 4)
-    tb.Background = _res(w, 'BrushInputBg', TEXT)
-    tb.Foreground = _res(w, 'BrushTextInput', HEADER)
+    tb.Height = _dim('input_textbox.height', 32)
+    tb.FontSize = _dim('input_textbox.font_size', 12)
+    tb.Padding = Windows.Thickness(_dim('input_textbox.padding_x', 8),
+                                   _dim('input_textbox.padding_y', 4),
+                                   _dim('input_textbox.padding_x', 8),
+                                   _dim('input_textbox.padding_y', 4))
+    tb.Background = _res(w, 'BrushInputBg', INPUTBG)
+    tb.Foreground = _res(w, 'BrushTextInput', TEXT)
     tb.BorderBrush = _res(w, 'BrushBorderDefault', GREEN)
-    tb.BorderThickness = Windows.Thickness(1.5)
+    tb.BorderThickness = Windows.Thickness(
+        _dim('input_textbox.border_thickness', 1))
+    tb.VerticalContentAlignment = Windows.VerticalAlignment.Center
     tb.Margin = Windows.Thickness(0, 0, 0, 16)
+    try:
+        tb.Template = _input_template()
+    except Exception:
+        pass  # Keep the OS default template rather than an unusable box.
     return tb
 
 
@@ -269,16 +361,8 @@ def ask_string(prompt, title='', default='', error=''):
         err = _textblock(w, error, error=True)
         err.Margin = Windows.Thickness(0, -12, 0, 12)
         root.Children.Add(err)
-    tb = Windows.Controls.TextBox()
+    tb = _plain_textbox(w)
     tb.Text = default or ''
-    tb.Height = 32
-    tb.FontSize = 12
-    tb.Padding = Windows.Thickness(8, 4, 8, 4)
-    tb.Background = _res(w, 'BrushInputBg', TEXT)
-    tb.Foreground = _res(w, 'BrushTextInput', HEADER)
-    tb.BorderBrush = _res(w, 'BrushBorderDefault', GREEN)
-    tb.BorderThickness = Windows.Thickness(1.5)
-    tb.Margin = Windows.Thickness(0, 0, 0, 16)
     root.Children.Add(tb)
     row = Windows.Controls.StackPanel()
     row.Orientation = Windows.Controls.Orientation.Horizontal

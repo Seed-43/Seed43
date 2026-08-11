@@ -100,16 +100,32 @@ def _run_via_cli(records, out_dir, year, audit, compact, cli_path, progress):
         return [], "pyRevit CLI not found - Revit {} can't be driven.".format(year)
 
     job_io.clear(year)
-    job_io.write_job(year, out_dir, records, SCRIPT_DIR,
-                     audit=audit, compact=compact)
+    job_file = job_io.write_job(year, out_dir, records, SCRIPT_DIR,
+                                audit=audit, compact=compact)
+
+    # Tell the worker exactly where its job is rather than making it re-derive
+    # a temp path and hope the launched Revit inherited the same TEMP.
+    env = os.environ.copy()
+    env[job_io.JOB_ENV_VAR] = job_file
 
     command = [cli_path, "run", WORKER_FILE, "--revit={}".format(year), "--purge"]
+    cli_log = job_io.cli_log_path(year)
+    try:
+        # Straight to a file, not subprocess.PIPE: the CLI reports real
+        # failures on stdout and still exits 0, and an unread PIPE can fill
+        # its buffer and deadlock the whole batch.
+        cli_handle = open(cli_log, "w")
+    except Exception:
+        cli_handle = None
     try:
         proc = subprocess.Popen(command,
-                                stdout=subprocess.PIPE,
+                                stdout=cli_handle or subprocess.PIPE,
                                 stderr=subprocess.STDOUT,
+                                env=env,
                                 creationflags=CREATE_NO_WINDOW)
     except Exception as err:
+        if cli_handle:
+            cli_handle.close()
         return [], "Could not start the pyRevit CLI: {}".format(err)
 
     started = time.time()
@@ -137,20 +153,68 @@ def _run_via_cli(records, out_dir, year, audit, compact, cli_path, progress):
                 year, WORKER_TIMEOUT_SECS // 60)
         time.sleep(1.0)
 
-    payload = job_io.read_result(year)
-    if payload is None:
-        log_file = job_io.log_path(year)
-        detail = ""
-        if os.path.isfile(log_file):
-            try:
-                with open(log_file, "r") as handle:
-                    detail = " Worker log: " + handle.read().strip()[:400]
-            except Exception:
-                pass
-        return [], ("Revit {} exited without writing results (code {}).{}"
-                    .format(year, proc.returncode, detail))
+    if cli_handle:
+        try:
+            cli_handle.close()
+        except Exception:
+            pass
 
-    return payload.get("results") or [], payload.get("error")
+    payload = job_io.read_result(year)
+    if payload is not None:
+        _drop_job_file(year)
+        return payload.get("results") or [], payload.get("error")
+
+    return [], _explain_silent_exit(year, proc.returncode)
+
+
+def _tail(path, limit=500):
+    """Return the end of a log file, or '' if there isn't one."""
+    if not os.path.isfile(path):
+        return ""
+    try:
+        with open(path, "r") as handle:
+            return handle.read().strip()[-limit:]
+    except Exception:
+        return ""
+
+
+def _drop_job_file(year):
+    """Remove a finished job so the worker's single-leftover fallback holds."""
+    try:
+        path = job_io.job_path(year)
+        if os.path.isfile(path):
+            os.remove(path)
+    except Exception:
+        pass
+
+
+def _explain_silent_exit(year, returncode):
+    """Turn 'Revit opened and closed and nothing happened' into a real reason.
+
+    The three cases look identical from here but have completely different
+    fixes, so they're told apart by which breadcrumbs the worker left behind.
+    """
+    cli_output = _tail(job_io.cli_log_path(year))
+    worker_log = _tail(job_io.log_path(year))
+    booted = os.path.isfile(job_io.boot_log_path(year))
+
+    if worker_log:
+        return ("Revit {} ran the worker but it failed:\n{}"
+                .format(year, worker_log))
+
+    if booted:
+        return ("Revit {} started the worker but it stopped before writing "
+                "results.\nBoot log: {}\nCLI output: {}"
+                .format(year, _tail(job_io.boot_log_path(year)),
+                        cli_output or "(none)"))
+
+    if cli_output:
+        return ("Revit {} never ran the worker. The pyRevit CLI said:\n{}"
+                .format(year, cli_output))
+
+    return ("Revit {} exited (code {}) without running the worker and without "
+            "the CLI reporting anything. Check that pyRevit is attached to "
+            "{} - run: pyrevit attached".format(year, returncode, year))
 
 
 # --- Running the whole batch ---

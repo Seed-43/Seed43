@@ -51,30 +51,6 @@ def log_path(year):
     return os.path.join(job_dir(), "worker_{}.log".format(year))
 
 
-def boot_log_path(year):
-    """Proof-of-life the worker writes before it touches anything else.
-
-    If this file is missing after a run, the worker never executed at all -
-    which is a completely different problem from it executing and failing,
-    and the two are otherwise indistinguishable from the launching side.
-    """
-    return os.path.join(job_dir(), "boot_{}.log".format(year))
-
-
-def cli_log_path(year):
-    """Everything the pyRevit CLI printed while driving that Revit.
-
-    The CLI reports real errors here and still exits 0 - e.g. "pyRevit is not
-    attached to Revit 2024" - so this output is the only place some failures
-    are ever explained.
-    """
-    return os.path.join(job_dir(), "cli_{}.log".format(year))
-
-
-# Passed to the worker so it never has to guess where its job file is.
-JOB_ENV_VAR = "SEED43_BATCH_UPGRADE_JOB"
-
-
 # ── CORE LOGIC ─────────────────────────────────────────────────────────────
 
 def write_job(year, out_dir, records, tool_dir, audit=False, compact=True):
@@ -136,8 +112,7 @@ def clear(year):
     Without this a crashed worker's old result file would be read back as if
     it belonged to the current run.
     """
-    for path in (job_path(year), result_path(year), log_path(year),
-                 boot_log_path(year), cli_log_path(year)):
+    for path in (job_path(year), result_path(year), log_path(year)):
         try:
             if os.path.isfile(path):
                 os.remove(path)

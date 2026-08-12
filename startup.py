@@ -302,6 +302,70 @@ ICON_PATH     = os.path.join(SCRIPT_DIR, "icon.png")
 _LOG_FILE     = os.path.join(SCRIPT_DIR, "startup_error.log")
 
 
+_LOG_RETENTION_DAYS = 28
+
+# The date the log was last pruned in this session. A Revit left open for
+# weeks would otherwise never prune, so the check is per-day rather than
+# once at startup - but still only one pass a day, not one per write.
+_log_pruned_on = [None]
+
+
+def _prune_log(force=False):
+    """Drop log entries older than _LOG_RETENTION_DAYS, at most once a day.
+
+    Both entry shapes lead with their date - "[YYYY-MM-DD ...]" for a note,
+    "-- context [YYYY-MM-DD ...] --" for a traceback - so an entry's header
+    dates every line under it until the next header.
+
+    Undated entries are treated as older than anything dated and dropped:
+    the only ones that exist predate timestamping, so they are by definition
+    beyond the window.
+
+    Swallows everything. Pruning the log must never be the reason startup
+    fails, and it cannot call _log_error without risking a loop.
+    """
+    try:
+        import datetime as _dt
+        today = _dt.date.today()
+        if not force and _log_pruned_on[0] == today:
+            return
+        _log_pruned_on[0] = today
+
+        if not os.path.isfile(_LOG_FILE):
+            return
+
+        cutoff = today - _dt.timedelta(days=_LOG_RETENTION_DAYS)
+
+        import re as _re
+        header = _re.compile(r"^(?:\[|--\s.*\s\[)(\d{4})-(\d{2})-(\d{2})")
+
+        with open(_LOG_FILE, "r") as handle:
+            lines = handle.readlines()
+
+        kept = []
+        keeping = False
+        for line in lines:
+            match = header.match(line)
+            if match:
+                stamped = _dt.date(int(match.group(1)),
+                                   int(match.group(2)),
+                                   int(match.group(3)))
+                keeping = stamped >= cutoff
+            elif line.startswith("--") or line.startswith("["):
+                # A header shape that carries no parsable date - legacy entry.
+                keeping = False
+            if keeping:
+                kept.append(line)
+
+        # Only rewrite when something actually aged out, so the common case
+        # is a read and nothing more.
+        if len(kept) != len(lines):
+            with open(_LOG_FILE, "w") as handle:
+                handle.writelines(kept)
+    except Exception:
+        pass
+
+
 def _log_note(message):
     """A stated condition in the same log as _log_error, without a traceback.
 
@@ -310,6 +374,7 @@ def _log_note(message):
     - the handler runs every 20 seconds, and a note per pass would bury the
     real errors."""
     try:
+        _prune_log()
         import datetime as _dt
         with open(_LOG_FILE, "a") as f:
             f.write("[{}] {}\n".format(
@@ -321,10 +386,21 @@ def _log_note(message):
 def _log_error(context):
     """Silent-by-design elsewhere in this file, but a swallowed exception
     here means the update popup just never appears with no way to tell
-    why - write the traceback to a local file instead of losing it."""
+    why - write the traceback to a local file instead of losing it.
+
+    Timestamped like _log_note. Without the stamp there is no way to tell a
+    traceback written seconds ago from one left by a Revit session that has
+    been running since before the code was last changed - which is exactly
+    the question worth answering when the scheduler goes quiet.
+    """
     try:
+        _prune_log()
+        import datetime as _dt
         with open(_LOG_FILE, "a") as f:
-            f.write("-- {} --\n{}\n".format(context, traceback.format_exc()))
+            f.write("-- {} [{}] --\n{}\n".format(
+                context,
+                _dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                traceback.format_exc()))
     except Exception:
         pass
 
@@ -986,19 +1062,39 @@ def _write_batch_upgrade_schedule(data):
         _log_error("_write_batch_upgrade_schedule")
 
 
-def _run_batch_upgrade_scheduled(entry):
-    """Load the template a due entry points at and run the whole batch
-    headlessly - no progress window, nobody is watching."""
+def _clear_batch_upgrade_snapshot(path):
+    """Delete a spent scheduled job's frozen settings, if it left any."""
     if not _BATCH_UPGRADE_DIR:
         return
     try:
         import sys as _sys
         if _BATCH_UPGRADE_DIR not in _sys.path:
             _sys.path.insert(0, _BATCH_UPGRADE_DIR)
-        from tools import templates, batch_runner
+        from tools import schedule_io
+        schedule_io.clear_snapshot(path)
+    except Exception:
+        _log_error("_clear_batch_upgrade_snapshot")
+
+
+def _run_batch_upgrade_scheduled(entry):
+    """Run the settings a due entry froze, headlessly - no progress window,
+    nobody is watching.
+
+    The entry points at a one-off snapshot written when the schedule was
+    armed, not a saved template: a batch upgrade is a one-shot job, so the
+    snapshot is binned once it has run.
+    """
+    if not _BATCH_UPGRADE_DIR:
+        return
+    snapshot_path = entry.get("profile_path")
+    try:
+        import sys as _sys
+        if _BATCH_UPGRADE_DIR not in _sys.path:
+            _sys.path.insert(0, _BATCH_UPGRADE_DIR)
+        from tools import schedule_io, batch_runner
         from Autodesk.Revit.UI import UIApplication
 
-        data = templates.load_template(entry.get("profile_name"))
+        data = schedule_io.read_snapshot(snapshot_path)
         if not data:
             return
 
@@ -1015,6 +1111,16 @@ def _run_batch_upgrade_scheduled(entry):
                                   show_output=False)
     except Exception:
         _log_error("_run_batch_upgrade_scheduled")
+    finally:
+        # The armed entry is already gone by the time this runs; drop the
+        # snapshot too so a spent one-shot job leaves nothing behind. In
+        # `finally` because a run that threw halfway is still spent - the
+        # entry is never coming back to retry it.
+        try:
+            from tools import schedule_io as _sched_io
+            _sched_io.clear_snapshot(snapshot_path)
+        except Exception:
+            pass
 
 
 class _BatchUpgradeScheduleHandler(IExternalEventHandler):
@@ -1044,6 +1150,10 @@ class _BatchUpgradeScheduleHandler(IExternalEventHandler):
             _write_batch_upgrade_schedule(sched)
 
             if stale:
+                # Too late to run, but the entry is spent either way - bin its
+                # snapshot as well, or a missed schedule leaves the frozen job
+                # file behind forever.
+                _clear_batch_upgrade_snapshot(entry.get("profile_path"))
                 return
             _run_batch_upgrade_scheduled(entry)
         except Exception:
@@ -1103,6 +1213,10 @@ _uiapp_ref = [None]
 
 
 def main():
+    # Ages the log out on every Revit launch, so it shrinks even in a stretch
+    # where nothing is ever logged to trigger the per-write check.
+    _prune_log()
+
     ui_dispatcher = Dispatcher.CurrentDispatcher
 
     def worker():

@@ -147,7 +147,7 @@ from studio_rows import (                                   # noqa: F401
     GROUP_LABEL_SEP, CONDENSE_GLYPH, ROW_PADDING_MM,
     repeat_domain, natural_row_height_mm, group_label_for,
     condense_plan, sheet_row_plan, plan_summary, repeat_cell_text,
-    expand_rows, band_indices,
+    expand_rows, band_indices, borders_for,
 )
 
 
@@ -183,6 +183,10 @@ def new_block(t, **kw):
         'type': t, 'label': '', 'enabled': True,
         'just': 'left', 'v_just': 'middle', 'strike': False,
         'borders': {'t': True, 'b': True, 'l': False, 'r': False},
+        # Group header rows can rule themselves differently from the data
+        # rows under them - a boxed heading over an open list. None means
+        # "the same as 'borders'"; see studio_rows.borders_for().
+        'group_borders': None,
         'data_borders': {'h': True, 'v': True},
         'list_style': 'list', 'bg_color': None,
         'alt_rows': False, 'alt_color': '#F5F7FA',

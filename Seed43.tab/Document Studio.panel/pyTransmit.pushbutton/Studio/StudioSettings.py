@@ -1510,23 +1510,40 @@ class StudioSettingsWindow(WPFWindow):
         ('home',   'tab_home_btn',   'tab_home_panel'),
         ('layout', 'tab_layout_btn', 'tab_layout_panel'),
         ('data',   'tab_data_btn',   'tab_data_panel'),
+        ('list',   'tab_list_btn',   'tab_list_panel'),
     ]
 
+    # Tabs that only appear when the selection calls for them, the way Excel
+    # shows Table Design only while a table cell is selected. They start
+    # hidden and _set_tab_available() decides from then on.
+    CONTEXTUAL_TABS = ('list',)
+
     def _wire_ribbon_tabs(self):
+        self._tab_available = dict(
+            (key, key not in self.CONTEXTUAL_TABS)
+            for key, _b, _p in self.RIBBON_TABS)
         for key, btn_name, _panel in self.RIBBON_TABS:
             btn = getattr(self, btn_name)
             btn.Click += self._on_ribbon_tab_click
             btn.Tag = key
-        self._show_ribbon_tab(self._read_config().get('ribbon_tab', 'home'))
+        # The tab the user last chose, which is not always the tab on show -
+        # a contextual tab drops back to Home when it stops applying, and
+        # this is what brings it back when it applies again.
+        self._ribbon_tab_pref = self._read_config().get('ribbon_tab', 'home')
+        self._show_ribbon_tab(self._ribbon_tab_pref)
 
     def _on_ribbon_tab_click(self, sender, args):
         # A ToggleButton flips itself on click, so clicking the tab already
         # showing would otherwise switch it off and leave no tab selected.
+        self._ribbon_tab_pref = sender.Tag
         self._show_ribbon_tab(sender.Tag)
         self._write_config(ribbon_tab=sender.Tag)
 
     def _show_ribbon_tab(self, key):
-        if key not in [k for k, _b, _p in self.RIBBON_TABS]:
+        # A contextual tab that isn't currently offered falls back to Home -
+        # including on startup, where the saved tab may be one that this
+        # selection has no use for.
+        if not self._tab_available.get(key, False):
             key = 'home'
         for tab_key, btn_name, panel_name in self.RIBBON_TABS:
             active = (tab_key == key)
@@ -1534,6 +1551,30 @@ class StudioSettingsWindow(WPFWindow):
             getattr(self, panel_name).Visibility = (
                 _SW.Visibility.Visible if active else _SW.Visibility.Collapsed)
         self._ribbon_tab = key
+
+    def _set_tab_available(self, key, available):
+        """Show or hide a contextual tab in the strip.
+
+        The saved 'ribbon_tab' is left alone on purpose: a tab that comes and
+        goes with the selection should come back selected when the user
+        returns to a cell it applies to, rather than having been silently
+        forgotten the first time they clicked a title cell.
+        """
+        available = bool(available)
+        if self._tab_available.get(key) == available:
+            return
+        self._tab_available[key] = available
+        for tab_key, btn_name, _panel in self.RIBBON_TABS:
+            if tab_key != key:
+                continue
+            getattr(self, btn_name).Visibility = (
+                _SW.Visibility.Visible if available else _SW.Visibility.Collapsed)
+        if available:
+            # Re-offer it if it is the tab the user last chose.
+            if getattr(self, '_ribbon_tab_pref', 'home') == key:
+                self._show_ribbon_tab(key)
+        elif getattr(self, '_ribbon_tab', 'home') == key:
+            self._show_ribbon_tab('home')
 
     # ======================================================================
     # Home ribbon wiring
@@ -1589,14 +1630,7 @@ class StudioSettingsWindow(WPFWindow):
             except Exception:
                 pass
 
-        self._build_borders_popup()
-        # Either half of the split opens the same palette - the glyph is not a
-        # separate default action here, since there is no sensible "last used
-        # border" to repeat.
-        for _b in (self.borders_btn, self.borders_menu_btn):
-            _b.Checked += self._on_borders_open
-            _b.Unchecked += self._on_borders_close
-        self.borders_popup.Closed += self._on_borders_popup_closed
+        self._wire_border_pickers()
 
         self.merge_toggle_btn.Click += self._on_merge_toggle_click
         self._build_merge_menu()
@@ -1711,25 +1745,63 @@ class StudioSettingsWindow(WPFWindow):
             g.Children.Add(hline)
         return g
 
+    # One picker per thing that can be ruled: the cell itself on Home, and on
+    # the List Rows tab the data rows and the group headers separately. They
+    # differ only in which buttons open them and which field they write, so
+    # they share one build / open / apply path rather than three copies.
+    #
+    #   (opener buttons, popup, preset grid, block field)
+    BORDER_PICKERS = [
+        (('borders_btn', 'borders_menu_btn'), 'borders_popup',
+         'borders_grid', 'borders'),
+        (('data_borders_btn',), 'data_borders_popup',
+         'data_borders_grid', 'borders'),
+        (('group_borders_btn',), 'group_borders_popup',
+         'group_borders_grid', 'group_borders'),
+    ]
+
+    def _wire_border_pickers(self):
+        for btn_names, popup_name, grid_name, field in self.BORDER_PICKERS:
+            buttons = [getattr(self, n) for n in btn_names]
+            popup = getattr(self, popup_name)
+            self._build_borders_popup(getattr(self, grid_name), field)
+            for btn in buttons:
+                # Either half of a split opens the same palette - the glyph is
+                # not a separate default action, since there is no sensible
+                # "last used border" to repeat.
+                btn.Tag = popup_name
+                btn.Checked += self._on_borders_open
+                btn.Unchecked += self._on_borders_close
+            popup.Closed += self._on_borders_popup_closed
+            popup.Tag = tuple(btn_names)
+        self.group_borders_inherit_btn.Click += self._on_group_borders_inherit_click
+
+    def _picker_buttons(self, popup_name):
+        for btn_names, name, _grid, _field in self.BORDER_PICKERS:
+            if name == popup_name:
+                return [getattr(self, n) for n in btn_names]
+        return []
+
     def _on_borders_open(self, sender, args):
-        # Keep the two halves in step so the whole control lights up together.
-        for b in (self.borders_btn, self.borders_menu_btn):
+        popup_name = sender.Tag
+        # Keep every half of the control in step so it lights up together.
+        for b in self._picker_buttons(popup_name):
             if not b.IsChecked:
                 b.IsChecked = True
-        self.borders_popup.IsOpen = True
+        getattr(self, popup_name).IsOpen = True
 
     def _on_borders_close(self, sender, args):
-        for b in (self.borders_btn, self.borders_menu_btn):
+        popup_name = sender.Tag
+        for b in self._picker_buttons(popup_name):
             if b.IsChecked:
                 b.IsChecked = False
-        self.borders_popup.IsOpen = False
+        getattr(self, popup_name).IsOpen = False
 
     def _on_borders_popup_closed(self, sender, args):
-        for b in (self.borders_btn, self.borders_menu_btn):
-            b.IsChecked = False
+        for name in (sender.Tag or ()):
+            getattr(self, name).IsChecked = False
 
-    def _build_borders_popup(self):
-        container = self.borders_grid
+    def _build_borders_popup(self, container, field):
         container.Children.Clear()
         seen = set()
         for key, label in self.BORDER_PRESETS:
@@ -1737,7 +1809,7 @@ class StudioSettingsWindow(WPFWindow):
                 continue
             seen.add(key)
             btn = _SWC.Button()
-            btn.Tag = key
+            btn.Tag = (key, field)
             btn.Margin = _SW.Thickness(3)
             btn.Padding = _SW.Thickness(3)
             btn.ToolTip = label
@@ -1748,19 +1820,34 @@ class StudioSettingsWindow(WPFWindow):
             btn.Click += self._on_border_preset_click
             container.Children.Add(btn)
 
-    def _on_border_preset_click(self, sender, args):
-        preset = sender.Tag
-        self.borders_popup.IsOpen = False
-        for b in (self.borders_btn, self.borders_menu_btn):
-            b.IsChecked = False
-        self._apply_border_preset(preset)
+    def _close_border_popups(self):
+        for btn_names, popup_name, _grid, _field in self.BORDER_PICKERS:
+            getattr(self, popup_name).IsOpen = False
+            for name in btn_names:
+                getattr(self, name).IsChecked = False
 
-    def _apply_border_preset(self, preset):
+    def _on_border_preset_click(self, sender, args):
+        preset, field = sender.Tag
+        self._close_border_popups()
+        self._apply_border_preset(preset, field)
+
+    def _on_group_borders_inherit_click(self, sender, args):
+        """Drop a block's separate group-header rules, so the headers follow
+        the data rows again - the state a layout starts in."""
+        self._close_border_popups()
+        self._apply_to_selection(lambda b: b.__setitem__('group_borders', None))
+        self.status_label.Text = 'Group headers follow the data rows again'
+
+    def _apply_border_preset(self, preset, field='borders'):
         """Mirrors Excel's border presets: 'all'/'none' touch every cell in
         the selection; the edge-specific presets ('top'/'outside'/etc.) only
         touch the cells that actually sit on that edge of the selection
         rectangle, not every cell - e.g. 'Top Border' draws one line along
-        the top of the whole selection, not a line under every cell."""
+        the top of the whole selection, not a line under every cell.
+
+        field is which set of rules is being edited - the cell's own, or the
+        group headers' (see studio_rows.borders_for).
+        """
         r0, c0, r1, c1 = self._sel_rect()
         for (r, c) in self._sel_origins():
             block = self._grid.block_at(r, c)
@@ -1771,7 +1858,13 @@ class StudioSettingsWindow(WPFWindow):
             r_end, c_end = r + row_span - 1, c + col_span - 1
             is_top, is_bottom = (r <= r0), (r_end >= r1)
             is_left, is_right = (c <= c0), (c_end >= c1)
-            borders = dict(block.get('borders') or {})
+            # Group headers start from whatever the data rows say, since that
+            # is what they were printing until now - the first edit adjusts
+            # the rules on show rather than starting from a blank cell.
+            current = block.get(field)
+            if current is None:
+                current = block.get('borders')
+            borders = dict(current or {})
             if preset == 'none':
                 borders = {'t': False, 'b': False, 'l': False, 'r': False}
             elif preset == 'all':
@@ -1781,7 +1874,7 @@ class StudioSettingsWindow(WPFWindow):
                 if preset in ('outside', 'bottom', 'top_bottom') and is_bottom: borders['b'] = True
                 if preset in ('outside', 'left', 'left_right') and is_left: borders['l'] = True
                 if preset in ('outside', 'right', 'left_right') and is_right: borders['r'] = True
-            block['borders'] = borders
+            block[field] = borders
         self._render_all()
 
     # -- selection helpers -----------------------------------------------------
@@ -2211,9 +2304,36 @@ class StudioSettingsWindow(WPFWindow):
         what makes the menu current rather than as-of-the-last-render."""
         try:
             kind, idx = sender.Tag
+            self._select_header_for_menu(kind, idx)
             sender.ContextMenu = self._build_header_context_menu(kind, idx)
         except Exception:
             pass
+
+    def _select_header_for_menu(self, kind, idx):
+        """Move the selection to the header being right-clicked.
+
+        Only the LEFT button used to change the selection, so right-clicking a
+        different row or column left the green outline sitting on the old one -
+        the menu acted on the row you clicked, but the highlight said
+        otherwise, which reads as though the wrong row is about to change.
+
+        Right-clicking INSIDE an existing multi-row or multi-column selection
+        keeps it, which is the usual convention and the one Move Rows, Row
+        Height and the section commands already rely on to act on the run.
+        """
+        mode = 'col' if kind == 'colhdr' else 'row'
+        r0, c0, r1, c1 = self._sel_rect()
+        inside = (self._selection_kind() == mode and
+                  (c0 <= idx <= c1 if mode == 'col' else r0 <= idx <= r1))
+        if inside:
+            return
+        self._sel_mode = mode
+        if mode == 'col':
+            self._sel = (0, idx, self._grid.n_rows - 1, idx)
+        else:
+            self._sel = (idx, 0, idx, self._grid.n_cols - 1)
+        self._move_overlay_to_selection()
+        self._update_formula_bar()
 
     def _build_header_context_menu(self, kind, idx):
         menu = _themed_menu()
@@ -2306,10 +2426,15 @@ class StudioSettingsWindow(WPFWindow):
         """
         self._grid.lock_width = bool(self.lock_width_btn.IsChecked)
         if self._grid.lock_width:
-            self._grid.fit_columns_to_width()
+            # Only reports; turning the lock on does not resize anything. Fit
+            # Columns to Page Width, on the column header menu, is the
+            # deliberate way to make everything add up.
+            over = sum(self._grid.col_widths) - self._grid.printable_w_mm()
             self.status_label.Text = (
-                'Width locked to {:.0f}mm - widening a column now narrows the '
-                'others'.format(float(self._grid.printable_w_mm())))
+                'Width locked at {:.0f}mm - columns cannot grow past the page '
+                'guide{}'.format(float(self._grid.printable_w_mm()),
+                                 ' (currently {:.2f}mm over)'.format(float(over))
+                                 if over > 0.005 else ''))
         else:
             self.status_label.Text = 'Width unlocked - columns may exceed the page guide'
         self._render_all()
@@ -2424,9 +2549,22 @@ class StudioSettingsWindow(WPFWindow):
             return
         for c in range(c0, c1 + 1):
             self._grid.col_widths[c] = val
-        if self._grid.lock_width:
-            self._grid.lock_column_width(c1)
-        self.status_label.Text = '{} column(s) set to {:g}mm'.format(n, val)
+
+        # A typed width is an explicit instruction and is honoured exactly,
+        # even with Lock Width on. The lock caps DRAGS, where you are feeling
+        # your way and an accidental overshoot is unwelcome; silently capping
+        # a number you typed just looks like the box is broken - which is
+        # precisely how it read. Going over the guide is reported instead.
+        over = sum(self._grid.col_widths) - self._grid.printable_w_mm()
+        if self._grid.lock_width and over > 0.005:
+            self.status_label.Text = (
+                '{} column(s) set to {:g}mm - the layout is now {:.2f}mm past '
+                'the {:g}mm page guide. Narrow another column, or use Fit '
+                'Columns to Page Width.'.format(
+                    n, val, float(over),
+                    round(float(self._grid.printable_w_mm()), 2)))
+        else:
+            self.status_label.Text = '{} column(s) set to {:g}mm'.format(n, val)
         self._render_all()
 
     # -- Formula bar ---------------------------------------------------------
@@ -2515,6 +2653,7 @@ class StudioSettingsWindow(WPFWindow):
                 self.formula_bar_tb.Text = 'Entire sheet'
             self.formula_bar_tb.IsReadOnly = True
             self.formula_change_btn.Visibility = _SW.Visibility.Collapsed
+            self._update_block_chip(None)
             self._update_section_label()
             self._sync_format_buttons(self._grid.block_at(ar, ac) or {})
             return
@@ -2545,8 +2684,36 @@ class StudioSettingsWindow(WPFWindow):
             self.formula_bar_tb.IsReadOnly = True
             self.formula_change_btn.Visibility = _SW.Visibility.Visible
 
+        self._update_block_chip(block)
         self._update_section_label()
         self._sync_format_buttons(block or {})
+
+    def _update_block_chip(self, block):
+        """Name the block occupying the active cell, in its group colour.
+
+        Same wording and colour as the Blocks panel, so a cell can be
+        identified from the formula bar without hunting for it in the
+        palette: A1 [Text] Transmittal Document.
+        """
+        try:
+            t = (block or {}).get('type')
+            if not t:
+                self.block_type_chip.Visibility = _SW.Visibility.Collapsed
+                return
+            name = studio_blocks.TYPE_NAMES.get(t, t)
+            if t in ('reason_list', 'method_list'):
+                # These appear twice in the palette; say which placement.
+                name = '{} ({})'.format(
+                    name.split(' (')[0],
+                    'Horizontal' if (block or {}).get('list_style') == 'row'
+                    else 'Vertical')
+            self.block_type_label.Text = '[{}]'.format(name)
+            self.block_type_chip.Background = _brush(
+                studio_blocks.GROUP_COLORS.get(
+                    studio_blocks.TYPE_GROUP.get(t, ''), '#8A96A8'))
+            self.block_type_chip.Visibility = _SW.Visibility.Visible
+        except Exception:
+            pass
 
     def _update_section_label(self):
         """Compact row-section indicator, colour-matched to the gutter stripe
@@ -2658,6 +2825,36 @@ class StudioSettingsWindow(WPFWindow):
         # every cell in the selection, and the anchor cell is a poor guide to
         # what the rest of it holds - greying them out on the anchor made the
         # colours unreachable when a whole row was selected.
+        self._sync_list_tab()
+
+    def _selection_repeat_domains(self):
+        """What the blocks under the selection repeat over - 'sheet',
+        'recipient', or neither. A selection can hold both."""
+        domains = set()
+        for (r, c) in self._sel_origins():
+            domain = studio_blocks.repeat_domain(self._grid.block_at(r, c))
+            if domain:
+                domains.add(domain)
+        return domains
+
+    def _sync_list_tab(self):
+        """Offer the List Rows tab only where it means something.
+
+        Banding and group headers describe rows that REPEAT - one per sheet,
+        one per recipient. On a title cell or a project-info cell there are no
+        such rows, so the tab is not shown at all rather than shown doing
+        nothing.
+
+        Group headers narrow it further: only the documentation table is
+        grouped, so a recipient list gets the tab with that half greyed out.
+        """
+        domains = self._selection_repeat_domains()
+        self._set_tab_available('list', bool(domains))
+        grouped = 'sheet' in domains
+        for name in ('group_color_btn', 'group_borders_btn'):
+            getattr(self, name).IsEnabled = grouped
+        self.group_header_caption.Text = (
+            'Group Headers' if grouped else 'Group Headers - sheet lists only')
 
     # ======================================================================
     # Grid rendering
@@ -3235,6 +3432,7 @@ class StudioSettingsWindow(WPFWindow):
         return value >= extent - band
 
     def _on_header_down(self, sender, args):
+        self._commit_pending_formula()
         kind, idx = sender.Tag
         pos = args.GetPosition(sender)
         if kind == 'colhdr' and self._near_resize_edge(pos.X, sender.ActualWidth):
@@ -3280,11 +3478,10 @@ class StudioSettingsWindow(WPFWindow):
                 # columns on every mouse-move would make them jitter under the
                 # pointer and the drag impossible to aim.
                 group = getattr(self, '_resize_group', None) or [idx]
-                if not self._grid.lock_column_width(group[-1]):
+                if self._grid.clamp_to_width(group):
                     self.status_label.Text = (
-                        'Width locked: that column cannot grow further without '
-                        'squeezing the others past their minimum')
-                    self._grid.fit_columns_to_width()
+                        'Width locked - capped at the {:g}mm page guide'.format(
+                            round(float(self._grid.printable_w_mm()), 2)))
             self._resizing = None
             self._resize_group = None
             # Row/col sizes changed, so the page-break lines, the selection
@@ -3444,7 +3641,26 @@ class StudioSettingsWindow(WPFWindow):
         self._render_all()
 
     # -- mouse interaction: grid cells (click/drag to select) ------------------
+    def _commit_pending_formula(self):
+        """Save an in-progress formula-bar edit before the selection moves.
+
+        LostFocus alone is not enough: the grid cells are Borders, which are
+        not focusable, so clicking one never takes focus off the text box -
+        no LostFocus fires, and _update_formula_bar then overwrites what was
+        typed with the newly selected cell's content. Typing then required
+        Enter, and anything else silently discarded the edit.
+
+        Committing here means clicking away saves, exactly like Excel.
+        """
+        try:
+            if self.formula_bar_tb.IsFocused and not self.formula_bar_tb.IsReadOnly:
+                self._on_formula_commit(None, None)
+                self.grid_scroll.Focus()
+        except Exception:
+            pass
+
     def _on_cell_down(self, sender, args):
+        self._commit_pending_formula()
         _, r, c = sender.Tag
         # Pressing on the selection's outline starts a content move rather
         # than a new selection (Excel's drag-to-move).

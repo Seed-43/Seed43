@@ -97,10 +97,9 @@ class Grid(object):
         self.space_between_on = False
         self.space_first_off = False
         self.space_between_off = False
-        # Column widths pinned to the printable width. With this on, widening
-        # one column narrows the others instead of growing the sheet - so the
-        # total always equals the page guide and the export never has to scale
-        # down to fit. See lock_column_width().
+        # Columns may not total more than the printable width. This is a
+        # LIMIT: the column being changed is capped, and no other column is
+        # touched. See clamp_to_width().
         self.lock_width = False
         # Per row: True = height follows the content, False = the user set it.
         # Parallel to row_heights, kept in step by insert/delete/move_rows.
@@ -139,39 +138,41 @@ class Grid(object):
         factor = self.printable_w_mm() / total
         self.col_widths = [round(w * factor, 2) for w in self.col_widths]
 
-    def lock_column_width(self, changed_idx):
-        """Absorb a column's change into the others, keeping the total pinned.
+    def clamp_to_width(self, changed):
+        """Stop the columns exceeding the printable width, by capping the ones
+        just changed. Every other column is left exactly as it was.
 
-        With lock_width on, the dragged column keeps the width the user gave
-        it and every OTHER column is scaled so the row still totals exactly
-        the printable width. That is what stops the sheet creeping past the
-        page guide - the export then never has to scale down to fit, which is
-        where the stray 1% and the white band on the right came from.
+        This is a LIMIT, not a redistribution. An earlier version rebalanced
+        all the other columns to keep the total pinned, which quietly undid
+        widths the user had deliberately set: size A, B and C, then adjust the
+        rest, and A, B and C moved too. Only what is being dragged gives way.
 
-        Returns False and changes nothing if it cannot be done: one column
-        only, or the others would have to go below MIN_COL_MM to absorb it.
+        `changed` is one column index or a list of them. Returns True if
+        anything had to be capped.
         """
+        if isinstance(changed, int):
+            changed = [changed]
+        changed = [i for i in changed if 0 <= i < len(self.col_widths)]
+        if not changed:
+            return False
         target = self.printable_w_mm()
-        n = len(self.col_widths)
-        if n < 2 or not (0 <= changed_idx < n):
+        excess = round(sum(self.col_widths) - target, 4)
+        if excess <= 0.005:
             return False
-        fixed = self.col_widths[changed_idx]
-        if fixed >= target:
-            return False
-        others = [i for i in range(n) if i != changed_idx]
-        current = sum(self.col_widths[i] for i in others)
-        room = target - fixed
-        if current <= 0 or room < MIN_COL_MM * len(others):
-            return False
-        factor = room / current
-        for i in others:
-            self.col_widths[i] = round(self.col_widths[i] * factor, 2)
-        # Rounding leaves a few hundredths; put them on the widest of the
-        # others so the total is exact rather than nearly right.
-        drift = round(target - sum(self.col_widths), 2)
-        if abs(drift) >= 0.01:
-            widest = max(others, key=lambda i: self.col_widths[i])
-            self.col_widths[widest] = round(self.col_widths[widest] + drift, 2)
+
+        # Take it off the changed columns evenly, but never below the minimum
+        # - anything that cannot be absorbed is left over rather than pushed
+        # onto columns the user did not touch.
+        remaining = excess
+        for _pass in range(2):      # second pass mops up what a floor blocked
+            takers = [i for i in changed if self.col_widths[i] > MIN_COL_MM]
+            if not takers or remaining <= 0.005:
+                break
+            share = remaining / float(len(takers))
+            for i in takers:
+                give = min(share, self.col_widths[i] - MIN_COL_MM)
+                self.col_widths[i] = round(self.col_widths[i] - give, 2)
+                remaining = round(remaining - give, 4)
         return True
 
     def auto_row_height_mm(self, idx, blocks):

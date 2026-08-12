@@ -79,6 +79,33 @@ def repeat_domain(block):
     return None
 
 
+def borders_for(block, kind='doc'):
+    """Which border rules one row of a block takes.
+
+    A repeating block draws two different kinds of row - the sheet rows
+    themselves and the group headers that break them up - and they do not
+    always want the same rules. A boxed group header over ruleless data rows
+    is an ordinary transmittal, and one 'borders' dict cannot say both, which
+    is why 'group_borders' exists beside it.
+
+    'group_borders' is None until the user sets it, meaning "the same as the
+    data rows", so a template saved before the two were split prints exactly
+    as it did. A deliberate gap row carries no rules at all - drawn with the
+    block's borders it would read as an empty data row rather than a
+    separator.
+
+    Returns a {'t','b','l','r'} dict; missing keys mean no rule.
+    """
+    b = block or {}
+    if kind == 'space':
+        return {}
+    if kind in ('group', 'more'):
+        group = b.get('group_borders')
+        if group is not None:
+            return group
+    return b.get('borders') or {}
+
+
 def natural_row_height_mm(block):
     """Height one repeated row wants, for this block's font size.
 

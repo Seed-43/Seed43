@@ -2791,6 +2791,17 @@ class RevTableWindow(Window):
                 _assigned = self.get_layout_for_output(output_type)
                 _is_studio = self.is_studio_layout(_assigned)
 
+                # Every output has a writer for both schemas now. The Layout
+                # Builder scripts read 'rows' and a Studio layout has 'cells',
+                # so before the Studio writers existed a Studio template ran
+                # through them and quietly produced an empty schedule and an
+                # empty drafting view rather than saying why - which is why
+                # the template, not a setting, picks the script.
+                #
+                # PDF is the exception: it has no writer of its own either
+                # way, and gets there by building a workbook and converting
+                # it. _layout_is_studio below tells it which Excel writer to
+                # run.
                 if output_type == 'excel':
                     target_script = os.path.join(
                         publish_dir, 'script_create_excel_studio.py' if _is_studio
@@ -2802,15 +2813,21 @@ class RevTableWindow(Window):
                     script_name   = 'pdf_export'
                     err_label     = 'PDF script'
                 elif output_type == 'drafting':
-                    target_script = os.path.join(publish_dir, 'script_create_drafting_view.py')
+                    target_script = os.path.join(
+                        publish_dir, 'script_create_drafting_view_studio.py' if _is_studio
+                        else 'script_create_drafting_view.py')
                     script_name   = 'drafting_export'
                     err_label     = 'Drafting View script'
                 elif output_type == 'legend':
-                    target_script = os.path.join(publish_dir, 'script_create_legend.py')
+                    target_script = os.path.join(
+                        publish_dir, 'script_create_legend_studio.py' if _is_studio
+                        else 'script_create_legend.py')
                     script_name   = 'legend_export'
                     err_label     = 'Legend script'
                 else:
-                    target_script = os.path.join(publish_dir, 'script_create_schedule.py')
+                    target_script = os.path.join(
+                        publish_dir, 'script_create_schedule_studio.py' if _is_studio
+                        else 'script_create_schedule.py')
                     script_name   = 'revit_schedule_export'
                     err_label     = 'Schedule script'
 

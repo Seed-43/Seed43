@@ -108,6 +108,20 @@ snippets:
       is_stale:         True when a due card missed its slot by more than the grace window.
       advance_entry:    Roll a card to its next occurrence; False if it is spent.
 
+  _timepicker.py:
+    description: >
+      The scrolling wheel time picker (hour / minute / AM-PM columns) used in
+      Seed43 schedule cards - drag, mouse wheel, snapping and the fade on rows
+      either side of centre. Owns three StackPanels declared inside a XAML
+      Popup, plus optionally the ToggleButton showing the chosen time.
+      Extracted from pySheets when Batch Upgrade needed the same control;
+      pySheets still runs its own inlined copy, so switching it over is
+      outstanding. Used by Batch Upgrade.
+    functions:
+      WheelTimePicker:      Drive three wheel columns as one time picker control.
+      time_label:           Format an hour/minute pair as the picker's caption.
+      current_time_rounded: Now, rounded up to the next step-minute mark.
+
   _userdata.py:
     description: >
       Per-tool user settings under a single .user folder at the extension

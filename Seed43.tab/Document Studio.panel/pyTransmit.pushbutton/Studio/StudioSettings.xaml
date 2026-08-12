@@ -680,6 +680,12 @@ Body: row/column headers + free grid on the left, collapsible Blocks panel on th
                     <ToggleButton x:Name="tab_home_btn"   Content="Home"       Style="{StaticResource RibbonTab}"/>
                     <ToggleButton x:Name="tab_layout_btn" Content="Layout"     Style="{StaticResource RibbonTab}"/>
                     <ToggleButton x:Name="tab_data_btn"   Content="Sheet Data" Style="{StaticResource RibbonTab}"/>
+                    <!-- Contextual, like Excel's Table Design: shown only
+                         while the selection holds a block that repeats down a
+                         list, since banding and group headers mean nothing
+                         anywhere else. Python drives the visibility. -->
+                    <ToggleButton x:Name="tab_list_btn"   Content="List Rows"  Style="{StaticResource RibbonTab}"
+                                  Visibility="Collapsed"/>
                 </StackPanel>
 
                 <ScrollViewer Style="{StaticResource MacScrollViewerXY}"
@@ -773,24 +779,6 @@ Body: row/column headers + free grid on the left, collapsible Blocks panel on th
                                     </Popup>
                                 </StackPanel>
                                 <TextBlock Text="Cells" Style="{StaticResource RibbonGroupCaption}"/>
-                            </StackPanel>
-                            <Rectangle Width="1" Fill="{DynamicResource BrushPillOffBorder}" Margin="10,2,10,2"/>
-
-                            <!-- Colours: everything that fills a cell rather
-                                 than shaping it. Banding and the group-header
-                                 fill live on the block, so they travel with
-                                 the layout and the exporter reads the same
-                                 two fields. -->
-                            <StackPanel VerticalAlignment="Center">
-                                <StackPanel Orientation="Horizontal">
-                                    <ToggleButton x:Name="band_btn" Content="Banded" Style="{StaticResource RibbonBtn}" Padding="8,4"
-                                                  ToolTip="Shade every other row of the list - white, colour, white..."/>
-                                    <Button x:Name="band_color_btn" Content="Band" Style="{StaticResource PBtn}" Width="46" Padding="0" Margin="4,0,0,0"
-                                            ToolTip="Colour of the shaded rows (pick white for a plain band)"/>
-                                    <Button x:Name="group_color_btn" Content="Header" Style="{StaticResource PBtn}" Width="56" Padding="0" Margin="4,0,0,0"
-                                            ToolTip="Fill colour of the sheet-grouping header rows"/>
-                                </StackPanel>
-                                <TextBlock Text="Colours" Style="{StaticResource RibbonGroupCaption}"/>
                             </StackPanel>
                         </StackPanel>
 
@@ -887,6 +875,66 @@ Body: row/column headers + free grid on the left, collapsible Blocks panel on th
                             </StackPanel>
                         </StackPanel>
 
+                        <!-- List Rows (contextual). Everything here describes
+                             how the REPEATED rows of a list look, which is why
+                             it is a tab of its own rather than three buttons on
+                             Home: the data rows and the group headers that
+                             break them up are two different bands with two
+                             different sets of rules, and both live on the
+                             block so they travel with the layout. -->
+                        <StackPanel x:Name="tab_list_panel" Orientation="Horizontal" Margin="10,2"
+                                    VerticalAlignment="Stretch" Visibility="Collapsed">
+                            <!-- Data Rows -->
+                            <StackPanel VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <ToggleButton x:Name="band_btn" Content="Banded" Style="{StaticResource RibbonBtn}" Padding="8,4"
+                                                  ToolTip="Shade every other row of the list - white, colour, white..."/>
+                                    <Button x:Name="band_color_btn" Content="Band" Style="{StaticResource PBtn}" Width="46" Padding="0" Margin="4,0,0,0"
+                                            ToolTip="Colour of the shaded rows (pick white for a plain band)"/>
+                                    <ToggleButton x:Name="data_borders_btn" Content="Borders ▾" Style="{StaticResource RibbonBtn}"
+                                                  Padding="8,4" Margin="6,0,0,0"
+                                                  ToolTip="Border rules for the data rows of the list"/>
+                                    <Popup x:Name="data_borders_popup" PlacementTarget="{Binding ElementName=data_borders_btn}"
+                                           Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                                        <Border Background="{DynamicResource BrushCardBg}" BorderBrush="{DynamicResource BrushPillOffBorder}"
+                                                BorderThickness="1" CornerRadius="4" Padding="8">
+                                            <StackPanel>
+                                                <TextBlock Text="Data row borders" Foreground="{DynamicResource BrushTextMuted}" FontSize="10" Margin="2,0,0,6"/>
+                                                <UniformGrid x:Name="data_borders_grid" Columns="3"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </Popup>
+                                </StackPanel>
+                                <TextBlock Text="Data Rows" Style="{StaticResource RibbonGroupCaption}"/>
+                            </StackPanel>
+                            <Rectangle Width="1" Fill="{DynamicResource BrushPillOffBorder}" Margin="10,2,10,2"/>
+                            <!-- Group Headers: only the documentation table has
+                                 them, so these are disabled on a recipient list. -->
+                            <StackPanel VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button x:Name="group_color_btn" Content="Header" Style="{StaticResource PBtn}" Width="56" Padding="0"
+                                            ToolTip="Fill colour of the sheet-grouping header rows"/>
+                                    <ToggleButton x:Name="group_borders_btn" Content="Borders ▾" Style="{StaticResource RibbonBtn}"
+                                                  Padding="8,4" Margin="6,0,0,0"
+                                                  ToolTip="Border rules for the group header rows. Left alone they follow the data rows."/>
+                                    <Popup x:Name="group_borders_popup" PlacementTarget="{Binding ElementName=group_borders_btn}"
+                                           Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                                        <Border Background="{DynamicResource BrushCardBg}" BorderBrush="{DynamicResource BrushPillOffBorder}"
+                                                BorderThickness="1" CornerRadius="4" Padding="8">
+                                            <StackPanel>
+                                                <TextBlock Text="Group header borders" Foreground="{DynamicResource BrushTextMuted}" FontSize="10" Margin="2,0,0,6"/>
+                                                <UniformGrid x:Name="group_borders_grid" Columns="3"/>
+                                                <Button x:Name="group_borders_inherit_btn" Content="Same as data rows"
+                                                        Style="{StaticResource PBtn}" Margin="3,6,3,0" Padding="6,3"
+                                                        ToolTip="Drop the separate rules and follow the data rows again"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </Popup>
+                                </StackPanel>
+                                <TextBlock x:Name="group_header_caption" Text="Group Headers" Style="{StaticResource RibbonGroupCaption}"/>
+                            </StackPanel>
+                        </StackPanel>
+
                     </Grid>
                 </ScrollViewer>
             </DockPanel>
@@ -899,6 +947,15 @@ Body: row/column headers + free grid on the left, collapsible Blocks panel on th
                 <TextBlock x:Name="formula_cell_label" Text="A1" Width="50" FontWeight="Bold"
                            Foreground="{DynamicResource BrushTextPrimary}" VerticalAlignment="Center" DockPanel.Dock="Left"/>
                 <Rectangle Width="1" Fill="{DynamicResource BrushPillOffBorder}" Margin="6,0" DockPanel.Dock="Left"/>
+                <!-- Which block occupies the cell, in its own group colour -
+                     the same name and colour the Blocks panel uses, so the
+                     formula bar reads A1 [Text] Transmittal Document. -->
+                <Border x:Name="block_type_chip" DockPanel.Dock="Left" CornerRadius="3"
+                        Padding="6,1" Margin="0,0,8,0" VerticalAlignment="Center"
+                        Visibility="Collapsed">
+                    <TextBlock x:Name="block_type_label" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                </Border>
                 <Button x:Name="formula_change_btn" Content="Change block…" Style="{StaticResource PBtn}"
                         DockPanel.Dock="Right" Margin="6,0,0,0" Visibility="Collapsed"/>
                 <TextBlock x:Name="section_label" DockPanel.Dock="Right" VerticalAlignment="Center"

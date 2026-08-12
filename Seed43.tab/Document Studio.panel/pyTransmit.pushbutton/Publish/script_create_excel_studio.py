@@ -306,11 +306,23 @@ if _content_mm <= _printable_mm * _WIDTH_ROUNDING_TOLERANCE:
     # The scale is knowable here: content width against printable width. Doing
     # the arithmetic ourselves is deterministic, needs no cooperation from the
     # renderer, and only ever shrinks by the rounding Fit Width leaves behind.
-    _scale = int(min(100.0, _printable_mm / _content_mm * 100.0))
-    ws.set_print_scale(max(10, _scale))
-    if _scale < 100:
-        _log('Print scale {}% - columns are {:.2f}mm against {:.2f}mm '
-             'printable.'.format(_scale, float(_content_mm), float(_printable_mm)))
+    # One page ACROSS, an explicit "many" pages down.
+    #
+    # A computed print scale is not enough on its own: Excel lays each column
+    # out in whole pixels, so thirteen columns each rounding up a fraction can
+    # still spill onto a second page even when the millimetres add up to
+    # exactly the printable width, which is what put this back to three pages.
+    # Constraining the width lets Excel absorb that rounding itself.
+    #
+    # fitToHeight is set to Excel's maximum rather than 0. Zero means "no
+    # limit" in OOXML, but LibreOffice - which converts the PDF - reads it as
+    # ONE page tall and shrinks the whole sheet to fit, which is where the
+    # white band down the right-hand side came from. A large explicit number
+    # means the same thing to both and is misread by neither.
+    _FIT_HEIGHT_UNLIMITED = 32767
+    ws.fit_to_pages(1, _FIT_HEIGHT_UNLIMITED)
+    _log('Fit to 1 page wide - columns are {:.2f}mm against {:.2f}mm '
+         'printable.'.format(float(_content_mm), float(_printable_mm)))
 else:
     _log('Layout is {:.0f}mm wide but {} {} printable width is {:.0f}mm - it '
          'will print {:.1f} pages across. Use Fit Width in Studio, or a wider '

@@ -1501,11 +1501,18 @@ with revit.Transaction("pyTransmit footer") as tf:
             sec.SetCellStyle(r, c, _sty)
         except Exception: pass
 
+    # Bound BEFORE the guard, not inside it. The footer fix-up further down
+    # reads _sched_is_last / _sched_to_layout in the outer scope, so whenever
+    # the styling pass was skipped - no cell-style algorithm, or no styles to
+    # apply - that code raised "NameError: name '_sched_is_last' is not
+    # defined" and took the whole schedule export with it. Empty dicts make it
+    # skip harmlessly instead.
+    _sched_to_layout = {}
+    _sched_is_last   = {}
+    _sched_data_b    = {}
+
     if _style_algo and _sched_cell_styles:
         # Build map: sched_ri -> layout_ri, is_last, data_borders
-        _sched_to_layout = {}
-        _sched_is_last   = {}
-        _sched_data_b    = {}
         for _btask in _p1_border_tasks:
             _bkind = _btask[0]; _bri = _btask[1]; _bextra = _btask[5]
             _blri  = _btask[6] if len(_btask) >= 8 else 0

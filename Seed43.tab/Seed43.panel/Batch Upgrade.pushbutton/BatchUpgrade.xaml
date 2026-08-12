@@ -43,6 +43,7 @@
         <SolidColorBrush x:Key="BrushDanger"               Color="#e01b24"/>
         <SolidColorBrush x:Key="BrushDangerHover"          Color="#E22D36"/>
         <SolidColorBrush x:Key="BrushSuccess"              Color="#27AE60"/>
+        <SolidColorBrush x:Key="BrushPillOffBorder"        Color="#404553"/>
 
         <CornerRadius x:Key="CornerRadiusCard">8</CornerRadius>
         <CornerRadius x:Key="CornerRadiusButton">10</CornerRadius>
@@ -64,6 +65,9 @@
         <sys:Double   x:Key="HeightInput">28</sys:Double>
         <sys:Double   x:Key="HeightButtonSmall">24</sys:Double>
         <sys:Double   x:Key="SizeCheckbox">16</sys:Double>
+        <sys:Double   x:Key="SizeTopBarLogo">28</sys:Double>
+        <sys:Double   x:Key="FontSizeMenuItem">12</sys:Double>
+        <Thickness    x:Key="PaddingMenuItem">12,8,12,8</Thickness>
 
         <!-- ── Buttons ─────────────────────────────────────────────────── -->
 
@@ -251,6 +255,206 @@
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
+
+        <!-- ── Hamburger menu ──────────────────────────────────────────── -->
+
+        <Style x:Key="HamburgerMenuItem" TargetType="Button">
+            <Setter Property="Background"                Value="Transparent"/>
+            <Setter Property="Foreground"                Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderThickness"           Value="0"/>
+            <Setter Property="Padding"                   Value="{DynamicResource PaddingMenuItem}"/>
+            <Setter Property="FontSize"                  Value="{DynamicResource FontSizeMenuItem}"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Cursor"                    Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryBg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="HamburgerToggle" TargetType="ToggleButton">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Width"           Value="36"/>
+            <Setter Property="Height"          Value="36"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" Background="Transparent"
+                                CornerRadius="6" Width="36" Height="36">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryBg}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Schedule card ───────────────────────────────────────────────
+             Local copies of the styles pySheets' schedule card uses, same
+             keys and values. Nothing in the extension merges
+             lib/Snippets/Seed43Styles.xaml - every window carries its own
+             set - so these are duplicated on purpose, not by oversight. -->
+
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background"   Value="{DynamicResource BrushCardBg}"/>
+            <Setter Property="CornerRadius" Value="{DynamicResource CornerRadiusCard}"/>
+            <Setter Property="Padding"      Value="{DynamicResource PaddingCard}"/>
+            <Setter Property="Margin"       Value="0,0,0,12"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="Black" Opacity="0.2" ShadowDepth="2" BlurRadius="4"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SmallSecBtn" TargetType="Button" BasedOn="{StaticResource SecondaryBtn}">
+            <Setter Property="FontSize"   Value="{DynamicResource FontSizeButtonSmall}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding"    Value="{DynamicResource PaddingButtonSmall}"/>
+            <Setter Property="MinWidth"   Value="0"/>
+        </Style>
+
+        <Style x:Key="SmallSecToggle" TargetType="ToggleButton">
+            <Setter Property="Background"      Value="{DynamicResource BrushSecondaryBg}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize"        Value="{DynamicResource FontSizeButtonSmall}"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
+            <Setter Property="Padding"         Value="{DynamicResource PaddingButtonSmall}"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="{DynamicResource CornerRadiusButtonSmall}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkDatePicker" TargetType="DatePicker">
+            <Setter Property="Background"      Value="{DynamicResource BrushSecondaryBg}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderBrush"     Value="{DynamicResource BrushPillOffBorder}"/>
+            <Setter Property="BorderThickness" Value="{DynamicResource BorderThicknessInput}"/>
+            <Setter Property="FontSize"        Value="{DynamicResource FontSizeInput}"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
+            <Setter Property="Padding"         Value="{DynamicResource PaddingInput}"/>
+            <Setter Property="Height"          Value="{DynamicResource HeightInput}"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DatePicker">
+                        <Grid x:Name="PART_Root">
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="{DynamicResource CornerRadiusInput}">
+                                <Grid Margin="{TemplateBinding Padding}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <DatePickerTextBox x:Name="PART_TextBox"
+                                                       Grid.Column="0"
+                                                       Foreground="{TemplateBinding Foreground}"
+                                                       FontSize="{TemplateBinding FontSize}"
+                                                       FontWeight="{TemplateBinding FontWeight}"
+                                                       CaretBrush="{DynamicResource BrushTextPrimary}"
+                                                       VerticalContentAlignment="Center"
+                                                       Focusable="{TemplateBinding IsTabStop}">
+                                        <DatePickerTextBox.Template>
+                                            <ControlTemplate TargetType="DatePickerTextBox">
+                                                <Border Background="Transparent" BorderThickness="0">
+                                                    <ScrollViewer x:Name="PART_ContentHost"
+                                                                  Focusable="False"
+                                                                  HorizontalScrollBarVisibility="Hidden"
+                                                                  VerticalScrollBarVisibility="Hidden"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </DatePickerTextBox.Template>
+                                    </DatePickerTextBox>
+                                    <Button x:Name="PART_Button"
+                                            Grid.Column="1"
+                                            Width="18" Height="18"
+                                            Margin="4,0,0,0"
+                                            Cursor="Hand"
+                                            Focusable="False">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="IconBd" Background="Transparent" CornerRadius="4">
+                                                    <Path Data="M3,2 L3,4 M11,2 L11,4 M2,5 L12,5 M2,4 L12,4 L12,13 L2,13 Z"
+                                                          Stroke="{DynamicResource BrushTextPrimary}"
+                                                          StrokeThickness="1.1"
+                                                          Opacity="0.85"
+                                                          Width="13" Height="13"
+                                                          Stretch="Uniform"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="IconBd" Property="Background" Value="{DynamicResource BrushSecondaryHover}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <Popup x:Name="PART_Popup"
+                                           Grid.ColumnSpan="2"
+                                           Placement="Bottom"
+                                           StaysOpen="False"
+                                           AllowsTransparency="True"/>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <DockPanel>
@@ -277,12 +481,52 @@
                                Foreground="{DynamicResource BrushTextPrimary}" Opacity="0.6"
                                VerticalAlignment="Bottom" Margin="4,0,0,4"/>
                 </StackPanel>
-                <Button x:Name="win_close_btn"
-                        Content="&#10005;"
-                        Style="{StaticResource WinCtrlCloseBtn}"
-                        HorizontalAlignment="Right" VerticalAlignment="Center"
-                        ToolTip="Close"
-                        shell:WindowChrome.IsHitTestVisibleInChrome="True"/>
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right" VerticalAlignment="Center"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Grid Margin="0,0,4,0">
+                        <ToggleButton x:Name="settings_toggle_btn"
+                                      Style="{StaticResource HamburgerToggle}"
+                                      ToolTip="Menu"/>
+                        <Popup x:Name="settings_popup"
+                               PlacementTarget="{Binding ElementName=settings_toggle_btn}"
+                               Placement="Bottom"
+                               AllowsTransparency="True"
+                               StaysOpen="False"
+                               IsOpen="{Binding ElementName=settings_toggle_btn, Path=IsChecked}">
+                            <Border Background="{DynamicResource BrushCardBg}"
+                                    BorderBrush="{DynamicResource BrushPrimaryGreen}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    MinWidth="200">
+                                <Border.Effect>
+                                    <DropShadowEffect Color="Black" Opacity="0.25" ShadowDepth="2" BlurRadius="8"/>
+                                </Border.Effect>
+                                <StackPanel>
+                                    <Button x:Name="help_btn"
+                                            Content="&#x2709;  Email support"
+                                            Style="{StaticResource HamburgerMenuItem}"/>
+                                    <Button x:Name="issue_btn"
+                                            Content="Report an issue on GitHub"
+                                            Style="{StaticResource HamburgerMenuItem}"/>
+                                    <Rectangle Fill="{DynamicResource BrushSecondaryBg}" Height="1" Margin="0,2"/>
+                                    <Button x:Name="about_btn"
+                                            Content="&#8505;  About Batch Upgrade"
+                                            Style="{StaticResource HamburgerMenuItem}"/>
+                                    <Rectangle Fill="{DynamicResource BrushSecondaryBg}" Height="1" Margin="0,2"/>
+                                    <Button x:Name="support_btn"
+                                            Content="&#9749;  Support this project and help us grow"
+                                            Style="{StaticResource HamburgerMenuItem}"/>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <Button x:Name="win_close_btn"
+                            Content="&#10005;"
+                            Style="{StaticResource WinCtrlCloseBtn}"
+                            VerticalAlignment="Center"
+                            ToolTip="Close"/>
+                </StackPanel>
             </Grid>
         </Border>
 
@@ -310,21 +554,6 @@
                                Foreground="{DynamicResource BrushTextMuted}"
                                FontSize="{DynamicResource FontSizeBody}"
                                HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                </Grid>
-
-                <Grid DockPanel.Dock="Top" Margin="0,0,0,14">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <ComboBox x:Name="template_cb" Grid.Column="0"
-                              Height="{DynamicResource HeightInput}"
-                              VerticalContentAlignment="Center"/>
-                    <Button x:Name="template_save_btn" Grid.Column="1"
-                            Content="Save Template..." Style="{StaticResource SmallBtn}"/>
-                    <Button x:Name="template_delete_btn" Grid.Column="2"
-                            Content="Delete" Style="{StaticResource SmallBtn}"/>
                 </Grid>
 
                 <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
@@ -368,43 +597,114 @@
                         <WrapPanel x:Name="version_panel" Orientation="Horizontal"/>
                     </Border>
 
-                    <TextBlock Text="Run once, later (optional):" Style="{StaticResource SectionLabel}" Margin="0,14,0,6"/>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <DatePicker x:Name="sched_date_dp" Grid.Column="0"
-                                    Height="{DynamicResource HeightInput}"
-                                    VerticalContentAlignment="Center"
-                                    Margin="0,0,8,0"/>
-                        <ComboBox x:Name="sched_hour_cb" Grid.Column="1" Width="56"
-                                  Height="{DynamicResource HeightInput}"
-                                  VerticalContentAlignment="Center"/>
-                        <TextBlock Text=":" Grid.Column="2"
-                                   Foreground="{DynamicResource BrushTextPrimary}"
-                                   VerticalAlignment="Center" Margin="4,0,4,0"/>
-                        <ComboBox x:Name="sched_minute_cb" Grid.Column="2" Width="56"
-                                  Margin="14,0,0,0"
-                                  Height="{DynamicResource HeightInput}"
-                                  VerticalContentAlignment="Center"/>
-                        <Button x:Name="schedule_btn" Grid.Column="3"
-                                Content="Schedule" Style="{StaticResource SecondaryBtn}"
-                                MinWidth="80" Margin="8,0,0,0"/>
-                    </Grid>
-                    <Grid Margin="0,6,0,0">
-                        <TextBlock x:Name="schedule_status_lbl" Text=""
-                                   Foreground="{DynamicResource BrushTextMuted}"
-                                   FontSize="{DynamicResource FontSizeBody}"
-                                   VerticalAlignment="Center"
-                                   Visibility="Collapsed"/>
-                        <Button x:Name="schedule_cancel_btn" Content="Cancel Schedule"
-                                Style="{StaticResource SmallBtn}"
-                                HorizontalAlignment="Right" Margin="0"
-                                Visibility="Collapsed"/>
-                    </Grid>
+                    <!-- Schedule card - laid out like pySheets': what to run,
+                         Enable to arm it, then the timing unlocks. Repeat and
+                         the Mon-Sun row are deliberately absent; schedule_io
+                         only ever arms a single one-shot run. -->
+                    <Border Style="{StaticResource Card}" Margin="0,14,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Schedule (Revit must stay open)"
+                                       Style="{StaticResource SectionLabel}"
+                                       FontSize="13" FontWeight="Bold" Margin="0,0,0,2"/>
+                            <TextBlock Text="Runs the files, output folder and versions set above, once, then clears itself."
+                                       Foreground="{DynamicResource BrushTextMuted}"
+                                       FontSize="11" TextWrapping="Wrap"
+                                       Margin="0,0,0,8"/>
+                            <DockPanel LastChildFill="False" Margin="0,0,0,8">
+                                <CheckBox x:Name="sched_enable_cb"
+                                          Content="Enable"
+                                          Style="{StaticResource VersionCheck}"
+                                          DockPanel.Dock="Left"
+                                          VerticalAlignment="Center" Margin="0,0,16,0"
+                                          ToolTip="Arm this run - the files, output folder and versions set above run at the time below, with this window closed"/>
+                                <TextBlock Text="Time"
+                                           DockPanel.Dock="Left"
+                                           Foreground="{DynamicResource BrushTextPrimary}"
+                                           Opacity="0.7" FontSize="11"
+                                           VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <Grid DockPanel.Dock="Left" Margin="0,0,16,0">
+                                    <ToggleButton x:Name="sched_time_btn"
+                                                  Content="— : — —"
+                                                  Width="100" Height="26"
+                                                  IsEnabled="False"
+                                                  Style="{StaticResource SmallSecToggle}"
+                                                  FontFamily="Consolas" FontSize="12"/>
+                                    <Popup x:Name="sched_time_popup"
+                                           PlacementTarget="{Binding ElementName=sched_time_btn}"
+                                           Placement="Bottom"
+                                           AllowsTransparency="True"
+                                           StaysOpen="False"
+                                           IsOpen="{Binding ElementName=sched_time_btn, Path=IsChecked}">
+                                        <Border Background="{DynamicResource BrushCardBg}"
+                                                BorderBrush="{DynamicResource BrushPrimaryGreen}"
+                                                BorderThickness="1"
+                                                CornerRadius="6"
+                                                Padding="10">
+                                            <Border.Effect>
+                                                <DropShadowEffect Color="Black" Opacity="0.25"
+                                                                  ShadowDepth="2" BlurRadius="8"/>
+                                            </Border.Effect>
+                                            <StackPanel>
+                                                <Grid ClipToBounds="True">
+                                                    <!-- Centre band marking the selected row -->
+                                                    <Border Background="#33208A3C"
+                                                            BorderBrush="{DynamicResource BrushPrimaryGreen}"
+                                                            BorderThickness="0,1,0,1"
+                                                            Height="30" VerticalAlignment="Center"/>
+                                                    <StackPanel Orientation="Horizontal"
+                                                                HorizontalAlignment="Center">
+                                                        <StackPanel x:Name="tp_hours"/>
+                                                        <TextBlock Text=":" FontSize="15" FontWeight="Bold"
+                                                                   Foreground="{DynamicResource BrushTextPrimary}"
+                                                                   VerticalAlignment="Center"
+                                                                   Margin="2,0,2,0"/>
+                                                        <StackPanel x:Name="tp_minutes" Margin="0,0,10,0"/>
+                                                        <StackPanel x:Name="tp_ampm"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                                <StackPanel Orientation="Horizontal"
+                                                            HorizontalAlignment="Right"
+                                                            Margin="0,8,0,0">
+                                                    <Button x:Name="tp_ok_btn" Content="OK"
+                                                            Width="60"
+                                                            Style="{StaticResource SmallSecBtn}"
+                                                            Margin="0,0,6,0"/>
+                                                    <Button x:Name="tp_cancel_btn" Content="Cancel"
+                                                            Width="60"
+                                                            Style="{StaticResource SmallSecBtn}"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </Popup>
+                                </Grid>
+                                <TextBlock Text="Starting Date"
+                                           DockPanel.Dock="Left"
+                                           Foreground="{DynamicResource BrushTextPrimary}"
+                                           Opacity="0.7" FontSize="11"
+                                           VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <DatePicker x:Name="sched_date_dp"
+                                            Width="130" IsEnabled="False"
+                                            DockPanel.Dock="Left"
+                                            Style="{StaticResource DarkDatePicker}"
+                                            VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <DockPanel LastChildFill="False">
+                                <TextBlock x:Name="sched_status_tb"
+                                           DockPanel.Dock="Left"
+                                           Text="Schedule off"
+                                           TextTrimming="CharacterEllipsis"
+                                           Foreground="{DynamicResource BrushPrimaryGreen}"
+                                           FontSize="11" FontWeight="SemiBold"
+                                           VerticalAlignment="Center"/>
+                                <Button x:Name="sched_remove_btn"
+                                        DockPanel.Dock="Right"
+                                        Content="Remove"
+                                        Style="{StaticResource SmallSecBtn}"
+                                        Visibility="Collapsed"
+                                        ToolTip="Delete the saved schedule"/>
+                            </DockPanel>
+                        </StackPanel>
+                    </Border>
 
                     <TextBlock x:Name="warn_lbl" Text=""
                                Foreground="{DynamicResource BrushDanger}"

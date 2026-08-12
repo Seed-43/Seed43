@@ -23,9 +23,12 @@
 
 import os
 import sys
+import json
 
 __all__ = ["schedule_path", "schedule_mod", "read_schedule",
-           "write_schedule", "armed_entry", "arm", "disarm"]
+           "write_schedule", "armed_entry", "arm", "disarm",
+           "job_snapshot_path", "write_snapshot", "read_snapshot",
+           "clear_snapshot"]
 
 
 # ── CONSTANTS ──────────────────────────────────────────────────────────────
@@ -42,6 +45,13 @@ _LIB_DIR = os.path.join(_EXTENSION_DIR, "lib")
 
 _SCHEDULE_FILE = os.path.join(
     _EXTENSION_DIR, ".user", "BatchUpgrade", "settings", "scheduled_run.json")
+
+# The frozen settings a scheduled run executes. Written when the schedule is
+# armed, deleted when it fires or is cancelled.
+_JOB_SNAPSHOT = os.path.join(
+    _EXTENSION_DIR, ".user", "BatchUpgrade", "settings", "scheduled_job.json")
+
+_JOB_LABEL = "Scheduled batch upgrade"
 
 # Not a real document path - Batch Upgrade jobs aren't tied to one, but
 # Snippets._schedule.due_entries requires a truthy document_path on every
@@ -96,19 +106,78 @@ def armed_entry():
     return entries[0] if entries else None
 
 
-def arm(template_name, template_path, when):
-    """Arm a one-time run of `template_name` at datetime `when`.
+def job_snapshot_path():
+    """The one-off job a scheduled run executes.
 
-    Replaces any existing armed entry.
+    A batch upgrade is a one-shot thing, so arming snapshots the window's
+    current settings straight to this file rather than pointing at a saved
+    template. Nothing else reads it and it's deleted once the run is over.
+    """
+    return _JOB_SNAPSHOT
+
+
+def write_snapshot(files, out_dir, targets, audit=False, compact=True):
+    """Freeze the current settings as the job a scheduled run will execute."""
+    folder = os.path.dirname(_JOB_SNAPSHOT)
+    if folder and not os.path.isdir(folder):
+        try:
+            os.makedirs(folder)
+        except OSError:
+            return False
+    payload = {
+        "files": files,
+        "out_dir": out_dir,
+        "targets": sorted(targets),
+        "audit": bool(audit),
+        "compact": bool(compact),
+    }
+    try:
+        with open(_JOB_SNAPSHOT, "w") as handle:
+            json.dump(payload, handle, indent=2)
+        return True
+    except Exception:
+        return False
+
+
+def read_snapshot(path=None):
+    """Read a scheduled run's frozen settings, or None if unreadable."""
+    path = path or _JOB_SNAPSHOT
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, "r") as handle:
+            return json.load(handle)
+    except Exception:
+        return None
+
+
+def clear_snapshot(path=None):
+    """Delete the one-off job file. Safe to call when it isn't there."""
+    path = path or _JOB_SNAPSHOT
+    try:
+        if os.path.isfile(path):
+            os.remove(path)
+    except OSError:
+        pass
+
+
+def arm(when, files, out_dir, targets, audit=False, compact=True):
+    """Arm a one-time run of the given settings at datetime `when`.
+
+    Replaces any existing armed entry and its snapshot.
     """
     sched = schedule_mod()
     if not sched:
         return False
+    if not write_snapshot(files, out_dir, targets, audit, compact):
+        return False
     entry = {
-        "profile_name": template_name,
-        "profile_path": template_path,
+        # profile_name/profile_path are the shared engine's field names; here
+        # they describe the frozen job rather than a saved template.
+        "profile_name": _JOB_LABEL,
+        "profile_path": _JOB_SNAPSHOT,
         "document_path": _PSEUDO_DOC,
-        "document_title": template_name,
+        "document_title": _JOB_LABEL,
         "next_run": when.strftime(sched.TS_FMT),
     }
     data = read_schedule() or {"version": 2, "entries": []}
@@ -117,7 +186,8 @@ def arm(template_name, template_path, when):
 
 
 def disarm():
-    """Cancel whatever is currently armed, if anything."""
+    """Cancel whatever is currently armed, and bin its snapshot with it."""
+    clear_snapshot()
     data = read_schedule() or {"version": 2, "entries": []}
     data["entries"] = []
     return write_schedule(data)

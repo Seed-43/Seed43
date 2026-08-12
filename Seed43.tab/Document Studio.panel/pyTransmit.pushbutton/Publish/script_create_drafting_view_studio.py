@@ -59,6 +59,7 @@ for _d in (_PT_ROOT, _STUDIO_DIR):
         _sys.path.insert(0, _d)
 
 import studio_publish
+import studio_rows
 import studio_live_data
 from pytransmit_paths import SETTINGS_DIR
 
@@ -623,8 +624,10 @@ with revit.Transaction('pyTransmit Studio DV - Draw transmittal') as _t_draw:
             else:
                 _text(drafting_view, _block, _pl['text'], _x1, _y_top, _x2, _y_bot)
 
-            # A deliberate gap carries no rules - see _fill_hex().
-            _borders = {} if _pl['kind'] == 'space' else ((_block or {}).get('borders') or {})
+            # Group headers can rule themselves separately from the data rows,
+            # and a deliberate gap carries no rules at all - both decided by
+            # the row kind, in the one place all three writers ask.
+            _borders = studio_rows.borders_for(_block, _pl['kind'])
             if _borders.get('t'):
                 _line(drafting_view, _x1, _y_top, _x2, _y_top)
             if _borders.get('b'):

@@ -390,11 +390,11 @@ def cell_format(block, kind='doc', wrap=False, alt=False):
     2000-sheet transmittal would sail past it)."""
     b = block or {}
     bg = b.get('bg_color')
-    borders = b.get('borders') or {}
+    # Group header rows can carry their own rules; studio_rows decides which
+    # set applies, and empties them for a deliberate gap row.
+    borders = studio_rows.borders_for(b, kind)
     if kind == 'space':
-        # A deliberate gap: no fill, no rules, nothing. Drawn with the block's
-        # borders it would read as an empty data row rather than a separator.
-        borders = {}
+        # A deliberate gap: no fill, nothing.
         bg = None
         bold = False
     elif kind == 'group':

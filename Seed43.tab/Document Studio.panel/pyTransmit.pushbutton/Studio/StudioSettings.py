@@ -2827,15 +2827,14 @@ class StudioSettingsWindow(WPFWindow):
         # colours unreachable when a whole row was selected.
         self._sync_list_tab()
 
-    def _selection_repeat_domains(self):
-        """What the blocks under the selection repeat over - 'sheet',
-        'recipient', or neither. A selection can hold both."""
-        domains = set()
+    def _selection_blocks(self):
+        """Every block the selection touches, empty cells left out."""
+        blocks = []
         for (r, c) in self._sel_origins():
-            domain = studio_blocks.repeat_domain(self._grid.block_at(r, c))
-            if domain:
-                domains.add(domain)
-        return domains
+            block = self._grid.block_at(r, c)
+            if block:
+                blocks.append(block)
+        return blocks
 
     def _sync_list_tab(self):
         """Offer the List Rows tab only where it means something.
@@ -2845,16 +2844,35 @@ class StudioSettingsWindow(WPFWindow):
         such rows, so the tab is not shown at all rather than shown doing
         nothing.
 
-        Group headers narrow it further: only the documentation table is
-        grouped, so a recipient list gets the tab with that half greyed out.
+        The Group Headers half narrows it further. The group row is written by
+        the Sheet Number column alone and every other column stays blank
+        across it - that is how the exporters merge it - so Sheet Number's is
+        the only block whose group rules are ever read. Offering them on a
+        Description cell would be a control that quietly changes nothing.
+
+        The two ways it can be off are not the same thing and do not get the
+        same caption. On the sheet list they mean "you are on the wrong
+        column", and moving one cell over fixes it. On the DISTRIBUTION list
+        they mean "there is nothing to group here" - only the documentation
+        table is grouped - so telling the user to select Sheet Number would
+        send them looking for a column that row does not have.
         """
-        domains = self._selection_repeat_domains()
+        if not hasattr(self, '_tab_available'):
+            return          # ribbon not wired yet
+        blocks = self._selection_blocks()
+        domains = set(studio_blocks.repeat_domain(b) for b in blocks)
+        domains.discard(None)
         self._set_tab_available('list', bool(domains))
-        grouped = 'sheet' in domains
+        writes_groups = any(b.get('type') == 'sheet_number' for b in blocks)
         for name in ('group_color_btn', 'group_borders_btn'):
-            getattr(self, name).IsEnabled = grouped
-        self.group_header_caption.Text = (
-            'Group Headers' if grouped else 'Group Headers - sheet lists only')
+            getattr(self, name).IsEnabled = writes_groups
+        if writes_groups:
+            caption = 'Group Headers'
+        elif domains == set(['recipient']):
+            caption = 'Group Headers - none in a distribution list'
+        else:
+            caption = 'Group Headers - select Sheet Number'
+        self.group_header_caption.Text = caption
 
     # ======================================================================
     # Grid rendering
@@ -3124,9 +3142,20 @@ class StudioSettingsWindow(WPFWindow):
                     placements = [(first_v, (last_v + last_n) - first_v, None)]
 
                 for (v_row, v_span, item) in placements:
+                    # A group header or condensed marker spans the whole
+                    # table: the Sheet Number column writes it, every other
+                    # column just carries the band, which is how the exporter
+                    # merges that row across. Without this a static cell in a
+                    # repeating row would repeat its text down the group rows
+                    # too, and the preview would stop matching the workbook.
+                    band = (self._band_kind(row_plan, item)
+                            if repeats and vdomains.get(r) == 'sheet' else None)
                     border = _SWC.Border()
                     border.BorderBrush = theme_brush('pill_off_border')
-                    borders = b.get('borders', {}) if b else {}
+                    # Group headers can rule themselves separately from the
+                    # data rows, so the row kind picks the set - the same call
+                    # the exporters make.
+                    borders = studio_blocks.borders_for(b, band or 'doc')
                     border.BorderThickness = _SW.Thickness(
                         1 if borders.get('l') else 0.4,
                         1 if borders.get('t') else 0.4,
@@ -3138,14 +3167,6 @@ class StudioSettingsWindow(WPFWindow):
                     # looks like the grid has broken when a row is made
                     # shorter.
                     border.ClipToBounds = True
-                    # A group header or condensed marker spans the whole
-                    # table: the Sheet Number column writes it, every other
-                    # column just carries the band, which is how the exporter
-                    # merges that row across. Without this a static cell in a
-                    # repeating row would repeat its text down the group rows
-                    # too, and the preview would stop matching the workbook.
-                    band = (self._band_kind(row_plan, item)
-                            if repeats and vdomains.get(r) == 'sheet' else None)
                     if band and studio_blocks.repeat_domain(b) is None:
                         border.Background = _brush(
                             '#E8E8E8' if band == 'group' else '#EEF2F7')

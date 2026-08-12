@@ -55,6 +55,7 @@ for _d in (_PT_ROOT, _STUDIO_DIR):
         _sys.path.insert(0, _d)
 
 import studio_publish
+import studio_rows
 import studio_live_data
 from pytransmit_paths import SETTINGS_DIR
 
@@ -483,9 +484,10 @@ def _render_page(hdr, page_vs):
 
     for pl, r1, r2, c1, c2 in drawn:
         _set_text(hdr, r1, c1, _cell_text(pl))
-        # A deliberate gap carries no rules at all - drawn with the block's
-        # borders it would read as an empty data row rather than a separator.
-        b = {} if pl['kind'] == 'space' else ((pl['block'] or {}).get('borders') or {})
+        # Group headers can rule themselves separately from the data rows, and
+        # a deliberate gap carries no rules at all - both decided by the row
+        # kind, in the one place all three writers ask.
+        b = studio_rows.borders_for(pl['block'], pl['kind'])
         bg = _fill_rgb(pl)
         fg = _hex_to_rgb((pl['block'] or {}).get('color')) if pl['kind'] != 'space' else None
         for ri in range(r1, r2 + 1):

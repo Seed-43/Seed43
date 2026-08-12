@@ -4,8 +4,8 @@
 # """
 # The actual open-and-save-a-copy work, plus the rules deciding which files a
 # given target version can accept. Imported both by the in-session run (when
-# the target is the Revit you're sitting in) and by worker.py (when pyRevit
-# CLI has launched a different Revit to do the saving).
+# the target is the Revit you're sitting in) and by tools/headless_batch.py
+# (when a different Revit has been launched to do the saving itself).
 # """
 
 # ── IMPORTS ────────────────────────────────────────────────────────────────

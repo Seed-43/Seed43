@@ -864,15 +864,225 @@ except Exception:
     _log_error("ExternalEvent.Create")
 
 
+# ── BATCH UPGRADE HEADLESS PICKUP ───────────────────────────────────────────
+#
+# Batch Upgrade drives other Revit versions by launching them directly and
+# leaving a job file for this hook to find - see
+# Batch Upgrade.pushbutton/tools/job_io.py and tools/headless_batch.py for
+# the full story on why (short version: the pyRevit CLI's own runner addin
+# can end up version-mismatched against a clone's engine assemblies; a
+# normal Revit launch with pyRevit attached, which is what this is, never
+# goes through that addin at all).
+#
+# Cheap by design, same discipline as the pySheets check below: an
+# os.path.isfile() on every Idling tick when there's nothing to do, which
+# is the normal case on every ordinary Revit launch. Only imports anything
+# - and only then walks the tab tree to find the pushbutton folder - on
+# the rare tick a job is actually waiting.
+
+def _find_batch_upgrade_dir():
+    """Locate Batch Upgrade.pushbutton under Seed43.tab. Returns the folder
+    path, or None if it can't be found (extension reorganized, tool
+    removed, etc, in which case this hook just does nothing), same
+    pattern as _find_pysheets_dir above."""
+    try:
+        for root, _dirs, _files in os.walk(TAB_DIR):
+            if os.path.basename(root).lower() == "batch upgrade.pushbutton":
+                return root
+    except Exception:
+        pass
+    return None
+
+
+_BATCH_UPGRADE_DIR = _find_batch_upgrade_dir()
+
+# Batch Upgrade's job files live under .user, same convention pySheets
+# uses for its own settings (see _SCHEDULE_FILE_NEW above). Kept
+# independent of _BATCH_UPGRADE_DIR (which can be None) since this path
+# doesn't depend on where the pushbutton itself lives - must also be kept
+# in step with tools/job_io.py's own _ROOT, which derives the same path
+# a different way (relative to its own file location, since it can't
+# import this module).
+_BATCH_UPGRADE_JOB_DIR = os.path.join(
+    EXTENSION_DIR, ".user", "BatchUpgrade", "settings")
+
+
+def _batch_upgrade_job_path(year):
+    return os.path.join(_BATCH_UPGRADE_JOB_DIR, "job_{}.json".format(year))
+
+
+def _check_batch_upgrade():
+    """If a job is queued for this Revit year, hand off to headless_batch
+    and let it close Revit when done.
+
+    Safe to call on every Idling tick: headless_batch deletes the job file
+    the instant it's picked up, before doing any of the actual work, so a
+    second tick before Revit has actually finished exiting just finds
+    nothing there and returns immediately.
+    """
+    if not _BATCH_UPGRADE_DIR:
+        return
+    try:
+        year = int(str(__revit__.Application.VersionNumber)[:4])
+    except Exception:
+        return
+    if not os.path.isfile(_batch_upgrade_job_path(year)):
+        return
+
+    try:
+        import sys as _sys
+        if _BATCH_UPGRADE_DIR not in _sys.path:
+            _sys.path.insert(0, _BATCH_UPGRADE_DIR)
+        from tools import headless_batch
+        # PostCommand (used to close Revit once the job's done) needs a
+        # real UIApplication, not the UIControlledApplication __revit__
+        # sometimes is here - same wrapping _subscribe_idling already
+        # falls back to below, just done unconditionally rather than only
+        # on failure, since headless_batch always needs the real thing.
+        from Autodesk.Revit.UI import UIApplication
+        uiapp = UIApplication(__revit__.Application)
+        headless_batch.check_and_run(__revit__.Application, uiapp)
+    except Exception:
+        _log_error("_check_batch_upgrade")
+
+
+# ── BATCH UPGRADE SCHEDULED RUN ─────────────────────────────────────────────
+#
+# A one-time "run this batch at this date and time" - the timer reuses the
+# same Snippets/_schedule.py engine and the same 20-second-throttled Idling
+# check pySheets' own scheduler uses (see _on_idling below), just with its
+# own separate armed file: Batch Upgrade entries aren't tied to an open
+# document the way pySheets' cards are, so they don't belong mixed in with
+# pySheets' scheduled_print.json.
+#
+# Only ever one entry armed at a time, and always dropped the instant it's
+# due - fired or missed its grace window, either way there is no second
+# occurrence to roll forward to. That is what makes this "once" rather than
+# "repeat": nothing here ever calls Snippets._schedule.advance_entry, since
+# that function's repeat-handling branch would never apply to a Batch
+# Upgrade entry in the first place.
+
+_BATCH_UPGRADE_SCHEDULE_FILE = os.path.join(
+    EXTENSION_DIR, ".user", "BatchUpgrade", "settings", "scheduled_run.json")
+
+
+def _read_batch_upgrade_schedule():
+    sched = _schedule_mod()
+    if not sched:
+        return None
+    try:
+        return sched.read_armed_file(_BATCH_UPGRADE_SCHEDULE_FILE)
+    except Exception:
+        return None
+
+
+def _write_batch_upgrade_schedule(data):
+    sched = _schedule_mod()
+    if not sched:
+        return
+    try:
+        sched.write_armed_file(_BATCH_UPGRADE_SCHEDULE_FILE, data)
+    except Exception:
+        _log_error("_write_batch_upgrade_schedule")
+
+
+def _run_batch_upgrade_scheduled(entry):
+    """Load the template a due entry points at and run the whole batch
+    headlessly - no progress window, nobody is watching."""
+    if not _BATCH_UPGRADE_DIR:
+        return
+    try:
+        import sys as _sys
+        if _BATCH_UPGRADE_DIR not in _sys.path:
+            _sys.path.insert(0, _BATCH_UPGRADE_DIR)
+        from tools import templates, batch_runner
+        from Autodesk.Revit.UI import UIApplication
+
+        data = templates.load_template(entry.get("profile_name"))
+        if not data:
+            return
+
+        app = __revit__.Application
+        uiapp = UIApplication(app)
+        host_year = int(str(app.VersionNumber)[:4])
+
+        by_year = batch_runner.run_batch(
+            data.get("files") or [], data.get("out_dir") or "",
+            data.get("targets") or [], bool(data.get("audit")),
+            bool(data.get("compact", True)),
+            app, uiapp, host_year, progress=batch_runner.NullProgress())
+        batch_runner.write_report(by_year, data.get("out_dir") or "",
+                                  show_output=False)
+    except Exception:
+        _log_error("_run_batch_upgrade_scheduled")
+
+
+class _BatchUpgradeScheduleHandler(IExternalEventHandler):
+    """Runs on Revit's own API thread, same reasoning as
+    _PySheetsScheduleHandler above: safely deferred until no command is
+    active, so a scheduled run never interrupts something the user is
+    mid-way through doing."""
+
+    def Execute(self, uiapp):
+        try:
+            sched_mod = _schedule_mod()
+            sched     = _read_batch_upgrade_schedule()
+            if not sched_mod or not sched:
+                return
+            due = sched_mod.due_entries(sched, respect_heartbeat=False)
+            if not due:
+                return
+
+            # Only one entry is ever armed, but handled as a list for
+            # symmetry with pySheets' handler above. Dropped unconditionally
+            # once due - a one-time entry gets exactly one chance, whether
+            # it fires now or turns out to be too stale to run at all.
+            entry = due[0]
+            stale = sched_mod.is_stale(sched, entry)
+            sched["entries"] = [e for e in sched.get("entries") or []
+                                if e is not entry]
+            _write_batch_upgrade_schedule(sched)
+
+            if stale:
+                return
+            _run_batch_upgrade_scheduled(entry)
+        except Exception:
+            _log_error("_BatchUpgradeScheduleHandler.Execute")
+
+    def GetName(self):
+        return "Seed43 Batch Upgrade Scheduled Run"
+
+
+try:
+    _batch_upgrade_schedule_event = ExternalEvent.Create(
+        _BatchUpgradeScheduleHandler())
+except Exception:
+    _batch_upgrade_schedule_event = None
+    _log_error("ExternalEvent.Create (Batch Upgrade)")
+
+
 def _on_idling(sender, args):
     """Cheap periodic check (throttled to roughly every 20 seconds) for
-    whether any armed pySheets card has come due."""
+    whether any armed pySheets card, or the one possible armed Batch
+    Upgrade schedule, has come due. Also checks, unthrottled since it's
+    cheap, for a waiting Batch Upgrade job - see _check_batch_upgrade
+    above, a separate feature from the scheduled-run timer here."""
+    _check_batch_upgrade()
+
     try:
         import time
         now = time.time()
         if now - _last_schedule_check[0] < 20:
             return
         _last_schedule_check[0] = now
+
+        if _batch_upgrade_schedule_event is not None:
+            bsched = _read_batch_upgrade_schedule()
+            if bsched and bsched.get("entries"):
+                sched_mod = _schedule_mod()
+                if sched_mod and sched_mod.due_entries(
+                        bsched, respect_heartbeat=False):
+                    _batch_upgrade_schedule_event.Raise()
 
         if _pysheets_schedule_event is None:
             return

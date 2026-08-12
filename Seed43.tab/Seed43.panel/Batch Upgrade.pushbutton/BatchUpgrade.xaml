@@ -7,9 +7,9 @@
         WindowStyle="None"
         ResizeMode="CanResize"
         Width="640"
-        Height="720"
+        Height="820"
         MinWidth="560"
-        MinHeight="600"
+        MinHeight="680"
         Title="Batch Upgrade"
         Background="{DynamicResource BrushWindowBg}">
 
@@ -312,6 +312,21 @@
                                HorizontalAlignment="Right" VerticalAlignment="Center"/>
                 </Grid>
 
+                <Grid DockPanel.Dock="Top" Margin="0,0,0,14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <ComboBox x:Name="template_cb" Grid.Column="0"
+                              Height="{DynamicResource HeightInput}"
+                              VerticalContentAlignment="Center"/>
+                    <Button x:Name="template_save_btn" Grid.Column="1"
+                            Content="Save Template..." Style="{StaticResource SmallBtn}"/>
+                    <Button x:Name="template_delete_btn" Grid.Column="2"
+                            Content="Delete" Style="{StaticResource SmallBtn}"/>
+                </Grid>
+
                 <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="Source files:" Style="{StaticResource SectionLabel}"/>
@@ -352,6 +367,44 @@
                             Padding="12,8,12,8">
                         <WrapPanel x:Name="version_panel" Orientation="Horizontal"/>
                     </Border>
+
+                    <TextBlock Text="Run once, later (optional):" Style="{StaticResource SectionLabel}" Margin="0,14,0,6"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <DatePicker x:Name="sched_date_dp" Grid.Column="0"
+                                    Height="{DynamicResource HeightInput}"
+                                    VerticalContentAlignment="Center"
+                                    Margin="0,0,8,0"/>
+                        <ComboBox x:Name="sched_hour_cb" Grid.Column="1" Width="56"
+                                  Height="{DynamicResource HeightInput}"
+                                  VerticalContentAlignment="Center"/>
+                        <TextBlock Text=":" Grid.Column="2"
+                                   Foreground="{DynamicResource BrushTextPrimary}"
+                                   VerticalAlignment="Center" Margin="4,0,4,0"/>
+                        <ComboBox x:Name="sched_minute_cb" Grid.Column="2" Width="56"
+                                  Margin="14,0,0,0"
+                                  Height="{DynamicResource HeightInput}"
+                                  VerticalContentAlignment="Center"/>
+                        <Button x:Name="schedule_btn" Grid.Column="3"
+                                Content="Schedule" Style="{StaticResource SecondaryBtn}"
+                                MinWidth="80" Margin="8,0,0,0"/>
+                    </Grid>
+                    <Grid Margin="0,6,0,0">
+                        <TextBlock x:Name="schedule_status_lbl" Text=""
+                                   Foreground="{DynamicResource BrushTextMuted}"
+                                   FontSize="{DynamicResource FontSizeBody}"
+                                   VerticalAlignment="Center"
+                                   Visibility="Collapsed"/>
+                        <Button x:Name="schedule_cancel_btn" Content="Cancel Schedule"
+                                Style="{StaticResource SmallBtn}"
+                                HorizontalAlignment="Right" Margin="0"
+                                Visibility="Collapsed"/>
+                    </Grid>
 
                     <TextBlock x:Name="warn_lbl" Text=""
                                Foreground="{DynamicResource BrushDanger}"

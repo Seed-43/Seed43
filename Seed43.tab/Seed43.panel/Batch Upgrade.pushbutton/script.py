@@ -3,53 +3,48 @@
 # "Seed43"
 # """
 # Save upgraded copies of a pile of Revit files, in one or more target Revit
-# versions.
+# versions - either right now, or once, at a scheduled date and time.
 #
 # Revit can only ever save in its own version, so anything other than the
-# running version is done by handing a job file to that Revit through the
-# pyRevit CLI (see tools/job_io.py and worker.py). The running version is
-# done here, in-session, because relaunching the Revit you are already in
-# would be slower for no gain.
+# running version means launching that Revit and having it do the work
+# itself, then close - see tools/job_io.py and tools/headless_batch.py,
+# and Seed43.extension/startup.py for the pickup side. The actual batch
+# loop (tools/batch_runner.py) is shared with startup.py's scheduled-run
+# handler, so a scheduled run behaves identically to clicking Upgrade -
+# just without anyone watching.
 # """
 
 # ── IMPORTS ────────────────────────────────────────────────────────────────
 
-import io
 import os
 import sys
-import time
 import datetime
-import subprocess
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
-from pyrevit import forms, script, HOST_APP
+from pyrevit import forms, HOST_APP
 from pyrevit.framework import Windows
 
+from Snippets import _dialogs as dlg
 from Snippets._icons import set_header_icon
 from Snippets.seed43_theme import apply_seed43_palette, apply_seed43_dimensions
 
+from tools import batch_runner
 from tools import file_scan
-from tools import job_io
 from tools import revit_versions
+from tools import schedule_io
+from tools import templates
 from tools import upgrade_core
 
 
 # ── CONSTANTS ──────────────────────────────────────────────────────────────
 
 XAML_FILE = os.path.join(SCRIPT_DIR, "BatchUpgrade.xaml")
-WORKER_FILE = os.path.join(SCRIPT_DIR, "worker.py")
 
 FILE_FILTER = ("Revit Files (*.rvt, *.rfa, *.rte, *.rft)|"
                "*.rvt;*.rfa;*.rte;*.rft")
-
-# A worker Revit that hasn't finished in this long is assumed wedged - one
-# stuck file must not hold the whole batch open forever.
-WORKER_TIMEOUT_SECS = 3 * 60 * 60
-
-CREATE_NO_WINDOW = 0x08000000
 
 
 # ── HELPERS ────────────────────────────────────────────────────────────────
@@ -57,182 +52,6 @@ CREATE_NO_WINDOW = 0x08000000
 def running_year():
     """Return the Revit version number this script is running inside."""
     return int(str(HOST_APP.app.VersionNumber)[:4])
-
-
-# ── CORE LOGIC ─────────────────────────────────────────────────────────────
-
-# --- Running one target version ---
-
-def _run_in_session(records, out_dir, year, audit, compact, progress):
-    """Upgrade every file to the running version, in this Revit."""
-    app = HOST_APP.app
-    uiapp = HOST_APP.uiapp
-    results = []
-
-    with upgrade_core.DialogSuppressor(uiapp, app):
-        for index, record in enumerate(records):
-            if progress.cancelled:
-                break
-            progress.update_progress(index + 1, len(records))
-
-            action, dst, reason = upgrade_core.plan_for(record, year, out_dir)
-            if action == upgrade_core.ACTION_SKIP:
-                results.append({"path": record["path"], "name": record["name"],
-                                "ok": False, "skipped": True,
-                                "dst": None, "message": reason})
-                continue
-
-            ok, message = upgrade_core.upgrade_one(
-                app, record["path"], dst, audit=audit, compact=compact)
-            results.append({"path": record["path"], "name": record["name"],
-                            "ok": ok, "skipped": False,
-                            "dst": dst if ok else None, "message": message})
-    return results
-
-
-def _run_via_cli(records, out_dir, year, audit, compact, cli_path, progress):
-    """Launch Revit <year> through the pyRevit CLI and let worker.py save.
-
-    Returns (results, error). error is set when the worker never produced a
-    result file at all, which is different from it running and failing.
-    """
-    if not cli_path:
-        return [], "pyRevit CLI not found - Revit {} can't be driven.".format(year)
-
-    job_io.clear(year)
-    job_io.write_job(year, out_dir, records, SCRIPT_DIR,
-                     audit=audit, compact=compact)
-
-    command = [cli_path, "run", WORKER_FILE, "--revit={}".format(year), "--purge"]
-    try:
-        proc = subprocess.Popen(command,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT,
-                                creationflags=CREATE_NO_WINDOW)
-    except Exception as err:
-        return [], "Could not start the pyRevit CLI: {}".format(err)
-
-    started = time.time()
-    while proc.poll() is None:
-        elapsed = int(time.time() - started)
-        # update_progress is also what pumps the progress window, so it has
-        # to be called on every pass or Cancel would never become clickable.
-        # NOTE: ProgressBar.title only accepts str, silently ignoring unicode,
-        # so every title here stays plain ASCII - no em-dashes.
-        progress.title = ("Revit {} is running - {} file(s), "
-                          "{}s elapsed".format(year, len(records), elapsed))
-        progress.update_progress(1, 1)
-        if progress.cancelled:
-            try:
-                proc.kill()
-            except Exception:
-                pass
-            return [], "Cancelled while Revit {} was running.".format(year)
-        if elapsed > WORKER_TIMEOUT_SECS:
-            try:
-                proc.kill()
-            except Exception:
-                pass
-            return [], "Revit {} timed out after {} minutes.".format(
-                year, WORKER_TIMEOUT_SECS // 60)
-        time.sleep(1.0)
-
-    payload = job_io.read_result(year)
-    if payload is None:
-        log_file = job_io.log_path(year)
-        detail = ""
-        if os.path.isfile(log_file):
-            try:
-                with open(log_file, "r") as handle:
-                    detail = " Worker log: " + handle.read().strip()[:400]
-            except Exception:
-                pass
-        return [], ("Revit {} exited without writing results (code {}).{}"
-                    .format(year, proc.returncode, detail))
-
-    return payload.get("results") or [], payload.get("error")
-
-
-# --- Running the whole batch ---
-
-def run_batch(records, out_dir, targets, audit, compact):
-    """Run every selected target version. Returns {year: (results, error)}."""
-    host_year = running_year()
-    cli_path = revit_versions.find_pyrevit_cli()
-    by_year = {}
-
-    with forms.ProgressBar(title="Batch Upgrade", cancellable=True) as progress:
-        for year in sorted(targets):
-            progress.title = ("Upgrading to Revit {} - "
-                              "{{value}} of {{max_value}}".format(year))
-            if year == host_year:
-                results = _run_in_session(records, out_dir, year,
-                                          audit, compact, progress)
-                by_year[year] = (results, None)
-            else:
-                results, error = _run_via_cli(records, out_dir, year, audit,
-                                              compact, cli_path, progress)
-                by_year[year] = (results, error)
-            if progress.cancelled:
-                break
-    return by_year
-
-
-# --- Reporting ---
-
-def write_report(by_year, out_dir):
-    """Print a summary to the output window and drop a log beside the copies."""
-    output = script.get_output()
-    output.set_title(u"Seed43 — Batch Upgrade")
-    output.print_md(u"# Batch Upgrade")
-
-    # Log lines are kept unicode throughout and written through io.open with
-    # an explicit encoding: file names coming back from a worker's JSON are
-    # unicode, and mixing them into byte strings blows up on the first
-    # non-ASCII model name.
-    lines = [u"Seed43 Batch Upgrade - {}".format(
-        datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))]
-
-    for year in sorted(by_year):
-        results, error = by_year[year]
-        done = [r for r in results if r.get("ok")]
-        skipped = [r for r in results if r.get("skipped")]
-        failed = [r for r in results if not r.get("ok") and not r.get("skipped")]
-
-        output.print_md(u"## Revit {} — {} upgraded, {} skipped, {} failed"
-                        .format(year, len(done), len(skipped), len(failed)))
-        lines.append(u"")
-        lines.append(u"Revit {}: {} upgraded, {} skipped, {} failed".format(
-            year, len(done), len(skipped), len(failed)))
-
-        if error:
-            output.print_md(u"**{}**".format(error))
-            lines.append(u"  ERROR: {}".format(error))
-
-        rows = []
-        for record in results:
-            if record.get("ok"):
-                state = u"upgraded"
-            elif record.get("skipped"):
-                state = u"skipped"
-            else:
-                state = u"FAILED"
-            rows.append([record.get("name") or u"", state,
-                         record.get("message") or u""])
-            lines.append(u"  [{}] {} {}".format(
-                state, record.get("name"), record.get("message") or u""))
-        if rows:
-            output.print_table(rows, columns=["File", "Result", "Detail"])
-
-    if out_dir and os.path.isdir(out_dir):
-        log_file = os.path.join(out_dir, "Seed43_BatchUpgrade_{}.log".format(
-            datetime.datetime.now().strftime("%Y%m%d_%H%M%S")))
-        try:
-            with io.open(log_file, "w", encoding="utf-8") as handle:
-                handle.write(u"\n".join(lines))
-            output.print_md(u"Log written to `{}`".format(log_file))
-        except Exception:
-            pass
 
 
 # ── CLASSES ────────────────────────────────────────────────────────────────
@@ -249,12 +68,16 @@ class BatchUpgradeWindow(forms.WPFWindow):
         self.targets = []
         self.confirmed = False
         self._boxes = {}
+        self._loading = False
 
         self._bind()
         apply_seed43_palette(self, SCRIPT_DIR)
         apply_seed43_dimensions(self, SCRIPT_DIR)
         set_header_icon(self, SCRIPT_DIR)
         self._build_version_grid()
+        self._setup_templates()
+        self._setup_schedule_time()
+        self._refresh_schedule_status()
         self._refresh()
 
     # --- public methods ---
@@ -271,11 +94,15 @@ class BatchUpgradeWindow(forms.WPFWindow):
         self.FindName("add_folder_btn").Click += self._on_add_folder
         self.FindName("clear_btn").Click += self._on_clear
         self.FindName("browse_btn").Click += self._on_browse
+        self.FindName("template_cb").SelectionChanged += self._on_template_selected
+        self.FindName("template_save_btn").Click += self._on_template_save
+        self.FindName("template_delete_btn").Click += self._on_template_delete
+        self.FindName("schedule_btn").Click += self._on_schedule
+        self.FindName("schedule_cancel_btn").Click += self._on_schedule_cancel
 
     def _build_version_grid(self):
-        """One checkbox per Revit year, greyed out when it can't be used."""
+        """One checkbox per Revit year, greyed out when it isn't installed."""
         self.running_lbl.Text = "Running: {}".format(self.host_year)
-        self.cli_path = revit_versions.find_pyrevit_cli()
         panel = self.version_panel
         panel.Children.Clear()
         self._boxes = {}
@@ -283,18 +110,11 @@ class BatchUpgradeWindow(forms.WPFWindow):
         for year, installed, is_running in revit_versions.version_grid(self.host_year):
             box = Windows.Controls.CheckBox()
             box.Style = self.FindResource("VersionCheck")
-            # Anything other than the running Revit has to be driven by the
-            # CLI, so without it only the running version is selectable.
-            usable = installed and (is_running or self.cli_path is not None)
-            if not installed:
-                label = "Revit {} (not installed)".format(year)
-            elif not usable:
-                label = "Revit {} (needs pyRevit CLI)".format(year)
-            else:
-                label = "Revit {}".format(year)
+            label = ("Revit {}".format(year) if installed
+                     else "Revit {} (not installed)".format(year))
             box.Content = label
-            box.IsEnabled = usable
-            box.IsChecked = bool(is_running and usable)
+            box.IsEnabled = installed
+            box.IsChecked = bool(is_running and installed)
             box.Tag = year
             box.Checked += self._on_target_changed
             box.Unchecked += self._on_target_changed
@@ -366,9 +186,6 @@ class BatchUpgradeWindow(forms.WPFWindow):
         if unreadable:
             notes.append(u"{} file(s) couldn't be read and will be "
                          u"skipped.".format(unreadable))
-        if not self.cli_path:
-            notes.append(u"pyRevit CLI not found — only Revit {} "
-                         u"can be targeted.".format(self.host_year))
 
         if notes:
             self.warn_lbl.Text = u"\n".join(notes)
@@ -384,6 +201,87 @@ class BatchUpgradeWindow(forms.WPFWindow):
         block.Foreground = self.FindResource("BrushTextPrimary")
         block.TextWrapping = Windows.TextWrapping.Wrap
         return block
+
+    # --- private helpers: templates ---
+    def _setup_templates(self, select=None):
+        """Fill the template dropdown from disk."""
+        was_loading = self._loading
+        self._loading = True
+        try:
+            names = templates.list_templates()
+            self.template_cb.ItemsSource = names
+            if select and select in names:
+                self.template_cb.SelectedItem = select
+            elif names and not self.template_cb.SelectedItem:
+                self.template_cb.SelectedIndex = -1
+        finally:
+            self._loading = was_loading
+
+    def _selected_template_name(self):
+        return self.template_cb.SelectedItem
+
+    def _load_template(self, name):
+        data = templates.load_template(name)
+        if not data:
+            dlg.message(u'Could not load template "{}".'.format(name))
+            return
+        self.records = []
+        self._add_paths([f["path"] for f in data.get("files") or []
+                         if os.path.isfile(f.get("path", ""))])
+        out_dir = data.get("out_dir") or ""
+        if out_dir and os.path.isdir(out_dir):
+            self.out_dir = out_dir
+            self.out_tb.Text = out_dir
+        wanted = set(data.get("targets") or [])
+        for year, box in self._boxes.items():
+            if box.IsEnabled:
+                box.IsChecked = year in wanted
+        self._refresh()
+
+    # --- private helpers: schedule ---
+    def _setup_schedule_time(self):
+        """Default the date/time pickers to an hour from now."""
+        default = datetime.datetime.now() + datetime.timedelta(hours=1)
+        try:
+            import System
+            self.sched_date_dp.SelectedDate = System.DateTime(
+                default.year, default.month, default.day)
+        except Exception:
+            pass
+        self.sched_hour_cb.ItemsSource = ["{:02d}".format(h) for h in range(24)]
+        self.sched_hour_cb.SelectedItem = "{:02d}".format(default.hour)
+        self.sched_minute_cb.ItemsSource = ["00", "15", "30", "45"]
+        self.sched_minute_cb.SelectedItem = "{:02d}".format(
+            (default.minute // 15) * 15)
+
+    def _picked_datetime(self):
+        """The date/time currently set in the pickers, or None if incomplete
+        or in the past - callers use None to mean "can't schedule right now"."""
+        try:
+            raw_date = self.sched_date_dp.SelectedDate
+            hour = int(self.sched_hour_cb.SelectedItem)
+            minute = int(self.sched_minute_cb.SelectedItem)
+        except Exception:
+            return None
+        if raw_date is None:
+            return None
+        when = datetime.datetime(raw_date.Year, raw_date.Month, raw_date.Day,
+                                 hour, minute)
+        if when <= datetime.datetime.now():
+            return None
+        return when
+
+    def _refresh_schedule_status(self):
+        entry = schedule_io.armed_entry()
+        if entry:
+            when = entry.get("next_run", "").replace("T", " ")
+            self.schedule_status_lbl.Text = (
+                u'"{}" scheduled for {}'.format(entry.get("profile_name"), when))
+            self.schedule_status_lbl.Visibility = Windows.Visibility.Visible
+            self.schedule_cancel_btn.Visibility = Windows.Visibility.Visible
+        else:
+            self.schedule_status_lbl.Visibility = Windows.Visibility.Collapsed
+            self.schedule_cancel_btn.Visibility = Windows.Visibility.Collapsed
 
     # --- private helpers: handlers ---
     def _on_add_files(self, sender, args):
@@ -417,6 +315,65 @@ class BatchUpgradeWindow(forms.WPFWindow):
     def _on_target_changed(self, sender, args):
         self._refresh()
 
+    def _on_template_selected(self, sender, args):
+        if self._loading:
+            return
+        name = self._selected_template_name()
+        if name:
+            self._load_template(name)
+
+    def _on_template_save(self, sender, args):
+        if not self.records:
+            dlg.message(u"Add some files before saving a template.")
+            return
+        default = self._selected_template_name() or ""
+        name = dlg.ask_string(u"Name for this template:",
+                              title=u"Save Template", default=default)
+        if not name:
+            return
+        templates.save_template(
+            name, self.records, self.out_dir or "",
+            self._selected_targets(), audit=False, compact=True)
+        self._setup_templates(select=name)
+
+    def _on_template_delete(self, sender, args):
+        name = self._selected_template_name()
+        if not name:
+            return
+        if not dlg.confirm(u'Delete template "{}"?'.format(name), yes=u"Delete"):
+            return
+        templates.delete_template(name)
+        # A deleted template's schedule (if any) can't be re-armed later
+        # by name, so it has to go too - a scheduled run with nothing to
+        # load would otherwise fire and silently do nothing.
+        entry = schedule_io.armed_entry()
+        if entry and entry.get("profile_name") == name:
+            schedule_io.disarm()
+        self._setup_templates()
+        self._refresh_schedule_status()
+
+    def _on_schedule(self, sender, args):
+        name = self._selected_template_name()
+        if not name:
+            dlg.message(u"Save this configuration as a template first, "
+                        u"then schedule it.")
+            return
+        when = self._picked_datetime()
+        if not when:
+            dlg.message(u"Pick a date and time in the future to schedule.")
+            return
+        ok = schedule_io.arm(name, templates.template_path(name), when)
+        if not ok:
+            dlg.message(u"Could not save the schedule.")
+            return
+        self._refresh_schedule_status()
+        dlg.message(u'"{}" will run at {}.'.format(
+            name, when.strftime("%Y-%m-%d %H:%M")))
+
+    def _on_schedule_cancel(self, sender, args):
+        schedule_io.disarm()
+        self._refresh_schedule_status()
+
     def _on_cancel(self, sender, args):
         self.confirmed = False
         self.Close()
@@ -441,9 +398,11 @@ def main():
     # Nothing below here runs while a modal dialog is up, which matters:
     # opening documents from inside a modal window is not a valid API
     # context and throws.
-    by_year = run_batch(window.records, window.out_dir, window.targets,
-                        audit=False, compact=True)
-    write_report(by_year, window.out_dir)
+    by_year = batch_runner.run_batch(
+        window.records, window.out_dir, window.targets,
+        audit=False, compact=True,
+        app=HOST_APP.app, uiapp=HOST_APP.uiapp, host_year=host_year)
+    batch_runner.write_report(by_year, window.out_dir)
 
 
 main()

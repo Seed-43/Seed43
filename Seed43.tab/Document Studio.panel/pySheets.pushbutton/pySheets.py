@@ -1862,6 +1862,7 @@ class PrintSheetsWindow(forms.WPFWindow):
             'NWC': self.exp_nwc_btn,
             'IFC': self.exp_ifc_btn,
             'IMG': self.exp_img_btn,
+            'XLS': self.exp_xls_btn,
         }
         return name_map.get(fmt)
 
@@ -2750,11 +2751,16 @@ class PrintSheetsWindow(forms.WPFWindow):
         tmp_name = name + '.txt'
         opts = DB.ViewScheduleExportOptions()
         try:
-            opts.Title = bool(self.xls_title_cb.IsChecked)
-        except Exception:
-            pass
-        try:
-            opts.HeadersFootersBlanks = bool(self.xls_groups_cb.IsChecked)
+            # The whole schedule, as the schedule shows it - group headers,
+            # footers and blank rows included. No options: what you get is
+            # the schedule.
+            opts.HeadersFootersBlanks = True
+            # Except the title. Not a preference: the first line of the
+            # export is read as the column headers, and Revit puts the title
+            # there when this is on - one cell, so every column would be
+            # named after the schedule and every row cut to its first value.
+            # The tab is already named after the schedule anyway.
+            opts.Title = False
         except Exception:
             pass
         try:
@@ -2777,6 +2783,152 @@ class PrintSheetsWindow(forms.WPFWindow):
         if not table:
             return [], []
         return table[0], table[1:]
+
+    # ── Reading a schedule as a styled grid ──
+    # The text export above carries no formatting at all, so anything that
+    # has to look like the schedule reads the table itself instead. Only CSV
+    # still uses the text path, having nowhere to put a colour.
+    @staticmethod
+    def _revit_color_hex(color):
+        """A Revit Color as 'RRGGBB', or None if it isn't actually set.
+
+        An unset colour comes back as an object that either reports
+        IsValid False or answers 0,0,0 - and a real black would be
+        indistinguishable, so InvalidColorValue is checked first where the
+        API offers it."""
+        if color is None:
+            return None
+        try:
+            if hasattr(color, 'IsValid') and not color.IsValid:
+                return None
+            return u'{0:02X}{1:02X}{2:02X}'.format(
+                color.Red, color.Green, color.Blue)
+        except Exception:
+            return None
+
+    @staticmethod
+    def _has_border(style, edge):
+        """True when that edge of the cell carries a line style.
+
+        Revit gives the edge as a GraphicsStyle ElementId rather than a
+        weight and colour. Resolving that to a real pen is a job of its own,
+        so this only answers "is there a line here" and the writer draws a
+        thin one - present or absent is the part that reads as the
+        schedule's grid."""
+        try:
+            eid = getattr(style, 'Border{0}LineStyle'.format(edge))
+            return eid is not None and eid != DB.ElementId.InvalidElementId
+        except Exception:
+            return False
+
+    def _cell_style_dict(self, sd, r, c):
+        """One cell's formatting, in the shape the workbook writer wants."""
+        out = {}
+        try:
+            st = sd.GetTableCellStyle(r, c)
+        except Exception:
+            return out
+        if st is None:
+            return out
+        bg = self._revit_color_hex(getattr(st, 'BackgroundColor', None))
+        fg = self._revit_color_hex(getattr(st, 'TextColor', None))
+        # White on white is Revit's "no fill" in practice; carrying it
+        # through would paint every cell and lose the ones that are
+        # deliberately filled.
+        if bg and bg != u'FFFFFF':
+            out['bg'] = bg
+        if fg and fg != u'000000':
+            out['fg'] = fg
+        for key, attr in (('bold', 'IsFontBold'),
+                          ('italic', 'IsFontItalic'),
+                          ('underline', 'IsFontUnderline')):
+            try:
+                if bool(getattr(st, attr)):
+                    out[key] = True
+            except Exception:
+                pass
+        try:
+            size = float(st.TextSize)
+            if size > 0:
+                # Revit reports the size in feet; Excel and ODF want points.
+                out['size'] = round(size * 72.0, 1)
+        except Exception:
+            pass
+        try:
+            align = unicode(st.FontHorizontalAlignment)
+            if 'Center' in align:
+                out['align'] = 'center'
+            elif 'Right' in align:
+                out['align'] = 'right'
+        except Exception:
+            pass
+        borders = [e[0].lower() for e in ('Left', 'Right', 'Top', 'Bottom')
+                   if self._has_border(st, e)]
+        if borders:
+            out['borders'] = borders
+        return out
+
+    def _read_schedule_grid(self, schedule):
+        """The whole schedule as {'rows': [[cell, ...]], 'merges': [...]}.
+
+        A cell is {'text': ..., plus whatever formatting it carries}. Walks
+        every section the table has, in order, so header rows, body rows,
+        group headers and totals all arrive as the rows they appear as in
+        the schedule."""
+        rows, merges = [], []
+        try:
+            tbl = schedule.GetTableData()
+        except Exception as ex:
+            logger.warning('Could not read table data for %s: %s',
+                           schedule.Name, ex)
+            return {'rows': [], 'merges': []}
+
+        sections = []
+        for sec_name in ('Header', 'Body', 'Summary', 'Footer'):
+            try:
+                sec = getattr(DB.SectionType, sec_name)
+            except Exception:
+                continue
+            try:
+                sd = tbl.GetSectionData(sec)
+            except Exception:
+                continue
+            if sd is not None:
+                sections.append(sd)
+
+        seen_merges = set()
+        for sd in sections:
+            try:
+                n_rows = sd.NumberOfRows
+                n_cols = sd.NumberOfColumns
+            except Exception:
+                continue
+            row_offset = len(rows)
+            for r in range(n_rows):
+                row = []
+                for c in range(n_cols):
+                    try:
+                        text = sd.GetCellText(r, c)
+                    except Exception:
+                        text = u''
+                    cell = {'text': text or u''}
+                    cell.update(self._cell_style_dict(sd, r, c))
+                    row.append(cell)
+                    # Merges are reported per member cell, so the same block
+                    # comes back once for every cell it covers.
+                    try:
+                        m = sd.GetMergedCell(r, c)
+                    except Exception:
+                        m = None
+                    if m is not None:
+                        box = (m.Top + row_offset, m.Left,
+                               m.Bottom + row_offset, m.Right)
+                        if (box[0] != box[2] or box[1] != box[3]) and \
+                                box not in seen_merges:
+                            seen_merges.add(box)
+                            merges.append(box)
+                rows.append(row)
+        return {'rows': rows, 'merges': merges}
 
     @staticmethod
     def _csv_line(cells):
@@ -2889,7 +3041,11 @@ class PrintSheetsWindow(forms.WPFWindow):
             return
         path = op.join(folder, self._xls_workbook_name(qitems) + ext)
         try:
-            write_workbook(path, columns, rows)
+            # No Legend tab and no sheet protection: those exist for pyTable's
+            # edit-and-reimport round trip. This is a plain dump of the
+            # schedule, so there is no colour coding to explain and nothing
+            # to guard against being edited.
+            write_workbook(path, columns, rows, locked=False, legend=False)
         except Exception as ex:
             logger.error('XLS workbook failed: %s', ex)
             for qi in exported:
@@ -2909,7 +3065,7 @@ class PrintSheetsWindow(forms.WPFWindow):
                 header, body = self._read_schedule_rows(sched, tmp_dir)
                 columns, rows = self._schedule_table(header, body, sched.Name)
                 write_workbook(op.join(folder, qi.fname_noext + ext),
-                               columns, rows)
+                               columns, rows, locked=False, legend=False)
                 tick(qi, 'Done')
             except Exception as ex:
                 logger.error('XLS %s failed: %s', qi.filename, ex)
@@ -2922,9 +3078,8 @@ class PrintSheetsWindow(forms.WPFWindow):
         return self._combined_pdf_name(qitems)
 
     def xls_type_changed(self, sender, args):
-        """CSV cannot hold more than one table, so picking it forces (and
-        greys out) separate files rather than letting the radio claim
-        something the format can't do."""
+        """Grey out what CSV cannot do rather than let the control claim
+        otherwise: a CSV holds one table, so it is always separate files."""
         if self._loading:
             return
         try:

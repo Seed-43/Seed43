@@ -68,9 +68,10 @@ back into one row list (each row still carries "_category" from its
 original tab) - there's no single fixed "data sheet name" any more now
 that categories get their own tabs.
 
-Lives in pyTable.pushbutton/tools/ alongside the rest of this tool's own
-code - not in the shared lib/Snippets, since this I/O format is specific
-to pyTable (same pattern as your existing pyTable's tools/pytable_excel.py).
+Sheet protection is opt-in per call (locked=). pyTable wants it, to guard
+Read-only and hidden-ID cells on the round trip; a plain schedule dump from
+pySheets usually does not. CSV has no equivalent, so the flag is ignored
+there.
 
 ODS limitation: tab colour and Legend gridline removal are XLSX-only.
 ODF has no standard per-sheet gridline attribute (LibreOffice treats grid
@@ -526,11 +527,13 @@ def _xlsx_data_validations_xml(headers, dropdown_ranges, last_row):
     return u'<dataValidations count="{0}">{1}</dataValidations>'.format(len(parts), u"".join(parts))
 
 
-def write_xlsx(path, columns, rows, locked=True):
+def write_xlsx(path, columns, rows, locked=True, legend=True):
     groups = _group_rows_by_category(rows)
     cat_names = sorted(groups.keys())
 
-    used_lower = set([LEGEND_SHEET_NAME.lower()])
+    # Only reserve the Legend name when there is going to be one, so a
+    # schedule genuinely called "Legend" keeps its name otherwise.
+    used_lower = set([LEGEND_SHEET_NAME.lower()]) if legend else set()
     cat_sheet_names = {}
     cat_tab_colors = {}
     cat_xf_indices = {}
@@ -554,21 +557,26 @@ def write_xlsx(path, columns, rows, locked=True):
         u'</Relationships>'
     ).format(ns=_NS_RELS, doc_ns=_NS_DOC_RELS)
 
-    sheets_xml = [u'<sheet name="{0}" sheetId="1" r:id="rId1"/>'.format(_xml_attr(LEGEND_SHEET_NAME))]
-    workbook_rels_parts = [
-        u'<Relationship Id="rId1" Type="{0}/worksheet" Target="worksheets/sheet1.xml"/>'.format(_NS_DOC_RELS)
-    ]
-
-    sheet_files = {
-        "xl/worksheets/sheet1.xml": _xlsx_legend_sheet_xml(
+    # Legend is sheet1 when present, so the data sheets start at 2. With
+    # no legend they start at 1 and every later number shifts down with
+    # them - sheet numbers, rIds and part names all have to agree.
+    first_data_sheet = 2 if legend else 1
+    sheets_xml = []
+    workbook_rels_parts = []
+    sheet_files = {}
+    if legend:
+        sheets_xml.append(u'<sheet name="{0}" sheetId="1" r:id="rId1"/>'.format(
+            _xml_attr(LEGEND_SHEET_NAME)))
+        workbook_rels_parts.append(
+            u'<Relationship Id="rId1" Type="{0}/worksheet" Target="worksheets/sheet1.xml"/>'.format(_NS_DOC_RELS))
+        sheet_files["xl/worksheets/sheet1.xml"] = _xlsx_legend_sheet_xml(
             cat_names, cat_sheet_names, cat_row_counts, cat_xf_indices).encode("utf-8")
-    }
-    content_types_parts.append(
-        u'<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>')
+        content_types_parts.append(
+            u'<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>')
 
     dropdown_ranges = {}
     for i, cat in enumerate(cat_names):
-        sheet_num = i + 2  # sheet1 = Legend
+        sheet_num = i + first_data_sheet
         r_id = u"rId{0}".format(sheet_num)
         sheets_xml.append(u'<sheet name="{0}" sheetId="{1}" r:id="{2}"/>'.format(
             _xml_attr(cat_sheet_names[cat]), sheet_num, r_id))
@@ -582,7 +590,7 @@ def write_xlsx(path, columns, rows, locked=True):
         content_types_parts.append(
             u'<Override PartName="/{0}" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'.format(sheet_path))
 
-    next_sheet_num = len(cat_names) + 2
+    next_sheet_num = len(cat_names) + first_data_sheet
     if dropdown_lists:
         lists_xml, dropdown_ranges_computed = _xlsx_lists_sheet_xml(dropdown_lists)
         dropdown_ranges.update(dropdown_ranges_computed)
@@ -590,7 +598,7 @@ def write_xlsx(path, columns, rows, locked=True):
         # the first pass above ran before ranges existed, so redo it with
         # the real ranges available.
         for i, cat in enumerate(cat_names):
-            sheet_num = i + 2
+            sheet_num = i + first_data_sheet
             sheet_path = u"xl/worksheets/sheet{0}.xml".format(sheet_num)
             sheet_files[sheet_path] = _xlsx_data_sheet_xml(
                 columns, groups[cat], cat_tab_colors[cat], dropdown_ranges,
@@ -792,7 +800,7 @@ def _sanitize_table_name(name, used_lower):
     return candidate
 
 
-def write_ods(path, columns, rows, locked=True):
+def write_ods(path, columns, rows, locked=True, legend=True):
     headers = _header_row(columns)
     groups = _group_rows_by_category(rows)
     cat_names = sorted(groups.keys())
@@ -871,8 +879,13 @@ def write_ods(path, columns, rows, locked=True):
     legend_rows.append(u'<table:table-row table:number-rows-repeated="500"/>')
 
     legend_columns = u'<table:table-column table:number-columns-repeated="30" table:default-cell-style-name="LegendDefault"/>'
+    # Built either way - it costs nothing - but only emitted when asked
+    # for. pyTable's round trip explains its colour coding there; a plain
+    # schedule dump has no colour coding to explain.
     legend_table = u'<table:table table:name="{0}">{1}{2}</table:table>'.format(
         _xml_attr(LEGEND_SHEET_NAME), legend_columns, u"".join(legend_rows))
+    if not legend:
+        legend_table = u""
 
     # ── Per-category tables ──
     category_tables = []
@@ -1065,12 +1078,12 @@ def read_ods(path):
 
 # ── format router ────────────────────────────────────────────────────────
 
-def write_workbook(path, columns, rows, locked=True):
+def write_workbook(path, columns, rows, locked=True, legend=True):
     ext = os.path.splitext(path)[1].lower()
     if ext == ".xlsx":
-        write_xlsx(path, columns, rows, locked=locked)
+        write_xlsx(path, columns, rows, locked=locked, legend=legend)
     elif ext == ".ods":
-        write_ods(path, columns, rows, locked=locked)
+        write_ods(path, columns, rows, locked=locked, legend=legend)
     else:
         raise ValueError("Unsupported export format: {0}".format(ext))
 
@@ -1083,3 +1096,358 @@ def read_workbook(path):
         return read_ods(path)
     else:
         raise ValueError("Unsupported import format: {0}".format(ext))
+
+
+# ── STYLED GRID ────────────────────────────────────────────────────────────
+#
+# A second, simpler way in, for callers that already have a laid-out table
+# and want it reproduced rather than interpreted. The columns/rows API above
+# builds pyTable's edit-and-reimport workbook: hidden key columns, tinted
+# parameter columns, a Legend, dropdowns. This one just writes what it is
+# given, cell by cell, with whatever formatting each cell carries - which is
+# what a Revit schedule needs, because the schedule already decided how it
+# should look.
+#
+#   sheets = [{"name":   u"Revision Schedule",
+#              "rows":   [[cell, cell, ...], ...],
+#              "merges": [(top, left, bottom, right), ...]}]
+#
+#   cell   = {"text": u"...",          # the only required key
+#             "bg": u"RRGGBB",         # fill, omitted when unfilled
+#             "fg": u"RRGGBB",         # text colour
+#             "bold": True, "italic": True, "underline": True,
+#             "size": 10.0,            # points
+#             "align": "center"|"right",
+#             "borders": ["l","r","t","b"]}
+#
+# Merge boxes are row/column indexes into that sheet's own rows, inclusive
+# at both ends.
+
+BORDER_PEN = u"0.5pt solid #000000"
+
+
+def _style_key(cell):
+    """Hashable identity for a cell's formatting, so each distinct
+    combination becomes one style in the file rather than one per cell."""
+    return (cell.get("bg"), cell.get("fg"), bool(cell.get("bold")),
+            bool(cell.get("italic")), bool(cell.get("underline")),
+            cell.get("size"), cell.get("align"),
+            tuple(sorted(cell.get("borders") or ())))
+
+
+def _collect_styles(sheets):
+    """Every distinct style in the workbook, in first-seen order."""
+    keys, seen = [], set()
+    for sheet in sheets:
+        for row in sheet.get("rows") or []:
+            for cell in row:
+                k = _style_key(cell)
+                if k not in seen:
+                    seen.add(k)
+                    keys.append(k)
+    return keys
+
+
+def _merge_lookup(merges):
+    """(anchor -> (rowspan, colspan), set of covered cells).
+
+    ODS needs both: the anchor cell carries the span, and every cell it
+    covers has to be written as a covered-cell placeholder or the row runs
+    short and the table skews."""
+    anchors, covered = {}, set()
+    for top, left, bottom, right in merges or []:
+        anchors[(top, left)] = (bottom - top + 1, right - left + 1)
+        for r in range(top, bottom + 1):
+            for c in range(left, right + 1):
+                if (r, c) != (top, left):
+                    covered.add((r, c))
+    return anchors, covered
+
+
+def _grid_styles_xlsx(keys):
+    """styles.xml built from the distinct cell styles.
+
+    Excel keeps fonts, fills and borders in separate tables and joins them
+    per cell through cellXfs, so each is de-duplicated on its own before the
+    xf list indexes into all three."""
+    fonts, fills, borders = [], [], []
+    font_idx, fill_idx, border_idx = {}, {}, {}
+
+    def font_id(key):
+        bold, italic, underline, size, fg = key[2], key[3], key[4], key[5], key[1]
+        sig = (bold, italic, underline, size, fg)
+        if sig not in font_idx:
+            parts = []
+            if bold:
+                parts.append(u"<b/>")
+            if italic:
+                parts.append(u"<i/>")
+            if underline:
+                parts.append(u'<u/>')
+            parts.append(u'<sz val="{0}"/>'.format(size if size else 11))
+            if fg:
+                parts.append(u'<color rgb="FF{0}"/>'.format(fg))
+            parts.append(u"<name val=\"Calibri\"/>")
+            font_idx[sig] = len(fonts)
+            fonts.append(u"<font>{0}</font>".format(u"".join(parts)))
+        return font_idx[sig]
+
+    def fill_id(bg):
+        if bg not in fill_idx:
+            if bg is None:
+                xml = u'<fill><patternFill patternType="none"/></fill>'
+            else:
+                xml = (u'<fill><patternFill patternType="solid">'
+                       u'<fgColor rgb="FF{0}"/><bgColor indexed="64"/>'
+                       u'</patternFill></fill>').format(bg)
+            fill_idx[bg] = len(fills)
+            fills.append(xml)
+        return fill_idx[bg]
+
+    def border_id(edges):
+        if edges not in border_idx:
+            side = u'<{0}><color rgb="FF000000"/></{0}>'
+            side_thin = u'<{0} style="thin"><color rgb="FF000000"/></{0}>'
+            parts = []
+            for tag, letter in (("left", "l"), ("right", "r"),
+                                ("top", "t"), ("bottom", "b")):
+                parts.append((side_thin if letter in edges else u"<{0}/>")
+                             .format(tag))
+            border_idx[edges] = len(borders)
+            borders.append(u"<border>{0}</border>".format(u"".join(parts)))
+        return border_idx[edges]
+
+    # Index 0 must be the default for each table, and Excel additionally
+    # insists the second fill is gray125 - an empty file is rejected
+    # otherwise, whether or not anything uses it.
+    fill_id(None)
+    fills.append(u'<fill><patternFill patternType="gray125"/></fill>')
+    fill_idx["__gray125__"] = 1
+    border_id(())
+
+    xfs = []
+    for key in keys:
+        bg, align = key[0], key[6]
+        align_xml = u""
+        if align:
+            align_xml = u'<alignment horizontal="{0}" vertical="center" wrapText="1"/>'.format(align)
+        else:
+            align_xml = u'<alignment vertical="center" wrapText="1"/>'
+        xfs.append(
+            u'<xf numFmtId="0" fontId="{f}" fillId="{fl}" borderId="{b}" xfId="0" '
+            u'applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">{al}</xf>'.format(
+                f=font_id(key), fl=fill_id(bg), b=border_id(key[7]), al=align_xml))
+
+    return XML_DECL + (
+        u'<styleSheet xmlns="{main}">'
+        u'<fonts count="{nf}">{fonts}</fonts>'
+        u'<fills count="{nfl}">{fills}</fills>'
+        u'<borders count="{nb}">{borders}</borders>'
+        u'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+        u'<cellXfs count="{nx}">{xfs}</cellXfs>'
+        u'</styleSheet>'
+    ).format(main=_NS_MAIN, nf=len(fonts), fonts=u"".join(fonts),
+             nfl=len(fills), fills=u"".join(fills),
+             nb=len(borders), borders=u"".join(borders),
+             nx=len(xfs), xfs=u"".join(xfs))
+
+
+def _grid_sheet_xlsx(sheet, style_index):
+    rows_xml = []
+    merges = sheet.get("merges") or []
+    for r_idx, row in enumerate(sheet.get("rows") or []):
+        cells = []
+        for c_idx, cell in enumerate(row):
+            text = _cell_text(cell.get("text"))
+            ref = u"{0}{1}".format(_col_letter(c_idx), r_idx + 1)
+            s_idx = style_index[_style_key(cell)]
+            if text:
+                cells.append(
+                    u'<c r="{ref}" s="{s}" t="inlineStr"><is><t xml:space="preserve">{v}</t></is></c>'.format(
+                        ref=ref, s=s_idx, v=_xml_escape(text)))
+            else:
+                # Still emitted: an empty cell is what carries the fill and
+                # the border, which is most of a schedule's grid.
+                cells.append(u'<c r="{ref}" s="{s}"/>'.format(ref=ref, s=s_idx))
+        rows_xml.append(u'<row r="{0}">{1}</row>'.format(r_idx + 1, u"".join(cells)))
+
+    merge_xml = u""
+    if merges:
+        parts = [u'<mergeCell ref="{0}{1}:{2}{3}"/>'.format(
+            _col_letter(left), top + 1, _col_letter(right), bottom + 1)
+            for top, left, bottom, right in merges]
+        merge_xml = u'<mergeCells count="{0}">{1}</mergeCells>'.format(
+            len(parts), u"".join(parts))
+
+    return XML_DECL + (
+        u'<worksheet xmlns="{main}"><sheetData>{rows}</sheetData>{merges}</worksheet>'
+    ).format(main=_NS_MAIN, rows=u"".join(rows_xml), merges=merge_xml)
+
+
+def write_grid_xlsx(path, sheets):
+    keys = _collect_styles(sheets)
+    style_index = dict((k, i) for i, k in enumerate(keys))
+
+    used_lower = set()
+    names = [_sanitize_sheet_name(s.get("name") or u"Sheet", used_lower)
+             for s in sheets]
+
+    sheets_xml, rels, content_types, files = [], [], [], {}
+    for i, sheet in enumerate(sheets):
+        num = i + 1
+        r_id = u"rId{0}".format(num)
+        part = u"xl/worksheets/sheet{0}.xml".format(num)
+        sheets_xml.append(u'<sheet name="{0}" sheetId="{1}" r:id="{2}"/>'.format(
+            _xml_attr(names[i]), num, r_id))
+        rels.append(u'<Relationship Id="{0}" Type="{1}/worksheet" Target="worksheets/sheet{2}.xml"/>'.format(
+            r_id, _NS_DOC_RELS, num))
+        files[part] = _grid_sheet_xlsx(sheet, style_index).encode("utf-8")
+        content_types.append(
+            u'<Override PartName="/{0}" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'.format(part))
+
+    rels.append(u'<Relationship Id="rIdStyles" Type="{0}/styles" Target="styles.xml"/>'.format(_NS_DOC_RELS))
+
+    zf = zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED)
+    try:
+        zf.writestr("[Content_Types].xml", (XML_DECL + (
+            u'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            u'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            u'<Default Extension="xml" ContentType="application/xml"/>'
+            u'<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            u'<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+            u'{0}</Types>').format(u"".join(content_types))).encode("utf-8"))
+        zf.writestr("_rels/.rels", (XML_DECL + (
+            u'<Relationships xmlns="{ns}">'
+            u'<Relationship Id="rId1" Type="{doc}/officeDocument" Target="xl/workbook.xml"/>'
+            u'</Relationships>').format(ns=_NS_RELS, doc=_NS_DOC_RELS)).encode("utf-8"))
+        zf.writestr("xl/workbook.xml", (XML_DECL + (
+            u'<workbook xmlns="{main}" xmlns:r="{doc}">'
+            u'<bookViews><workbookView activeTab="0"/></bookViews>'
+            u'<sheets>{sheets}</sheets></workbook>').format(
+                main=_NS_MAIN, doc=_NS_DOC_RELS,
+                sheets=u"".join(sheets_xml))).encode("utf-8"))
+        zf.writestr("xl/_rels/workbook.xml.rels", (XML_DECL + (
+            u'<Relationships xmlns="{ns}">{rels}</Relationships>').format(
+                ns=_NS_RELS, rels=u"".join(rels))).encode("utf-8"))
+        zf.writestr("xl/styles.xml", _grid_styles_xlsx(keys).encode("utf-8"))
+        for part, blob in files.items():
+            zf.writestr(part, blob)
+    finally:
+        zf.close()
+
+
+def _grid_styles_ods(keys):
+    """One automatic style per distinct combination. Cell, text and
+    paragraph properties are three separate elements in ODF, so a style
+    carries all three even when only one of them is doing anything."""
+    out = []
+    for i, key in enumerate(keys):
+        bg, fg, bold, italic, underline, size, align, edges = key
+        cell_props = []
+        if bg:
+            cell_props.append(u'fo:background-color="#{0}"'.format(bg))
+        for tag, letter in ((u"fo:border-left", "l"), (u"fo:border-right", "r"),
+                            (u"fo:border-top", "t"), (u"fo:border-bottom", "b")):
+            if letter in edges:
+                cell_props.append(u'{0}="{1}"'.format(tag, BORDER_PEN))
+        text_props = []
+        if fg:
+            text_props.append(u'fo:color="#{0}"'.format(fg))
+        if bold:
+            text_props.append(u'fo:font-weight="bold"')
+        if italic:
+            text_props.append(u'fo:font-style="italic"')
+        if underline:
+            text_props.append(u'style:text-underline-style="solid" '
+                              u'style:text-underline-width="auto"')
+        if size:
+            text_props.append(u'fo:font-size="{0}pt"'.format(size))
+        para = (u'<style:paragraph-properties fo:text-align="{0}"/>'.format(
+            u"center" if align == "center" else u"end") if align else u"")
+        out.append(
+            u'<style:style style:name="gc{i}" style:family="table-cell">'
+            u'<style:table-cell-properties {cp} style:vertical-align="middle"/>'
+            u'{para}<style:text-properties {tp}/></style:style>'.format(
+                i=i, cp=u" ".join(cell_props), para=para,
+                tp=u" ".join(text_props)))
+    return u"".join(out)
+
+
+def write_grid_ods(path, sheets):
+    keys = _collect_styles(sheets)
+    style_index = dict((k, i) for i, k in enumerate(keys))
+
+    used_lower = set()
+    tables = []
+    for sheet in sheets:
+        name = _sanitize_table_name(sheet.get("name") or u"Sheet", used_lower)
+        anchors, covered = _merge_lookup(sheet.get("merges"))
+        rows = sheet.get("rows") or []
+        width = max([len(r) for r in rows] or [1])
+        rows_xml = []
+        for r_idx, row in enumerate(rows):
+            cells = []
+            for c_idx in range(width):
+                cell = row[c_idx] if c_idx < len(row) else {"text": u""}
+                if (r_idx, c_idx) in covered:
+                    cells.append(u'<table:covered-table-cell/>')
+                    continue
+                span = u""
+                if (r_idx, c_idx) in anchors:
+                    rs, cs = anchors[(r_idx, c_idx)]
+                    span = (u' table:number-columns-spanned="{0}"'
+                            u' table:number-rows-spanned="{1}"'.format(cs, rs))
+                text = _cell_text(cell.get("text"))
+                cells.append(
+                    u'<table:table-cell table:style-name="gc{s}" '
+                    u'office:value-type="string"{span}>'
+                    u'<text:p>{v}</text:p></table:table-cell>'.format(
+                        s=style_index[_style_key(cell)], span=span,
+                        v=_xml_escape(text)))
+            rows_xml.append(u"<table:table-row>{0}</table:table-row>".format(u"".join(cells)))
+        tables.append(
+            u'<table:table table:name="{0}">'
+            u'<table:table-column table:number-columns-repeated="{1}"/>'
+            u'{2}</table:table>'.format(_xml_attr(name), width, u"".join(rows_xml)))
+
+    content_xml = XML_DECL + (
+        u'<office:document-content '
+        u'xmlns:office="{office}" xmlns:table="{table}" xmlns:text="{text}" '
+        u'xmlns:style="{style}" xmlns:fo="{fo}" office:version="1.2">'
+        u'<office:automatic-styles>{styles}</office:automatic-styles>'
+        u'<office:body><office:spreadsheet>{tables}</office:spreadsheet></office:body>'
+        u'</office:document-content>'
+    ).format(office=_NS_OFFICE, table=_NS_TABLE, text=_NS_TEXT,
+             style=_NS_STYLE, fo=_NS_FO,
+             styles=_grid_styles_ods(keys), tables=u"".join(tables))
+
+    manifest_xml = XML_DECL + (
+        u'<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" '
+        u'manifest:version="1.2">'
+        u'<manifest:file-entry manifest:full-path="/" manifest:version="1.2" '
+        u'manifest:media-type="application/vnd.oasis.opendocument.spreadsheet"/>'
+        u'<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>'
+        u'</manifest:manifest>')
+
+    zf = zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED)
+    try:
+        # mimetype must be first and stored uncompressed, or the file is not
+        # recognised as an ODF package.
+        zf.writestr(zipfile.ZipInfo("mimetype"),
+                    "application/vnd.oasis.opendocument.spreadsheet",
+                    zipfile.ZIP_STORED)
+        zf.writestr("META-INF/manifest.xml", manifest_xml.encode("utf-8"))
+        zf.writestr("content.xml", content_xml.encode("utf-8"))
+    finally:
+        zf.close()
+
+
+def write_grid_workbook(path, sheets):
+    """Write a styled grid to .xlsx or .ods, by the path's extension."""
+    ext = os.path.splitext(path)[1].lower()
+    if ext == ".xlsx":
+        write_grid_xlsx(path, sheets)
+    elif ext == ".ods":
+        write_grid_ods(path, sheets)
+    else:
+        raise ValueError("Unsupported export format: {0}".format(ext))

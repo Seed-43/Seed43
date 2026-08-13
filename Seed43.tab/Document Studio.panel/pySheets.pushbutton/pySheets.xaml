@@ -1917,6 +1917,12 @@
                                     Content="IMG"
                                     Tag=""
                                     Style="{StaticResource PillBtn}"
+                                    Margin="0,0,4,0"
+                                    Click="exp_subtab_clicked"/>
+                            <Button x:Name="exp_xls_btn"
+                                    Content="XLS"
+                                    Tag=""
+                                    Style="{StaticResource PillBtn}"
                                     Click="exp_subtab_clicked"/>
                             </WrapPanel>
                         </Border>
@@ -2520,15 +2526,6 @@
                                                  Content="Separate file per schedule"
                                                  Foreground="{DynamicResource BrushTextPrimary}"
                                                  Margin="0,0,0,12"/>
-                                    <CheckBox x:Name="xls_title_cb"
-                                              Content="Include the schedule title row"
-                                              Margin="0,0,0,6"/>
-                                    <CheckBox x:Name="xls_groups_cb"
-                                              Content="Include group headers, footers and blank rows"
-                                              Margin="0,0,0,6"/>
-                                    <CheckBox x:Name="xls_lock_cb"
-                                              Content="Lock cells (protect the sheet)"
-                                              ToolTip="A soft guard against accidental edits — no password, so it can still be unprotected in Excel or LibreOffice. Ignored for CSV, which has no such thing."/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

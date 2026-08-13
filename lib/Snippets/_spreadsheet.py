@@ -126,6 +126,19 @@ def _header_row(columns):
     return list(HIDDEN_COLUMNS) + [c["key"] for c in columns]
 
 
+def _xml_attr(value):
+    """Escape a value for use inside a double-quoted XML attribute.
+
+    saxutils.escape covers & < > and nothing else, which is fine for text
+    between tags but not for an attribute: a double quote in the value ends
+    the attribute early and the file will not parse. Sheet and table names
+    are the values that actually hit this - they come from Revit, where a
+    schedule may perfectly well be called '3" Pipe Schedule' or 'Doors &
+    Windows'.
+    """
+    return _xml_escape(value or u"", {u'"': u"&quot;", u"'": u"&apos;"})
+
+
 def _cell_text(value):
     if value is None:
         return u""
@@ -364,9 +377,16 @@ def _xlsx_legend_sheet_xml(cat_names, cat_sheet_names, cat_row_counts, cat_xf_in
             _xlsx_cell(u"B{0}".format(row_n), u"{0} row(s)".format(cat_row_counts[cat])),
         ]
         rows_xml.append(u'<row r="{0}">{1}</row>'.format(row_n, u"".join(cells)))
+        # Two escapings again, and for the same reason as the ODS range
+        # address: _xlsx_escape_sheet_ref doubles the apostrophe for Excel's
+        # own reference syntax, _xml_attr then makes the result safe to sit
+        # inside an XML attribute. Only the first was applied, so a schedule
+        # called '3" Pipe Schedule' closed the attribute early and broke the
+        # Legend sheet.
         hyperlinks_xml.append(
             u'<hyperlink ref="{ref}" location="\'{sheet}\'!A1" display="{disp}"/>'.format(
-                ref=ref, sheet=_xlsx_escape_sheet_ref(sheet_name), disp=_xml_escape(cat)))
+                ref=ref, sheet=_xml_attr(_xlsx_escape_sheet_ref(sheet_name)),
+                disp=_xml_attr(cat)))
 
     cols_xml = u'<cols><col min="1" max="1" width="26" customWidth="1"/><col min="2" max="2" width="90" customWidth="1"/></cols>'
     hyperlinks_block = u"<hyperlinks>{0}</hyperlinks>".format(u"".join(hyperlinks_xml)) if hyperlinks_xml else u""
@@ -391,7 +411,8 @@ def _xlsx_col_widths(headers, rows):
     return [min(max(w + 2, 8), 60) for w in widths]
 
 
-def _xlsx_data_sheet_xml(columns, rows, tab_color_hex, dropdown_ranges):
+def _xlsx_data_sheet_xml(columns, rows, tab_color_hex, dropdown_ranges,
+                         locked=True):
     headers = _header_row(columns)
     col_meta = [{"kind": None, "readonly": False}] * len(HIDDEN_COLUMNS) + list(columns)
     col_widths = _xlsx_col_widths(headers, rows)
@@ -440,7 +461,8 @@ def _xlsx_data_sheet_xml(columns, rows, tab_color_hex, dropdown_ranges):
     # No password - a soft guard against accidental edits to Read-only/N-A/
     # hidden-ID cells, not real security. Users can still Unprotect Sheet
     # if they genuinely need to.
-    protection_xml = u'<sheetProtection sheet="1" autoFilter="0" sort="0"/>'
+    protection_xml = (u'<sheetProtection sheet="1" autoFilter="0" sort="0"/>'
+                      if locked else u'')
 
     return XML_DECL + (
         u'<worksheet xmlns="{main}"><sheetPr><tabColor rgb="FF{tab_color}"/></sheetPr>'
@@ -504,7 +526,7 @@ def _xlsx_data_validations_xml(headers, dropdown_ranges, last_row):
     return u'<dataValidations count="{0}">{1}</dataValidations>'.format(len(parts), u"".join(parts))
 
 
-def write_xlsx(path, columns, rows):
+def write_xlsx(path, columns, rows, locked=True):
     groups = _group_rows_by_category(rows)
     cat_names = sorted(groups.keys())
 
@@ -532,7 +554,7 @@ def write_xlsx(path, columns, rows):
         u'</Relationships>'
     ).format(ns=_NS_RELS, doc_ns=_NS_DOC_RELS)
 
-    sheets_xml = [u'<sheet name="{0}" sheetId="1" r:id="rId1"/>'.format(_xml_escape(LEGEND_SHEET_NAME))]
+    sheets_xml = [u'<sheet name="{0}" sheetId="1" r:id="rId1"/>'.format(_xml_attr(LEGEND_SHEET_NAME))]
     workbook_rels_parts = [
         u'<Relationship Id="rId1" Type="{0}/worksheet" Target="worksheets/sheet1.xml"/>'.format(_NS_DOC_RELS)
     ]
@@ -549,13 +571,14 @@ def write_xlsx(path, columns, rows):
         sheet_num = i + 2  # sheet1 = Legend
         r_id = u"rId{0}".format(sheet_num)
         sheets_xml.append(u'<sheet name="{0}" sheetId="{1}" r:id="{2}"/>'.format(
-            _xml_escape(cat_sheet_names[cat]), sheet_num, r_id))
+            _xml_attr(cat_sheet_names[cat]), sheet_num, r_id))
         workbook_rels_parts.append(
             u'<Relationship Id="{0}" Type="{1}/worksheet" Target="worksheets/sheet{2}.xml"/>'.format(
                 r_id, _NS_DOC_RELS, sheet_num))
         sheet_path = u"xl/worksheets/sheet{0}.xml".format(sheet_num)
         sheet_files[sheet_path] = _xlsx_data_sheet_xml(
-            columns, groups[cat], cat_tab_colors[cat], dropdown_ranges).encode("utf-8")
+            columns, groups[cat], cat_tab_colors[cat], dropdown_ranges,
+            locked=locked).encode("utf-8")
         content_types_parts.append(
             u'<Override PartName="/{0}" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'.format(sheet_path))
 
@@ -570,12 +593,13 @@ def write_xlsx(path, columns, rows):
             sheet_num = i + 2
             sheet_path = u"xl/worksheets/sheet{0}.xml".format(sheet_num)
             sheet_files[sheet_path] = _xlsx_data_sheet_xml(
-                columns, groups[cat], cat_tab_colors[cat], dropdown_ranges).encode("utf-8")
+                columns, groups[cat], cat_tab_colors[cat], dropdown_ranges,
+            locked=locked).encode("utf-8")
 
         lists_sheet_num = next_sheet_num
         r_id = u"rId{0}".format(lists_sheet_num)
         sheets_xml.append(u'<sheet name="{0}" sheetId="{1}" state="hidden" r:id="{2}"/>'.format(
-            _xml_escape(LISTS_SHEET_NAME), lists_sheet_num, r_id))
+            _xml_attr(LISTS_SHEET_NAME), lists_sheet_num, r_id))
         workbook_rels_parts.append(
             u'<Relationship Id="{0}" Type="{1}/worksheet" Target="worksheets/sheet{2}.xml"/>'.format(
                 r_id, _NS_DOC_RELS, lists_sheet_num))
@@ -748,7 +772,7 @@ def _ods_hyperlink_cell_xml(text, target_table_name, style_name, cell_style_name
         u'<table:table-cell office:value-type="string"{cell_attr}>'
         u'<text:p><text:a xlink:type="simple" xlink:href="{href}" text:style-name="{style}">'
         u'{val}</text:a></text:p></table:table-cell>'
-    ).format(cell_attr=cell_attr, href=_xml_escape(href), style=style_name, val=_xml_escape(_cell_text(text)))
+    ).format(cell_attr=cell_attr, href=_xml_attr(href), style=style_name, val=_xml_escape(_cell_text(text)))
 
 
 def _sanitize_table_name(name, used_lower):
@@ -768,7 +792,7 @@ def _sanitize_table_name(name, used_lower):
     return candidate
 
 
-def write_ods(path, columns, rows):
+def write_ods(path, columns, rows, locked=True):
     headers = _header_row(columns)
     groups = _group_rows_by_category(rows)
     cat_names = sorted(groups.keys())
@@ -848,7 +872,7 @@ def write_ods(path, columns, rows):
 
     legend_columns = u'<table:table-column table:number-columns-repeated="30" table:default-cell-style-name="LegendDefault"/>'
     legend_table = u'<table:table table:name="{0}">{1}{2}</table:table>'.format(
-        _xml_escape(LEGEND_SHEET_NAME), legend_columns, u"".join(legend_rows))
+        _xml_attr(LEGEND_SHEET_NAME), legend_columns, u"".join(legend_rows))
 
     # ── Per-category tables ──
     category_tables = []
@@ -869,17 +893,27 @@ def write_ods(path, columns, rows):
                 cells.append(_ods_cell_xml(value, style_name, validation_name))
             data_rows.append(u"<table:table-row>{0}</table:table-row>".format(u"".join(cells)))
         table_name = cat_table_names[cat]
-        category_tables.append(u'<table:table table:name="{0}" table:protected="true">{1}</table:table>'.format(
-            _xml_escape(table_name), u"".join(data_rows)))
+        # Protection is opt-out rather than always-on now: pyTable wants it
+        # (it guards Read-only and hidden-ID cells before the file comes
+        # back), a plain schedule dump usually does not.
+        category_tables.append(u'<table:table table:name="{0}"{2}>{1}</table:table>'.format(
+            _xml_attr(table_name), u"".join(data_rows),
+            u' table:protected="true"' if locked else u''))
 
         last_col_letter = _col_letter(len(headers) - 1)
         last_row = len(groups[cat]) + 1
-        escaped_name = table_name.replace(u"'", u"''")
+        # Two separate escapings, and both are needed. The doubled
+        # apostrophe is ODF's own quoting for a name inside a range
+        # address; _xml_attr is XML's, for the attribute that address then
+        # sits in. Without the second, a schedule called "Doors & Windows"
+        # wrote a raw & straight into the attribute and the whole file
+        # became unreadable ("Format error ... in content.xml").
+        escaped_name = _xml_attr(table_name.replace(u"'", u"''"))
         database_ranges.append(
             u'<table:database-range table:name="{safe_name}" '
             u'table:target-range-address="\'{name}\'.A1:\'{name}\'.{last_col}{last_row}" '
             u'table:display-filter-buttons="true"/>'.format(
-                safe_name=_xml_escape(u"DB_" + u"".join(ch if ch.isalnum() else u"_" for ch in table_name)),
+                safe_name=_xml_attr(u"DB_" + u"".join(ch if ch.isalnum() else u"_" for ch in table_name)),
                 name=escaped_name, last_col=last_col_letter, last_row=last_row))
 
     database_ranges_xml = u"<table:database-ranges>{0}</table:database-ranges>".format(
@@ -905,7 +939,7 @@ def write_ods(path, columns, rows):
             u'table:display-list="unsorted">'
             u'<table:error-message table:display="true" table:message-type="stop"/>'
             u'</table:content-validation>'.format(
-                name=val_name, cond=condition, base=_xml_escape(LEGEND_SHEET_NAME) + u".A1"))
+                name=val_name, cond=condition, base=_xml_attr(LEGEND_SHEET_NAME) + u".A1"))
     content_validations_xml = (
         u"<table:content-validations>{0}</table:content-validations>".format(
             u"".join(content_validations_parts)) if content_validations_parts else u"")
@@ -944,7 +978,7 @@ def write_ods(path, columns, rows):
         u'<config:config-item config:name="ActiveSplitRange" config:type="short">2</config:config-item>'
         u'<config:config-item config:name="PositionTop" config:type="int">0</config:config-item>'
         u'<config:config-item config:name="PositionBottom" config:type="int">1</config:config-item>'
-        u'</config:config-item-map-entry>'.format(name=_xml_escape(cat_table_names[cat]))
+        u'</config:config-item-map-entry>'.format(name=_xml_attr(cat_table_names[cat]))
         for cat in cat_names
     )
     settings_xml = XML_DECL + (
@@ -1031,12 +1065,12 @@ def read_ods(path):
 
 # ── format router ────────────────────────────────────────────────────────
 
-def write_workbook(path, columns, rows):
+def write_workbook(path, columns, rows, locked=True):
     ext = os.path.splitext(path)[1].lower()
     if ext == ".xlsx":
-        write_xlsx(path, columns, rows)
+        write_xlsx(path, columns, rows, locked=locked)
     elif ext == ".ods":
-        write_ods(path, columns, rows)
+        write_ods(path, columns, rows, locked=locked)
     else:
         raise ValueError("Unsupported export format: {0}".format(ext))
 

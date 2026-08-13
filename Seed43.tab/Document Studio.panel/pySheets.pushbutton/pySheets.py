@@ -110,6 +110,7 @@ VIEWS_ONLY_FORMATS = {'NWC', 'IFC'}   # these can only export 3D views, never sh
 # entirely rather than being offered and then rejected.
 SCHEDULES_ONLY_FORMATS = {'XLS'}
 SCHEDULE_TYPE_LABEL    = 'Schedule'   # ViewItem.paper_size for a schedule
+CSV_EOL = u'\r\n'                     # RFC 4180 record separator
 FILE_EXT      = {'PDF': '.pdf', 'DWG': '.dwg', 'DGN': '.dgn',
                  'NWC': '.nwc', 'IFC': '.ifc', 'IMG': '.png',
                  'XLS': '.xlsx'}
@@ -2944,108 +2945,66 @@ class PrintSheetsWindow(forms.WPFWindow):
             out.append(text)
         return u','.join(out)
 
-    def _export_xls_csv(self, qitems, folder, tick, tmp_dir):
-        """CSV holds exactly one table, so this is one file per schedule -
-        named by the ordinary naming format, like every other per-item
-        format. The workbook path below is the one that merges."""
+    def _export_xls_csv(self, qitems, folder, tick):
+        """CSV holds exactly one table and no formatting, so this is one
+        plain file per schedule - the same grid as the workbooks, with the
+        colours and borders dropped because there is nowhere to put them."""
         for qi in qitems:
             qi.status = 'Exporting'
             self._pump()
             sched = qi.source.revit_sheet
             try:
-                header, body = self._read_schedule_rows(sched, tmp_dir)
+                grid = self._read_schedule_grid(sched)
                 path = op.join(folder, qi.fname_noext + '.csv')
                 with io.open(path, 'w', encoding='utf-8') as f:
-                    f.write(self._csv_line(header) + u'\r\n')
-                    for line in body:
-                        f.write(self._csv_line(line) + u'\r\n')
+                    for row in grid['rows']:
+                        f.write(self._csv_line(
+                            [c.get('text', u'') for c in row]) + CSV_EOL)
                 tick(qi, 'Done')
             except Exception as ex:
                 logger.error('CSV %s failed: %s', qi.filename, ex)
                 tick(qi, 'Failed')
 
-    @staticmethod
-    def _schedule_table(header, body, tab):
-        """One schedule as (columns, rows) in the shape write_workbook wants.
-
-        Rows carry their tab name in "_category" - that is the key the writer
-        groups on, whatever the grouping means to the caller."""
-        columns, rows, seen = [], [], set()
-        keys = []
-        for i, head in enumerate(header):
-            key = head.strip() or 'Column {0}'.format(i + 1)
-            keys.append(key)
-            if key not in seen:
-                seen.add(key)
-                columns.append({'key': key, 'kind': 'instance',
-                                'readonly': True})
-        for line in body:
-            row = {'_category': tab}
-            for i, cell in enumerate(line):
-                if i < len(keys):
-                    row[keys[i]] = cell
-            rows.append(row)
-        return columns, rows
-
     def _export_xls(self, qitems, folder, tick):
-        """Selected schedules to a spreadsheet.
+        """Selected schedules to a spreadsheet, formatting and all.
 
         Two independent choices, the same pair PDF already offers: which
         format, and one file or one per schedule. CSV holds a single table
         by definition, so it is always separate files however the radio is
-        set - xls_type_changed keeps the radios honest about that."""
-        import shutil
-        import tempfile
+        set - xls_type_changed keeps the radio honest about that."""
+        ext = self._xls_ext()
+        if ext == '.csv':
+            self._export_xls_csv(qitems, folder, tick)
+        elif bool(self.xls_single_rb.IsChecked):
+            self._export_xls_single(qitems, folder, tick, ext)
+        else:
+            self._export_xls_separate(qitems, folder, tick, ext)
 
-        ext    = self._xls_ext()
-        single = ext != '.csv' and bool(self.xls_single_rb.IsChecked)
-        tmp_dir = tempfile.mkdtemp(prefix='pysheets_xls_')
-        try:
-            if single:
-                self._export_xls_single(qitems, folder, tick, tmp_dir, ext)
-            elif ext == '.csv':
-                self._export_xls_csv(qitems, folder, tick, tmp_dir)
-            else:
-                self._export_xls_separate(qitems, folder, tick, tmp_dir, ext)
-        finally:
-            try:
-                shutil.rmtree(tmp_dir, ignore_errors=True)
-            except Exception:
-                pass
-
-    def _export_xls_single(self, qitems, folder, tick, tmp_dir, ext):
+    def _export_xls_single(self, qitems, folder, tick, ext):
         """All selected schedules into one workbook, a tab each."""
         for qi in qitems:
             qi.status = 'Exporting'
         self._pump()
 
-        columns, rows, exported = [], [], []
-        seen_cols = set()
+        sheets, exported = [], []
         for qi in qitems:
             sched = qi.source.revit_sheet
             try:
-                header, body = self._read_schedule_rows(sched, tmp_dir)
+                grid = self._read_schedule_grid(sched)
             except Exception as ex:
                 logger.error('XLS %s failed: %s', qi.filename, ex)
                 tick(qi, 'Failed')
                 continue
-            cols, rws = self._schedule_table(header, body, sched.Name)
-            for col in cols:
-                if col['key'] not in seen_cols:
-                    seen_cols.add(col['key'])
-                    columns.append(col)
-            rows.extend(rws)
+            sheets.append({'name': sched.Name,
+                           'rows': grid['rows'],
+                           'merges': grid['merges']})
             exported.append(qi)
 
         if not exported:
             return
         path = op.join(folder, self._xls_workbook_name(qitems) + ext)
         try:
-            # No Legend tab and no sheet protection: those exist for pyTable's
-            # edit-and-reimport round trip. This is a plain dump of the
-            # schedule, so there is no colour coding to explain and nothing
-            # to guard against being edited.
-            write_workbook(path, columns, rows, locked=False, legend=False)
+            write_grid_workbook(path, sheets)
         except Exception as ex:
             logger.error('XLS workbook failed: %s', ex)
             for qi in exported:
@@ -3054,7 +3013,7 @@ class PrintSheetsWindow(forms.WPFWindow):
         for qi in exported:
             tick(qi, 'Done')
 
-    def _export_xls_separate(self, qitems, folder, tick, tmp_dir, ext):
+    def _export_xls_separate(self, qitems, folder, tick, ext):
         """One workbook per schedule, a single tab in each - named by the
         ordinary naming format, like every other per-item format."""
         for qi in qitems:
@@ -3062,10 +3021,11 @@ class PrintSheetsWindow(forms.WPFWindow):
             self._pump()
             sched = qi.source.revit_sheet
             try:
-                header, body = self._read_schedule_rows(sched, tmp_dir)
-                columns, rows = self._schedule_table(header, body, sched.Name)
-                write_workbook(op.join(folder, qi.fname_noext + ext),
-                               columns, rows, locked=False, legend=False)
+                grid = self._read_schedule_grid(sched)
+                write_grid_workbook(
+                    op.join(folder, qi.fname_noext + ext),
+                    [{'name': sched.Name, 'rows': grid['rows'],
+                      'merges': grid['merges']}])
                 tick(qi, 'Done')
             except Exception as ex:
                 logger.error('XLS %s failed: %s', qi.filename, ex)
@@ -3077,19 +3037,6 @@ class PrintSheetsWindow(forms.WPFWindow):
         many items."""
         return self._combined_pdf_name(qitems)
 
-    def xls_type_changed(self, sender, args):
-        """Grey out what CSV cannot do rather than let the control claim
-        otherwise: a CSV holds one table, so it is always separate files."""
-        if self._loading:
-            return
-        try:
-            is_csv = self._xls_ext() == '.csv'
-            if is_csv:
-                self.xls_separate_rb.IsChecked = True
-            self.xls_single_rb.IsEnabled = not is_csv
-            self.xls_single_rb.Opacity   = 0.55 if is_csv else 1.0
-        except Exception as ex:
-            logger.warning('Table options: could not sync file mode: %s', ex)
 
     def _restore_print_settings(self):
         """Put back the print setting that was current before pySheets ran.

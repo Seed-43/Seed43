@@ -52,7 +52,7 @@ from Snippets import _dialogs as dlg
 from Snippets import _userdata
 from Snippets import _schedule
 from Snippets._icons import make_icon, make_icon_with_label, set_header_icon
-from Snippets._spreadsheet import write_workbook
+from Snippets._spreadsheet import write_grid_workbook
 from Snippets._support import (github_issue_url, open_folder, open_url,
                                support_mailto)
 from Snippets.seed43_theme import (apply_seed43_palette, apply_seed43_dimensions,
@@ -2713,79 +2713,11 @@ class PrintSheetsWindow(forms.WPFWindow):
                 logger.error('IMG %s failed: %s', qi.filename, ex)
                 tick(qi, 'Failed')
 
-    # ── XLS  (schedules → one workbook, a tab each) ──
-    @staticmethod
-    def _decode_export(data):
-        """Decode whatever ViewSchedule.Export just wrote.
-
-        Revit is not consistent about the encoding, and Python's 'utf-16'
-        codec refuses outright when there is no BOM to tell it the byte
-        order - "UTF-16 stream does not start with BOM", which is exactly
-        what a schedule dump hit. So: trust a BOM if there is one, otherwise
-        recognise BOM-less UTF-16LE by its NUL padding, and only then fall
-        back through the single-byte encodings. The last step cannot raise,
-        because failing to decode must never be the reason an export dies."""
-        if data.startswith(b'\xff\xfe') or data.startswith(b'\xfe\xff'):
-            return data.decode('utf-16')
-        if data.startswith(b'\xef\xbb\xbf'):
-            return data.decode('utf-8-sig')
-        # A UTF-16LE dump of mostly-ASCII text is close to half NUL bytes;
-        # none of the single-byte encodings below can look like that.
-        if data.count(b'\x00') > len(data) / 4:
-            return data.decode('utf-16-le', 'replace')
-        for enc in ('utf-8', 'mbcs', 'latin-1'):
-            try:
-                return data.decode(enc)
-            except Exception:
-                continue
-        return data.decode('latin-1', 'replace')
-
-    def _read_schedule_rows(self, schedule, tmp_dir):
-        """One schedule as (header list, list of row lists).
-
-        Goes through Revit's own ViewSchedule.Export - the same thing the
-        Export Schedule command uses - rather than walking table cells. It
-        already resolves formatting, units, grouping and totals exactly as
-        the schedule shows them; re-deriving that from the API would be a
-        different-looking table for no gain."""
-        name = coreutils.cleanup_filename(schedule.Name, windows_safe=True)
-        tmp_name = name + '.txt'
-        opts = DB.ViewScheduleExportOptions()
-        try:
-            # The whole schedule, as the schedule shows it - group headers,
-            # footers and blank rows included. No options: what you get is
-            # the schedule.
-            opts.HeadersFootersBlanks = True
-            # Except the title. Not a preference: the first line of the
-            # export is read as the column headers, and Revit puts the title
-            # there when this is on - one cell, so every column would be
-            # named after the schedule and every row cut to its first value.
-            # The tab is already named after the schedule anyway.
-            opts.Title = False
-        except Exception:
-            pass
-        try:
-            opts.FieldDelimiter = '\t'
-            # Revit quotes every field by default. Nothing downstream needs
-            # the quoting - the workbook writer escapes its own XML - and
-            # stripping it here beats unpicking it per cell later.
-            # 'None' is a Python keyword, so this enum member cannot be
-            # reached with normal attribute access.
-            opts.TextQualifier = getattr(DB.ExportTextQualifier, 'None')
-        except Exception:
-            pass
-        schedule.Export(tmp_dir, tmp_name, opts)
-
-        path = op.join(tmp_dir, tmp_name)
-        with open(path, 'rb') as f:
-            raw = self._decode_export(f.read())
-        lines = [l for l in raw.replace('\r\n', '\n').split('\n') if l.strip()]
-        table = [l.split('\t') for l in lines]
-        if not table:
-            return [], []
-        return table[0], table[1:]
-
-    # ── Reading a schedule as a styled grid ──
+    # ── XLS  (schedules → spreadsheet) ──
+    # Read straight off the table rather than through
+    # ViewSchedule.Export: that writes plain text and carries no colour,
+    # weight or border, and the whole point here is to look like the
+    # schedule.
     # The text export above carries no formatting at all, so anything that
     # has to look like the schedule reads the table itself instead. Only CSV
     # still uses the text path, having nowhere to put a colour.

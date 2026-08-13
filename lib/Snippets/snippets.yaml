@@ -187,6 +187,7 @@ snippets:
     functions:
       write_workbook:  Write columns/rows to .xlsx or .ods, picking the format from the path's extension. locked= protects the sheets, legend= writes the explanatory Legend tab - both default True for pyTable's round trip, both off for a plain schedule dump.
       read_workbook:   Read an .xlsx or .ods back into columns/rows, picking the format from the extension.
+      write_grid_workbook: Write a pre-laid-out styled grid to .xlsx or .ods - per-cell fill, text colour, bold/italic/underline, size, alignment, borders and merged cells. For callers that already know how the table should look (pySheets dumping a Revit schedule) rather than ones building pyTable's edit-and-reimport workbook.
       write_xlsx:      Write an .xlsx directly - one tab per "_category", plus a Legend tab.
       write_ods:       Write an .ods directly - same layout as write_xlsx.
       read_xlsx:       Read an .xlsx into columns/rows.

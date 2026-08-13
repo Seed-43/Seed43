@@ -29,7 +29,7 @@ from pyrevit.framework import Windows
 
 from Snippets import _dialogs as dlg
 from Snippets import _timepicker
-from Snippets._icons import make_icon, set_header_icon
+from Snippets._icons import make_icon, make_icon_with_label, set_header_icon
 from Snippets._support import github_issue_url, open_url, support_mailto
 from Snippets.seed43_theme import (apply_seed43_palette, apply_seed43_dimensions,
                                    get_color)
@@ -85,6 +85,13 @@ class BatchUpgradeWindow(forms.WPFWindow):
         self.settings_toggle_btn.Content = make_icon(
             "menu", size=18,
             color=get_color(SCRIPT_DIR, "text_primary", fallback="#F4FAFF"))
+        # Same reason: the GitHub mark on the menu is a vector icon, so it has
+        # to be built here rather than declared as text in the XAML - which is
+        # why this one item came up bare while its glyph-prefixed neighbours
+        # (email, about, support) looked fine.
+        self.issue_btn.Content = make_icon_with_label(
+            "github", u"Report an issue on GitHub", icon_size=14,
+            color=get_color(SCRIPT_DIR, "text_primary", fallback="#F4FAFF"))
         self._build_version_grid()
         self._setup_schedule()
         self._refresh_schedule_status()
@@ -127,7 +134,7 @@ class BatchUpgradeWindow(forms.WPFWindow):
 
         for year, installed, is_running in revit_versions.version_grid(self.host_year):
             box = Windows.Controls.CheckBox()
-            box.Style = self.FindResource("VersionCheck")
+            box.Style = self.FindResource("CheckBoxStyle")
             label = ("Revit {}".format(year) if installed
                      else "Revit {} (not installed)".format(year))
             box.Content = label

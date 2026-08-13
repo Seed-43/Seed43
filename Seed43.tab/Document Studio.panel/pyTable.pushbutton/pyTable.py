@@ -30,6 +30,7 @@ from pyrevit import revit, DB, script, forms
 
 from Snippets.seed43_theme import (apply_seed43_palette, apply_seed43_dimensions,
                                    get_color)
+from Snippets import _dialogs as dlg
 from Snippets._icons import make_icon_with_label
 from Snippets._selection import get_element_type
 from Snippets._support import github_issue_url, open_url, support_mailto
@@ -42,8 +43,10 @@ from Snippets._parameters import (
     get_param_dropdown_options,
 )
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools'))
-from pytable_io import write_workbook, read_workbook, HIDDEN_COLUMNS
+# Was tools/pytable_io.py, local to this tool. Moved to the lib when pySheets
+# needed the same xlsx/ods writer for its schedule export - two consumers, so
+# it belongs in one place rather than being copied.
+from Snippets._spreadsheet import write_workbook, read_workbook, HIDDEN_COLUMNS
 
 SCRIPT_DIR = os.path.dirname(__file__)
 
@@ -597,6 +600,32 @@ class MainWindow(forms.WPFWindow):
         self.FindName("status_label").Text = text
 
 
+# ── DEVELOPMENT DISCLAIMER ──────────────────────────────────────────────
+# Shown before the window opens, every launch. Deliberately not a "don't
+# show again" tick: this tool writes changes back to the model, and the
+# warning stops being a warning the moment it can be dismissed for good.
+# Delete this block (and the call in __main__) once pyTable is production
+# ready.
+DISCLAIMER_TITLE = 'pyTable is under development'
+DISCLAIMER_TEXT = (
+    u'pyTable is a proof of concept and is still being built. It is not '
+    u'ready for full production use - treat it as a testing tool for now.\n\n'
+    u'It writes changes back to your model, so read the preview carefully '
+    u'before confirming anything, and work on a model you can afford to '
+    u'roll back.'
+)
+
+
+def show_disclaimer():
+    """Never blocks the tool from opening - a failed dialog must not be the
+    reason you cannot run pyTable at all."""
+    try:
+        dlg.message(DISCLAIMER_TEXT, title=DISCLAIMER_TITLE, ok_label='I understand')
+    except Exception:
+        pass
+
+
 if __name__ == "__main__":
+    show_disclaimer()
     window = MainWindow()
     window.ShowDialog()

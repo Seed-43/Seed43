@@ -27,32 +27,22 @@
         <!-- ═══════════════════════════════════════════════════════════
              COLOUR PALETTE
         ═══════════════════════════════════════════════════════════ -->
-        <SolidColorBrush x:Key="BrushPrimaryGreen"       Color="#208A3C"/>
-        <SolidColorBrush x:Key="BrushPrimaryGreenHover"  Color="#2B933F"/>
-        <SolidColorBrush x:Key="BrushPrimaryGreenPressed"  Color="#1A6B2F"/>
-        <SolidColorBrush x:Key="BrushWindowBg"          Color="#3B4553"/>
-        <SolidColorBrush x:Key="BrushCardBg"            Color="#2B3340"/>
-        <SolidColorBrush x:Key="BrushHeaderBg"          Color="#232933"/>
+        <!-- Every Brush*/Size*/CornerRadius*/Padding* key this window uses is
+             injected at open by seed43_theme.py from lib/Snippets/
+             seed43_palette.json - see apply_seed43_palette() and
+             apply_seed43_dimensions() in pySheets.py.
+
+             There are deliberately no local copies of those keys. They only
+             ever applied when injection failed, and they had drifted from the
+             palette (BrushInputBg was declared here as #F4FAFF against the
+             palette's #1d1d20), so a failure rendered the wrong colours
+             instead of an obvious problem. The palette is the one source.
+
+             The two below stay because seed43_theme.py does not inject them -
+             they are this window's own grid-row colours, with no palette key
+             behind them. -->
         <SolidColorBrush x:Key="GridRowBG"         Color="#1E2530"/>
         <SolidColorBrush x:Key="GridRowHover"      Color="#253040"/>
-        <SolidColorBrush x:Key="BrushSelectedRowBg"    Color="#0D2139"/>
-        <SolidColorBrush x:Key="BrushHighlightedRowBg" Color="#183B67"/>
-        <SolidColorBrush x:Key="BrushInputBg"           Color="#F4FAFF"/>
-        <SolidColorBrush x:Key="BrushTextInput"           Color="#2B3340"/>
-        <SolidColorBrush x:Key="BrushTextPrimary"         Color="#F4FAFF"/>
-        <SolidColorBrush x:Key="BrushTextMuted"    Color="#9CA3AF"/>
-        <SolidColorBrush x:Key="BrushSecondaryBg"    Color="#404553"/>
-        <SolidColorBrush x:Key="BrushSecondaryHover" Color="#4E5566"/>
-        <SolidColorBrush x:Key="BrushSecondaryPressed" Color="#333B48"/>
-        <SolidColorBrush x:Key="BrushSecondaryDisabledBg" Color="#555555"/>
-        <SolidColorBrush x:Key="BrushSecondaryDisabledFg" Color="#888888"/>
-        <SolidColorBrush x:Key="BrushDropdownItemHover" Color="#3A4553"/>
-        <SolidColorBrush x:Key="BrushBorderMuted"       Color="#3B4553"/>
-        <SolidColorBrush x:Key="BrushDanger"            Color="#C53030"/>
-        <SolidColorBrush x:Key="BrushSuccess"           Color="#27AE60"/>
-        <SolidColorBrush x:Key="BrushSuccessHover"      Color="#2ECC71"/>
-        <SolidColorBrush x:Key="BrushPillOffBg"         Color="#2B3340"/>
-        <SolidColorBrush x:Key="BrushPillOffBorder"     Color="#404553"/>
 
         <!-- ═══════════════════════════════════════════════════════════
              SECTION LABEL
@@ -287,12 +277,132 @@
              marks the event handled so it never reaches the ComboBoxItem,
              which would otherwise select+close the dropdown on every click
              (the standard fix for multi-select ComboBoxes in WPF). -->
-        <Style x:Key="FilterCheckBox" TargetType="CheckBox">
+        <!-- ═══════════════════════════════════════════════════════════
+             CHECKBOX  (canonical Seed43 box, not the native Windows one)
+        ═══════════════════════════════════════════════════════════ -->
+        <!-- Same template as lib/Snippets/Seed43Styles.xaml and Batch
+             Upgrade - keep the three in step if any of them changes. Before
+             this, every checkbox in this window was the stock Windows one:
+             only the label colour and size were ever styled.
+
+             NOTE: the tick geometry is cut for a 16px box (the SizeCheckbox
+             default) and does not scale with the token. -->
+        <Style x:Key="CheckBoxStyle" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="FontSize"   Value="{DynamicResource FontSizeFieldLabel}"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+            <Setter Property="Margin"     Value="0,4,18,4"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <!-- Transparent background, not none, so the whole row
+                             - label included - is the click target, not just
+                             the box itself. -->
+                        <StackPanel Orientation="Horizontal" Background="Transparent">
+                            <Border x:Name="Box"
+                                    Width="{DynamicResource SizeCheckbox}"
+                                    Height="{DynamicResource SizeCheckbox}"
+                                    Background="{DynamicResource BrushInputBg}"
+                                    BorderBrush="{DynamicResource BrushBorderDefault}"
+                                    BorderThickness="{DynamicResource BorderThicknessCheckbox}"
+                                    CornerRadius="{DynamicResource CornerRadiusCheckbox}"
+                                    VerticalAlignment="Center">
+                                <!-- BrushToggleKnob, not BrushTextPrimary: this
+                                     is a mark on an accent-filled control, the
+                                     same as the toggle knob, and it has to stay
+                                     light against the green in the light
+                                     profile too. -->
+                                <Path x:Name="Tick"
+                                      Data="M 3,7.5 L 6,10.5 L 11.5,4.5"
+                                      Stroke="{DynamicResource BrushToggleKnob}"
+                                      StrokeThickness="2"
+                                      StrokeEndLineCap="Round"
+                                      StrokeStartLineCap="Round"
+                                      Visibility="Collapsed"/>
+                            </Border>
+                            <ContentPresenter Margin="7,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Box"  Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+                                <Setter TargetName="Tick" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="{DynamicResource BrushSecondaryDisabledFg}"/>
+                                <Setter TargetName="Box" Property="Background"  Value="{DynamicResource BrushSecondaryDisabledBg}"/>
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource BrushSecondaryDisabledFg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Applied to every CheckBox in the window without tagging all 28 of
+             them, the way the old label-only style was. Margin is reset to 0:
+             this window's layouts already set their own spacing, and the
+             canonical 0,4,18,4 would shift the grid's centred Include box and
+             the weekday row. -->
+        <Style TargetType="CheckBox" BasedOn="{StaticResource CheckBoxStyle}">
+            <Setter Property="Margin" Value="0"/>
+        </Style>
+
+        <!-- Header-filter dropdown items. Same box as everywhere else, just
+             smaller text and the dropdown's own spacing - an explicit Style
+             replaces the implicit one rather than adding to it, so without
+             the BasedOn these four would still be native Windows boxes. -->
+        <Style x:Key="FilterCheckBox" TargetType="CheckBox"
+               BasedOn="{StaticResource CheckBoxStyle}">
             <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="FontSize"   Value="11"/>
             <Setter Property="Margin"     Value="6,4"/>
             <Setter Property="HorizontalAlignment" Value="Stretch"/>
         </Style>
+
+        <!-- ═══════════════════════════════════════════════════════════
+             RADIO BUTTON  (canonical Seed43 ring, not the native circle)
+        ═══════════════════════════════════════════════════════════ -->
+        <!-- Same template as lib/Snippets/Seed43Styles.xaml, pyTable and
+             pyLink - keep them in step if any changes. Round twin of
+             CheckBoxStyle above: an outlined ring that gets an accent dot
+             when checked. Before this, all eight radios in this window were
+             the stock Windows ones. -->
+        <Style x:Key="RadioButtonStyle" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="FontSize"   Value="{DynamicResource FontSizeBody}"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="16" Height="16"
+                                    BorderBrush="{DynamicResource BrushPrimaryGreen}" BorderThickness="1.5"
+                                    CornerRadius="8" Background="{DynamicResource BrushInputBg}"
+                                    VerticalAlignment="Center">
+                                <Ellipse x:Name="Dot" Width="8" Height="8"
+                                         Fill="{DynamicResource BrushPrimaryGreen}"
+                                         Visibility="Collapsed"/>
+                            </Border>
+                            <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Dot" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Applied to every RadioButton in the window without tagging all
+             eight. Unlike the checkbox twin this needs no Margin reset - the
+             canonical radio sets no Margin, and each radio already carries
+             its own spacing. -->
+        <Style TargetType="RadioButton" BasedOn="{StaticResource RadioButtonStyle}"/>
 
         <!-- Shared header content for dynamically-added custom parameter
              columns (Manage Columns). One DataTemplate instantiated per
@@ -594,6 +704,15 @@
             <Setter Property="Padding"    Value="{DynamicResource PaddingButtonSmall}"/>
         </Style>
 
+        <!-- ═══════════════════════════════════════════════════════════
+             SMALL PRIMARY BUTTON  (accent, sits in a row of small controls)
+        ═══════════════════════════════════════════════════════════ -->
+        <Style x:Key="SmallPrimBtn" TargetType="Button" BasedOn="{StaticResource PrimaryBtn}">
+            <Setter Property="FontSize"   Value="{DynamicResource FontSizeButtonSmall}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding"    Value="{DynamicResource PaddingButtonSmall}"/>
+        </Style>
+
         <Style x:Key="SmallSecToggle" TargetType="ToggleButton">
             <Setter Property="Background"  Value="{DynamicResource BrushSecondaryBg}"/>
             <Setter Property="Foreground"  Value="{DynamicResource BrushTextPrimary}"/>
@@ -798,10 +917,6 @@
         <!-- ═══════════════════════════════════════════════════════════
              CHECKBOX STYLE
         ═══════════════════════════════════════════════════════════ -->
-        <Style TargetType="CheckBox">
-            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
-            <Setter Property="FontSize"   Value="12"/>
-        </Style>
 
         <!-- ═══════════════════════════════════════════════════════════
              DATAGRID — base
@@ -1379,6 +1494,7 @@
                                 <ComboBox x:Name="sheetset_cb"
                                           Width="160"
                                           Style="{StaticResource ModernComboBox}"
+                                          ToolTip="Ticks the sheets in the set — the list still shows every sheet, so you can add or remove sheets afterwards"
                                           SelectionChanged="sheetset_changed">
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate>
@@ -1501,6 +1617,16 @@
                                     Content="IMG"
                                     Tag=""
                                     Style="{StaticResource PillBtn}"
+                                    Margin="0,0,4,0"
+                                    Click="fmt_pill_clicked"/>
+                            <!-- Last in the row, and the only one that deals
+                                 in schedules: Revit will not print or export
+                                 a schedule to any of the formats above. -->
+                            <Button x:Name="fmt_xls_btn"
+                                    Content="XLS"
+                                    Tag=""
+                                    Style="{StaticResource PillBtn}"
+                                    ToolTip="Export selected schedules to one spreadsheet — a tab per schedule"
                                     Click="fmt_pill_clicked"/>
                         </WrapPanel>
 
@@ -2362,6 +2488,48 @@
                             </Border>
                         </StackPanel>
 
+                        <StackPanel x:Name="xls_settings_panel" Visibility="Collapsed" MaxWidth="420" HorizontalAlignment="Left">
+                            <Border Background="{DynamicResource BrushCardBg}"
+                                    BorderBrush="{DynamicResource BrushBorderMuted}" BorderThickness="1"
+                                    CornerRadius="6" Padding="10" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="TABLE OPTIONS"
+                                               Style="{StaticResource SectionLabel}"
+                                               FontSize="13" FontWeight="Bold" Opacity="0.9" Margin="0,0,0,8"/>
+                                    <TextBlock Text="File Format" Style="{StaticResource FieldLabel}"/>
+                                    <ComboBox x:Name="xls_type_cb"
+                                              Style="{StaticResource DarkComboBox}"
+                                              SelectedIndex="0"
+                                              SelectionChanged="xls_type_changed"
+                                              Margin="0,0,0,12">
+                                        <ComboBoxItem Content="XLSX"/>
+                                        <ComboBoxItem Content="ODS"/>
+                                        <ComboBoxItem Content="CSV"/>
+                                    </ComboBox>
+                                    <TextBlock Text="Output" Style="{StaticResource FieldLabel}"/>
+                                    <!-- Same pair the PDF panel offers. CSV
+                                         holds one table by definition, so
+                                         xls_type_changed forces Separate and
+                                         greys out Single when it is picked. -->
+                                    <RadioButton x:Name="xls_single_rb" GroupName="xlsgrp"
+                                                 Content="Single file, a tab per schedule"
+                                                 IsChecked="True"
+                                                 Foreground="{DynamicResource BrushTextPrimary}"
+                                                 Margin="0,0,0,6"/>
+                                    <RadioButton x:Name="xls_separate_rb" GroupName="xlsgrp"
+                                                 Content="Separate file per schedule"
+                                                 Foreground="{DynamicResource BrushTextPrimary}"
+                                                 Margin="0,0,0,12"/>
+                                    <CheckBox x:Name="xls_title_cb"
+                                              Content="Include the schedule title row"
+                                              Margin="0,0,0,6"/>
+                                    <CheckBox x:Name="xls_groups_cb"
+                                              Content="Include group headers, footers and blank rows"
+                                              IsChecked="True"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
                     </StackPanel>
             </StackPanel>
         </ScrollViewer>
@@ -2442,8 +2610,10 @@
                                Style="{StaticResource SectionLabel}"
                                FontSize="13" FontWeight="Bold" Margin="0,0,0,8"/>
                     <DockPanel LastChildFill="False" Margin="0,0,0,8">
-                        <!-- Profile first, then Enable: pick the card you are
-                             scheduling, tick it on, and the timing unlocks. -->
+                        <!-- Profile first: it decides which card every field
+                             after it is editing, so nothing unlocks until one
+                             is picked. The Schedule button at the end is what
+                             commits the row. -->
                         <TextBlock Text="Profile"
                                    DockPanel.Dock="Left"
                                    Foreground="{DynamicResource BrushTextPrimary}"
@@ -2456,14 +2626,7 @@
                                   ItemTemplate="{StaticResource ProfileItem}"
                                   SelectionChanged="sched_profile_changed"
                                   VerticalAlignment="Center" Margin="0,0,16,0"
-                                  ToolTip="Pick the profile to schedule — its own time is shown, and Enable arms it"/>
-                        <CheckBox x:Name="sched_enable_cb"
-                                  Content="Enable"
-                                  Checked="sched_enable_changed"
-                                  Unchecked="sched_enable_changed"
-                                  DockPanel.Dock="Left"
-                                  VerticalAlignment="Center" Margin="0,0,16,0"
-                                  ToolTip="Arm this profile — it will print at the time set here, with pySheets closed"/>
+                                  ToolTip="Pick the profile to schedule — its own time is shown, and the Schedule button arms it"/>
                         <TextBlock Text="Time"
                                    DockPanel.Dock="Left"
                                    Foreground="{DynamicResource BrushTextPrimary}"
@@ -2545,12 +2708,26 @@
                                     DockPanel.Dock="Left"
                                     Style="{StaticResource DarkDatePicker}"
                                     SelectedDateChanged="sched_field_changed"
-                                    VerticalAlignment="Center"/>
+                                    VerticalAlignment="Center" Margin="0,0,16,0"/>
+                        <!-- Label always says what the press will do: Schedule
+                             to arm (or re-arm at an edited time), Unschedule
+                             once the card is armed and untouched. -->
+                        <Button x:Name="sched_action_btn"
+                                Content="Schedule"
+                                Width="100" Height="26"
+                                IsEnabled="False"
+                                DockPanel.Dock="Left"
+                                Style="{StaticResource SmallPrimBtn}"
+                                Click="sched_action_clicked"
+                                VerticalAlignment="Center"
+                                ToolTip="Arm this profile — it will print at the time set here, with pySheets closed"/>
                     </DockPanel>
                     <StackPanel Orientation="Horizontal">
+                        <!-- Wide enough for the armed line plus the "press
+                             Schedule" hint without trimming either. -->
                         <TextBlock x:Name="sched_status_tb"
                                    Text="Schedule off"
-                                   Width="190"
+                                   Width="300"
                                    TextTrimming="CharacterEllipsis"
                                    Foreground="{DynamicResource BrushPrimaryGreen}"
                                    FontSize="11" FontWeight="SemiBold"

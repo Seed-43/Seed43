@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 """Shared helpers behind every Seed43 tool's hamburger menu: the installed
 version lookup, the pre-filled support email, and the pre-filled GitHub
-issue link."""
+issue link.
+
+Also the two "open something outside Revit" helpers, which live here for the
+same reason - every tool needs them and none of them should each grow their
+own: open_url for links, open_folder for a folder in Explorer."""
 
 import os
 import urllib
@@ -52,6 +56,86 @@ def _quote(text):
         return urllib.quote(text.encode('utf-8'))
     except Exception:
         return urllib.quote(str(text))
+
+
+# ── OPENING FOLDERS ───────────────────────────────────────────────────────────
+
+def _explorer_window_for(path):
+    """The open Explorer window already showing `path`, or None.
+
+    Walks the shell's window list through Shell.Application - the same COM
+    route the Excel helpers use - and matches on each window's location.
+    Anything that isn't a folder window (an Internet Explorer tab, "This PC",
+    a control panel page) either has no usable location or simply won't
+    match, so it falls out of the comparison on its own."""
+    try:
+        from System import Activator, Type, Uri
+    except Exception:
+        return None
+    try:
+        shell_type = Type.GetTypeFromProgID('Shell.Application')
+        if shell_type is None:
+            return None
+        shell = Activator.CreateInstance(shell_type)
+        target = os.path.normcase(os.path.normpath(path))
+        for win in shell.Windows():
+            try:
+                loc = win.LocationURL
+                if not loc:
+                    continue
+                # LocationURL is percent-encoded (file:///C:/My%20Folder), so
+                # let Uri decode it rather than unquoting by hand.
+                local = Uri(loc).LocalPath
+                if os.path.normcase(os.path.normpath(local)) == target:
+                    return win
+            except Exception:
+                continue
+    except Exception:
+        return None
+    return None
+
+
+def _bring_to_front(hwnd):
+    """Restore and focus a window by handle. False if it couldn't be done."""
+    try:
+        import ctypes
+        user32 = ctypes.windll.user32
+        # 9 = SW_RESTORE: a minimised window has to come back up first, or
+        # SetForegroundWindow raises it without ever showing it.
+        user32.ShowWindow(hwnd, 9)
+        return bool(user32.SetForegroundWindow(hwnd))
+    except Exception:
+        return False
+
+
+def open_folder(path):
+    """Show `path` in File Explorer, reusing a window that already has it
+    open instead of stacking another one on top of it.
+
+    Returns True if an existing window was reused, False if a new one was
+    opened. Focusing is best effort - if the window is found but cannot be
+    raised, this still counts as reused and returns True, because the point
+    is not opening a duplicate. Never raises."""
+    try:
+        path = os.path.normpath(path)
+    except Exception:
+        return False
+    win = _explorer_window_for(path)
+    if win is not None:
+        try:
+            _bring_to_front(win.HWND)
+        except Exception:
+            pass
+        return True
+    try:
+        os.startfile(path)
+    except Exception:
+        try:
+            import subprocess
+            subprocess.Popen(['explorer.exe', path])
+        except Exception:
+            pass
+    return False
 
 
 # ── OPENING LINKS ─────────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@
 # pySheets.py
 
 # ── IMPORTS ──
+import io          # schedule dumps come back as UTF-16, so open() won't do
 import re
 import os
 import os.path as op
@@ -51,7 +52,9 @@ from Snippets import _dialogs as dlg
 from Snippets import _userdata
 from Snippets import _schedule
 from Snippets._icons import make_icon, make_icon_with_label, set_header_icon
-from Snippets._support import github_issue_url, open_url, support_mailto
+from Snippets._spreadsheet import write_workbook
+from Snippets._support import (github_issue_url, open_folder, open_url,
+                               support_mailto)
 from Snippets.seed43_theme import (apply_seed43_palette, apply_seed43_dimensions,
                                    get_color)
 import FolderPresetManager as fpm_win
@@ -98,10 +101,18 @@ config = script.get_config()
 
 # ── CONSTANTS ──
 # Format pill names — must match XAML Button x:Name suffixes
-ALL_FORMATS   = ['PDF', 'DWG', 'DGN', 'NWC', 'IFC', 'IMG']
+ALL_FORMATS   = ['PDF', 'DWG', 'DGN', 'NWC', 'IFC', 'IMG', 'XLS']
 VIEWS_ONLY_FORMATS = {'NWC', 'IFC'}   # these can only export 3D views, never sheets
+# XLS is the mirror image: schedules and nothing else. Revit refuses to
+# print or export a schedule to any of the other formats ("some of the views
+# are not printable (exportable)"), and on a combined PDF one schedule fails
+# the whole batch - so schedules are kept out of every other format's list
+# entirely rather than being offered and then rejected.
+SCHEDULES_ONLY_FORMATS = {'XLS'}
+SCHEDULE_TYPE_LABEL    = 'Schedule'   # ViewItem.paper_size for a schedule
 FILE_EXT      = {'PDF': '.pdf', 'DWG': '.dwg', 'DGN': '.dgn',
-                 'NWC': '.nwc', 'IFC': '.ifc', 'IMG': '.png'}
+                 'NWC': '.nwc', 'IFC': '.ifc', 'IMG': '.png',
+                 'XLS': '.xlsx'}
 
 # Tab indices — tabs renamed: Select | Settings | Export
 TAB_SELECT   = 0
@@ -586,6 +597,11 @@ class NamedSheetSet(object):
         return []
 
 
+# The grid is always built from this one, whatever the dropdown is showing -
+# a named set ticks rows rather than deciding which rows exist.
+ALL_SHEETS = AllSheetsSet()
+
+
 # ── PROFILE DROPDOWN ITEM  (both profile combos) ──
 class ProfileItem(object):
     """One saved profile as shown in a dropdown. `armed` drives the accent
@@ -653,6 +669,10 @@ class PrintSheetsWindow(forms.WPFWindow):
         self._current_tab     = TAB_SELECT
         self._export_folder   = USER_DESKTOP
         self._init_psettings  = None     # to restore on close
+        # Which document that setting was read from. Restoring has to target
+        # that same document, not whatever the dropdown is showing when the
+        # window closes - see _restore_print_settings.
+        self._init_psettings_doc = None
 
         # ── Per-format selection containers ──
         # Sheets and Views each have their own independent containers
@@ -691,6 +711,10 @@ class PrintSheetsWindow(forms.WPFWindow):
 
         # ── Schedule state ──
         self._sched_timer = None
+        # Timing edited since the card was last committed. Nothing is written
+        # until the Schedule button is pressed, so an armed card keeps running
+        # to its old time while you fiddle with the fields.
+        self._sched_dirty = False
         # True only while a scheduled run is driving the window. Nothing may
         # block on a dialog then - there is no one sitting in front of it.
         self._unattended  = False
@@ -707,7 +731,15 @@ class PrintSheetsWindow(forms.WPFWindow):
         self._fmt_naming  = {f: None for f in ALL_FORMATS}
 
         # ── Project info ──
-        self._project_info = revit.query.get_project_info(doc=revit.doc)
+        # The host model, captured once. Everything that names a file or
+        # builds an output path reads from here, never from the document
+        # picked in the dropdown - a link's project number, name and global
+        # parameters belong to whoever issued it, and filing this project's
+        # output under a consultant's number is how drawings get lost.
+        # A link's *sheets* are still the link's, so sheet_param and
+        # tblock_param deliberately keep reading the selected document.
+        self._host_doc     = revit.doc
+        self._project_info = revit.query.get_project_info(doc=self._host_doc)
         self._active_folder_preset = None
 
         # ── Populate UI ──
@@ -896,6 +928,14 @@ class PrintSheetsWindow(forms.WPFWindow):
             logger.warning('Naming memory save failed: %s', ex)
 
     def _get_printmanager(self):
+        """The selected document's PrintManager, or None if it hasn't got one.
+
+        Deliberately NOT refused for a linked document: pyRevit's own Print
+        Sheets tool (which this one grew out of) reads PaperSizes and
+        PrintSetup off a link's print manager, and drives SubmitPrint through
+        it to print linked sheets. Blocking links here would take a capability
+        away rather than fix anything. Callers that write to it are the ones
+        that have to be careful - a link will not accept a transaction."""
         try:
             pm = self._selected_doc.PrintManager
             if pm:
@@ -922,31 +962,50 @@ class PrintSheetsWindow(forms.WPFWindow):
                            key=lambda i: i.name.lower())
         items.extend(ps_items)
 
-        # Mark compatibility
+        # Mark compatibility. Both PrintManager reads below are wrapped: they
+        # are only there to decorate and preselect the list, and a document
+        # that will not answer them - a link is the case that turns up - must
+        # leave you with a usable dropdown rather than take the window down.
         pm = self._get_printmanager()
         if pm:
-            compat = {p.Name for p in pm.PaperSizes if p}
-            for item in items:
-                if (not item.allows_variable_paper and
-                        item.paper_size and item.paper_size.Name in compat):
-                    item.is_compatible = True
+            try:
+                compat = {p.Name for p in pm.PaperSizes if p}
+                for item in items:
+                    if (not item.allows_variable_paper and
+                            item.paper_size and item.paper_size.Name in compat):
+                        item.is_compatible = True
+            except Exception as ex:
+                logger.warning('Could not read paper sizes from this '
+                               'document: %s', ex)
 
         self.printsetting_cb.ItemsSource = items
         if items:
             # Try to match current Revit setting
             pm = self._get_printmanager()
+            cur = None
             if pm:
-                cur = pm.PrintSetup.CurrentPrintSetting
-                if isinstance(cur, DB.InSessionPrintSetting):
-                    self.printsetting_cb.SelectedIndex = 0
-                else:
-                    self._init_psettings = cur
-                    for i, item in enumerate(items):
-                        if item.name == cur.Name:
-                            self.printsetting_cb.SelectedIndex = i
-                            break
-            else:
+                try:
+                    cur = pm.PrintSetup.CurrentPrintSetting
+                except Exception as ex:
+                    logger.warning('Could not read the current print setting '
+                                   'from this document: %s', ex)
+            if cur is None:
                 self.printsetting_cb.SelectedIndex = 0
+            elif isinstance(cur, DB.InSessionPrintSetting):
+                self.printsetting_cb.SelectedIndex = 0
+            else:
+                # Captured once, and only from a document that can actually
+                # take it back on close. Without the "is None" guard, picking
+                # a link part-way through would overwrite the host's original
+                # setting and it would never be restored.
+                if (self._init_psettings is None and
+                        not getattr(self._selected_doc, 'IsLinked', False)):
+                    self._init_psettings = cur
+                    self._init_psettings_doc = self._selected_doc
+                for i, item in enumerate(items):
+                    if item.name == cur.Name:
+                        self.printsetting_cb.SelectedIndex = i
+                        break
 
     def _setup_export_setups(self):
         """Populate DWG/DGN export setup dropdowns from the document."""
@@ -1053,15 +1112,18 @@ class PrintSheetsWindow(forms.WPFWindow):
 
     # ── SHEET LIST ──
     def _reload_sheet_list(self):
-        """Rebuild _all_sheets/_ordered_sheets from the selected doc + mode."""
-        doc  = self._selected_doc
-        sset = self._selected_sheetset
+        """Rebuild _all_sheets/_ordered_sheets from the selected doc + mode.
+
+        Always every sheet in the document, whatever set is picked. The set
+        dropdown ticks rows, it does not decide which rows exist - see
+        sheetset_changed."""
+        doc = self._selected_doc
 
         if self._sv_mode == 'views':
             self._reload_view_list(doc)
             return
 
-        if sset is None:
+        if doc is None:
             return
 
         tblocks = list(revit.query.get_elements_by_categories(
@@ -1070,12 +1132,18 @@ class PrintSheetsWindow(forms.WPFWindow):
 
         all_ps = revit.query.get_all_print_settings(doc=doc)
         sheet_ps = {}
-        if (self._selected_printsetting is not None and
+        # Never for a link: variable paper is a printing feature and a link
+        # has no printing context. The dropdown does not offer the variable
+        # paper item for a link, but the host's choice is still selected at
+        # the moment the document changes, so this has to be checked here
+        # too rather than relying on the selection alone.
+        if (not getattr(doc, 'IsLinked', False) and
+                self._selected_printsetting is not None and
                 self._selected_printsetting.allows_variable_paper):
             sheet_ps = self._build_sheet_ps_map(tblocks, all_ps)
 
         sheets = []
-        for rs in sset.get_sheets(doc):
+        for rs in ALL_SHEETS.get_sheets(doc):
             if getattr(rs, 'IsPlaceholder', False):
                 continue
             tb  = self._find_tblock(rs, tblocks)
@@ -1152,6 +1220,10 @@ class PrintSheetsWindow(forms.WPFWindow):
         for v in items:
             v.custom_params = self._read_custom_params(v, self._custom_view_columns)
         self._rebuild_type_filter()
+        # The dropdown is fresh, so whatever lock the current format implies
+        # has to be put back on it. Without this, reloading the list while
+        # XLS was showing left the filter wide open and every view appeared.
+        self._apply_type_lock()
         self._rebuild_extra_filters_for(self._custom_view_columns, self._all_view_items)
         self._sync_order_dropdown()
         self._apply_filter()
@@ -1165,9 +1237,9 @@ class PrintSheetsWindow(forms.WPFWindow):
             except Exception:
                 pass
             cb.Width = 120
-            labels = ['All types'] + sorted(
-                {v.paper_size for v in self._all_view_items})
-            cb.ItemsSource   = labels
+            # Same list _apply_type_lock maintains, so the dropdown is built
+            # and rebuilt from one rule rather than two that can disagree.
+            cb.ItemsSource   = self._type_labels()
             cb.SelectedIndex = 0
             cb.SelectionChanged += self.type_filter_changed
             self._type_cb     = cb
@@ -1613,6 +1685,17 @@ class PrintSheetsWindow(forms.WPFWindow):
         if self._sv_mode == 'views' and self._type_filter is not None:
             sheets = [s for s in sheets if s.paper_size in self._type_filter]
 
+        # Schedules belong to XLS alone. Revit cannot print or export one to
+        # any other format, so rather than listing them and failing at export
+        # - which on a combined PDF took the whole batch down with it - they
+        # are simply not shown unless XLS is the format being viewed. The
+        # type lock above already narrows XLS to schedules, so this is the
+        # other half of the same rule.
+        if (self._sv_mode == 'views' and
+                self._fmt_viewing not in SCHEDULES_ONLY_FORMATS):
+            sheets = [s for s in sheets
+                      if s.paper_size != SCHEDULE_TYPE_LABEL]
+
         # Filter by revision / size / sheet collection — sheets mode only
         if self._sv_mode == 'sheets':
             if self._rev_filter is not None:
@@ -1679,8 +1762,13 @@ class PrintSheetsWindow(forms.WPFWindow):
         return template
 
     def _resolve_template(self, template):
-        """Replace project/global params — same for every sheet."""
-        doc = self._selected_doc
+        """Replace project/global params — same for every sheet.
+
+        Read from the host model, not the document picked in the dropdown.
+        These are project-level values: exporting a link's sheets is still
+        this project's issue, so it is this project's number, parameters and
+        globals that name the file."""
+        doc = self._host_doc
         template = self._replace_param(template, 'proj_param',
             lambda x: revit.query.get_param_value(
                 doc.ProjectInformation.LookupParameter(x)))
@@ -1729,14 +1817,27 @@ class PrintSheetsWindow(forms.WPFWindow):
         return coreutils.cleanup_filename(fname, windows_safe=True)
 
     def _ext_for(self, fmt):
-        """File extension for a format — IMG depends on the image type."""
+        """File extension for a format — IMG and XLS depend on their type
+        dropdown, the way IMG covers png/jpeg/tiff and XLS covers xlsx/ods."""
         if fmt == 'IMG':
             try:
                 itype = self.img_type_cb.SelectedItem.Content
                 return IMG_TYPE_EXT.get(itype, '.png')
             except Exception:
                 return '.png'
+        if fmt == 'XLS':
+            return self._xls_ext()
         return FILE_EXT.get(fmt, '')
+
+    XLS_TYPE_EXT = {'XLSX': '.xlsx', 'ODS': '.ods', 'CSV': '.csv'}
+
+    def _xls_ext(self):
+        """'.xlsx', '.ods' or '.csv', from the Table options dropdown."""
+        try:
+            return self.XLS_TYPE_EXT.get(
+                self.xls_type_cb.SelectedItem.Content, '.xlsx')
+        except Exception:
+            return '.xlsx'
 
     # ── FORMAT PILL LOGIC ──
     def _fmt_btn(self, fmt):
@@ -1748,6 +1849,7 @@ class PrintSheetsWindow(forms.WPFWindow):
             'NWC': self.fmt_nwc_btn,
             'IFC': self.fmt_ifc_btn,
             'IMG': self.fmt_img_btn,
+            'XLS': self.fmt_xls_btn,
         }
         return name_map.get(fmt)
 
@@ -1848,7 +1950,9 @@ class PrintSheetsWindow(forms.WPFWindow):
         force Views mode and lock the Type filter to 3D."""
         self._fmt_viewing = fmt
         self._show_exp_panel(fmt)
-        if fmt in VIEWS_ONLY_FORMATS:
+        # XLS is views-only for the same reason NWC/IFC are: a schedule is
+        # a view, and there is no sheet it could ever apply to.
+        if fmt in VIEWS_ONLY_FORMATS or fmt in SCHEDULES_ONLY_FORMATS:
             self.sv_sheets_btn.IsEnabled = False
             self.sv_sheets_btn.Opacity   = 0.35
             if self._sv_mode != 'views':
@@ -1867,21 +1971,49 @@ class PrintSheetsWindow(forms.WPFWindow):
         if self._sv_mode == 'views':
             self._apply_type_lock()
 
+    def _type_labels(self):
+        """Entries for the Type header dropdown, for the format being viewed.
+
+        Schedules belong to XLS and nowhere else, so 'Schedule' is not
+        offered under any other format - and under XLS it is the only entry.
+        Leaving it in every list meant you could pick a type that the format
+        filters out anyway, and switching away from XLS left the dropdown
+        holding 'Schedule' against a list that could never contain one."""
+        types = set(v.paper_size for v in self._all_view_items)
+        if self._fmt_viewing in SCHEDULES_ONLY_FORMATS:
+            return ([SCHEDULE_TYPE_LABEL]
+                    if SCHEDULE_TYPE_LABEL in types else [])
+        return ['All types'] + sorted(t for t in types
+                                      if t != SCHEDULE_TYPE_LABEL)
+
     def _apply_type_lock(self):
-        """Lock the Type filter dropdown to 3D when viewing NWC/IFC."""
+        """Lock the Type filter dropdown: 3D when viewing NWC/IFC, Schedule
+        when viewing XLS. Both formats accept exactly one kind of view, so
+        the filter is fixed rather than left to be got wrong."""
         cb = getattr(self, '_type_cb', None)
-        lock = self._fmt_viewing in VIEWS_ONLY_FORMATS
-        self._type_filter = {'3D'} if lock else None
-        if cb is None:
-            return
-        try:
-            if lock:
-                cb.SelectedItem = '3D'
-            else:
-                cb.SelectedIndex = 0
-            cb.IsEnabled = not lock
-        except Exception:
-            pass
+        if self._fmt_viewing in SCHEDULES_ONLY_FORMATS:
+            locked_type = SCHEDULE_TYPE_LABEL
+        elif self._fmt_viewing in VIEWS_ONLY_FORMATS:
+            locked_type = '3D'
+        else:
+            locked_type = None
+        lock = locked_type is not None
+        if cb is not None:
+            try:
+                # Rebuilt on every format switch, not just when the view list
+                # reloads - which format is showing decides what belongs here.
+                cb.ItemsSource = self._type_labels()
+                if lock:
+                    cb.SelectedItem = locked_type
+                else:
+                    cb.SelectedIndex = 0
+                cb.IsEnabled = not lock
+            except Exception:
+                pass
+        # Last, deliberately: assigning ItemsSource and the selection above
+        # fires type_filter_changed, which would otherwise overwrite this
+        # with whatever the combo happened to land on mid-rebuild.
+        self._type_filter = {locked_type} if lock else None
 
     # ── TAB NAVIGATION ──
     def _show_tab(self, tab_index):
@@ -2113,7 +2245,8 @@ class PrintSheetsWindow(forms.WPFWindow):
 
         exporters = {'PDF': self._export_pdf, 'DWG': self._export_dwg,
                      'DGN': self._export_dgn, 'NWC': self._export_nwc,
-                     'IFC': self._export_ifc, 'IMG': self._export_img}
+                     'IFC': self._export_ifc, 'IMG': self._export_img,
+                     'XLS': self._export_xls}
 
         for fmt in ALL_FORMATS:
             qitems = by_fmt.get(fmt)
@@ -2130,8 +2263,11 @@ class PrintSheetsWindow(forms.WPFWindow):
 
         self.overall_pct_tb.Text = 'Complete'
         if self.open_folder_cb.IsChecked:
+            # Not coreutils.open_folder_in_explorer: that launches Explorer
+            # unconditionally, so every export left another window for the
+            # same folder stacked on the last one.
             try:
-                coreutils.open_folder_in_explorer(base_folder)
+                open_folder(base_folder)
             except Exception:
                 pass
 
@@ -2338,12 +2474,26 @@ class PrintSheetsWindow(forms.WPFWindow):
             self._save_naming_memory()
 
     def _print_to_physical(self, sheets):
-        """Send items to the selected physical printer (PrintManager path)."""
+        """Send items to the selected physical printer (PrintManager path).
+
+        The inner blocks each catch their own failures, but the transactions
+        themselves have to be guarded too: opening one can throw before the
+        body ever runs (a document that refuses transactions is the case that
+        turns up), and an exception escaping a handler unwinds out of
+        ShowDialog with a transaction open - which is how this takes Revit
+        down rather than just the window."""
         pm      = self._get_printmanager()
         printer = self._selected_printer
         if not pm or not printer:
             dlg.message('No printer selected for physical printing.')
             return
+        try:
+            self._print_to_physical_inner(pm, printer, sheets)
+        except Exception as ex:
+            logger.error('Physical print failed: %s', ex)
+            dlg.message('Could not send to the printer.\n\n' + str(ex))
+
+    def _print_to_physical_inner(self, pm, printer, sheets):
         with revit.DryTransaction('Apply Print Settings',
                                   doc=self._selected_doc):
             try:
@@ -2528,6 +2678,16 @@ class PrintSheetsWindow(forms.WPFWindow):
             pixels = 2048
 
         for qi in qitems:
+            # Revit cannot rasterise a schedule. ExportImage rejects the call
+            # outright with "some of the views is not exportable", so a
+            # Revision Schedule in the queue failed as an error rather than
+            # being recognised as something that was never exportable. Same
+            # treatment as a missing Navisworks exporter: Skipped, not Failed.
+            if isinstance(qi.source.revit_sheet, DB.ViewSchedule):
+                logger.info('IMG %s skipped: Revit cannot export a schedule '
+                            'as an image', qi.filename)
+                tick(qi, 'Skipped')
+                continue
             qi.status = 'Exporting'
             self._pump()
             try:
@@ -2551,13 +2711,255 @@ class PrintSheetsWindow(forms.WPFWindow):
                 logger.error('IMG %s failed: %s', qi.filename, ex)
                 tick(qi, 'Failed')
 
+    # ── XLS  (schedules → one workbook, a tab each) ──
+    @staticmethod
+    def _decode_export(data):
+        """Decode whatever ViewSchedule.Export just wrote.
+
+        Revit is not consistent about the encoding, and Python's 'utf-16'
+        codec refuses outright when there is no BOM to tell it the byte
+        order - "UTF-16 stream does not start with BOM", which is exactly
+        what a schedule dump hit. So: trust a BOM if there is one, otherwise
+        recognise BOM-less UTF-16LE by its NUL padding, and only then fall
+        back through the single-byte encodings. The last step cannot raise,
+        because failing to decode must never be the reason an export dies."""
+        if data.startswith(b'\xff\xfe') or data.startswith(b'\xfe\xff'):
+            return data.decode('utf-16')
+        if data.startswith(b'\xef\xbb\xbf'):
+            return data.decode('utf-8-sig')
+        # A UTF-16LE dump of mostly-ASCII text is close to half NUL bytes;
+        # none of the single-byte encodings below can look like that.
+        if data.count(b'\x00') > len(data) / 4:
+            return data.decode('utf-16-le', 'replace')
+        for enc in ('utf-8', 'mbcs', 'latin-1'):
+            try:
+                return data.decode(enc)
+            except Exception:
+                continue
+        return data.decode('latin-1', 'replace')
+
+    def _read_schedule_rows(self, schedule, tmp_dir):
+        """One schedule as (header list, list of row lists).
+
+        Goes through Revit's own ViewSchedule.Export - the same thing the
+        Export Schedule command uses - rather than walking table cells. It
+        already resolves formatting, units, grouping and totals exactly as
+        the schedule shows them; re-deriving that from the API would be a
+        different-looking table for no gain."""
+        name = coreutils.cleanup_filename(schedule.Name, windows_safe=True)
+        tmp_name = name + '.txt'
+        opts = DB.ViewScheduleExportOptions()
+        try:
+            opts.Title = bool(self.xls_title_cb.IsChecked)
+        except Exception:
+            pass
+        try:
+            opts.HeadersFootersBlanks = bool(self.xls_groups_cb.IsChecked)
+        except Exception:
+            pass
+        try:
+            opts.FieldDelimiter = '\t'
+            # Revit quotes every field by default. Nothing downstream needs
+            # the quoting - the workbook writer escapes its own XML - and
+            # stripping it here beats unpicking it per cell later.
+            # 'None' is a Python keyword, so this enum member cannot be
+            # reached with normal attribute access.
+            opts.TextQualifier = getattr(DB.ExportTextQualifier, 'None')
+        except Exception:
+            pass
+        schedule.Export(tmp_dir, tmp_name, opts)
+
+        path = op.join(tmp_dir, tmp_name)
+        with open(path, 'rb') as f:
+            raw = self._decode_export(f.read())
+        lines = [l for l in raw.replace('\r\n', '\n').split('\n') if l.strip()]
+        table = [l.split('\t') for l in lines]
+        if not table:
+            return [], []
+        return table[0], table[1:]
+
+    @staticmethod
+    def _csv_line(cells):
+        """One CSV record, quoted per RFC 4180.
+
+        Hand-rolled rather than using the csv module: Python 2's csv writes
+        bytes and mangles non-ASCII, and schedule text is full of it."""
+        out = []
+        for cell in cells:
+            text = cell if isinstance(cell, unicode) else unicode(cell or '')
+            if any(ch in text for ch in (u',', u'"', u'\n', u'\r')):
+                text = u'"' + text.replace(u'"', u'""') + u'"'
+            out.append(text)
+        return u','.join(out)
+
+    def _export_xls_csv(self, qitems, folder, tick, tmp_dir):
+        """CSV holds exactly one table, so this is one file per schedule -
+        named by the ordinary naming format, like every other per-item
+        format. The workbook path below is the one that merges."""
+        for qi in qitems:
+            qi.status = 'Exporting'
+            self._pump()
+            sched = qi.source.revit_sheet
+            try:
+                header, body = self._read_schedule_rows(sched, tmp_dir)
+                path = op.join(folder, qi.fname_noext + '.csv')
+                with io.open(path, 'w', encoding='utf-8') as f:
+                    f.write(self._csv_line(header) + u'\r\n')
+                    for line in body:
+                        f.write(self._csv_line(line) + u'\r\n')
+                tick(qi, 'Done')
+            except Exception as ex:
+                logger.error('CSV %s failed: %s', qi.filename, ex)
+                tick(qi, 'Failed')
+
+    @staticmethod
+    def _schedule_table(header, body, tab):
+        """One schedule as (columns, rows) in the shape write_workbook wants.
+
+        Rows carry their tab name in "_category" - that is the key the writer
+        groups on, whatever the grouping means to the caller."""
+        columns, rows, seen = [], [], set()
+        keys = []
+        for i, head in enumerate(header):
+            key = head.strip() or 'Column {0}'.format(i + 1)
+            keys.append(key)
+            if key not in seen:
+                seen.add(key)
+                columns.append({'key': key, 'kind': 'instance',
+                                'readonly': True})
+        for line in body:
+            row = {'_category': tab}
+            for i, cell in enumerate(line):
+                if i < len(keys):
+                    row[keys[i]] = cell
+            rows.append(row)
+        return columns, rows
+
+    def _export_xls(self, qitems, folder, tick):
+        """Selected schedules to a spreadsheet.
+
+        Two independent choices, the same pair PDF already offers: which
+        format, and one file or one per schedule. CSV holds a single table
+        by definition, so it is always separate files however the radio is
+        set - xls_type_changed keeps the radios honest about that."""
+        import shutil
+        import tempfile
+
+        ext    = self._xls_ext()
+        single = ext != '.csv' and bool(self.xls_single_rb.IsChecked)
+        tmp_dir = tempfile.mkdtemp(prefix='pysheets_xls_')
+        try:
+            if single:
+                self._export_xls_single(qitems, folder, tick, tmp_dir, ext)
+            elif ext == '.csv':
+                self._export_xls_csv(qitems, folder, tick, tmp_dir)
+            else:
+                self._export_xls_separate(qitems, folder, tick, tmp_dir, ext)
+        finally:
+            try:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+            except Exception:
+                pass
+
+    def _export_xls_single(self, qitems, folder, tick, tmp_dir, ext):
+        """All selected schedules into one workbook, a tab each."""
+        for qi in qitems:
+            qi.status = 'Exporting'
+        self._pump()
+
+        columns, rows, exported = [], [], []
+        seen_cols = set()
+        for qi in qitems:
+            sched = qi.source.revit_sheet
+            try:
+                header, body = self._read_schedule_rows(sched, tmp_dir)
+            except Exception as ex:
+                logger.error('XLS %s failed: %s', qi.filename, ex)
+                tick(qi, 'Failed')
+                continue
+            cols, rws = self._schedule_table(header, body, sched.Name)
+            for col in cols:
+                if col['key'] not in seen_cols:
+                    seen_cols.add(col['key'])
+                    columns.append(col)
+            rows.extend(rws)
+            exported.append(qi)
+
+        if not exported:
+            return
+        path = op.join(folder, self._xls_workbook_name(qitems) + ext)
+        try:
+            write_workbook(path, columns, rows)
+        except Exception as ex:
+            logger.error('XLS workbook failed: %s', ex)
+            for qi in exported:
+                tick(qi, 'Failed')
+            return
+        for qi in exported:
+            tick(qi, 'Done')
+
+    def _export_xls_separate(self, qitems, folder, tick, tmp_dir, ext):
+        """One workbook per schedule, a single tab in each - named by the
+        ordinary naming format, like every other per-item format."""
+        for qi in qitems:
+            qi.status = 'Exporting'
+            self._pump()
+            sched = qi.source.revit_sheet
+            try:
+                header, body = self._read_schedule_rows(sched, tmp_dir)
+                columns, rows = self._schedule_table(header, body, sched.Name)
+                write_workbook(op.join(folder, qi.fname_noext + ext),
+                               columns, rows)
+                tick(qi, 'Done')
+            except Exception as ex:
+                logger.error('XLS %s failed: %s', qi.filename, ex)
+                tick(qi, 'Failed')
+
+    def _xls_workbook_name(self, qitems):
+        """Name for the single workbook, from the combined naming format -
+        the same one the combined PDF uses, since both are one file made of
+        many items."""
+        return self._combined_pdf_name(qitems)
+
+    def xls_type_changed(self, sender, args):
+        """CSV cannot hold more than one table, so picking it forces (and
+        greys out) separate files rather than letting the radio claim
+        something the format can't do."""
+        if self._loading:
+            return
+        try:
+            is_csv = self._xls_ext() == '.csv'
+            if is_csv:
+                self.xls_separate_rb.IsChecked = True
+            self.xls_single_rb.IsEnabled = not is_csv
+            self.xls_single_rb.Opacity   = 0.55 if is_csv else 1.0
+        except Exception as ex:
+            logger.warning('Table options: could not sync file mode: %s', ex)
+
     def _restore_print_settings(self):
-        if self._init_psettings:
-            pm = self._get_printmanager()
-            if pm:
-                with revit.Transaction('Restore Print Settings',
-                                       doc=self._selected_doc):
-                    pm.PrintSetup.CurrentPrintSetting = self._init_psettings
+        """Put back the print setting that was current before pySheets ran.
+
+        Against the document it was read from, not whatever the dropdown
+        happens to be showing at close. With a link selected, the old code
+        opened a transaction on the link - Revit refuses that ("Transactions
+        can only be used in primary documents") and the exception escaped
+        window_closing, so the window died on the way out.
+
+        Never raises: this runs while the window is closing, and there is
+        nothing useful a failure here can do except be logged."""
+        doc = self._init_psettings_doc
+        if not self._init_psettings or doc is None:
+            return
+        if getattr(doc, 'IsLinked', False):
+            return          # nothing was ever changed there to put back
+        try:
+            pm = doc.PrintManager
+            if not pm:
+                return
+            with revit.Transaction('Restore Print Settings', doc=doc):
+                pm.PrintSetup.CurrentPrintSetting = self._init_psettings
+        except Exception as ex:
+            logger.warning('Could not restore the original print setting: %s', ex)
 
     # ── ROW CLICK / MULTI-SELECT  (Shift / Ctrl highlight) ──
     # ── ROW CLICK — Ctrl/Shift directly checks/unchecks the checkboxes ──
@@ -2993,18 +3395,57 @@ class PrintSheetsWindow(forms.WPFWindow):
 
     # ── XAML EVENT HANDLERS SELECT TAB ──
     def doc_changed(self, sender, args):
-        self._project_info = revit.query.get_project_info(doc=self._selected_doc)
+        # _project_info deliberately stays on the host model (set once in
+        # __init__ from revit.doc) and is NOT re-read from the selected
+        # document. Picking a link changes which sheets you are exporting,
+        # not whose job it is: a link's own project number and name belong to
+        # somebody else's model, and letting them through would file the
+        # output under the consultant's number instead of this project's.
         # Clear ALL containers — document changed so all selections are stale
         for c in self._sheet_selections.values(): c.clear()
         for c in self._view_selections.values():  c.clear()
-        self._setup_sheet_sets()
+        # Print settings first: _setup_sheet_sets rebuilds the sheet list, and
+        # that reads the selected print setting. Left in the old order it
+        # would still be holding the previous document's choice - which is
+        # how switching to a link used to reach the variable-paper path with
+        # a link as the document.
         self._setup_print_settings()
+        self._setup_sheet_sets()
         self._setup_export_setups()
 
     def sheetset_changed(self, sender, args):
-        # Clear only sheet containers — sheet set changed so sheet selections are stale
-        for c in self._sheet_selections.values(): c.clear()
-        self._reload_sheet_list()
+        """Picking a set ticks its sheets. It does not hide the others.
+
+        A set is a starting selection, not a filter: the grid still holds
+        every sheet in the document, so sheets can be added to or taken out
+        of what the set gave you. <All Sheets> ticks nothing - it means "no
+        set chosen", the blank slate the window opens on, not select-all."""
+        # Replaces the selection rather than adding to it, and does so for
+        # every format - picking a set has always reset all of them, back
+        # when it rebuilt the list instead.
+        for c in self._sheet_selections.values():
+            c.clear()
+        self._select_sheetset(self._selected_sheetset)
+
+        # The rows themselves no longer depend on the set, so re-filtering is
+        # enough - _apply_filter restores every tick from the containers, and
+        # rebuilding the whole list here would re-read title blocks and custom
+        # parameters for every sheet in the model for nothing.
+        if self._all_sheet_items:
+            self._apply_filter()
+        else:
+            self._reload_sheet_list()
+
+    def _select_sheetset(self, sset):
+        """Tick every sheet belonging to `sset`, in all formats' containers."""
+        if not isinstance(sset, NamedSheetSet):
+            return
+        for rs in sset.get_sheets(self._selected_doc):
+            if getattr(rs, 'IsPlaceholder', False):
+                continue
+            sid = get_elementid_value(rs.Id)
+            for c in self._sheet_selections.values():
+                c.update(sid, True)
 
     def search_changed(self, sender, args):
         self._apply_filter()
@@ -3030,9 +3471,19 @@ class PrintSheetsWindow(forms.WPFWindow):
                               title='Save Sheet Set')
         if not name:
             return
-        with revit.Transaction('Save Sheet Set', doc=self._selected_doc):
-            pm = self._get_printmanager()
-            if pm:
+        pm = self._get_printmanager()
+        if not pm:
+            dlg.message('This document has no print manager, so a sheet set '
+                        'cannot be saved from it.')
+            return
+        try:
+            with revit.Transaction('Save Sheet Set', doc=self._selected_doc):
+                # ViewSheetSetting is only reachable while PrintRange is
+                # Select - on Current or All, Revit refuses with "This
+                # property is only available when user choose Select of Print
+                # Range". Printing sets it to Current, so whether this worked
+                # depended on what had been done in the window beforehand.
+                pm.PrintRange = DB.PrintRange.Select
                 vss = pm.ViewSheetSetting
                 # DB.ViewSet is required — List[View] causes a TypeError
                 view_set = DB.ViewSet()
@@ -3040,6 +3491,12 @@ class PrintSheetsWindow(forms.WPFWindow):
                     view_set.Insert(s.revit_sheet)
                 vss.CurrentViewSheetSet.Views = view_set
                 vss.SaveAs(name)
+        except Exception as ex:
+            # Never let this escape: it runs from a button handler, and an
+            # exception there unwinds out of ShowDialog and closes pySheets.
+            logger.error('Save Sheet Set failed: %s', ex)
+            dlg.message('Could not save the sheet set.\n\n' + str(ex))
+            return
         self._setup_sheet_sets()
 
     def _set_size_col_header(self, content):
@@ -3528,7 +3985,13 @@ class PrintSheetsWindow(forms.WPFWindow):
         """Load the selected print setting's saved values into the panel."""
         item = self._selected_printsetting
         if item is None:
-            logger.warning('printsetting update skipped: no item selected')
+            # Never a fault, so never a warning. Two ordinary things land
+            # here: a linked model, which has no print settings of its own so
+            # the dropdown is legitimately empty; and the moment _setup_print_
+            # settings assigns ItemsSource, which clears the selection and
+            # fires this handler before the new item is picked. There is
+            # simply nothing to apply either way.
+            logger.debug('printsetting update skipped: nothing selected')
             return
         if item.allows_variable_paper:
             logger.debug('printsetting update skipped: variable paper item')
@@ -3564,10 +4027,18 @@ class PrintSheetsWindow(forms.WPFWindow):
                     self.placement_center_rb.IsChecked = True
                 else:
                     self.placement_offset_rb.IsChecked = True
-                    self.offset_x_tb.Text = '{:.2f}'.format(
-                        pp.UserDefinedMarginX)
-                    self.offset_y_tb.Text = '{:.2f}'.format(
-                        pp.UserDefinedMarginY)
+                    # UserDefinedMarginX/Y only exist while MarginType is
+                    # UserDefined. On No Margin or Printer Limit - both
+                    # perfectly ordinary settings - reading them throws
+                    # "Current PaperPlacement is NOT Margins and Current
+                    # MarginType is NOT User defined", which is the warning
+                    # this used to log on every print. Nothing to read then,
+                    # so the offset boxes keep what they had.
+                    if pp.MarginType == DB.MarginType.UserDefined:
+                        self.offset_x_tb.Text = '{:.2f}'.format(
+                            pp.UserDefinedMarginX)
+                        self.offset_y_tb.Text = '{:.2f}'.format(
+                            pp.UserDefinedMarginY)
             except Exception as ex:
                 logger.warning('printsetting: paper placement field failed: %s', ex)
             try:
@@ -3635,7 +4106,8 @@ class PrintSheetsWindow(forms.WPFWindow):
                    'DGN': self.dgn_settings_panel,
                    'NWC': self.nwc_settings_panel,
                    'IFC': self.ifc_settings_panel,
-                   'IMG': self.img_settings_panel}
+                   'IMG': self.img_settings_panel,
+                   'XLS': self.xls_settings_panel}
         for f, pnl in pnl_map.items():
             pnl.Visibility = (Windows.Visibility.Visible if f == fmt
                               else Windows.Visibility.Collapsed)
@@ -4007,7 +4479,8 @@ class PrintSheetsWindow(forms.WPFWindow):
         self._loading = True
         try:
             self._select_cb_name(self.sched_profile_cb, name)
-            self.sched_enable_cb.IsChecked = name in self._armed_profile_names()
+            # What is on screen is now exactly what is on the profile.
+            self._sched_dirty = False
 
             hour, minute = block.get('hour'), block.get('minute')
             if hour is None or minute is None:
@@ -4351,42 +4824,36 @@ class PrintSheetsWindow(forms.WPFWindow):
             self._loading = was_loading
         self._load_card_into_ui(name)
 
-    def sched_enable_changed(self, sender, args):
-        """Enable is per card: it arms or disarms whichever profile the
-        schedule dropdown is showing, and leaves every other card alone."""
+    def sched_action_clicked(self, sender, args):
+        """The Schedule button — the one place a card is ever committed.
+
+        It is per card: it arms or drops whichever profile the schedule
+        dropdown is showing, and leaves every other card alone. Pressed on a
+        card that is armed but has edits pending it re-arms rather than
+        drops, which is what its label says by then."""
         if self._loading:
             return
         name = self._cb_name(self.sched_profile_cb)
         if not name:
-            self._set_sched_enabled(False)
-            self._update_sched_gates()
             self.sched_status_tb.Text = 'Pick a profile…'
             return
-        if self.sched_enable_cb.IsChecked:
-            self._arm_card(name)
-        else:
+        if self._card_armed(name) and not self._sched_dirty:
             self._disarm_card(name)
-        self._update_sched_gates()
+        else:
+            self._arm_card(name)
 
     def sched_field_changed(self, sender, args):
         """Time / repeat / weekday / start date edited.
 
-        The timing is written onto the profile either way — that is what
-        makes a profile a punch card. Arming is what adds it to the run
-        list, and re-arming here moves an armed card to the new time."""
+        Nothing is written here — not to the profile, not to the run list.
+        The edit stays pending until the Schedule button commits it, so an
+        armed card cannot quietly move to a new time under you while you are
+        still deciding what that time should be."""
         if self._loading:
             return
+        self._sched_dirty = True
         self._update_sched_gates()
-        name = self._cb_name(self.sched_profile_cb)
-        if not name:
-            return
-        if self.sched_enable_cb.IsChecked:
-            self._arm_card(name)
-        else:
-            block = self._sched_block_from_ui()
-            if block:
-                self._write_profile_schedule(name, block)
-            self._update_sched_status()
+        self._update_sched_status()
 
     def _sched_repeat_mode(self):
         try:
@@ -4412,33 +4879,55 @@ class PrintSheetsWindow(forms.WPFWindow):
     def _update_sched_gates(self):
         """Unlock each control only when the previous step is set.
 
-        Chain: pick a profile, tick Enable, then its timing opens up. The
-        profile has to come first because it decides which card everything
-        else is editing."""
+        Chain: pick a profile, and its timing opens up. The profile has to
+        come first because it decides which card everything else is
+        editing."""
         prof   = bool(self._cb_name(self.sched_profile_cb))
-        on     = prof and bool(self.sched_enable_cb.IsChecked)
-        repeat = on and self._sched_repeat_mode() == 'Repeat'
+        repeat = prof and self._sched_repeat_mode() == 'Repeat'
 
         self.sched_profile_cb.IsEnabled = True
-        self.sched_enable_cb.IsEnabled  = prof
-        self.sched_time_btn.IsEnabled   = on
-        self.sched_repeat_cb.IsEnabled  = on
+        self.sched_time_btn.IsEnabled   = prof
+        self.sched_repeat_cb.IsEnabled  = prof
         self.sched_date_dp.IsEnabled    = repeat
         self.sched_days_panel.Visibility = (
             Windows.Visibility.Visible if repeat
             else Windows.Visibility.Collapsed)
-        for ctrl, enabled in ((self.sched_enable_cb, prof),
-                              (self.sched_time_btn, on),
-                              (self.sched_repeat_cb, on)):
-            ctrl.Opacity = 1.0 if enabled else 0.55
+        for ctrl in (self.sched_time_btn, self.sched_repeat_cb):
+            ctrl.Opacity = 1.0 if prof else 0.55
+        self._update_sched_button()
+
+    def _card_armed(self, name):
+        """True when profile `name` is in the run list right now."""
+        return bool(name) and name in self._armed_profile_names()
+
+    def _update_sched_button(self):
+        """Label and colour of the Schedule button.
+
+        It always names what pressing it will do, so an armed card with edits
+        pending reads Schedule again rather than Unschedule - the press
+        applies the new timing instead of dropping the card."""
+        name  = self._cb_name(self.sched_profile_cb)
+        # Armed and untouched is the only state where the press cancels.
+        drop  = self._card_armed(name) and not self._sched_dirty
+        self.sched_action_btn.Content   = 'Unschedule' if drop else 'Schedule'
+        self.sched_action_btn.IsEnabled = bool(name)
+        self.sched_action_btn.ToolTip = (
+            'Drop this card from the run list — its time stays on the profile'
+            if drop else
+            'Arm this profile — it will print at the time set here, with '
+            'pySheets closed')
+        style = self.TryFindResource('SmallSecBtn' if drop else 'SmallPrimBtn')
+        if style:
+            self.sched_action_btn.Style = style
 
     def _sched_block_from_ui(self):
-        """The Schedule tab's current fields as a profile schedule block."""
+        """The Schedule tab's current fields as a profile schedule block.
+
+        No `enabled` key: arming is what sets it, in _arm_card."""
         t = self._parse_sched_time()
         if t is None:
             return None
         return {
-            'enabled':     bool(self.sched_enable_cb.IsChecked),
             'hour':        t[0],
             'minute':      t[1],
             'repeat_mode': self._sched_repeat_mode(),
@@ -4447,15 +4936,6 @@ class PrintSheetsWindow(forms.WPFWindow):
         }
 
     # ── Arming ──
-    def _set_sched_enabled(self, on):
-        """Set the Enable tick without it looking like a user click."""
-        was_loading = self._loading
-        self._loading = True
-        try:
-            self.sched_enable_cb.IsChecked = bool(on)
-        finally:
-            self._loading = was_loading
-
     def _arm_card(self, name):
         """Add (or move) profile `name` in the run list, at the time now
         showing in the Schedule tab."""
@@ -4471,7 +4951,6 @@ class PrintSheetsWindow(forms.WPFWindow):
             # rather than leave it armed - it still holds a next_run from
             # before the days were cleared, and would fire on it.
             self._disarm_card(name)
-            self._set_sched_enabled(False)
             self.sched_status_tb.Text = 'Pick at least one day…'
             return
 
@@ -4484,7 +4963,6 @@ class PrintSheetsWindow(forms.WPFWindow):
             pass
         if not doc_path:
             self._disarm_card(name)
-            self._set_sched_enabled(False)
             self.sched_status_tb.Text = 'Save the project first'
             return
 
@@ -4506,8 +4984,10 @@ class PrintSheetsWindow(forms.WPFWindow):
         data['entries'] = entries
         _write_armed_file(data)
 
+        self._sched_dirty = False    # committed - the button goes to Unschedule
         self._start_timer()
         self._setup_profiles()      # repaint the armed dots
+        self._update_sched_gates()
         self._update_sched_status()
 
     def _disarm_card(self, name):
@@ -4525,16 +5005,25 @@ class PrintSheetsWindow(forms.WPFWindow):
 
         if not data['entries']:
             self._stop_timer()
+        self._sched_dirty = False
         self._setup_profiles()
+        self._update_sched_gates()
         self._update_sched_status()
 
     def _update_sched_status(self):
-        """Green status line: what is armed, and when the next one fires."""
+        """Green status line: what is armed, and when the next one fires.
+
+        Pending edits are called out here, because the armed time it is
+        showing is the old one until the Schedule button is pressed."""
         entries = [e for e in _read_armed_file().get('entries', [])
                    if e.get('next_run')]
         if not entries:
             self.sched_status_tb.Text = 'Schedule off'
             return
+        hint = ''
+        if self._sched_dirty and self._card_armed(
+                self._cb_name(self.sched_profile_cb)):
+            hint = ' — press Schedule to apply changes'
         entries.sort(key=lambda e: (e['next_run'],
                                     (e.get('profile_name') or '').lower()))
         first = entries[0]
@@ -4544,10 +5033,10 @@ class PrintSheetsWindow(forms.WPFWindow):
         except Exception:
             when = first['next_run']
         if len(entries) == 1:
-            self.sched_status_tb.Text = 'Next run: {}'.format(when)
+            self.sched_status_tb.Text = 'Next run: {}{}'.format(when, hint)
         else:
-            self.sched_status_tb.Text = '{} armed — next {} ({})'.format(
-                len(entries), when, first.get('profile_name'))
+            self.sched_status_tb.Text = '{} armed — next {} ({}){}'.format(
+                len(entries), when, first.get('profile_name'), hint)
 
     def _start_timer(self):
         """One timer for the window, however many cards are armed."""

@@ -175,6 +175,23 @@ snippets:
       get_levels:                Return all levels in the project.
       choose_datum:              Pick a level or grid from selection, a list, or by clicking it.
 
+  _spreadsheet.py:
+    description: >
+      xlsx and ods reader/writer with zero third-party dependencies - both
+      formats are zip archives of XML, written directly with zipfile and
+      ElementTree from the IronPython 2.7 stdlib (there is no pip here, so a
+      third-party package would have to be vendored by hand). Rows carry
+      their tab name in a "_category" key: an element category for pyTable,
+      a schedule name for pySheets. Was pyTable's own tools/pytable_io.py
+      until pySheets needed the same writer. Used by pyTable and pySheets.
+    functions:
+      write_workbook:  Write columns/rows to .xlsx or .ods, picking the format from the path's extension.
+      read_workbook:   Read an .xlsx or .ods back into columns/rows, picking the format from the extension.
+      write_xlsx:      Write an .xlsx directly - one tab per "_category", plus a Legend tab.
+      write_ods:       Write an .ods directly - same layout as write_xlsx.
+      read_xlsx:       Read an .xlsx into columns/rows.
+      read_ods:        Read an .ods into columns/rows.
+
   _support.py:
     description: >
       Shared helpers behind every Seed43 tool's hamburger menu: the installed
@@ -184,5 +201,6 @@ snippets:
       find_seed43_version: Walk up from start_dir to Seed43.extension/version.txt and return just the version string.
       revit_version:       Return the running Revit version, or 'unknown' outside Revit.
       open_url:            Open a URL or mailto link in the default handler, without blocking the UI thread.
+      open_folder:         Show a folder in File Explorer, raising the window that already has it open instead of stacking up another one. Returns True if an existing window was reused.
       support_mailto:      Return a mailto URI for a support email, pre-filled with the app name, the installed Seed43 version and the Revit version.
       github_issue_url:    Return a GitHub 'new issue' URL for the Seed43 repo, pre-filled with the app name, Seed43 version and Revit version.

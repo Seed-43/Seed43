@@ -1,6 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-Format-agnostic export/import I/O for pyTable.
+Shared xlsx/ods reader and writer.
+
+Started life as pyTable's tools/pytable_io.py and moved here when pySheets
+needed the same writer for its schedule export. Two consumers now:
+
+  * pyTable   - exports model/schedule parameters, reads the edited file back.
+  * pySheets  - writes one workbook per export, a tab per selected schedule.
+
+Rows carry their tab name in a "_category" key, whatever that grouping
+actually means to the caller (an element category for pyTable, a schedule
+name for pySheets).
 
 Deliberately has ZERO third-party dependencies. xlsx and ods are both just
 zip archives of XML - this reads/writes that XML directly via zipfile and

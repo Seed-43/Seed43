@@ -22,52 +22,16 @@
     </shell:WindowChrome.WindowChrome>
 
     <Window.Resources>
-        <!-- Local fallbacks: apply_seed43_palette overwrites these at runtime,
-             but the window still has to look right if the palette is missing. -->
-        <SolidColorBrush x:Key="BrushWindowBg"             Color="#3B4553"/>
-        <SolidColorBrush x:Key="BrushCardBg"               Color="#2B3340"/>
-        <SolidColorBrush x:Key="BrushHeaderBg"             Color="#232933"/>
-        <SolidColorBrush x:Key="BrushPrimaryGreen"         Color="#208A3C"/>
-        <SolidColorBrush x:Key="BrushPrimaryGreenHover"    Color="#32934C"/>
-        <SolidColorBrush x:Key="BrushPrimaryGreenPressed"  Color="#5CAA71"/>
-        <SolidColorBrush x:Key="BrushTextPrimary"          Color="#FFFFFF"/>
-        <SolidColorBrush x:Key="BrushTextMuted"            Color="#9CA3AF"/>
-        <SolidColorBrush x:Key="BrushTextInput"            Color="#FFFFFF"/>
-        <SolidColorBrush x:Key="BrushInputBg"              Color="#1d1d20"/>
-        <SolidColorBrush x:Key="BrushBorderDefault"        Color="#208A3C"/>
-        <SolidColorBrush x:Key="BrushSecondaryBg"          Color="#48484b"/>
-        <SolidColorBrush x:Key="BrushSecondaryHover"       Color="#515155"/>
-        <SolidColorBrush x:Key="BrushSecondaryPressed"     Color="#67676c"/>
-        <SolidColorBrush x:Key="BrushSecondaryDisabledBg"  Color="#2e2e32"/>
-        <SolidColorBrush x:Key="BrushSecondaryDisabledFg"  Color="#77767b"/>
-        <SolidColorBrush x:Key="BrushDanger"               Color="#e01b24"/>
-        <SolidColorBrush x:Key="BrushDangerHover"          Color="#E22D36"/>
-        <SolidColorBrush x:Key="BrushSuccess"              Color="#27AE60"/>
-        <SolidColorBrush x:Key="BrushPillOffBorder"        Color="#404553"/>
+        <!-- Every Brush*/Size*/CornerRadius*/Padding* key this window uses is
+             injected at open by seed43_theme.py from lib/Snippets/
+             seed43_palette.json - see the apply_seed43_palette() and
+             apply_seed43_dimensions() calls in script.py.
 
-        <CornerRadius x:Key="CornerRadiusCard">8</CornerRadius>
-        <CornerRadius x:Key="CornerRadiusButton">10</CornerRadius>
-        <CornerRadius x:Key="CornerRadiusButtonSmall">4</CornerRadius>
-        <CornerRadius x:Key="CornerRadiusInput">6</CornerRadius>
-        <CornerRadius x:Key="CornerRadiusCheckbox">4</CornerRadius>
-        <Thickness    x:Key="PaddingCard">16</Thickness>
-        <Thickness    x:Key="PaddingButtonPrimary">15,7,15,7</Thickness>
-        <Thickness    x:Key="PaddingButtonSmall">12,4,12,4</Thickness>
-        <Thickness    x:Key="PaddingInput">8,4,8,4</Thickness>
-        <Thickness    x:Key="BorderThicknessInput">1</Thickness>
-        <Thickness    x:Key="BorderThicknessCheckbox">1.5</Thickness>
-        <sys:Double   x:Key="FontSizeButton">12</sys:Double>
-        <sys:Double   x:Key="FontSizeButtonSmall">11</sys:Double>
-        <sys:Double   x:Key="FontSizeInput">12</sys:Double>
-        <sys:Double   x:Key="FontSizeSectionLabel">14</sys:Double>
-        <sys:Double   x:Key="FontSizeFieldLabel">12</sys:Double>
-        <sys:Double   x:Key="FontSizeBody">12</sys:Double>
-        <sys:Double   x:Key="HeightInput">28</sys:Double>
-        <sys:Double   x:Key="HeightButtonSmall">24</sys:Double>
-        <sys:Double   x:Key="SizeCheckbox">16</sys:Double>
-        <sys:Double   x:Key="SizeTopBarLogo">28</sys:Double>
-        <sys:Double   x:Key="FontSizeMenuItem">12</sys:Double>
-        <Thickness    x:Key="PaddingMenuItem">12,8,12,8</Thickness>
+             There are deliberately no local copies of those keys. The tools
+             and the lib ship as one package, so the palette is always there;
+             a duplicate set here only went stale and made a failure render
+             the wrong values instead of an obvious problem. -->
+
 
         <!-- ── Buttons ─────────────────────────────────────────────────── -->
 
@@ -203,7 +167,16 @@
             </Setter>
         </Style>
 
-        <Style x:Key="VersionCheck" TargetType="CheckBox">
+        <!-- Canonical checkbox. This template started life here as
+             "VersionCheck" and is now the lib reference copy in
+             lib/Snippets/Seed43Styles.xaml under this name - keep the two in
+             step if either changes. Same self-contained rule as every other
+             style in this window: the lib file is a reference guide, nothing
+             loads it at runtime.
+
+             NOTE: the tick geometry is cut for a 16px box (the SizeCheckbox
+             default) and does not scale with the token. -->
+        <Style x:Key="CheckBoxStyle" TargetType="CheckBox">
             <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="FontSize"   Value="{DynamicResource FontSizeFieldLabel}"/>
             <Setter Property="Cursor"     Value="Hand"/>
@@ -211,6 +184,9 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="CheckBox">
+                        <!-- Transparent background, not none, so the whole row
+                             - label included - is the click target, not just
+                             the box itself. -->
                         <StackPanel Orientation="Horizontal" Background="Transparent">
                             <Border x:Name="Box"
                                     Width="{DynamicResource SizeCheckbox}"
@@ -220,9 +196,14 @@
                                     BorderThickness="{DynamicResource BorderThicknessCheckbox}"
                                     CornerRadius="{DynamicResource CornerRadiusCheckbox}"
                                     VerticalAlignment="Center">
+                                <!-- BrushToggleKnob, not BrushTextPrimary: this
+                                     is a mark on an accent-filled control, the
+                                     same as the toggle knob, and it has to stay
+                                     light against the green in the light
+                                     profile too. -->
                                 <Path x:Name="Tick"
                                       Data="M 3,7.5 L 6,10.5 L 11.5,4.5"
-                                      Stroke="{DynamicResource BrushTextPrimary}"
+                                      Stroke="{DynamicResource BrushToggleKnob}"
                                       StrokeThickness="2"
                                       StrokeEndLineCap="Round"
                                       StrokeStartLineCap="Round"
@@ -613,7 +594,7 @@
                             <DockPanel LastChildFill="False" Margin="0,0,0,8">
                                 <CheckBox x:Name="sched_enable_cb"
                                           Content="Enable"
-                                          Style="{StaticResource VersionCheck}"
+                                          Style="{StaticResource CheckBoxStyle}"
                                           DockPanel.Dock="Left"
                                           VerticalAlignment="Center" Margin="0,0,16,0"
                                           ToolTip="Arm this run - the files, output folder and versions set above run at the time below, with this window closed"/>

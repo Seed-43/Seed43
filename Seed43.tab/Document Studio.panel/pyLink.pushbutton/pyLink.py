@@ -2404,7 +2404,11 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         real_path = fd.get('real_path', path) if fd else path
         folder = os.path.dirname(real_path)
         try:
-            os.startfile(folder)
+            # Not os.startfile: opening the same folder from several cards
+            # left a stack of identical Explorer windows. open_folder raises
+            # the one already showing it instead.
+            from Snippets._support import open_folder
+            open_folder(folder)
         except Exception as ex:
             _alert('Could not open folder:\n{}'.format(ex), title='Open Folder')
 

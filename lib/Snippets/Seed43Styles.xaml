@@ -430,11 +430,75 @@ trigger, a reshaped template) need this file re-exported and re-merged.
         </Setter>
     </Style>
 
+    <!-- Checkbox - promoted from Batch Upgrade's local VersionCheck style,
+         which was the only real one in the extension. Without it you get the
+         native Windows checkbox (pySheets' weekday row still does), which
+         looks nothing like the rest of the app. Square twin of
+         RadioButtonStyle below: outlined box that fills with the accent and
+         shows a tick when checked.
+
+         NOTE: the tick geometry is cut for a 16px box (the SizeCheckbox
+         default). It does not scale with the token - push SizeCheckbox much
+         past 16 and the tick needs re-cutting, or wrapping in a Viewbox. -->
+    <Style x:Key="CheckBoxStyle" TargetType="CheckBox">
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+        <Setter Property="FontSize"   Value="{DynamicResource FontSizeFieldLabel}"/>
+        <Setter Property="Cursor"     Value="Hand"/>
+        <Setter Property="Margin"     Value="0,4,18,4"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <!-- Transparent background, not none, so the whole row -
+                         label included - is the click target, not just the
+                         box itself. -->
+                    <StackPanel Orientation="Horizontal" Background="Transparent">
+                        <Border x:Name="Box"
+                                Width="{DynamicResource SizeCheckbox}"
+                                Height="{DynamicResource SizeCheckbox}"
+                                Background="{DynamicResource BrushInputBg}"
+                                BorderBrush="{DynamicResource BrushBorderDefault}"
+                                BorderThickness="{DynamicResource BorderThicknessCheckbox}"
+                                CornerRadius="{DynamicResource CornerRadiusCheckbox}"
+                                VerticalAlignment="Center">
+                            <!-- BrushToggleKnob, not BrushTextPrimary: this is
+                                 a mark on an accent-filled control, the same
+                                 as the toggle knob, and it has to stay light
+                                 against the green in the light profile too. -->
+                            <Path x:Name="Tick"
+                                  Data="M 3,7.5 L 6,10.5 L 11.5,4.5"
+                                  Stroke="{DynamicResource BrushToggleKnob}"
+                                  StrokeThickness="2"
+                                  StrokeEndLineCap="Round"
+                                  StrokeStartLineCap="Round"
+                                  Visibility="Collapsed"/>
+                        </Border>
+                        <ContentPresenter Margin="7,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Box"  Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+                            <Setter TargetName="Tick" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{DynamicResource BrushSecondaryDisabledFg}"/>
+                            <Setter TargetName="Box" Property="Background"  Value="{DynamicResource BrushSecondaryDisabledBg}"/>
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource BrushSecondaryDisabledFg}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- No canonical RadioButtonStyle existed anywhere in the lib before
          this - same visual language as the app's other selection
          controls: a circular outline that fills with BrushPrimaryGreen
          when checked, matching the checkmark-style pattern used
-         elsewhere rather than the native Windows radio look. -->
+         elsewhere rather than the native Windows radio look.
+         pyLink.xaml carries an identical private copy under the same name. -->
     <Style x:Key="RadioButtonStyle" TargetType="RadioButton">
         <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
         <Setter Property="FontSize"   Value="{DynamicResource FontSizeBody}"/>
@@ -892,38 +956,6 @@ trigger, a reshaped template) need this file re-exported and re-merged.
         <Setter Property="Padding" Value="10,8"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="HorizontalContentAlignment" Value="Left"/>
-    </Style>
-
-    <!-- ── Radio button (circular fill on IsChecked, not the native Windows dot) ──
-         pyLink.xaml already has an identical copy of this under the same name/comment
-         ("no canonical RadioButtonStyle exists anywhere in the lib yet") - added here
-         2026-08-01 alongside the pyTable fix that needed it, so it's finally on record. -->
-    <Style x:Key="RadioButtonStyle" TargetType="RadioButton">
-        <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
-        <Setter Property="FontSize"   Value="{DynamicResource FontSizeBody}"/>
-        <Setter Property="Cursor"     Value="Hand"/>
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="RadioButton">
-                    <StackPanel Orientation="Horizontal">
-                        <Border Width="16" Height="16"
-                                BorderBrush="{DynamicResource BrushPrimaryGreen}" BorderThickness="1.5"
-                                CornerRadius="8" Background="{DynamicResource BrushInputBg}"
-                                VerticalAlignment="Center">
-                            <Ellipse x:Name="Dot" Width="8" Height="8"
-                                     Fill="{DynamicResource BrushPrimaryGreen}"
-                                     Visibility="Collapsed"/>
-                        </Border>
-                        <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center"/>
-                    </StackPanel>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Dot" Property="Visibility" Value="Visible"/>
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
     </Style>
 
     <!-- ── TabItem (real WPF TabControl headers) ── pyTable is the only tool that

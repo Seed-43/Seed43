@@ -759,6 +759,7 @@ class PrintSheetsWindow(forms.WPFWindow):
         self._setup_schedule()
         self._update_format_buttons()
         self._update_fmt_column_header()
+        self.xls_type_changed(None, None)
 
         # Export folder display
         self.export_folder_tb.Text = self._export_folder
@@ -1839,6 +1840,21 @@ class PrintSheetsWindow(forms.WPFWindow):
                 self.xls_type_cb.SelectedItem.Content, '.xlsx')
         except Exception:
             return '.xlsx'
+
+    def xls_type_changed(self, sender, args):
+        """CSV holds one table by definition, so force Separate and grey
+        out Single when it is picked; restore the choice otherwise.
+
+        SelectedIndex="0" in the XAML fires this during LoadComponent,
+        before xls_single_rb/xls_separate_rb (declared further down the
+        tree) are assigned onto self - guard against that first call."""
+        if not hasattr(self, 'xls_separate_rb'):
+            return
+        if self._xls_ext() == '.csv':
+            self.xls_separate_rb.IsChecked = True
+            self.xls_single_rb.IsEnabled = False
+        else:
+            self.xls_single_rb.IsEnabled = True
 
     # ── FORMAT PILL LOGIC ──
     def _fmt_btn(self, fmt):

@@ -1,4 +1,8 @@
-﻿# Zip backups
+﻿# Markdown notes - only the root README.md is tracked
+*.md
+!/README.md
+
+# Zip backups
 *.zip
 
 # Log files

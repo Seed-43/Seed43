@@ -148,6 +148,8 @@ from studio_rows import (                                   # noqa: F401
     repeat_domain, natural_row_height_mm, group_label_for,
     condense_plan, sheet_row_plan, plan_summary, repeat_cell_text,
     expand_rows, band_indices, borders_for,
+    BORDER_ON, BORDER_OFF, BORDER_UNSET,
+    border_state, resolve_edge, resolve_sides,
 )
 
 
@@ -182,7 +184,11 @@ def new_block(t, **kw):
     d = {
         'type': t, 'label': '', 'enabled': True,
         'just': 'left', 'v_just': 'middle', 'strike': False,
-        'borders': {'t': True, 'b': True, 'l': False, 'r': False},
+        # Sides are tri-state - see studio_rows.border_state(). A new
+        # block rules top and bottom and has no opinion either side,
+        # so it never rubs out a neighbour's vertical.
+        'borders': {'t': BORDER_ON, 'b': BORDER_ON,
+                    'l': BORDER_UNSET, 'r': BORDER_UNSET},
         # Group header rows can rule themselves differently from the data
         # rows under them - a boxed heading over an open list. None means
         # "the same as 'borders'"; see studio_rows.borders_for().
@@ -236,6 +242,48 @@ def _hbrush(h, fallback='#000000'):
 WHITE = _SWM.Brushes.White
 BLACK = _SWM.Brushes.Black
 MUTED = _hbrush('#8A96A8')
+
+# ── Canvas cell lines ───────────────────────────────────────────────────────
+# ONE definition of the line the canvas draws where there is no border: the
+# edge of a cell, and the divisions between the rows inside a list block.
+#
+# Every one of those used to carry its own hardcoded grey - #E8E8E8 here,
+# #CCCCCC there, #B9C4D2 on the condensed marker - so a single sheet showed
+# three or four different greys depending on which block happened to draw that
+# stretch of it, and none of them matched the cell edges the window drew. They
+# all come from here now, StudioSettings included, so the whole canvas reads
+# as one grid the way a spreadsheet does.
+#
+# A border the user has actually set is NOT drawn from these - it is drawn
+# over the top in its own colour and weight, which is the whole point: a
+# glance should tell you which lines are real.
+CELL_LINE_HEX = '#DCE2EA'     # light - the grid, not a border
+# ONE device pixel, not a fraction of one. The canvas snaps its lines to the
+# pixel grid so a hairline stays crisp instead of anti-aliasing across two
+# rows of pixels and reading as a thick soft band - but that same rounding
+# takes any width below 1.0 down to nothing, and the lines disappear
+# altogether. 1.0 snapped is the thinnest line that actually draws.
+CELL_LINE_W = 1.0
+# A border that has actually been set is the SAME hairline weight, in black.
+# Weight is not what separates them - colour is, exactly as in a spreadsheet,
+# where the gridlines are pale and a border you apply is a black line of the
+# same thickness. Drawing borders heavy made the canvas look nothing like the
+# page it stands for.
+BORDER_HEX = '#000000'
+BORDER_W = CELL_LINE_W
+# Belt and braces: pixel snapping silently rounds anything under 1.0 to
+# nothing, so a well-meant "make it thinner" edit here would make the whole
+# grid vanish rather than look thinner.
+CELL_LINE_W = max(1.0, CELL_LINE_W)
+BORDER_W = max(1.0, BORDER_W)
+
+CELL_LINE = _hbrush(CELL_LINE_HEX)
+BORDER_LINE = _hbrush(BORDER_HEX)
+for _lb in (CELL_LINE, BORDER_LINE):
+    try:
+        _lb.Freeze()
+    except Exception:
+        pass
 
 
 def _v_align(v_just):
@@ -534,8 +582,8 @@ def render_block(block, data, scale, logo_path='', rev_index=0, row_plan=None,
 
     def tb_row(txt, alt_row=False, show_h=True):
         row_b = _SWC.Border()
-        row_b.BorderBrush = _hbrush('#E8E8E8')
-        row_b.BorderThickness = _SW.Thickness(0, 0, 0, 1 if show_h else 0)
+        row_b.BorderBrush = CELL_LINE
+        row_b.BorderThickness = _SW.Thickness(0, 0, 0, CELL_LINE_W if show_h else 0)
         row_b.Height = data_row_h
         if alt_row:
             row_b.Background = _hbrush(alt_c)
@@ -591,8 +639,8 @@ def render_block(block, data, scale, logo_path='', rev_index=0, row_plan=None,
         band that separates one group from the next."""
         row_b = _SWC.Border()
         row_b.Background = _hbrush(block.get('group_color') or '#E8E8E8')
-        row_b.BorderBrush = _hbrush('#CCCCCC')
-        row_b.BorderThickness = _SW.Thickness(0, 0, 0, 1 if show_h else 0)
+        row_b.BorderBrush = CELL_LINE
+        row_b.BorderThickness = _SW.Thickness(0, 0, 0, CELL_LINE_W if show_h else 0)
         row_b.Height = data_row_h
         tb = _SWC.TextBlock()
         tb.Text = str(label or '')
@@ -614,8 +662,8 @@ def render_block(block, data, scale, logo_path='', rev_index=0, row_plan=None,
         """
         row_b = _SWC.Border()
         row_b.Background = _hbrush('#EEF2F7')
-        row_b.BorderBrush = _hbrush('#B9C4D2')
-        row_b.BorderThickness = _SW.Thickness(0, 1, 0, 1)
+        row_b.BorderBrush = CELL_LINE
+        row_b.BorderThickness = _SW.Thickness(0, CELL_LINE_W, 0, CELL_LINE_W)
         row_b.Height = data_row_h
         tb = _SWC.TextBlock()
         tb.Text = u'{0}  {1:,} more rows  {0}'.format(CONDENSE_GLYPH, n)
@@ -630,8 +678,8 @@ def render_block(block, data, scale, logo_path='', rev_index=0, row_plan=None,
     def blank_row(i, show_h=True):
         b = _SWC.Border()
         b.Background = _hbrush(alt_c) if (alt and i % 2 == 1) else WHITE
-        b.BorderBrush = _hbrush('#E8E8E8')
-        b.BorderThickness = _SW.Thickness(0, 0, 0, 1 if show_h else 0)
+        b.BorderBrush = CELL_LINE
+        b.BorderThickness = _SW.Thickness(0, 0, 0, CELL_LINE_W if show_h else 0)
         b.Height = data_row_h
         return b
 
@@ -737,11 +785,11 @@ def render_block(block, data, scale, logo_path='', rev_index=0, row_plan=None,
                 row_g.ColumnDefinitions.Add(cd1); row_g.ColumnDefinitions.Add(cd2)
                 row_b = _SWC.Border()
                 row_b.Height = data_row_h
-                row_b.BorderBrush = _hbrush('#E8E8E8')
-                row_b.BorderThickness = _SW.Thickness(0, 0, 0, 1 if show_h else 0)
+                row_b.BorderBrush = CELL_LINE
+                row_b.BorderThickness = _SW.Thickness(0, 0, 0, CELL_LINE_W if show_h else 0)
                 c1 = _SWC.Border()
-                c1.BorderBrush = _hbrush('#CCCCCC')
-                c1.BorderThickness = _SW.Thickness(0, 0, 1 if show_v else 0, 0)
+                c1.BorderBrush = CELL_LINE
+                c1.BorderThickness = _SW.Thickness(0, 0, CELL_LINE_W if show_v else 0, 0)
                 t1 = _SWC.TextBlock(); t1.Text = item.get('code', ''); t1.Padding = thick
                 _apply_text_style(t1, block, just_val, scale); c1.Child = t1
                 c2 = _SWC.Border()
@@ -792,8 +840,8 @@ def render_block(block, data, scale, logo_path='', rev_index=0, row_plan=None,
             for i, d in enumerate(dist):
                 rb = _SWC.Border()
                 rb.Height = row_h
-                rb.BorderBrush = _hbrush('#E8E8E8')
-                rb.BorderThickness = _SW.Thickness(0, 0, 0, 1 if show_h else 0)
+                rb.BorderBrush = CELL_LINE
+                rb.BorderThickness = _SW.Thickness(0, 0, 0, CELL_LINE_W if show_h else 0)
                 ctb = _SWC.TextBlock()
                 ctb.Text = vals[i] if i < len(vals) else ''
                 ctb.VerticalAlignment = _SW.VerticalAlignment.Center
@@ -821,8 +869,8 @@ def render_block(block, data, scale, logo_path='', rev_index=0, row_plan=None,
             for i, (kind, value) in enumerate(row_plan):
                 rb = _SWC.Border()
                 rb.Height = row_h
-                rb.BorderBrush = _hbrush('#E8E8E8')
-                rb.BorderThickness = _SW.Thickness(0, 0, 0, 1 if show_h else 0)
+                rb.BorderBrush = CELL_LINE
+                rb.BorderThickness = _SW.Thickness(0, 0, 0, CELL_LINE_W if show_h else 0)
                 if kind == 'group':
                     # A group header spans the whole table, so inside a
                     # revision column it is a banded row with no mark in it.
@@ -831,8 +879,8 @@ def render_block(block, data, scale, logo_path='', rev_index=0, row_plan=None,
                     continue
                 if kind == 'more':
                     rb.Background = _hbrush('#EEF2F7')
-                    rb.BorderBrush = _hbrush('#B9C4D2')
-                    rb.BorderThickness = _SW.Thickness(0, 1, 0, 1)
+                    rb.BorderBrush = CELL_LINE
+                    rb.BorderThickness = _SW.Thickness(0, CELL_LINE_W, 0, CELL_LINE_W)
                     gtb = _SWC.TextBlock()
                     gtb.Text = CONDENSE_GLYPH
                     gtb.VerticalAlignment = _SW.VerticalAlignment.Center

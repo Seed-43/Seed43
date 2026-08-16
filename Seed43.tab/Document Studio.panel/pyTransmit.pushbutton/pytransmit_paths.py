@@ -18,17 +18,21 @@ Layout on disk:
 
 Nothing here lives beside the tool any more, so an update cannot touch it.
 
-No files were relocated in the repo to make this work. The existing folders
-(Settings/, Layout/Layouts/, Studio/studio_layouts/) still ship exactly as
-before and now serve as the read-only defaults - nothing reads them at
-runtime, so the shipped copy and the user's copy stopped being the same file
-without anything moving. The move happens on the user's machine, when the tool
-first opens.
+The app folder keeps its own copies for good:
 
-Three collections are seeded from those folders on first run and never again -
-they are user-editable templates, so one the user deletes must stay deleted
-through every future update. Each has its OWN marker, so a template added to
-one collection later cannot resurrect a deletion from another.
+    Settings/            the six vocabularies, shipped
+    Layout/Layouts/      Layout Builder templates, shipped
+    Studio/studio_layouts/  Studio templates, shipped
+    Logos/               the stock logo, shipped
+
+Those are the app's content - read-only, identical for every user, and never
+written to or deleted at runtime. They are what a new install starts from and
+what restore_defaults() copies back from.
+
+Everything the tool actually reads and writes lives in .user. A collection is
+seeded from the shipped folder ONLY while the user's own is empty; the moment
+it holds anything, the shipped folder is never consulted again. That is what
+stops an update putting a file back on top of someone's work.
 
 Importing this module performs the migration and seeding. That is deliberate:
 it happens once, before any caller reads a path, and no module has to remember
@@ -55,6 +59,10 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _SHIPPED_SETTINGS = os.path.join(_HERE, "Settings")
 _SHIPPED_LAYOUTS = os.path.join(_HERE, "Layout", "Layouts")
 _SHIPPED_STUDIO_LAYOUTS = os.path.join(_HERE, "Studio", "studio_layouts")
+# The stock logo lives in a folder of its own rather than loose beside the
+# script, so it sits alongside the other shipped content and the user's Logos
+# folder has an obvious counterpart.
+_SHIPPED_LOGOS = os.path.join(_HERE, "Logos")
 
 # Only these are templates. branding.json and pytransmit_setup.json live in
 # the same folder but are personal - one person's branding is not a sensible
@@ -107,34 +115,55 @@ def settings_file(name):
 
 # ── MIGRATION (runs once, on first import after the update) ─────────────────
 
-def _init_collections():
-    """Bring each collection into .user, once ever.
+def _has_content(folder, suffix=".json"):
+    """Does the user already own files in this collection?"""
+    try:
+        return any(n.lower().endswith(suffix) for n in os.listdir(folder))
+    except Exception:
+        return False
 
-    Because the shipped folder and the migration source are the SAME folder,
-    the move doubles as the seeding: on a fresh install it copies the shipped
-    templates in; on an existing install it carries the user's edited versions
-    across. Either way the user ends up owning the files.
 
-    The marker is what makes it safe to run every launch. Without it, an
-    update restores a template the user deleted, migration finds it missing
-    from .user and moves it straight back - deletions would never stick. With
-    it, later runs ignore the shipped folder entirely.
+def _seed_collection(shipped, target, suffix=".json", names=None):
+    """Copy the shipped starting point in, but only into an empty collection.
 
-    One marker per collection, so adding a sixth layout template later can
-    seed it without also reviving a vocabulary deleted months ago.
+    The presence of anything in the user's folder is the whole test. Once it
+    holds files they are the ones in use, and the shipped folder must not be
+    consulted again for any reason - not to add a missing name, not to update
+    an edited one. Anything else risks putting a file back on top of the
+    user's work.
+
+    Nothing is ever removed from the shipped folder. It is the app's own
+    content: read-only, the same for everyone, and the thing "restore
+    defaults" copies from. That is the difference from the old behaviour,
+    which MOVED these folders into .user on first run and left the app with
+    nothing - so restore_defaults() had no source left and quietly restored
+    nothing at all.
     """
-    _userdata.migrate_dir(
-        _SHIPPED_SETTINGS, SETTINGS_DIR,
-        once_marker=_userdata.user_path(TOOL, ".seeded_settings"))
-    _userdata.migrate_dir(
-        _SHIPPED_LAYOUTS, LAYOUTS_DIR,
-        once_marker=_userdata.user_path(TOOL, ".seeded_layouts"))
-    _userdata.migrate_dir(
-        _SHIPPED_STUDIO_LAYOUTS, STUDIO_LAYOUTS_DIR,
-        once_marker=_userdata.user_path(TOOL, ".seeded_studio_layouts"))
+    if not os.path.isdir(shipped) or _has_content(target, suffix):
+        return 0
+    return _userdata.seed_from_defaults(shipped, target, suffix=suffix,
+                                        names=names)
+
+
+def _init_collections():
+    """Give a new install something to start from; never touch an old one.
+
+    Templates and the stock logo are COPIED out of the app folder into .user
+    the first time, and only while .user has nothing of its own. Settings that
+    are genuinely the user's - the configs below - are still migrated out of
+    the old beside-the-script locations, because there the shipped file and
+    the user's file really were the same file and leaving a copy behind lets
+    the two drift.
+    """
+    _seed_collection(_SHIPPED_SETTINGS, SETTINGS_DIR, names=TEMPLATE_SETTINGS)
+    _seed_collection(_SHIPPED_LAYOUTS, LAYOUTS_DIR)
+    _seed_collection(_SHIPPED_STUDIO_LAYOUTS, STUDIO_LAYOUTS_DIR)
+    _seed_collection(_SHIPPED_LOGOS, LOGOS_DIR, suffix=".png")
 
     # Single configs, not templates: migrate() already skips when the user
-    # has their own, and nobody deletes these deliberately.
+    # has their own, and nobody deletes these deliberately. These are the only
+    # remaining moves, and their sources are legacy beside-the-script paths,
+    # not shipped content - on a current install they no longer exist.
     _userdata.migrate(os.path.join(_HERE, "Layout", "layout_config.json"),
                       LAYOUT_CONFIG)
     _userdata.migrate(os.path.join(_HERE, "Studio", "studio_config.json"),
@@ -142,11 +171,16 @@ def _init_collections():
     _userdata.migrate(os.path.join(_HERE, "pytransmit_sync.json"), SYNC_FILE)
     _userdata.migrate(os.path.join(_HERE, "pytransmit_setup.json"), SETUP_FILE)
 
-    # once_marker, unlike the configs above: the logo is a shipped default the
-    # user may legitimately replace or delete outright, so it must never be
-    # reinstated or overwritten by a later update.
-    _userdata.migrate(os.path.join(_HERE, "logo.png"), LOGO_FILE,
-                      once_marker=_userdata.user_path(TOOL, ".seeded_logo"))
+    # The fallback logo, copied rather than moved for the same reason as the
+    # templates - and only when the user has no logo of their own.
+    if not os.path.isfile(LOGO_FILE):
+        _shipped_logo = os.path.join(_SHIPPED_LOGOS, "logo.png")
+        if os.path.isfile(_shipped_logo):
+            try:
+                import shutil
+                shutil.copy2(_shipped_logo, LOGO_FILE)
+            except Exception:
+                pass
 
 
 _init_collections()
@@ -157,18 +191,25 @@ _init_collections()
 def restore_defaults(which="all"):
     """Re-copy shipped templates the user has deleted, on request.
 
-    seed_once() only ever fires once, so without this a deleted template is
-    gone for good. Additive and never overwrites, so it is safe to call twice
-    or after editing a template.
+    Seeding only happens into an empty collection, so without this a deleted
+    template is gone for good. Additive and never overwrites: a template the
+    user still has is left exactly as they edited it, and only missing names
+    come back.
 
-    which: 'settings', 'layouts', 'studio', or 'all'. Returns files copied.
+    This is the reason the shipped folders must keep their contents. They used
+    to be MOVED into .user on first run, which left this function copying from
+    an empty folder and restoring nothing.
+
+    which: 'settings', 'layouts', 'studio', 'logos', or 'all'. Returns files
+    copied.
     """
     jobs = {
-        "settings": (_SHIPPED_SETTINGS, SETTINGS_DIR, TEMPLATE_SETTINGS),
-        "layouts": (_SHIPPED_LAYOUTS, LAYOUTS_DIR, None),
-        "studio": (_SHIPPED_STUDIO_LAYOUTS, STUDIO_LAYOUTS_DIR, None),
+        "settings": (_SHIPPED_SETTINGS, SETTINGS_DIR, TEMPLATE_SETTINGS, ".json"),
+        "layouts": (_SHIPPED_LAYOUTS, LAYOUTS_DIR, None, ".json"),
+        "studio": (_SHIPPED_STUDIO_LAYOUTS, STUDIO_LAYOUTS_DIR, None, ".json"),
+        "logos": (_SHIPPED_LOGOS, LOGOS_DIR, None, ".png"),
     }
     if which != "all":
         jobs = {which: jobs[which]} if which in jobs else {}
-    return sum(_userdata.seed_from_defaults(src, dst, names=names)
-               for src, dst, names in jobs.values())
+    return sum(_userdata.seed_from_defaults(src, dst, suffix=suffix, names=names)
+               for src, dst, names, suffix in jobs.values())

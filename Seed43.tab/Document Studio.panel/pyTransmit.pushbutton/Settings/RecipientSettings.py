@@ -549,7 +549,14 @@ class ImportPreviewWindow(WPFWindow):
             self.preview_info_tb.Text = "Showing first 100 of {} rows to be imported".format(total_rows)
         else:
             self.preview_info_tb.Text = "Showing all {} rows to be imported".format(total_rows)
-    
+
+        # The window has no OS title bar any more, so the header's own close
+        # button is what dismisses it. The footer Close is wired in XAML.
+        try:
+            self.win_close_btn.Click += self.close_window
+        except Exception:
+            pass
+
     def close_window(self, sender, args):
         """Close the preview window"""
         self.Close()

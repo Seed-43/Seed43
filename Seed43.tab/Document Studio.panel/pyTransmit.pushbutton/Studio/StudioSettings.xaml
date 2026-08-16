@@ -757,26 +757,15 @@ Body: row/column headers + free grid on the left, collapsible Blocks panel on th
                             <!-- Cells -->
                             <StackPanel Margin="0,0,10,0" VerticalAlignment="Center">
                                 <StackPanel Orientation="Horizontal">
-                                    <!-- Split button, like Excel's: the left
-                                         half toggles the default merge, the
-                                         chevron opens the variants. The
-                                         toggle keeps its old name so the
-                                         existing merge/unmerge wiring and
-                                         its lit-when-merged state are
-                                         unchanged. -->
+                                    <!-- One button, no dropdown: it merges the
+                                         selection and unmerges it again, and
+                                         there is nothing else to choose. The
+                                         name is unchanged so the existing
+                                         merge/unmerge wiring and its
+                                         lit-when-merged state still apply. -->
                                     <ToggleButton x:Name="merge_toggle_btn" Content="Merge &amp; Center"
-                                                  Style="{StaticResource RibbonSplitMain}" Padding="8,4"/>
-                                    <ToggleButton x:Name="merge_menu_btn" Style="{StaticResource RibbonSplitChevron}"
-                                                  ToolTip="More merge options">
-                                        <TextBlock Text="▾" FontSize="10" VerticalAlignment="Center"/>
-                                    </ToggleButton>
-                                    <Popup x:Name="merge_popup" PlacementTarget="{Binding ElementName=merge_menu_btn}"
-                                           Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
-                                        <Border Background="{DynamicResource BrushCardBg}" BorderBrush="{DynamicResource BrushPillOffBorder}"
-                                                BorderThickness="1" CornerRadius="4" Padding="4">
-                                            <StackPanel x:Name="merge_menu_panel"/>
-                                        </Border>
-                                    </Popup>
+                                                  Style="{StaticResource RibbonBtn}" Padding="8,4"
+                                                  ToolTip="Merge the selected cells, or unmerge them"/>
                                 </StackPanel>
                                 <TextBlock Text="Cells" Style="{StaticResource RibbonGroupCaption}"/>
                             </StackPanel>
@@ -847,14 +836,29 @@ Body: row/column headers + free grid on the left, collapsible Blocks panel on th
                                     <ComboBox x:Name="group_param_combo" Style="{StaticResource ComboBoxStyle}" Width="150"
                                               Margin="0,0,6,0"
                                               ToolTip="Group the drawing sheets by a sheet parameter"/>
-                                    <ToggleButton x:Name="group_label_btn" Content="Group Text"
-                                                  Style="{StaticResource RibbonBtn}" Padding="8,4"
-                                                  ToolTip="Show the group name in the header row, or leave it blank as a plain separator"/>
+                                    <!-- The same on/off switch the main
+                                         pyTransmit window uses for this exact
+                                         setting: a track with a knob, built in
+                                         Python (see _setup_group_label_switch)
+                                         from the palette's toggle dimensions. -->
+                                    <Border x:Name="group_label_toggle"
+                                            Width="{DynamicResource WidthToggle}"
+                                            Height="{DynamicResource HeightToggle}"
+                                            CornerRadius="{DynamicResource CornerRadiusToggle}"
+                                            VerticalAlignment="Center" Cursor="Hand" Margin="0,0,6,0"
+                                            ToolTip="Show the group name in the header row, or leave it blank as a plain separator"/>
+                                    <TextBlock x:Name="group_label_toggle_tb" Text="Group Text"
+                                               FontSize="11" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource BrushTextPrimary}"/>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                                    <ToggleButton x:Name="space_first_btn" Content="Gap ▲ 1st" Style="{StaticResource RibbonBtn}" Padding="8,4"
+                                    <!-- Content is replaced with an icon and
+                                         label in Python; these strings are the
+                                         fallback if the icon library will not
+                                         load. -->
+                                    <ToggleButton x:Name="space_first_btn" Content="First group" Style="{StaticResource RibbonBtn}" Padding="8,4"
                                                   ToolTip="Blank row above the FIRST group header, the one under the column headings"/>
-                                    <ToggleButton x:Name="space_between_btn" Content="Gap ▲ Groups" Style="{StaticResource RibbonBtn}" Padding="8,4" Margin="4,0,0,0"
+                                    <ToggleButton x:Name="space_between_btn" Content="Other groups" Style="{StaticResource RibbonBtn}" Padding="8,4" Margin="4,0,0,0"
                                                   ToolTip="Blank row above every LATER group header, between one group's last sheet and the next"/>
                                 </StackPanel>
                                 <TextBlock Text="Sheet Grouping" Style="{StaticResource RibbonGroupCaption}"/>

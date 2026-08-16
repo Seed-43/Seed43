@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-#pyViewPlacer
+# "View Placer"
+# "Seed43"
+# """
+# Place the views behind selected view references onto a chosen sheet,
+# with an optional view template and viewport type.
+# """
 import os
 import clr
 clr.AddReference('PresentationFramework')
@@ -15,9 +20,7 @@ from pyrevit import revit, DB, UI, forms, script
 from Snippets.seed43_theme import apply_seed43_palette
 
 # ── VARIABLES ────────────────────────────────────────────────────────
-HELP_URL  = "https://example.com/help"
-ABOUT_URL = "https://example.com/about"
-XAML_PATH = os.path.join(os.path.dirname(__file__), "pyViewPlacer.xaml")
+XAML_PATH = os.path.join(os.path.dirname(__file__), "View Placer.xaml")
 
 
 # ── HELPERS ───────────────────────────────────────────────────────────
@@ -154,11 +157,11 @@ class ViewPlacerDialog(object):
         self.viewport_search  = self._window.FindName("viewport_search")
         self.viewport_list    = self._window.FindName("viewport_list")
         self.viewport_ok_btn  = self._window.FindName("viewport_ok_btn")
-        self.help_btn         = self._window.FindName("help_btn")
-        self.about_btn        = self._window.FindName("about_btn")
+        self.win_close_btn    = self._window.FindName("win_close_btn")
         # ── Event handlers ────────────────────────────────────────────
-        self.help_btn.Click              += self._on_help
-        self.about_btn.Click             += self._on_about
+        # No OS title bar any more, so the header's own close button is the
+        # way out.
+        self.win_close_btn.Click         += lambda s, a: self._window.Close()
         self.template_search.TextChanged += self._on_search_changed
         self.sheet_search.TextChanged    += self._on_search_changed
         self.viewport_search.TextChanged += self._on_search_changed
@@ -329,20 +332,6 @@ class ViewPlacerDialog(object):
         else:
             self.result = None
         self._window.Close()
-
-    def _on_help(self, sender, args):
-        try:
-            import webbrowser
-            webbrowser.open(HELP_URL)
-        except Exception:
-            pass
-
-    def _on_about(self, sender, args):
-        try:
-            import webbrowser
-            webbrowser.open(ABOUT_URL)
-        except Exception:
-            pass
 
 
 # ── MAIN ──────────────────────────────────────────────────────────────

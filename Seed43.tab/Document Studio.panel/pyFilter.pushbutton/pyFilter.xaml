@@ -1,14 +1,28 @@
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="Filter Manager"
         Width="1200" Height="700"
         MinWidth="1000" MinHeight="500"
+        WindowStyle="None"
         ResizeMode="CanResizeWithGrip"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource BrushWindowBg}"
         TextElement.FontFamily="Segoe UI"
         TextElement.Foreground="{DynamicResource BrushTextPrimary}"
         FontSize="12">
+
+    <!-- No OS title bar: the window's own header IS the caption, the same as
+         every other Seed43 tool. CaptionHeight matches that header, so
+         dragging it moves the window; anything clickable inside it has to say
+         IsHitTestVisibleInChrome or the chrome swallows the click. -->
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="70"
+                            CornerRadius="0"
+                            GlassFrameThickness="0"
+                            ResizeBorderThickness="8"
+                            UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
 
     <Window.Resources>
         <!-- ═════════ SEED43 PALETTE (fallback defaults; overridden at runtime by apply_seed43_palette) ═════════ -->
@@ -598,6 +612,7 @@
                     <ColumnDefinition Width="16"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>   <!-- window controls -->
                 </Grid.ColumnDefinitions>
 
                 <!-- Wordmark + contextual subtitle -->
@@ -624,7 +639,8 @@
                 </StackPanel>
 
                 <!-- Toolbar buttons -->
-                <Grid Grid.Column="2" VerticalAlignment="Center">
+                <Grid Grid.Column="2" VerticalAlignment="Center"
+                      shell:WindowChrome.IsHitTestVisibleInChrome="True">
                     <Grid.ColumnDefinitions>
                         <!-- Mode tabs -->
                         <ColumnDefinition Width="Auto"/>
@@ -674,6 +690,7 @@
 
                 <!-- Right: normal mode (search + Apply + hamburger) -->
                 <StackPanel x:Name="HeaderNormalBtns" Grid.Column="3"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True"
                             Orientation="Horizontal" VerticalAlignment="Center">
                     <!-- Search box: the canonical text input plus an inset
                          search glyph, per the palette editor's Search Box.
@@ -752,6 +769,7 @@
 
                 <!-- Right: Export mode -->
                 <StackPanel x:Name="ExportHeaderBtns" Grid.Column="3"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True"
                             Orientation="Horizontal" HorizontalAlignment="Right"
                             VerticalAlignment="Center" Visibility="Collapsed">
                     <Button x:Name="BtnExportNow" Content="Export Now"
@@ -763,6 +781,7 @@
 
                 <!-- Right: Import mode -->
                 <StackPanel x:Name="ImportHeaderBtns" Grid.Column="3"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True"
                             Orientation="Horizontal" HorizontalAlignment="Right"
                             VerticalAlignment="Center" Visibility="Collapsed">
                     <Button x:Name="BtnImportNow" Content="Import Now"
@@ -770,6 +789,16 @@
                             Width="90" Margin="0,0,10,0"/>
                     <Button x:Name="BtnImportClose"
                             Style="{StaticResource CloseButtonStyle}"/>
+                </StackPanel>
+
+                <!-- Window controls. Its own column so it never collides
+                     with the Export/Import buttons that share column 3. -->
+                <StackPanel Grid.Column="4" Orientation="Horizontal"
+                            VerticalAlignment="Center" Margin="10,0,0,0"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button x:Name="win_close_btn"
+                            Style="{StaticResource CloseButtonStyle}"
+                            ToolTip="Close"/>
                 </StackPanel>
 
             </Grid>

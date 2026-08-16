@@ -5,14 +5,12 @@ tooltip: >
 
   Description:
 
-  Tools for managing views and sheets - place view references onto sheets,
-  move viewports between sheets, duplicate sheets and views, rename and
-  organise views to match their sheets, and check for active temporary
-  overrides.
+  Tools for managing views and sheets - move viewports between sheets,
+  duplicate sheets and views, rename and organise views to match their
+  sheets, and check for active temporary overrides.
 
   __________________________________________________________________
 layout:
-  - pyViewPlacer
   - View Mover
   - ----
   - View Organiser

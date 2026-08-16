@@ -182,7 +182,8 @@ if _rescaled:
 # ── Live data ────────────────────────────────────────────────────────────────
 # The same reader the Studio canvas uses, so the preview and the workbook are
 # built from one description of the model rather than two.
-DATA = studio_live_data.get_live_data(SETTINGS_DIR)
+DATA = studio_live_data.get_live_data(
+    SETTINGS_DIR, group_params=_p.get('group_params') or [])
 REVISIONS = DATA.get('revisions', []) or []
 DOCS = DATA.get('docs', []) or []
 DISTRIBUTION = DATA.get('distribution', []) or []
@@ -212,6 +213,12 @@ if _meta_vals:
         ', '.join(sorted(_meta_vals.keys()))))
 
 GROUP_PARAMS = _p.get('group_params') or []
+# Border sides are tri-state (studio_rows.border_state). Settling them
+# against the neighbouring cells is done once by studio_publish, the same
+# call the canvas and the Revit writers make, so all four agree on which
+# lines exist. EDGES is keyed (output row, column).
+import studio_publish
+EDGES = studio_publish.StudioLayout(LAYOUT, DATA, _p, log=_log).resolved_edges()
 # pyTransmit's Text On/Off toggle decides this, always. The layout is for
 # LAYOUT - the gaps, the colours, where things sit - not for which grouping to
 # use or whether to name it. A 'group_label' key written by an earlier build is
@@ -371,6 +378,7 @@ if _repeat_top:
 
 # ── Formats ──────────────────────────────────────────────────────────────────
 _fmt_cache = {}
+_NO_EDGES = (False, False, False, False)
 
 
 def _hex(value, default='#000000'):
@@ -384,15 +392,17 @@ _JUST = {'left': 'left', 'center': 'center', 'right': 'right'}
 _VJUST = {'top': 'top', 'middle': 'vcenter', 'bottom': 'bottom'}
 
 
-def cell_format(block, kind='doc', wrap=False, alt=False):
+def cell_format(block, kind='doc', wrap=False, alt=False,
+                edges=(False, False, False, False)):
     """xlsxwriter format for a block, cached so the workbook doesn't end up
     with one format object per cell (Excel has a hard limit on those, and a
     2000-sheet transmittal would sail past it)."""
     b = block or {}
     bg = b.get('bg_color')
-    # Group header rows can carry their own rules; studio_rows decides which
-    # set applies, and empties them for a deliberate gap row.
-    borders = studio_rows.borders_for(b, kind)
+    # Border sides are tri-state and xlsx has no way to record "suppressed",
+    # so what goes in the workbook is the RESOLVED edge - worked out against
+    # the neighbouring cells once, up front, and passed in here.
+    borders = {'t': edges[0], 'b': edges[1], 'l': edges[2], 'r': edges[3]}
     if kind == 'space':
         # A deliberate gap: no fill, nothing.
         bg = None
@@ -751,7 +761,8 @@ for r in range(N_ROWS):
                     # explicitly skips it for sheet_desc).
                     if (block or {}).get('type') != 'sheet_number':
                         continue
-                    fmt = cell_format(block, kind)
+                    fmt = cell_format(block, kind,
+                                      edges=EDGES.get((v, c), _NO_EDGES))
                     if N_COLS - 1 > c:
                         _merge(v, c, v, N_COLS - 1, text, fmt)
                     else:
@@ -765,7 +776,8 @@ for r in range(N_ROWS):
                                           and item < len(BAND_INDEX)) else item
                 alt = (bool((block or {}).get('alt_rows'))
                        and bi is not None and bi % 2 == 1)
-                fmt = cell_format(block, kind, alt=alt)
+                fmt = cell_format(block, kind, alt=alt,
+                                  edges=EDGES.get((v, c), _NO_EDGES))
                 _need_height(block, text, v, 1)
                 if col_span > 1:
                     _merge(v, c, v, c + col_span - 1, text, fmt)
@@ -777,7 +789,8 @@ for r in range(N_ROWS):
         v_first, v_count = vrow_range(r, r + row_span - 1)
         value = static_value(block, c)
         wrap = ('\n' in value) or ((block or {}).get('type') == 'text')
-        fmt = cell_format(block, 'doc', wrap=wrap)
+        fmt = cell_format(block, 'doc', wrap=wrap,
+                          edges=EDGES.get((v_first, c), _NO_EDGES))
         _need_height(block, value, v_first, v_count)
         if v_count > 1 or col_span > 1:
             _merge(v_first, c, v_first + v_count - 1,

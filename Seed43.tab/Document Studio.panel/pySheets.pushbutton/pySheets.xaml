@@ -861,6 +861,16 @@
                                 <Setter TargetName="Dot" Property="Opacity" Value="1"/>
                                 <Setter Property="Opacity" Value="1"/>
                             </Trigger>
+                            <!-- Viewing, but nothing ticked for it yet: same
+                                 green pill so you can see where you are, grey
+                                 dot because it would export nothing. -->
+                            <Trigger Property="Tag" Value="ViewingEmpty">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreen}"/>
+                                <Setter TargetName="Dot" Property="Fill" Value="{DynamicResource BrushTextMuted}"/>
+                                <Setter TargetName="Dot" Property="Opacity" Value="1"/>
+                                <Setter Property="Opacity" Value="1"/>
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>

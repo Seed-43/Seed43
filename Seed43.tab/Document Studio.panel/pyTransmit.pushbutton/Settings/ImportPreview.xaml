@@ -12,14 +12,26 @@ Sections:
 -->
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="Import Preview"
         Height="600"
         Width="800"
         ShowInTaskbar="False"
+        WindowStyle="None"
         ResizeMode="CanResize"
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource BrushWindowBg}"
         TextElement.FontFamily="Segoe UI">
+
+    <!-- No OS title bar: the window's own header IS the caption, like every
+         other Seed43 tool. CaptionHeight matches that header's 70px. -->
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="70"
+                            CornerRadius="0"
+                            GlassFrameThickness="0"
+                            ResizeBorderThickness="8"
+                            UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
 
     <Window.Resources>
 
@@ -161,6 +173,14 @@ Sections:
             </Border.Effect>
 
             <Grid Margin="24,0,24,0">
+                <Button x:Name="win_close_btn"
+                        Content="&#x2716;"
+                        HorizontalAlignment="Right" VerticalAlignment="Center"
+                        Width="28" Height="28" FontSize="14" Cursor="Hand"
+                        Background="Transparent" BorderThickness="0"
+                        Foreground="{DynamicResource BrushTextPrimary}"
+                        ToolTip="Close"
+                        shell:WindowChrome.IsHitTestVisibleInChrome="True"/>
                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Left">
                     <TextBlock Text="Import Preview"
                                Foreground="{DynamicResource BrushTextPrimary}"

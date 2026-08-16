@@ -910,7 +910,7 @@ trigger, a reshaped template) need this file re-exported and re-merged.
          Same look as the Dropdown popup's own item row (hover = BrushDropdownItemHover,
          selected = accent fill + white text) - matches the Seed43 Palette Editor's
          "List / Multi-select" preview component. Added 2026-08-01 when pyTable was found
-         to have 6 completely unstyled ListBoxes; LayerManager/ENFStyles/pyViewPlacer each
+         to have 6 completely unstyled ListBoxes; LayerManager/ENFStyles/View Placer each
          already have their own near-duplicate of this same pattern under different names
          (LayerRowStyle, unkeyed ListBoxItem, PanelListBoxItemStyle) with slightly different
          hardcoded hover/selected colours - point new/updated tools at THIS copy instead of

@@ -79,16 +79,24 @@ def get_templates_folder():
     Does three things, each at most once:
       1. resolves .user/pyFilter/templates/
       2. carries across templates saved beside the tool by older versions
-      3. seeds the shipped demos, first run only
+      3. seeds the shipped demos into an EMPTY folder, and only then
 
-    Step 3 is marker-based on purpose: a demo the user deletes must stay
-    deleted through every future update. See _userdata.seed_once. "Load demo
-    data" in Settings is the way back if they change their mind.
+    Step 3 stops the moment the user has templates of their own. Once the
+    folder holds anything, defaults/ is never consulted again - not to add a
+    missing name, not to refresh an edited one - so an update can never put a
+    file back over someone's work. A demo they delete stays deleted. "Load
+    demo data" in Settings is the way back if they change their mind, and it
+    still works because defaults/ is only ever READ: nothing is moved out of
+    it or removed from it.
     """
     folder = _userdata.user_dir("pyFilter", "templates")
     _userdata.migrate_dir(os.path.join(SCRIPT_DIR, "templates"), folder)
-    _userdata.seed_once(
-        _userdata.user_path("pyFilter", ".seeded"), DEFAULTS_DIR, folder)
+    try:
+        has_own = any(n.lower().endswith(".json") for n in os.listdir(folder))
+    except Exception:
+        has_own = True      # unreadable: leave it alone rather than seed over it
+    if not has_own:
+        _userdata.seed_from_defaults(DEFAULTS_DIR, folder)
     return folder
 
 def list_templates(folder):
@@ -194,6 +202,10 @@ class pyFilterWindow(WPFWindow):
 
         # Inline panel close + action buttons
         self.BtnExportNow.Click      += self._on_export_execute
+        # The window has no OS title bar, so its own close button is the
+        # only way out besides Escape - see _on_window_key_down.
+        self.win_close_btn.Click      += lambda s, a: self.Close()
+        self.KeyDown                  += self._on_window_key_down
         self.BtnExportClose.Click    += self._on_export_close
         self.BtnExportBrowse.Click   += self._on_export_browse
         self.BtnExportAll.Click      += lambda s, e: self._set_export_all(True)
@@ -433,6 +445,25 @@ class pyFilterWindow(WPFWindow):
             forms.alert(msg, title="Export Templates")
         except Exception:
             log_exc("_on_export_execute")
+
+    def _on_window_key_down(self, sender, args):
+        """Escape closes the window.
+
+        Worth having now the OS title bar is gone: if the close button is
+        ever off-screen or unclickable, this is the way out. Ignored while
+        focus is in a text box, where Escape means "abandon what I am
+        typing", not "throw the window away".
+        """
+        try:
+            import System.Windows.Input as _in
+            import System.Windows.Controls as _ctl
+            if args.Key != _in.Key.Escape:
+                return
+            if isinstance(_in.Keyboard.FocusedElement, (_ctl.TextBox, _ctl.ComboBox)):
+                return
+            self.Close()
+        except Exception:
+            pass
 
     def _on_export_close(self, sender, e):
         try:

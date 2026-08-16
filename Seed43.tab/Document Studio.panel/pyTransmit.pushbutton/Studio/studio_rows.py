@@ -79,6 +79,71 @@ def repeat_domain(block):
     return None
 
 
+# ---------------------------------------------------------------------------
+# Border states
+# ---------------------------------------------------------------------------
+# Two cells share one edge, so a side is not a yes/no - it is one of three
+# things, the same three CSS's collapsing border model uses, and for exactly
+# the same reason:
+#
+#   ON     draw it
+#   OFF    suppress it, and beat anything the neighbour asks for (CSS 'hidden')
+#   UNSET  no opinion - never erases a neighbour's line (CSS 'none')
+#
+# Without the middle one you can have either "a border I set always shows" or
+# "I can switch a border off from the cell next door", but not both: with only
+# on/off, an untouched neighbour reads as off and quietly rubs out every line
+# you draw.
+#
+# xlsx has no equivalent of OFF at all - a cell records only the sides it
+# draws - so what goes into the workbook is the RESOLVED edge, worked out
+# here and written as a plain border.
+#
+# Stored as True / 'off' / None. Layouts written before the split hold True
+# and False, and False there only ever meant "I don't draw one" - which is
+# UNSET - so they load correctly with no migration.
+BORDER_ON = True
+BORDER_OFF = 'off'
+BORDER_UNSET = None
+
+
+def border_state(value):
+    """One side's state, normalising whatever a layout happens to hold."""
+    if value is True:
+        return BORDER_ON
+    if value == BORDER_OFF:
+        return BORDER_OFF
+    return BORDER_UNSET
+
+
+def resolve_edge(near, far):
+    """Is the edge between two cells drawn?
+
+    near is this cell's side, far is the side the neighbour presents to it -
+    a cell's right against the next cell's left. Off beats on, on beats
+    unset, and two unsets draw nothing. Pass None for far at the outside of
+    the table, where there is no neighbour to consult.
+    """
+    near, far = border_state(near), border_state(far)
+    if near == BORDER_OFF or far == BORDER_OFF:
+        return False
+    return near == BORDER_ON or far == BORDER_ON
+
+
+def resolve_sides(own, above=None, below=None, before=None, after=None):
+    """Resolve all four sides of one cell against its neighbours.
+
+    Each neighbour is that cell's own border dict, or None where there is no
+    neighbour. Returns (top, bottom, left, right) as plain booleans - what
+    actually gets drawn.
+    """
+    own = own or {}
+    return (resolve_edge(own.get('t'), (above or {}).get('b')),
+            resolve_edge(own.get('b'), (below or {}).get('t')),
+            resolve_edge(own.get('l'), (before or {}).get('r')),
+            resolve_edge(own.get('r'), (after or {}).get('l')))
+
+
 def borders_for(block, kind='doc'):
     """Which border rules one row of a block takes.
 

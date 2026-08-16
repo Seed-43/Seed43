@@ -218,6 +218,16 @@ class StudioLayout(object):
 
         self.rev_col_map = self._rev_column_map()
 
+        # Grouping that produces nothing is worth saying out loud. It fails
+        # silently by nature - a parameter that was never read off the sheets
+        # gives every sheet the same blank key, which is one nameless group,
+        # which is no header rows - and looks exactly like grouping being off.
+        if group_params and not any(k == 'group' for k, _v in self.row_plan):
+            self._log(
+                'Grouping by {} produced no groups - every sheet returned the '
+                'same value. Check the parameter is filled in on the '
+                'sheets.'.format(', '.join(group_params)))
+
         self._log('{} revisions, {} sheets, {} recipients -> {} output rows'.format(
             len(self.data.get('revisions') or []),
             len(self.data.get('docs') or []),
@@ -408,6 +418,57 @@ class StudioLayout(object):
                 if entry is None:
                     continue
                 out.extend(self._placements_for(r, c, entry))
+        return out
+
+    def resolved_edges(self, placements=None):
+        """Every cell's four sides, settled against the cell that shares them.
+
+        Returns {(output_row, col): (top, bottom, left, right)} as plain
+        booleans - what actually gets drawn. Border sides are tri-state (see
+        studio_rows.border_state), and no writer should ever act on a raw
+        side: an OFF next door has to suppress this cell's line, and an UNSET
+        next door must not. Doing that once here is what keeps the canvas,
+        the workbook, the drafting view and the schedule agreeing.
+
+        A merged block presents its rules on its OUTER boundary only. Inside
+        it every side is unset, so nothing is ruled through the middle of
+        what reads as a single cell.
+        """
+        placements = self.placements() if placements is None else placements
+        unset = studio_rows.BORDER_UNSET
+        own = {}
+        for pl in placements:
+            b = studio_rows.borders_for(pl['block'], pl['kind'])
+            v1, v2 = pl['v'], pl['v'] + max(1, pl['n_v']) - 1
+            c1 = pl['c']
+            c2 = min(self.n_cols - 1, c1 + max(1, pl['col_span']) - 1)
+            for v in range(v1, v2 + 1):
+                for c in range(c1, c2 + 1):
+                    sides = {'t': b.get('t') if v == v1 else unset,
+                             'b': b.get('b') if v == v2 else unset,
+                             'l': b.get('l') if c == c1 else unset,
+                             'r': b.get('r') if c == c2 else unset}
+                    prev = own.get((v, c))
+                    if prev is None:
+                        own[(v, c)] = sides
+                        continue
+                    # Two placements over one cell: strongest opinion wins,
+                    # the same order the resolver uses.
+                    for key in ('t', 'b', 'l', 'r'):
+                        a = studio_rows.border_state(prev.get(key))
+                        bb = studio_rows.border_state(sides.get(key))
+                        prev[key] = (studio_rows.BORDER_OFF
+                                     if studio_rows.BORDER_OFF in (a, bb)
+                                     else (studio_rows.BORDER_ON
+                                           if studio_rows.BORDER_ON in (a, bb)
+                                           else unset))
+
+        out = {}
+        for (v, c), sides in own.items():
+            out[(v, c)] = studio_rows.resolve_sides(
+                sides,
+                above=own.get((v - 1, c)), below=own.get((v + 1, c)),
+                before=own.get((v, c - 1)), after=own.get((v, c + 1)))
         return out
 
     # --- private helpers ---

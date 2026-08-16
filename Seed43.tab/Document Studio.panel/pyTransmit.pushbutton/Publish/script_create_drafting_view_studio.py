@@ -130,10 +130,14 @@ _log('Studio layout: {} ({}x{})'.format(
 
 # The same reader the Studio canvas uses, so the preview and the drafting view
 # are built from one description of the model rather than two.
-DATA = studio_live_data.get_live_data(SETTINGS_DIR)
+DATA = studio_live_data.get_live_data(
+    SETTINGS_DIR, group_params=_p.get('group_params') or [])
 SL = studio_publish.StudioLayout(LAYOUT, DATA, _p, log=_log)
 
 PLACEMENTS = SL.placements()
+# Border sides are tri-state; every cell's are settled against its
+# neighbours once, here, and the drawing works only from the result.
+EDGES = SL.resolved_edges(PLACEMENTS)
 
 # ── Page splitting ───────────────────────────────────────────────────────────
 # Overflow rows go into a fresh column to the RIGHT on the same view, which is
@@ -395,21 +399,53 @@ with revit.Transaction('pyTransmit Studio DV - Clear view') as _t:
             except Exception:
                 pass
 
-# ── Draw helpers ─────────────────────────────────────────────────────────────
-_drawn_lines = set()
+# ── Border segments ──────────────────────────────────────────────────────────
+# Borders are worked out as arithmetic first, merged into the fewest possible
+# runs, and only then drawn.
+#
+# A cell asking for its own four edges is the wrong unit for a drawing. Every
+# internal edge gets asked for twice, once by the cell on each side, and a rule
+# across a thirteen-column table arrives as thirteen separate segments that
+# happen to touch - so the view fills up with detail curves laid end to end
+# where the drawing wanted one line. On a long transmittal that is the
+# difference between tens of thousands of curves and a few hundred, and
+# creating them is where nearly all the export time goes. It also reads better:
+# one curve to select, and no seams where two segments meet.
+#
+# Drawing them after the fills, rather than per cell as they are collected, has
+# a second benefit - a filled region can never end up laid over a rule that
+# runs along its edge.
+_JOIN_TOL = 1e-6        # ft; the coordinates are sums of the same mm figures
+
+_h_segments = {}        # y -> [(x1, x2), ...]
+_v_segments = {}        # x -> [(y1, y2), ...]
+
+
+def _add_h(y, x1, x2):
+    _h_segments.setdefault(round(y, 6), []).append((min(x1, x2), max(x1, x2)))
+
+
+def _add_v(x, y1, y2):
+    _v_segments.setdefault(round(x, 6), []).append((min(y1, y2), max(y1, y2)))
+
+
+def _merge_spans(spans):
+    """Collapse 1-D spans into the fewest runs that cover the same ground.
+
+    Spans that touch end to end are one run, not two - that is the whole
+    point - so the test is >= rather than >.
+    """
+    runs = []
+    for start, end in sorted(spans):
+        if runs and start <= runs[-1][1] + _JOIN_TOL:
+            if end > runs[-1][1]:
+                runs[-1][1] = end
+        else:
+            runs.append([start, end])
+    return runs
 
 
 def _line(vw, x1, y1, x2, y2):
-    """A detail line, drawn once.
-
-    Neighbouring cells share edges, so the same segment comes up twice for
-    every internal border in the grid - a 2000-sheet transmittal would draw
-    tens of thousands of duplicate lines on top of each other.
-    """
-    key = (round(x1, 6), round(y1, 6), round(x2, 6), round(y2, 6))
-    if key in _drawn_lines:
-        return None
-    _drawn_lines.add(key)
     try:
         start = XYZ(float(x1), float(y1), 0.0)
         end = XYZ(float(x2), float(y2), 0.0)
@@ -624,18 +660,42 @@ with revit.Transaction('pyTransmit Studio DV - Draw transmittal') as _t_draw:
             else:
                 _text(drafting_view, _block, _pl['text'], _x1, _y_top, _x2, _y_bot)
 
-            # Group headers can rule themselves separately from the data rows,
-            # and a deliberate gap carries no rules at all - both decided by
-            # the row kind, in the one place all three writers ask.
-            _borders = studio_rows.borders_for(_block, _pl['kind'])
-            if _borders.get('t'):
-                _line(drafting_view, _x1, _y_top, _x2, _y_top)
-            if _borders.get('b'):
-                _line(drafting_view, _x1, _y_bot, _x2, _y_bot)
-            if _borders.get('l'):
-                _line(drafting_view, _x1, _y_top, _x1, _y_bot)
-            if _borders.get('r'):
-                _line(drafting_view, _x2, _y_top, _x2, _y_bot)
+    # ── Rules ────────────────────────────────────────────────────────────────
+    # Emitted per CELL from the resolved edges rather than per placement, so a
+    # neighbour suppressing an edge is honoured and a merged block is never
+    # ruled through its middle. Collected first, merged into runs, drawn last.
+    for _page in PAGES:
+        _rows = _page['rows']
+        _x_off = _page['x_mm'] * MM
+        for (_ev, _ec), (_et, _eb, _el, _er) in EDGES.items():
+            if _ev not in _rows:
+                continue
+            _ey_top = _rows[_ev][0] * MM
+            _ey_bot = _rows[_ev][1] * MM
+            _ex1 = _x_off + SL.col_x(_ec) * MM
+            _ex2 = _ex1 + SL.col_w(_ec) * MM
+            if _et:
+                _add_h(_ey_top, _ex1, _ex2)
+            if _eb:
+                _add_h(_ey_bot, _ex1, _ex2)
+            if _el:
+                _add_v(_ex1, _ey_top, _ey_bot)
+            if _er:
+                _add_v(_ex2, _ey_top, _ey_bot)
+
+
+    _asked = sum(len(s) for s in _h_segments.values()) + \
+             sum(len(s) for s in _v_segments.values())
+    _drawn = 0
+    for _y in sorted(_h_segments):
+        for _a, _b in _merge_spans(_h_segments[_y]):
+            if _line(drafting_view, _a, _y, _b, _y) is not None:
+                _drawn += 1
+    for _x in sorted(_v_segments):
+        for _a, _b in _merge_spans(_v_segments[_x]):
+            if _line(drafting_view, _x, _a, _x, _b) is not None:
+                _drawn += 1
+    _log('{} cell edges drawn as {} lines.'.format(_asked, _drawn))
 
 if SL.logo_path and not _logo_block_seen:
     _log('A logo is assigned ({}) but the layout has no Logo block to put it '

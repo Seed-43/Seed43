@@ -722,10 +722,11 @@ class PrintSheetsWindow(forms.WPFWindow):
         self._running_sched = False   # re-entrancy guard, see _sched_tick
 
         # ── Format state ──
-        # enabled: set of format strings the user has toggled on
-        # viewing: which format's filename column is showing
-        self._fmt_enabled = set()
-        self._fmt_enabled.add('PDF')     # PDF on by default
+        # viewing: which format's filename column and settings panel show.
+        # enabled is NOT stored - it is derived from whether that format has
+        # anything ticked, see the _fmt_enabled property. A format you have
+        # picked nothing for would export nothing, so there was never a
+        # second piece of state worth keeping.
         self._fmt_viewing = 'PDF'
 
         # Per-format naming format selection (name string)
@@ -804,6 +805,26 @@ class PrintSheetsWindow(forms.WPFWindow):
         self._loading = False   # init complete, events now active
 
     # ── PROPERTIES ──
+    def _fmt_has_content(self, fmt):
+        """True when this format has any sheet or view ticked."""
+        try:
+            return bool(self._sheet_selections[fmt].count() or
+                        self._view_selections[fmt].count())
+        except Exception:
+            return False
+
+    @property
+    def _fmt_enabled(self):
+        """Formats that would actually produce a file - the ones with
+        something ticked.
+
+        Derived rather than toggled. A pill used to be a switch you turned
+        on and off by hand, which let a format sit "on" with nothing picked
+        (exporting nothing) or "off" with sheets picked (silently dropping
+        them). Clicking a pill now only chooses what you are looking at;
+        what you tick decides what exports."""
+        return set(f for f in ALL_FORMATS if self._fmt_has_content(f))
+
     @property
     def _selected_doc(self):
         item = self.documents_cb.SelectedItem
@@ -1816,7 +1837,11 @@ class PrintSheetsWindow(forms.WPFWindow):
             )
         except Exception:
             fname = ((sheet.number + ' ') if sheet.number else '') + sheet.name
-        return coreutils.cleanup_filename(fname, windows_safe=True)
+        # Stripped: a template like "{number} {name}" leaves a leading space
+        # when the item has no number, which every schedule lacks - the
+        # exports landed as " Revision Schedule.csv". Windows tolerates it
+        # and then quietly makes it hard to find or match on.
+        return coreutils.cleanup_filename(fname, windows_safe=True).strip()
 
     def _ext_for(self, fmt):
         """File extension for a format — IMG and XLS depend on their type
@@ -1885,31 +1910,41 @@ class PrintSheetsWindow(forms.WPFWindow):
 
     @staticmethod
     def _pill_tooltip(tag):
-        """Tooltip text matching a pill's on/off/active tri-state."""
+        """Tooltip matching a pill's state. No 'Deactivate' any more - a
+        format is on because something is ticked for it, so the way to turn
+        it off is to untick, not to click the pill."""
         if tag == 'Viewing':
-            return 'Deactivate'
+            return 'Showing this format'
+        if tag == 'ViewingEmpty':
+            return 'Showing this format — tick sheets or views to include it'
         if tag == 'Enabled':
-            return 'Select'
-        return 'Activate'
+            return 'Included — click to show its filenames and settings'
+        return 'Click to show this format, then tick what to export'
 
     def _update_format_buttons(self):
         """Sync all format pill Tags to current _fmt_enabled / _fmt_viewing —
         both the Select-tab pills and the Settings-tab sub-tab pills share
         the same viewing format."""
+        enabled_now = self._fmt_enabled
         for fmt in ALL_FORMATS:
             btn = self._fmt_btn(fmt)
             if btn is not None:
-                if fmt == self._fmt_viewing and fmt in self._fmt_enabled:
-                    btn.Tag = 'Viewing'
-                elif fmt in self._fmt_enabled:
-                    btn.Tag = 'Enabled'
+                has = fmt in enabled_now
+                if fmt == self._fmt_viewing and has:
+                    btn.Tag = 'Viewing'          # green pill, white dot
+                elif fmt == self._fmt_viewing:
+                    # Where you are, but nothing ticked for it yet - the
+                    # grey dot is what says this one would export nothing.
+                    btn.Tag = 'ViewingEmpty'     # green pill, grey dot
+                elif has:
+                    btn.Tag = 'Enabled'          # green dot, unchanged
                 else:
                     btn.Tag = ''
                 btn.ToolTip = self._pill_tooltip(btn.Tag)
 
             exp_btn = self._exp_btn(fmt)
             if exp_btn is not None:
-                enabled = fmt in self._fmt_enabled
+                enabled = fmt in enabled_now
                 exp_btn.IsEnabled = enabled
                 if fmt == self._fmt_viewing and enabled:
                     exp_btn.Tag = 'Viewing'
@@ -1936,25 +1971,15 @@ class PrintSheetsWindow(forms.WPFWindow):
             self.namingformat_cb.SelectedIndex = 0
 
     def _fmt_pill_logic(self, fmt):
-        """
-        Click logic for a format pill:
-          - If clicking the currently-viewing format → toggle enabled off/on
-          - If clicking any other format → enable it + switch view to it
-          Each format has its own independent selection container.
-        """
-        if fmt == self._fmt_viewing:
-            if fmt in self._fmt_enabled:
-                self._fmt_enabled.discard(fmt)
-                # Auto-jump view to another enabled format if any
-                others = [f for f in ALL_FORMATS
-                          if f in self._fmt_enabled and f != fmt]
-                if others:
-                    self._switch_viewing_format(others[0])
-            else:
-                self._fmt_enabled.add(fmt)
-                self._switch_viewing_format(fmt)
-        else:
-            self._fmt_enabled.add(fmt)
+        """Click logic for a format pill: switch to looking at that format.
+
+        Nothing else. It used to toggle the format on and off, so turning
+        one off took a second click and a format could be on with nothing
+        picked. What is ticked decides what exports now, so clicking the
+        format you are already on is simply a no-op rather than switching
+        it off underneath you. Each format keeps its own selection, so
+        moving between them never disturbs what you picked."""
+        if fmt != self._fmt_viewing:
             self._switch_viewing_format(fmt)
 
         self._update_format_buttons()
@@ -2120,6 +2145,12 @@ class PrintSheetsWindow(forms.WPFWindow):
         total   = len(visible)
         checked = sum(1 for s in visible if s.is_selected)
         self.sel_count_tb.Text = '{} of {} selected'.format(checked, total)
+
+        # Which formats are "on" is derived from what is ticked, so the
+        # pills have to be repainted whenever that changes - and this runs
+        # from every path that changes it. Ticking the first sheet turns the
+        # dot from grey to white here; unticking the last one turns it back.
+        self._update_format_buttons()
 
         fmt = self._fmt_viewing if self._fmt_viewing in self._fmt_enabled else None
         if fmt:
@@ -2750,8 +2781,14 @@ class PrintSheetsWindow(forms.WPFWindow):
         try:
             if hasattr(color, 'IsValid') and not color.IsValid:
                 return None
+            # int() is not tidying-up, it is the whole point. Color.Red is a
+            # .NET Byte, and IronPython hands a format spec on a .NET value
+            # to .NET's formatter, which reads "02X" as its own custom
+            # pattern - digit placeholder, then a literal "2X" - so 255 came
+            # out as "2552X" and every colour in the file was nonsense.
+            # A Python int gets Python's formatter and gives "FF".
             return u'{0:02X}{1:02X}{2:02X}'.format(
-                color.Red, color.Green, color.Blue)
+                int(color.Red), int(color.Green), int(color.Blue))
         except Exception:
             return None
 
@@ -2798,9 +2835,12 @@ class PrintSheetsWindow(forms.WPFWindow):
                 pass
         try:
             size = float(st.TextSize)
-            if size > 0:
-                # Revit reports the size in feet; Excel and ODF want points.
-                out['size'] = round(size * 72.0, 1)
+            # Already in points - NOT Revit's usual internal feet. Verified
+            # against a real export: a schedule reporting 18 and 12 came out
+            # as 1296 and 864 when this multiplied by 72, which is exactly
+            # 18pt and 12pt scaled by a conversion that should not be here.
+            if 1.0 < size < 409.0:      # Excel's own limit is 409pt
+                out['size'] = round(size, 1)
         except Exception:
             pass
         try:
@@ -2824,7 +2864,7 @@ class PrintSheetsWindow(forms.WPFWindow):
         every section the table has, in order, so header rows, body rows,
         group headers and totals all arrive as the rows they appear as in
         the schedule."""
-        rows, merges = [], []
+        rows, merges, heights, widths = [], [], [], []
         try:
             tbl = schedule.GetTableData()
         except Exception as ex:
@@ -2832,8 +2872,11 @@ class PrintSheetsWindow(forms.WPFWindow):
                            schedule.Name, ex)
             return {'rows': [], 'merges': []}
 
+        # Header deliberately skipped: for a schedule it holds only the
+        # title, and the tab is already named after the schedule. Body
+        # carries the column headers and the data both.
         sections = []
-        for sec_name in ('Header', 'Body', 'Summary', 'Footer'):
+        for sec_name in ('Body', 'Summary', 'Footer'):
             try:
                 sec = getattr(DB.SectionType, sec_name)
             except Exception:
@@ -2843,23 +2886,44 @@ class PrintSheetsWindow(forms.WPFWindow):
             except Exception:
                 continue
             if sd is not None:
-                sections.append(sd)
+                sections.append((sec, sd))
 
         seen_merges = set()
-        for sd in sections:
+        for sec, sd in sections:
             try:
                 n_rows = sd.NumberOfRows
                 n_cols = sd.NumberOfColumns
             except Exception:
                 continue
             row_offset = len(rows)
-            for r in range(n_rows):
-                row = []
+            # Revit reports both in feet. Inches is the useful middle
+            # ground: Excel wants character-widths and points, ODF wants a
+            # physical length, and both fall out of inches cleanly.
+            if not widths:
                 for c in range(n_cols):
                     try:
-                        text = sd.GetCellText(r, c)
+                        widths.append(float(sd.GetColumnWidth(c)) * 12.0)
                     except Exception:
-                        text = u''
+                        widths.append(None)
+            for r in range(n_rows):
+                try:
+                    heights.append(float(sd.GetRowHeight(r)) * 12.0)
+                except Exception:
+                    heights.append(None)
+                row = []
+                for c in range(n_cols):
+                    # Off the VIEW, not the section data. A schedule's data
+                    # rows are generated, and TableSectionData.GetCellText
+                    # only answers for cells that literally store text - so
+                    # it returned the column headers and nothing else, which
+                    # is exactly what a blank export looked like.
+                    try:
+                        text = schedule.GetCellText(sec, r, c)
+                    except Exception:
+                        try:
+                            text = sd.GetCellText(r, c)
+                        except Exception:
+                            text = u''
                     cell = {'text': text or u''}
                     cell.update(self._cell_style_dict(sd, r, c))
                     row.append(cell)
@@ -2877,7 +2941,24 @@ class PrintSheetsWindow(forms.WPFWindow):
                             seen_merges.add(box)
                             merges.append(box)
                 rows.append(row)
-        return {'rows': rows, 'merges': merges}
+
+        # Drop blank rows off the top. With the title suppressed, the Header
+        # section still hands back its title row as an empty one, which
+        # arrived as a stray ",," first line in every export. Only leading
+        # ones go - a blank row between groups is part of the schedule and
+        # the row indexes in `merges` are fixed up to match.
+        lead = 0
+        for row in rows:
+            if any((c.get('text') or u'').strip() for c in row):
+                break
+            lead += 1
+        if lead:
+            rows = rows[lead:]
+            heights = heights[lead:]
+            merges = [(t - lead, l, b - lead, r)
+                      for (t, l, b, r) in merges if t >= lead]
+        return {'rows': rows, 'merges': merges,
+                'col_widths': widths, 'row_heights': heights}
 
     @staticmethod
     def _csv_line(cells):
@@ -2945,7 +3026,9 @@ class PrintSheetsWindow(forms.WPFWindow):
                 continue
             sheets.append({'name': sched.Name,
                            'rows': grid['rows'],
-                           'merges': grid['merges']})
+                           'merges': grid['merges'],
+                           'col_widths': grid['col_widths'],
+                           'row_heights': grid['row_heights']})
             exported.append(qi)
 
         if not exported:
@@ -2973,7 +3056,9 @@ class PrintSheetsWindow(forms.WPFWindow):
                 write_grid_workbook(
                     op.join(folder, qi.fname_noext + ext),
                     [{'name': sched.Name, 'rows': grid['rows'],
-                      'merges': grid['merges']}])
+                      'merges': grid['merges'],
+                      'col_widths': grid['col_widths'],
+                      'row_heights': grid['row_heights']}])
                 tick(qi, 'Done')
             except Exception as ex:
                 logger.error('XLS %s failed: %s', qi.filename, ex)
@@ -4458,8 +4543,10 @@ class PrintSheetsWindow(forms.WPFWindow):
         """Push a profile dict back into the UI."""
         self._loading = True
         try:
-            self._fmt_enabled = set(
-                f for f in data.get('formats', ['PDF']) if f in ALL_FORMATS)
+            # 'formats' is no longer restored: which formats are on follows
+            # from the per-format selections this profile also carries, and
+            # those are applied below. It is still written on save, so an
+            # older pySheets can still read a profile written by this one.
             viewing = data.get('viewing', 'PDF')
             if viewing in ALL_FORMATS:
                 self._fmt_viewing = viewing

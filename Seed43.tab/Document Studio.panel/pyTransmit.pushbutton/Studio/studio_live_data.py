@@ -117,11 +117,18 @@ def _groupable_sheet_params(sheets):
     return sorted(names)
 
 
-def get_live_data(settings_dir, max_revs=12):
+def get_live_data(settings_dir, max_revs=12, group_params=None):
     """settings_dir = the user's Settings folder (pytransmit_paths.SETTINGS_DIR),
     passed in rather than resolved here, so this can
     read the same recipients/distribution/reason/method JSON pyTransmit
-    itself uses, without touching pyTransmit.py's own payload-building code."""
+    itself uses, without touching pyTransmit.py's own payload-building code.
+
+    group_params = the sheet parameters the caller is about to GROUP by.
+    They are read off every sheet whether or not they pass the groupable
+    test below - see the note in _groupable_sheet_params(). Grouping by a
+    parameter that was never read produces a blank group key for every
+    sheet, one nameless group, and therefore no group header rows at all -
+    silently, and identically in the Studio preview and in every export."""
     try:
         from pyrevit import revit, DB
         doc = revit.doc
@@ -226,6 +233,15 @@ def get_live_data(settings_dir, max_revs=12):
         # studio_blocks.sheet_row_plan() can group without touching Revit -
         # the renderer runs on every repaint, the model does not.
         param_names = _groupable_sheet_params(sheets)
+        # Whatever the caller means to group by is read too, even if the
+        # sample sheet made it look unusable. That test samples ONE sheet, so
+        # a Dropdown List parameter left empty on it - or any parameter the
+        # sample happens not to carry - is dropped from the list, and the
+        # grouping the user set in pyTransmit then quietly does nothing.
+        for pn in (group_params or []):
+            if pn and pn not in param_names:
+                param_names.append(pn)
+                param_names.sort()
         data['sheet_params'] = param_names
 
         docs = []

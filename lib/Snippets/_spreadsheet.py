@@ -1255,6 +1255,7 @@ def _grid_styles_xlsx(keys):
 def _grid_sheet_xlsx(sheet, style_index):
     rows_xml = []
     merges = sheet.get("merges") or []
+    heights = sheet.get("row_heights") or []
     for r_idx, row in enumerate(sheet.get("rows") or []):
         cells = []
         for c_idx, cell in enumerate(row):
@@ -1269,7 +1270,29 @@ def _grid_sheet_xlsx(sheet, style_index):
                 # Still emitted: an empty cell is what carries the fill and
                 # the border, which is most of a schedule's grid.
                 cells.append(u'<c r="{ref}" s="{s}"/>'.format(ref=ref, s=s_idx))
-        rows_xml.append(u'<row r="{0}">{1}</row>'.format(r_idx + 1, u"".join(cells)))
+        # Excel row height is in points: inches x 72.
+        h_attr = u""
+        if r_idx < len(heights) and heights[r_idx]:
+            h_attr = u' ht="{0}" customHeight="1"'.format(
+                round(heights[r_idx] * 72.0, 2))
+        rows_xml.append(u'<row r="{0}"{1}>{2}</row>'.format(
+            r_idx + 1, h_attr, u"".join(cells)))
+
+    # Excel column width is measured in characters of the default font, not
+    # in any real unit. At 96 dpi and Calibri 11 a character is 7px wide
+    # with 5px of cell padding, which is the conversion Excel itself
+    # documents - so inches -> pixels -> characters.
+    cols_xml = u""
+    widths = sheet.get("col_widths") or []
+    parts = []
+    for c_idx, inches in enumerate(widths):
+        if not inches:
+            continue
+        chars = max(1.0, (inches * 96.0 - 5.0) / 7.0)
+        parts.append(u'<col min="{0}" max="{0}" width="{1}" customWidth="1"/>'.format(
+            c_idx + 1, round(chars, 2)))
+    if parts:
+        cols_xml = u"<cols>{0}</cols>".format(u"".join(parts))
 
     merge_xml = u""
     if merges:
@@ -1280,8 +1303,9 @@ def _grid_sheet_xlsx(sheet, style_index):
             len(parts), u"".join(parts))
 
     return XML_DECL + (
-        u'<worksheet xmlns="{main}"><sheetData>{rows}</sheetData>{merges}</worksheet>'
-    ).format(main=_NS_MAIN, rows=u"".join(rows_xml), merges=merge_xml)
+        u'<worksheet xmlns="{main}">{cols}<sheetData>{rows}</sheetData>{merges}</worksheet>'
+    ).format(main=_NS_MAIN, cols=cols_xml, rows=u"".join(rows_xml),
+             merges=merge_xml)
 
 
 def write_grid_xlsx(path, sheets):
@@ -1379,11 +1403,31 @@ def write_grid_ods(path, sheets):
 
     used_lower = set()
     tables = []
-    for sheet in sheets:
+    # ODF has no width/height attribute on the column or row itself - each
+    # one has to point at a style. These are collected per sheet and given
+    # names that cannot collide with the cell styles above.
+    dim_styles = []
+    for s_idx, sheet in enumerate(sheets):
         name = _sanitize_table_name(sheet.get("name") or u"Sheet", used_lower)
         anchors, covered = _merge_lookup(sheet.get("merges"))
         rows = sheet.get("rows") or []
+        heights = sheet.get("row_heights") or []
+        widths = sheet.get("col_widths") or []
         width = max([len(r) for r in rows] or [1])
+
+        col_xml = []
+        for c_idx in range(width):
+            inches = widths[c_idx] if c_idx < len(widths) else None
+            if inches:
+                sname = u"co{0}_{1}".format(s_idx, c_idx)
+                dim_styles.append(
+                    u'<style:style style:name="{0}" style:family="table-column">'
+                    u'<style:table-column-properties style:column-width="{1}in"/>'
+                    u'</style:style>'.format(sname, round(inches, 4)))
+                col_xml.append(u'<table:table-column table:style-name="{0}"/>'.format(sname))
+            else:
+                col_xml.append(u'<table:table-column/>')
+
         rows_xml = []
         for r_idx, row in enumerate(rows):
             cells = []
@@ -1404,11 +1448,21 @@ def write_grid_ods(path, sheets):
                     u'<text:p>{v}</text:p></table:table-cell>'.format(
                         s=style_index[_style_key(cell)], span=span,
                         v=_xml_escape(text)))
-            rows_xml.append(u"<table:table-row>{0}</table:table-row>".format(u"".join(cells)))
+            r_attr = u""
+            h_in = heights[r_idx] if r_idx < len(heights) else None
+            if h_in:
+                rname = u"ro{0}_{1}".format(s_idx, r_idx)
+                dim_styles.append(
+                    u'<style:style style:name="{0}" style:family="table-row">'
+                    u'<style:table-row-properties style:row-height="{1}in" '
+                    u'style:use-optimal-row-height="false"/>'
+                    u'</style:style>'.format(rname, round(h_in, 4)))
+                r_attr = u' table:style-name="{0}"'.format(rname)
+            rows_xml.append(u"<table:table-row{0}>{1}</table:table-row>".format(
+                r_attr, u"".join(cells)))
         tables.append(
-            u'<table:table table:name="{0}">'
-            u'<table:table-column table:number-columns-repeated="{1}"/>'
-            u'{2}</table:table>'.format(_xml_attr(name), width, u"".join(rows_xml)))
+            u'<table:table table:name="{0}">{1}{2}</table:table>'.format(
+                _xml_attr(name), u"".join(col_xml), u"".join(rows_xml)))
 
     content_xml = XML_DECL + (
         u'<office:document-content '
@@ -1419,7 +1473,8 @@ def write_grid_ods(path, sheets):
         u'</office:document-content>'
     ).format(office=_NS_OFFICE, table=_NS_TABLE, text=_NS_TEXT,
              style=_NS_STYLE, fo=_NS_FO,
-             styles=_grid_styles_ods(keys), tables=u"".join(tables))
+             styles=_grid_styles_ods(keys) + u"".join(dim_styles),
+             tables=u"".join(tables))
 
     manifest_xml = XML_DECL + (
         u'<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" '

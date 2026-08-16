@@ -135,7 +135,8 @@ _log('Studio layout: {} ({}x{})'.format(
 
 # The same reader the Studio canvas uses, so the preview and the schedule are
 # built from one description of the model rather than two.
-DATA = studio_live_data.get_live_data(SETTINGS_DIR)
+DATA = studio_live_data.get_live_data(
+    SETTINGS_DIR, group_params=_p.get('group_params') or [])
 SL = studio_publish.StudioLayout(LAYOUT, DATA, _p, log=_log)
 
 N_COLS = SL.n_cols
@@ -143,6 +144,8 @@ if N_COLS < 1:
     _alert('The Studio layout has no columns.', title=TITLE, exitscript=True)
 
 PLACEMENTS = SL.placements()
+# Border sides are tri-state - settled against neighbours once, here.
+EDGES = SL.resolved_edges(PLACEMENTS)
 
 if any((pl['block'] or {}).get('type') == 'logo' for pl in PLACEMENTS):
     # Worth saying rather than silently dropping it: a Revit schedule holds
@@ -352,6 +355,31 @@ def _cell_style(placement, borders):
     return style
 
 
+def _set_cell_borders(sec, r, c, top, bottom, left, right):
+    """Rule one cell, by patching the style it already has.
+
+    Read-modify-write, not a fresh TableCellStyle. A wholesale SetCellStyle
+    does not always take - AllowOverrideCellStyle is False for some cells, and
+    a merged block keeps the style of its origin - so borders written that way
+    silently went missing, which is exactly why script_create_schedule.py's
+    _apply_block_cell_borders() reads the cell back before writing to it.
+    Applied after the font/colour style, so it is the last word.
+    """
+    try:
+        style = sec.GetTableCellStyle(r, c)
+        opts = style.GetCellStyleOverrideOptions()
+        for attr, show in (('BorderTopLineStyle', top),
+                           ('BorderBottomLineStyle', bottom),
+                           ('BorderLeftLineStyle', left),
+                           ('BorderRightLineStyle', right)):
+            setattr(opts, attr, True)
+            setattr(style, attr, _LINE if show else _NO_LINE)
+        style.SetCellStyleOverrideOptions(opts)
+        sec.SetCellStyle(r, c, style)
+    except Exception:
+        pass
+
+
 def _force_colours(sec, r, c, bg, fg):
     """Re-apply a cell's colours on top of whatever style it ended up with.
 
@@ -457,19 +485,12 @@ def _render_page(hdr, page_vs):
         except Exception:
             pass
 
-    # Every cell starts ruleless; the placements below rule their own edges.
-    # Without this the schedule's own grid lines show through wherever the
-    # layout deliberately left a cell open.
-    blank = _blank_style()
-    for ri in range(n_rows):
-        for ci in range(N_COLS):
-            try:
-                hdr.SetCellStyle(ri, ci, blank)
-            except Exception:
-                pass
-
-    # Merges first: Revit will not accept a merge whose cells have already
-    # been written, and a merged block takes the text and style of its origin.
+    # Merges first, styling second, always. MergeCells rebuilds the cells it
+    # covers, so anything written before it is rewritten by it - which is why
+    # script_create_schedule.py never styles a range it has not already
+    # merged. Blanking every cell up front, as this did, meant the group
+    # header rows - the widest merges in the table - were styled before the
+    # merge and ruled after it by nothing.
     drawn = []
     for pl in PLACEMENTS:
         vs = [v for v in range(pl['v'], pl['v'] + pl['n_v']) if v in ri_of]
@@ -482,27 +503,92 @@ def _render_page(hdr, page_vs):
         _merge(hdr, r1, c1, r2, c2)
         drawn.append((pl, r1, r2, c1, c2))
 
+    # Now every merge exists, blank the lot so a cell the layout left open
+    # does not show the schedule's own grid lines. Re-asserted in the border
+    # pass afterwards - see _apply_borders().
+    blank = _blank_style()
+    for ri in range(n_rows):
+        for ci in range(N_COLS):
+            try:
+                hdr.SetCellStyle(ri, ci, blank)
+            except Exception:
+                pass
+
+    edges = _resolve_edges(drawn, n_rows, ri_of)
     for pl, r1, r2, c1, c2 in drawn:
         _set_text(hdr, r1, c1, _cell_text(pl))
-        # Group headers can rule themselves separately from the data rows, and
-        # a deliberate gap carries no rules at all - both decided by the row
-        # kind, in the one place all three writers ask.
-        b = studio_rows.borders_for(pl['block'], pl['kind'])
         bg = _fill_rgb(pl)
         fg = _hex_to_rgb((pl['block'] or {}).get('color')) if pl['kind'] != 'space' else None
         for ri in range(r1, r2 + 1):
             for ci in range(c1, c2 + 1):
-                # Only the outside of a merged block is ruled; its inner
-                # edges would print as a grid across a single cell.
-                borders = (bool(b.get('t')) and ri == r1,
-                           bool(b.get('b')) and ri == r2,
-                           bool(b.get('l')) and ci == c1,
-                           bool(b.get('r')) and ci == c2)
                 try:
-                    hdr.SetCellStyle(ri, ci, _cell_style(pl, borders))
+                    hdr.SetCellStyle(ri, ci, _cell_style(
+                        pl, edges.get((ri, ci), (False, False, False, False))))
                 except Exception:
                     pass
+                # Patches the style just written rather than replacing it: a
+                # wholesale SetCellStyle does not always stick.
                 _force_colours(hdr, ri, ci, bg, fg)
+    return edges
+
+
+def _resolve_edges(drawn, n_rows, ri_of):
+    """Final border state for every cell of one page.
+
+    The work is studio_publish's: border sides are tri-state, and settling
+    them against the neighbour that shares each edge is the same job the
+    canvas and the drafting view need doing, so it is done once there and
+    read here. This only maps output rows onto this page's row indices.
+
+    A merged block is ruled from its ORIGIN - Revit keeps the origin's style
+    for the whole block and ignores the cells it covers - so the block's
+    outline is asserted there as well, or the far edge of a band running to
+    the last column would have nothing to draw it.
+
+    Returns {(row, col): (top, bottom, left, right)}.
+    """
+    resolved = {}
+    for (v, c), sides in EDGES.items():
+        if v in ri_of:
+            resolved[(ri_of[v], c)] = sides
+
+    for pl, r1, r2, c1, c2 in drawn:
+        if (r1, c1) == (r2, c2):
+            continue
+        top = bottom = left = right = False
+        for ri in range(r1, r2 + 1):
+            for ci in range(c1, c2 + 1):
+                t, b, l, r = resolved.get((ri, ci), (False, False, False, False))
+                top = top or (t and ri == r1)
+                bottom = bottom or (b and ri == r2)
+                left = left or (l and ci == c1)
+                right = right or (r and ci == c2)
+        resolved[(r1, c1)] = (top, bottom, left, right)
+    return resolved
+
+
+def _apply_borders(sec, edges, n_rows):
+    """Rule every cell, in a transaction of its own.
+
+    Borders written in the same transaction that built the table do not
+    reliably survive its commit - Revit reconciles the section's cell styles
+    as the rows, columns and merges settle, and the border overrides go with
+    them. That is why script_create_schedule.py has a whole second "border
+    cleanup" transaction and a third pass after it re-asserting the ones that
+    still went missing.
+
+    Every cell is written, not just the ones a placement covers: a cell the
+    layout left open must not show the schedule's own grid lines. edges comes
+    from _resolve_edges(), so neighbours already agree about the edge they
+    share and the order they are written in no longer decides the outcome.
+
+    The section data has to be fetched again by the caller for this pass: the
+    object from the previous transaction is stale.
+    """
+    off = (False, False, False, False)
+    for ri in range(n_rows):
+        for ci in range(N_COLS):
+            _set_cell_borders(sec, ri, ci, *edges.get((ri, ci), off))
 
 
 # ── Write the schedules ──────────────────────────────────────────────────────
@@ -561,7 +647,15 @@ for _page_idx, _page_vs in enumerate(PAGES, start=1):
         except Exception:
             pass
 
-        _render_page(hdr, _page_vs)
+        _edges = _render_page(hdr, _page_vs)
+
+    # Borders in a transaction of their own, after the one that built the
+    # table has committed - see _apply_borders(). The section data is fetched
+    # again because the object from the transaction above is stale.
+    with revit.Transaction(
+            'pyTransmit Studio - Schedule {} borders'.format(_page_idx)) as _tb:
+        _hdr_b = sched.GetTableData().GetSectionData(SectionType.Header)
+        _apply_borders(_hdr_b, _edges, len(_page_vs))
 
     _written.append(_name)
 

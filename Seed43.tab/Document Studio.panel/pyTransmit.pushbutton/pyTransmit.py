@@ -402,6 +402,20 @@ class RevTableWindow(Window):
         sample_sheet = next(iter(sheets), None)
         if not sample_sheet:
             return []
+        # Sheets share a parameter set, so ONE sheet is enough to learn the
+        # names - but not enough to learn which ones carry a value, and
+        # _has_usable_value() below drops any Dropdown List parameter that is
+        # empty on the sheet it happens to look at. That sheet is whichever
+        # one the collector returned first, so a Sheet Collection left blank
+        # on it took the parameter out of this list entirely - and
+        # SetupSettings._restore_group_params() filters the saved grouping
+        # against this list, so the grouping quietly reset itself to none and
+        # every export came out ungrouped.
+        #
+        # Sampling a handful of sheets instead is enough to find a value
+        # wherever one exists, and stays cheap on a 2000-sheet model.
+        _SAMPLE_LIMIT = 25
+        sample_sheets = list(sheets)[:_SAMPLE_LIMIT]
         built_in_params = [
             DB.BuiltInParameter.SHEET_NUMBER,
             DB.BuiltInParameter.SHEET_NAME
@@ -426,11 +440,19 @@ class RevTableWindow(Window):
             param = sample_sheet.get_Parameter(bip)
             if param and param.StorageType == DB.StorageType.String:
                 param_names.add(param.Definition.Name)
-        for param in sample_sheet.GetOrderedParameters():
-            if (param.Definition
-                    and param.StorageType in _USABLE_STORAGE_TYPES
-                    and _has_usable_value(param)):
-                param_names.add(param.Definition.Name)
+        for sheet in sample_sheets:
+            try:
+                ordered = sheet.GetOrderedParameters()
+            except Exception:
+                continue
+            for param in ordered:
+                try:
+                    if (param.Definition
+                            and param.StorageType in _USABLE_STORAGE_TYPES
+                            and _has_usable_value(param)):
+                        param_names.add(param.Definition.Name)
+                except Exception:
+                    continue
         return sorted(list(param_names))
     
     def sheet_param_selection_changed(self, sender, args):

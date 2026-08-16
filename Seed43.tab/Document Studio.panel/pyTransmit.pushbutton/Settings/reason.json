@@ -1,0 +1,22 @@
+[
+  {
+    "description": "Approval", 
+    "code": "A", 
+    "separator": "-"
+  }, 
+  {
+    "description": "Building Consent", 
+    "code": "BC", 
+    "separator": "-"
+  }, 
+  {
+    "description": "Construction", 
+    "code": "C", 
+    "separator": "-"
+  }, 
+  {
+    "description": "Other", 
+    "code": "O", 
+    "separator": "-"
+  }
+]

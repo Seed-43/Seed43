@@ -1252,6 +1252,59 @@ class LayoutSettingsWindow(WPFWindow):
         self.AllowDrop = True
         self.DragOver += self._window_drag_over
 
+        # Said over the open window, not in front of one that has not drawn
+        # yet - see _show_deprecation_notice().
+        self.ContentRendered += self._show_deprecation_notice
+
+    # -- Deprecation notice ----------------------------------------------------
+    _DEPRECATION_ENV = 'PYTRANSMIT_LB_DEPRECATION_SHOWN'
+
+    def _show_deprecation_notice(self, sender=None, args=None):
+        """Say, once per Revit session, that this tool is no longer developed.
+
+        Once per SESSION rather than once ever: a notice that can be dismissed
+        for good on the first day stops doing its job, and this one needs to
+        keep pointing at Studio for as long as the old builder is still in
+        use. The environment variable lasts the life of the Revit process,
+        which is the same trick pyTransmit uses to hand the group parameters
+        to its publish scripts.
+
+        Unsubscribed on the first firing because ContentRendered fires again
+        every time the window re-renders its content.
+        """
+        try:
+            self.ContentRendered -= self._show_deprecation_notice
+        except Exception:
+            pass
+        if os.environ.get(self._DEPRECATION_ENV):
+            return
+        os.environ[self._DEPRECATION_ENV] = '1'
+
+        message = (
+            u'Document Layout still works exactly as it always has. Your '
+            u'templates are safe, nothing has been removed, and every '
+            u'transmittal you publish from here comes out the same as '
+            u'before.\n\n'
+            u'It is no longer being developed, though. This builder describes '
+            u'a page as rows of four slots with a revision "spine" fanned out '
+            u'across the last one, and that model turned out to be far harder '
+            u'to work on than the documents it produces.\n\n'
+            u'New work goes into pyTransmit Studio instead, which lays a '
+            u'transmittal out on a plain spreadsheet grid - a cell is a cell, '
+            u'a merge is a merge - and publishes to Excel, PDF, Schedule, '
+            u'Drafting View and Legend alike.\n\n'
+            u'Next time you start a layout from scratch, start it in Studio: '
+            u'the ☰ menu in pyTransmit, then Layout Studio.')
+        title = 'Document Layout is no longer being developed'
+        try:
+            if sdlg:
+                sdlg.message(message, title=title)
+            else:
+                from pyrevit import forms as _forms
+                _forms.alert(message, title=title)
+        except Exception:
+            pass
+
     def _window_drag_over(self, sender, args):
         """Accept drag at window level, prevents WPF returning None effect."""
         try:

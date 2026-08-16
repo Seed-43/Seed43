@@ -327,6 +327,50 @@ def _themed_separator():
     return sep
 
 
+# ── Ribbon icons ────────────────────────────────────────────────────────────
+# Drawn from the shared library in lib/Snippets, so Studio's buttons are the
+# same glyphs the rest of Seed43 uses and a change there reaches all of them.
+# Keyed by what the button does, not by what the icon is called.
+RIBBON_ICONS = {
+    'bold': 'format_bold', 'italic': 'format_italic',
+    'underline': 'format_underline', 'strike': 'format_strikethrough',
+    'fill': 'format_color_fill', 'borders': 'border_all',
+    'merge': 'merge_cells',
+    # Sheet Data: the gap above the first group header, and the gap above
+    # every later one. The "plus" glyph is the one that repeats.
+    'space_first': 'format_list_group',
+    'space_between': 'format_list_group_plus',
+    'condense': 'land_rows_horizontal',
+}
+
+# One per border preset. 'clear' is not a border shape - it drops this cell's
+# opinion of its edges - so it borrows the reset glyph rather than a border
+# one, which would suggest it draws something.
+BORDER_PRESET_ICONS = {
+    'none': 'border_none', 'all': 'border_all',
+    'outside': 'border_outside', 'inside': 'border_inside',
+    'inside_h': 'border_horizontal', 'inside_v': 'border_vertical',
+    'top': 'border_top', 'bottom': 'border_bottom',
+    'left': 'border_left', 'right': 'border_right',
+}
+
+
+def studio_icon(key, size=15, color=None):
+    """A shared-library icon, or None if the library cannot be loaded.
+
+    Every caller falls back to the text glyph it used before, so a missing
+    or broken icon file leaves a readable button rather than a blank one.
+    """
+    try:
+        from Snippets._icons import make_icon
+    except Exception:
+        return None
+    try:
+        return make_icon(key, size=size, color=color or theme('text_primary'))
+    except Exception:
+        return None
+
+
 class StudioSettingsWindow(WPFWindow):
 
     # Label -> revision field, matching script_create_excel.py's _LABEL_TO_KEY
@@ -419,6 +463,16 @@ class StudioSettingsWindow(WPFWindow):
         # so the combos' own SelectionChanged handlers don't turn a passive
         # UI refresh into an edit and recurse back through _render_all().
         self._syncing_ui = False
+
+        # Undo/redo. Snapshots of the layout, not a log of operations: the
+        # grid already serialises itself for saving, so a snapshot is free to
+        # produce and always restores to a state that really existed. Taken in
+        # _render_all(), which every edit ends with, so nothing has to
+        # remember to record itself - see _record_undo_state().
+        self._undo_stack = []
+        self._redo_stack = []
+        self._last_state = None
+        self._restoring = False
 
         self._build_blocks_panel()
         self._wire_ribbon_tabs()
@@ -575,14 +629,31 @@ class StudioSettingsWindow(WPFWindow):
             pass
 
     def _on_window_key_down(self, sender, args):
+        # Don't hijack keys while the user is editing text somewhere (formula
+        # bar, Row H/Col W boxes, the font combos) - a TextBox has its own
+        # Ctrl+Z, and Delete there means delete a character.
+        focused = _SWI.Keyboard.FocusedElement
+        editing = isinstance(focused, (_SWC.TextBox, _SWC.ComboBox))
+
+        ctrl = ((_SWI.Keyboard.Modifiers & _SWI.ModifierKeys.Control)
+                == _SWI.ModifierKeys.Control)
+        if ctrl and not editing:
+            shift = ((_SWI.Keyboard.Modifiers & _SWI.ModifierKeys.Shift)
+                     == _SWI.ModifierKeys.Shift)
+            # Ctrl+Shift+Z redoes as well as Ctrl+Y - both are in common use
+            # and neither means anything else here.
+            if args.Key == _SWI.Key.Z and not shift:
+                self._undo()
+                args.Handled = True
+                return
+            if args.Key == _SWI.Key.Y or (args.Key == _SWI.Key.Z and shift):
+                self._redo()
+                args.Handled = True
+                return
+
         if args.Key != _SWI.Key.Delete:
             return
-        # Don't hijack Delete while the user is actually editing text
-        # somewhere (formula bar, Row H/Col W boxes, the font combos) -
-        # only treat it as "clear the selected cell(s)" when focus is on
-        # the grid itself.
-        focused = _SWI.Keyboard.FocusedElement
-        if isinstance(focused, (_SWC.TextBox, _SWC.ComboBox)):
+        if editing:
             return
         for (r, c) in self._sel_origins():
             self._grid.clear_cell(r, c)
@@ -1158,7 +1229,14 @@ class StudioSettingsWindow(WPFWindow):
 
     def _refresh_live_data(self, silent=True):
         try:
-            self._data = studio_live_data.get_live_data(self._settings_dir)
+            # The grouping parameters go in so they are read off every sheet.
+            # Without them a parameter the groupable test happened to drop -
+            # it samples one sheet - groups every sheet under one blank key,
+            # and the preview shows no group rows at all. getattr because a
+            # refresh can be asked for before the preview options are loaded.
+            self._data = studio_live_data.get_live_data(
+                self._settings_dir,
+                group_params=getattr(self, '_group_params', None))
             self._apply_meta_rows()
             if not silent:
                 n_rev = len(self._data.get('revisions', []))
@@ -1184,7 +1262,7 @@ class StudioSettingsWindow(WPFWindow):
     def _wire_doc_table_ribbon(self):
         self._reload_group_param_combo()
         self.group_param_combo.SelectionChanged += self._on_group_param_changed
-        self.group_label_btn.Click += self._on_group_label_click
+        self._setup_group_label_switch()
         self.condense_btn.Click += self._on_condense_click
         self.space_first_btn.Click += self._on_space_first_click
         self.space_between_btn.Click += self._on_space_between_click
@@ -1259,10 +1337,114 @@ class StudioSettingsWindow(WPFWindow):
             'Sheet grouping off - one row per sheet' if not self._group_params
             else 'Grouping sheets by {}'.format(' + '.join(self._group_params)))
 
+    def _setup_group_label_switch(self):
+        """Build the on/off switch, the same one the main pyTransmit window
+        uses for this setting.
+
+        A track Border with a knob Border inside it, moved left or right by
+        margin rather than animated - the approach pyTransmit.py settled on,
+        because animation is unreliable under IronPython 2. Sizes and colours
+        come from the palette, so it matches every other Seed43 switch.
+        """
+        knob = _SWC.Border()
+        knob.Width = self._toggle_res('SizeToggleKnob', 16.0)
+        knob.Height = knob.Width
+        knob.CornerRadius = (self.TryFindResource('CornerRadiusToggleKnob')
+                             or _SW.CornerRadius(knob.Width / 2.0))
+        knob.Background = (self.TryFindResource('BrushToggleKnob')
+                           or _SWM.Brushes.White)
+        knob.HorizontalAlignment = _SW.HorizontalAlignment.Left
+        self.group_label_toggle.Child = knob
+        self._group_label_knob = knob
+        self.group_label_toggle.MouseLeftButtonUp += self._on_group_label_click
+        self._paint_group_label_switch()
+
+    def _build_gap_button(self, btn_name, icon_key, label):
+        """Icon, label, and a dot that reports the Group Text state.
+
+        The two gap settings are stored per state - one pair for group text
+        on, another for off - so which pair these buttons are showing depends
+        on the switch beside them. The dot is that fact made visible: white
+        while group text is on, grey while it is off. Without it, flipping the
+        switch appears to change the gap settings at random.
+        """
+        btn = getattr(self, btn_name, None)
+        if btn is None:
+            return
+        icon = studio_icon(RIBBON_ICONS[icon_key], size=15)
+        if icon is None:
+            return                      # XAML's plain text label stands
+        panel = _SWC.StackPanel()
+        panel.Orientation = _SWC.Orientation.Horizontal
+        # Dot first, then a gap, then the icon and its label. A plain filled
+        # Ellipse, the same indicator pySheets puts on its format pills -
+        # 7px with a 6px gap - rather than a glyph, so the two tools read the
+        # same way.
+        dot = _SWS.Ellipse()
+        dot.Width = 7
+        dot.Height = 7
+        dot.VerticalAlignment = _SW.VerticalAlignment.Center
+        dot.Margin = _SW.Thickness(0, 0, 6, 0)
+        panel.Children.Add(dot)
+        icon.VerticalAlignment = _SW.VerticalAlignment.Center
+        icon.Margin = _SW.Thickness(0, 0, 4, 0)
+        panel.Children.Add(icon)
+        tb = _SWC.TextBlock()
+        tb.Text = label
+        tb.VerticalAlignment = _SW.VerticalAlignment.Center
+        tb.Foreground = theme_brush('text_primary')
+        panel.Children.Add(tb)
+        btn.Content = panel
+        setattr(self, '_' + btn_name + '_dot', dot)
+
+    def _paint_gap_dots(self):
+        """White while group text is on, grey while it is off - the same two
+        states pySheets gives its pill dots."""
+        brush = (_SWM.Brushes.White if self._group_label
+                 else (theme_brush('text_muted') or _brush('#8A96A8')))
+        for name in ('_space_first_btn_dot', '_space_between_btn_dot'):
+            dot = getattr(self, name, None)
+            try:
+                if dot is not None:
+                    dot.Fill = brush
+            except Exception:
+                pass
+
+    def _toggle_res(self, key, fallback):
+        try:
+            value = self.TryFindResource(key)
+            return float(value) if value is not None else fallback
+        except Exception:
+            return fallback
+
+    def _paint_group_label_switch(self):
+        """Colour the track and park the knob for the current state."""
+        on = bool(self._group_label)
+        track_w = self._toggle_res('WidthToggle', 40.0)
+        knob_size = self._toggle_res('SizeToggleKnob', 16.0)
+        margin = self._toggle_res('MarginToggleKnob', 2.0)
+        on_brush = (self.TryFindResource('BrushPrimaryGreen')
+                    or _brush('#208A3C'))
+        off_brush = (self.TryFindResource('BrushToggleOffBg')
+                     or _brush('#A0AABB'))
+        try:
+            self.group_label_toggle.Background = on_brush if on else off_brush
+            offset = track_w - knob_size - margin
+            self._group_label_knob.Margin = (
+                _SW.Thickness(offset, margin, 0, margin) if on
+                else _SW.Thickness(margin, margin, 0, margin))
+            self.group_label_toggle_tb.Foreground = (
+                theme_brush('text_primary') if on else off_brush)
+        except Exception:
+            pass
+        self._paint_gap_dots()
+
     def _on_group_label_click(self, sender, args):
-        # ToggleButton flips IsChecked before Click fires, so it already
-        # holds the requested state.
-        self._group_label = bool(self.group_label_btn.IsChecked)
+        # A Border, not a ToggleButton: nothing flips the state for us.
+        if not self._group_params:
+            return                      # nothing to label
+        self._group_label = not bool(self._group_label)
+        self._paint_group_label_switch()
         self._save_preview_options()
         self._render_all()
         self.status_label.Text = (
@@ -1289,7 +1471,7 @@ class StudioSettingsWindow(WPFWindow):
         finally:
             self._syncing_ui = False
 
-        self.group_label_btn.IsChecked = bool(self._group_label)
+        self._paint_group_label_switch()
         _first_gap, _between_gap = self._grid.gaps_for(self._group_label)
         self.space_first_btn.IsChecked = bool(_first_gap)
         self.space_between_btn.IsChecked = bool(_between_gap)
@@ -1306,7 +1488,10 @@ class StudioSettingsWindow(WPFWindow):
             'The other state keeps its own setting.'.format(_state))
         self.condense_btn.IsChecked = bool(self._condense)
         # Group text only means anything once there are groups to label.
-        self.group_label_btn.IsEnabled = bool(self._group_params)
+        # A Border has no IsEnabled look of its own, so it dims instead.
+        self.group_label_toggle.Opacity = 1.0 if self._group_params else 0.4
+        self.group_label_toggle.IsHitTestVisible = bool(self._group_params)
+        self.group_label_toggle_tb.Opacity = 1.0 if self._group_params else 0.4
         self._update_rows_count_label()
 
     def _update_rows_count_label(self):
@@ -1611,7 +1796,8 @@ class StudioSettingsWindow(WPFWindow):
         self.underline_btn.Click += self._on_underline_click
         self.strike_btn.Click += self._on_strike_click
         self._build_color_button(self.font_color_btn, 'A', '#000000')
-        self._build_color_button(self.fill_color_btn, '■', '#FFFFFF')
+        self._build_color_button(self.fill_color_btn, '■', '#FFFFFF',
+                                 icon_key=RIBBON_ICONS['fill'])
         self.font_color_btn.Click += self._on_font_color_click
         self.fill_color_btn.Click += self._on_fill_color_click
 
@@ -1630,13 +1816,32 @@ class StudioSettingsWindow(WPFWindow):
             except Exception:
                 pass
 
+        # Icons in place of the letter glyphs and the box character. Each
+        # falls back to whatever the XAML already set if the shared library
+        # is unavailable, so the ribbon is never left with blank buttons.
+        for _bn, _key in (('bold_btn', 'bold'), ('italic_btn', 'italic'),
+                          ('underline_btn', 'underline'), ('strike_btn', 'strike'),
+                          ('borders_btn', 'borders')):
+            _icon = studio_icon(RIBBON_ICONS[_key],
+                                size=18 if _key == 'borders' else 15)
+            if _icon is not None:
+                getattr(self, _bn).Content = _icon
+        try:
+            from Snippets._icons import make_icon_with_label
+            for _bn, _key, _label in (
+                    ('merge_toggle_btn', 'merge', 'Merge & Center'),
+                    ('condense_btn', 'condense', 'Condense Rows')):
+                getattr(self, _bn).Content = make_icon_with_label(
+                    RIBBON_ICONS[_key], _label, icon_size=15,
+                    color=theme('text_primary'))
+        except Exception:
+            pass
+        self._build_gap_button('space_first_btn', 'space_first', 'First group')
+        self._build_gap_button('space_between_btn', 'space_between', 'Other groups')
+
         self._wire_border_pickers()
 
         self.merge_toggle_btn.Click += self._on_merge_toggle_click
-        self._build_merge_menu()
-        self.merge_menu_btn.Checked += lambda s, a: setattr(self.merge_popup, 'IsOpen', True)
-        self.merge_menu_btn.Unchecked += lambda s, a: setattr(self.merge_popup, 'IsOpen', False)
-        self.merge_popup.Closed += lambda s, a: setattr(self.merge_menu_btn, 'IsChecked', False)
         self.band_btn.Click += self._on_band_click
         self.band_color_btn.Click += self._on_band_color_click
         self.group_color_btn.Click += self._on_group_color_click
@@ -1652,10 +1857,20 @@ class StudioSettingsWindow(WPFWindow):
         self.formula_change_btn.Click += self._on_formula_change_click
 
     # -- Borders: Excel/Calc-style icon-grid dropdown --------------------------
+    # 'none' suppresses the edge outright and releases the cell opposite, so
+    # the line goes whichever side you clear it from - the one "no border"
+    # Excel has. BORDER_UNSET still exists in the model (it is what lets a
+    # border survive an untouched neighbour); it just has no button, because
+    # with neighbours released on every edit it no longer behaves any
+    # differently here.
     BORDER_PRESETS = [
-        ('none', 'No Border'), ('all', 'All Borders'), ('outside', 'Outside Borders'),
-        ('top', 'Top Border'), ('bottom', 'Bottom Border'), ('left', 'Left Border'),
-        ('right', 'Right Border'), ('top_bottom', 'Top && Bottom'), ('left_right', 'Left && Right'),
+        ('none', 'No Border'),
+        ('all', 'All Borders'), ('outside', 'Outside Borders'),
+        ('inside', 'Inside Borders'),
+        ('inside_h', 'Inside Horizontal Border'),
+        ('inside_v', 'Inside Vertical Border'),
+        ('top', 'Top Border'), ('bottom', 'Bottom Border'),
+        ('left', 'Left Border'), ('right', 'Right Border'),
     ]
 
     def _build_align_icon(self, kind):
@@ -1708,6 +1923,12 @@ class StudioSettingsWindow(WPFWindow):
         return theme('accent')
 
     def _build_border_icon(self, preset):
+        icon = studio_icon(BORDER_PRESET_ICONS.get(preset, ''), size=22,
+                           color=self._accent_hex())
+        if icon is not None:
+            return icon
+        # Fallback: the boxes this drew before the shared icons existed, so a
+        # library that will not load still gives a usable palette.
         size = 26
         accent = _brush(self._accent_hex())
         g = _SWC.Grid()
@@ -1720,7 +1941,8 @@ class StudioSettingsWindow(WPFWindow):
         g.Children.Add(bg)
         edge_map = {
             'top': (0, 1, 0, 0), 'bottom': (0, 0, 0, 1), 'left': (1, 0, 0, 0), 'right': (0, 0, 1, 0),
-            'top_bottom': (0, 1, 0, 1), 'left_right': (1, 0, 1, 0),
+            'inside': (0, 0, 0, 0), 'inside_h': (0, 0, 0, 0),
+            'inside_v': (0, 0, 0, 0),
             'outside': (1, 1, 1, 1), 'all': (1, 1, 1, 1), 'none': (0, 0, 0, 0),
         }
         l, t, r, b = edge_map.get(preset, (0, 0, 0, 0))
@@ -1728,7 +1950,7 @@ class StudioSettingsWindow(WPFWindow):
         fg.BorderBrush = accent
         fg.BorderThickness = _SW.Thickness(l * 2, t * 2, r * 2, b * 2)
         g.Children.Add(fg)
-        if preset == 'all':
+        if preset in ('all', 'inside', 'inside_h', 'inside_v'):
             vline = _SWS.Rectangle()
             vline.Fill = accent
             vline.Width = 1
@@ -1849,10 +2071,16 @@ class StudioSettingsWindow(WPFWindow):
         group headers' (see studio_rows.borders_for).
         """
         r0, c0, r1, c1 = self._sel_rect()
+        touched = {}
         for (r, c) in self._sel_origins():
             block = self._grid.block_at(r, c)
             if block is None:
-                block = studio_blocks.new_block('text', content='')
+                # An empty cell needs a block to hold the borders, but it
+                # starts with none of its own - see _blank_block(). Otherwise
+                # drawing a box round a run of empty cells also ruled every
+                # edge inside it: the preset added the very lines it was
+                # supposed to leave alone.
+                block = self._blank_block()
                 self._grid.set_block(r, c, block)
             row_span, col_span = self._grid.span_of(r, c)
             r_end, c_end = r + row_span - 1, c + col_span - 1
@@ -1865,17 +2093,92 @@ class StudioSettingsWindow(WPFWindow):
             if current is None:
                 current = block.get('borders')
             borders = dict(current or {})
+            _ON = studio_blocks.BORDER_ON
+            _OFF = studio_blocks.BORDER_OFF
+            _UNSET = studio_blocks.BORDER_UNSET
             if preset == 'none':
-                borders = {'t': False, 'b': False, 'l': False, 'r': False}
+                borders = {'t': _OFF, 'b': _OFF, 'l': _OFF, 'r': _OFF}
             elif preset == 'all':
-                borders = {'t': True, 'b': True, 'l': True, 'r': True}
+                borders = {'t': _ON, 'b': _ON, 'l': _ON, 'r': _ON}
+            elif preset == 'outside':
+                # Outline only: the perimeter is ruled and everything facing
+                # INSIDE the selection is cleared. Without that last part the
+                # rules already on the cells stayed - and blocks rule their
+                # top and bottom by default - so drawing a box round two rows
+                # left a line between them and looked like Outside had added
+                # an interior border.
+                borders['t'] = _ON if is_top else _UNSET
+                borders['b'] = _ON if is_bottom else _UNSET
+                borders['l'] = _ON if is_left else _UNSET
+                borders['r'] = _ON if is_right else _UNSET
             else:
-                if preset in ('outside', 'top', 'top_bottom') and is_top: borders['t'] = True
-                if preset in ('outside', 'bottom', 'top_bottom') and is_bottom: borders['b'] = True
-                if preset in ('outside', 'left', 'left_right') and is_left: borders['l'] = True
-                if preset in ('outside', 'right', 'left_right') and is_right: borders['r'] = True
+                # The rest only ever add, exactly as Excel's do: Top Border
+                # draws one line along the top of the selection and leaves
+                # every other edge as it was.
+                #
+                # The INSIDE presets rule the edges BETWEEN the cells of the
+                # selection and never its outline - a cell that is not on the
+                # bottom row has a neighbour below it, so its bottom edge is
+                # an interior one. Both cells either side name the same edge,
+                # which is harmless: they agree.
+                if preset in ('inside', 'inside_h'):
+                    if not is_top: borders['t'] = _ON
+                    if not is_bottom: borders['b'] = _ON
+                if preset in ('inside', 'inside_v'):
+                    if not is_left: borders['l'] = _ON
+                    if not is_right: borders['r'] = _ON
+                if preset == 'top' and is_top: borders['t'] = _ON
+                if preset == 'bottom' and is_bottom: borders['b'] = _ON
+                if preset == 'left' and is_left: borders['l'] = _ON
+                if preset == 'right' and is_right: borders['r'] = _ON
+            touched[(r, c)] = [k for k in ('t', 'b', 'l', 'r')
+                               if borders.get(k) != (current or {}).get(k)]
             block[field] = borders
+        self._release_neighbours(touched, field)
         self._render_all()
+
+    # Which cell holds the other half of each shared edge.
+    _OPPOSITE_SIDE = {'t': ('b', -1, 0), 'b': ('t', 1, 0),
+                      'l': ('r', 0, -1), 'r': ('l', 0, 1)}
+
+    def _release_neighbours(self, touched, field):
+        """Let go of the opposite side of every edge just set.
+
+        Applying an edge makes THIS cell the authority on it: the cell across
+        that edge has its matching side cleared to unset, so the two are never
+        left disagreeing about one line.
+
+        Without this, switching a border on did nothing whenever the cell
+        opposite still held an off from earlier - off beats on, so the line
+        stayed suppressed with nothing on screen to say why. Excel settles the
+        same conflict the same way, at the moment you apply the border rather
+        than every time it draws, which is what makes the last thing you did
+        the thing you see.
+        """
+        grid = self._grid
+        selected = set(touched)
+        for (r, c), sides in touched.items():
+            for side in sides:
+                opposite, dr, dc = self._OPPOSITE_SIDE[side]
+                nr, nc = r + dr, c + dc
+                if not (0 <= nr < grid.n_rows and 0 <= nc < grid.n_cols):
+                    continue
+                try:
+                    origin = grid.origin_of(nr, nc)
+                except Exception:
+                    origin = (nr, nc)
+                # A neighbour inside the selection was just set deliberately;
+                # leave it exactly as the user asked.
+                if origin in selected:
+                    continue
+                nb = grid.block_at(origin[0], origin[1])
+                if not nb:
+                    continue
+                nb_sides = dict(nb.get(field) or nb.get('borders') or {})
+                if nb_sides.get(opposite) is studio_blocks.BORDER_UNSET:
+                    continue
+                nb_sides[opposite] = studio_blocks.BORDER_UNSET
+                nb[field] = nb_sides
 
     # -- selection helpers -----------------------------------------------------
     def _sel_rect(self):
@@ -1943,11 +2246,27 @@ class StudioSettingsWindow(WPFWindow):
                     origins.append(orig)
         return origins
 
+    def _blank_block(self):
+        """An empty text block with NO borders of its own.
+
+        For the cases where a block is created as a side effect of doing
+        something else - centring a merge, applying a colour, ruling an edge -
+        rather than because the user placed one. new_block() rules top and
+        bottom by default, which is right for a block you deliberately drop
+        onto the sheet and wrong here: it means merging two empty cells and
+        unmerging them again leaves borders behind that were never asked for,
+        and the same for every other side effect.
+        """
+        block = studio_blocks.new_block('text', content='')
+        block['borders'] = dict((side, studio_blocks.BORDER_UNSET)
+                                for side in ('t', 'b', 'l', 'r'))
+        return block
+
     def _apply_to_selection(self, fn):
         for (r, c) in self._sel_origins():
             block = self._grid.block_at(r, c)
             if block is None:
-                block = studio_blocks.new_block('text', content='')
+                block = self._blank_block()
                 self._grid.set_block(r, c, block)
             fn(block)
         self._render_all()
@@ -2000,18 +2319,20 @@ class StudioSettingsWindow(WPFWindow):
         cur = bool((self._anchor_block() or {}).get('italic'))
         self._apply_to_selection(lambda b: b.__setitem__('italic', not cur))
 
-    def _build_color_button(self, btn, glyph, colour):
+    def _build_color_button(self, btn, glyph, colour, icon_key=None):
         """Glyph over a bar of the colour it applies - Excel's A / highlighter
         buttons. Rebuilt rather than tinted so the swatch is a real element
         the sync pass can update as the selection moves."""
         panel = _SWC.StackPanel()
         panel.VerticalAlignment = _SW.VerticalAlignment.Center
-        tb = _SWC.TextBlock()
-        tb.Text = glyph
-        tb.FontSize = 12
-        tb.FontWeight = _SW.FontWeights.Bold
-        tb.HorizontalAlignment = _SW.HorizontalAlignment.Center
-        tb.Foreground = theme_brush('text_primary')
+        tb = studio_icon(icon_key) if icon_key else None
+        if tb is None:
+            tb = _SWC.TextBlock()
+            tb.Text = glyph
+            tb.FontSize = 12
+            tb.FontWeight = _SW.FontWeights.Bold
+            tb.HorizontalAlignment = _SW.HorizontalAlignment.Center
+            tb.Foreground = theme_brush('text_primary')
         bar = _SWC.Border()
         bar.Height = 4
         bar.Width = 16
@@ -2067,9 +2388,60 @@ class StudioSettingsWindow(WPFWindow):
         except Exception:
             return None
 
+    def _custom_colors(self):
+        """The custom colours the user has mixed, from studio_config.json.
+
+        Read once and cached: this is asked for every time a picker opens.
+        """
+        if getattr(self, '_custom_color_cache', None) is None:
+            saved = self._read_config().get('custom_colors') or []
+            try:
+                self._custom_color_cache = [int(v) for v in saved]
+            except Exception:
+                self._custom_color_cache = []
+        return self._custom_color_cache
+
+    def _apply_custom_colors(self, dlg):
+        """Put the saved custom colours back into a fresh dialog.
+
+        This is what makes "Add to Custom Colors" stick. A ColorDialog starts
+        with an empty custom palette every time it is constructed - the
+        colours added in one are simply gone from the next, which is why they
+        never appeared to save. They have to be carried across by hand.
+
+        CustomColors is a .NET int[] of 16 values, each 0x00BBGGRR - blue
+        first, not red.
+        """
+        values = self._custom_colors()
+        if not values:
+            return
+        try:
+            import System
+            dlg.CustomColors = System.Array[System.Int32](
+                [System.Int32(v) for v in values[:16]])
+        except Exception:
+            pass
+
+    def _remember_custom_colors(self, dlg):
+        """Save anything the user mixed, whether they hit OK or Cancel.
+
+        Adding a colour and then cancelling is still work worth keeping - the
+        dialog has already accepted it into the palette by that point.
+        """
+        try:
+            values = [int(v) for v in dlg.CustomColors]
+        except Exception:
+            return
+        if values == self._custom_colors():
+            return
+        self._custom_color_cache = values
+        self._write_config(custom_colors=values)
+
     def _pick_color(self, current_hex):
         dlg = _WF.ColorDialog()
         dlg.FullOpen = True     # custom-colour panel open, so any hex is reachable
+        dlg.AnyColor = True
+        self._apply_custom_colors(dlg)
         try:
             h = (current_hex or '#000000').lstrip('#')
             if len(h) == 3:
@@ -2079,6 +2451,9 @@ class StudioSettingsWindow(WPFWindow):
             pass
         owner = self._win32_owner()
         result = dlg.ShowDialog(owner) if owner is not None else dlg.ShowDialog()
+        # Before the result is checked, so a colour mixed and then cancelled
+        # is still kept.
+        self._remember_custom_colors(dlg)
         if result == _WF.DialogResult.OK:
             c = dlg.Color
             # int() around each channel is essential. c.R/G/B are .NET Bytes,
@@ -2150,41 +2525,6 @@ class StudioSettingsWindow(WPFWindow):
     # -- Merge split button ----------------------------------------------------
     # The four operations Excel offers. "Merge & Center" is the default action
     # on the button face; the rest live under the chevron.
-    MERGE_ACTIONS = [
-        ('Merge && Center', 'center'),
-        ('Merge Across', 'across'),
-        ('Merge Cells', 'plain'),
-        (None, None),                 # separator
-        ('Unmerge Cells', 'unmerge'),
-    ]
-
-    def _build_merge_menu(self):
-        panel = self.merge_menu_panel
-        panel.Children.Clear()
-        for label, action in self.MERGE_ACTIONS:
-            if label is None:
-                panel.Children.Add(_themed_separator())
-                continue
-            btn = _SWC.Button()
-            # && is the XAML escape for a literal ampersand; in a plain string
-            # here it would show as typed.
-            btn.Content = label.replace('&&', '&')
-            btn.Tag = action
-            btn.HorizontalContentAlignment = _SW.HorizontalAlignment.Left
-            btn.Foreground = theme_brush('text_primary')
-            btn.Background = _SWM.Brushes.Transparent
-            btn.BorderThickness = _SW.Thickness(0)
-            btn.Padding = _SW.Thickness(12, 5, 12, 5)
-            btn.FontSize = 12
-            btn.Cursor = _SWI.Cursors.Hand
-            btn.Click += self._on_merge_menu_click
-            panel.Children.Add(btn)
-
-    def _on_merge_menu_click(self, sender, args):
-        self.merge_popup.IsOpen = False
-        self.merge_menu_btn.IsChecked = False
-        self._do_merge(sender.Tag)
-
     def _do_merge(self, action):
         r0, c0, r1, c1 = self._sel_rect()
         grid = self._grid
@@ -2219,7 +2559,10 @@ class StudioSettingsWindow(WPFWindow):
         if action == 'center':
             block = grid.block_at(r0, c0)
             if block is None:
-                block = studio_blocks.new_block('text', content='')
+                # Blank, not new_block(): a block made only to hold the
+                # centring must not bring borders with it, or unmerging
+                # afterwards leaves a top and bottom rule behind.
+                block = self._blank_block()
                 grid.set_block(r0, c0, block)
             block['just'] = 'center'
             block['v_just'] = 'middle'
@@ -2253,27 +2596,51 @@ class StudioSettingsWindow(WPFWindow):
 
     # -- Row/column insert & delete, via right-click on a header --------------
     def _ctx_insert_row(self, idx, before):
-        at = idx if before else idx + 1
-        self._grid.insert_row(at)
-        self._sel = (at, self._sel[1], at, self._sel[1])
+        """Insert as many rows as are selected, the way a spreadsheet does.
+
+        Six rows selected and Insert Below means six new rows, not one -
+        otherwise making room for a run of anything is a job of clicking the
+        same command over and over. The new rows are left selected, so
+        another insert repeats the same amount.
+        """
+        r0, r1 = self._ctx_rows_for(idx)
+        count = r1 - r0 + 1
+        at = r0 if before else r1 + 1
+        for i in range(count):
+            self._grid.insert_row(at + i)
+        self._sel_mode = 'row'
+        self._sel = (at, 0, at + count - 1, self._grid.n_cols - 1)
         self._render_all()
 
     def _ctx_delete_row(self, idx):
-        self._grid.delete_row(idx)
-        ar = min(idx, self._grid.n_rows - 1)
-        self._sel = (ar, self._sel[1], ar, self._sel[1])
+        r0, r1 = self._ctx_rows_for(idx)
+        # Back to front, so the indices below the one being removed do not
+        # shift out from under the loop.
+        for r in range(r1, r0 - 1, -1):
+            self._grid.delete_row(r)
+        ar = max(0, min(r0, self._grid.n_rows - 1))
+        self._sel_mode = 'row'
+        self._sel = (ar, 0, ar, self._grid.n_cols - 1)
         self._render_all()
 
     def _ctx_insert_col(self, idx, before):
-        at = idx if before else idx + 1
-        self._grid.insert_col(at)
-        self._sel = (self._sel[0], at, self._sel[0], at)
+        """As _ctx_insert_row, for columns."""
+        c0, c1 = self._ctx_cols_for(idx)
+        count = c1 - c0 + 1
+        at = c0 if before else c1 + 1
+        for i in range(count):
+            self._grid.insert_col(at + i)
+        self._sel_mode = 'col'
+        self._sel = (0, at, self._grid.n_rows - 1, at + count - 1)
         self._render_all()
 
     def _ctx_delete_col(self, idx):
-        self._grid.delete_col(idx)
-        ac = min(idx, self._grid.n_cols - 1)
-        self._sel = (self._sel[0], ac, self._sel[0], ac)
+        c0, c1 = self._ctx_cols_for(idx)
+        for c in range(c1, c0 - 1, -1):
+            self._grid.delete_col(c)
+        ac = max(0, min(c0, self._grid.n_cols - 1))
+        self._sel_mode = 'col'
+        self._sel = (0, ac, self._grid.n_rows - 1, ac)
         self._render_all()
 
     def _ctx_rows_for(self, idx):
@@ -2283,6 +2650,14 @@ class StudioSettingsWindow(WPFWindow):
         r0, _c0, r1, _c1 = self._sel_rect()
         if self._sel_mode == 'row' and r0 <= idx <= r1:
             return r0, r1
+        return idx, idx
+
+    def _ctx_cols_for(self, idx):
+        """Which columns a column-header command applies to - see
+        _ctx_rows_for()."""
+        _r0, c0, _r1, c1 = self._sel_rect()
+        if self._sel_mode == 'col' and c0 <= idx <= c1:
+            return c0, c1
         return idx, idx
 
     def _ctx_move_rows(self, idx, delta):
@@ -2342,8 +2717,16 @@ class StudioSettingsWindow(WPFWindow):
             menu.Items.Add(_themed_menu_item(text, handler, dot, enabled))
 
         if kind == 'colhdr':
-            _item('Insert Column Left',  lambda s, a, i=idx: self._ctx_insert_col(i, True))
-            _item('Insert Column Right', lambda s, a, i=idx: self._ctx_insert_col(i, False))
+            # The count is in the label because the command acts on the whole
+            # selected run - "Insert 6 Columns Left" says what will happen
+            # before it happens, rather than after.
+            _cc0, _cc1 = self._ctx_cols_for(idx)
+            _cn = _cc1 - _cc0 + 1
+            _cw = 'Column' if _cn == 1 else '{} Columns'.format(_cn)
+            _item('Insert {} Left'.format(_cw),
+                  lambda s, a, i=idx: self._ctx_insert_col(i, True))
+            _item('Insert {} Right'.format(_cw),
+                  lambda s, a, i=idx: self._ctx_insert_col(i, False))
             menu.Items.Add(_themed_separator())
             menu.Items.Add(_themed_separator())
             _item('Column Width…', lambda s, a, i=idx: self._ctx_col_width(i))
@@ -2351,10 +2734,15 @@ class StudioSettingsWindow(WPFWindow):
             _item('Fit Columns to Page Width',
                   lambda s, a: self._on_fit_width_click(None, None))
             menu.Items.Add(_themed_separator())
-            _item('Delete Column',       lambda s, a, i=idx: self._ctx_delete_col(i))
+            _item('Delete {}'.format(_cw), lambda s, a, i=idx: self._ctx_delete_col(i))
         else:
-            _item('Insert Row Above', lambda s, a, i=idx: self._ctx_insert_row(i, True))
-            _item('Insert Row Below', lambda s, a, i=idx: self._ctx_insert_row(i, False))
+            _rr0, _rr1 = self._ctx_rows_for(idx)
+            _rn = _rr1 - _rr0 + 1
+            _rw = 'Row' if _rn == 1 else '{} Rows'.format(_rn)
+            _item('Insert {} Above'.format(_rw),
+                  lambda s, a, i=idx: self._ctx_insert_row(i, True))
+            _item('Insert {} Below'.format(_rw),
+                  lambda s, a, i=idx: self._ctx_insert_row(i, False))
             menu.Items.Add(_themed_separator())
             # Reorder. Greyed out at the ends of the sheet, and wherever a
             # cell merged across rows would have to be split to make room -
@@ -2369,7 +2757,7 @@ class StudioSettingsWindow(WPFWindow):
             menu.Items.Add(_themed_separator())
             _item('Row Height…', lambda s, a, i=idx: self._ctx_row_height(i))
             menu.Items.Add(_themed_separator())
-            _item('Delete Row',       lambda s, a, i=idx: self._ctx_delete_row(i))
+            _item('Delete {}'.format(_rw), lambda s, a, i=idx: self._ctx_delete_row(i))
             menu.Items.Add(_themed_separator())
             # Print Titles (Excel's term): which rows reappear on every page.
             _item(studio_grid.SECTION_LABELS[studio_grid.SECTION_REPEAT_TOP],
@@ -2587,7 +2975,13 @@ class StudioSettingsWindow(WPFWindow):
         text = self.formula_bar_tb.Text
         if block is None:
             if text:
-                self._grid.set_block(ar, ac, studio_blocks.new_block('text', content=text))
+                # Typing into an empty cell is entering CONTENT, not placing a
+                # styled block, so it arrives with no borders - the same as
+                # typing in a spreadsheet. A block dragged from the palette
+                # still gets new_block()'s defaults.
+                typed = self._blank_block()
+                typed['content'] = text
+                self._grid.set_block(ar, ac, typed)
                 self._render_all()
         else:
             if block.get('content', '') != text:
@@ -2878,7 +3272,89 @@ class StudioSettingsWindow(WPFWindow):
     # Grid rendering
     # ======================================================================
 
+    UNDO_DEPTH = 60
+
+    def _grid_state(self):
+        """The layout as a string, for comparing and for restoring.
+
+        json.dumps of the same dict the tool saves, so a snapshot can never
+        capture something the file format cannot express.
+        """
+        try:
+            return json.dumps(self._grid.to_dict(), sort_keys=True)
+        except Exception:
+            return None
+
+    def _record_undo_state(self):
+        """Remember the PREVIOUS layout if this render followed a change.
+
+        Called from _render_all rather than from each editing command: every
+        edit ends in a render, so this catches all of them - borders, merges,
+        row inserts, block drops, colours - without fifty call sites having to
+        opt in and one of them being forgotten.
+
+        A new edit clears the redo stack, which is what makes redo mean "the
+        thing I just undid" rather than something from an abandoned branch.
+        """
+        if self._restoring:
+            return
+        state = self._grid_state()
+        if state is None or state == self._last_state:
+            return
+        if self._last_state is not None:
+            self._undo_stack.append(self._last_state)
+            del self._undo_stack[:-self.UNDO_DEPTH]
+            self._redo_stack = []
+        self._last_state = state
+
+    def _restore_state(self, state):
+        """Put a snapshot back on screen, without recording it as an edit."""
+        self._restoring = True
+        try:
+            self._grid = studio_grid.Grid.from_dict(json.loads(state))
+            self._last_state = state
+            self._clamp_selection()
+            self._render_all()
+        except Exception:
+            pass
+        finally:
+            self._restoring = False
+
+    def _clamp_selection(self):
+        """Keep the selection inside the grid a snapshot restored to - it may
+        have had fewer rows or columns than the one on screen now."""
+        r_max = max(0, self._grid.n_rows - 1)
+        c_max = max(0, self._grid.n_cols - 1)
+        ar, ac, br, bc = self._sel
+        self._sel = (min(ar, r_max), min(ac, c_max),
+                     min(br, r_max), min(bc, c_max))
+
+    def _undo(self):
+        if not self._undo_stack:
+            self.status_label.Text = 'Nothing to undo'
+            return
+        current = self._grid_state()
+        state = self._undo_stack.pop()
+        if current is not None:
+            self._redo_stack.append(current)
+            del self._redo_stack[:-self.UNDO_DEPTH]
+        self._restore_state(state)
+        self.status_label.Text = 'Undo ({} left)'.format(len(self._undo_stack))
+
+    def _redo(self):
+        if not self._redo_stack:
+            self.status_label.Text = 'Nothing to redo'
+            return
+        current = self._grid_state()
+        state = self._redo_stack.pop()
+        if current is not None:
+            self._undo_stack.append(current)
+            del self._undo_stack[:-self.UNDO_DEPTH]
+        self._restore_state(state)
+        self.status_label.Text = 'Redo ({} left)'.format(len(self._redo_stack))
+
     def _render_all(self):
+        self._record_undo_state()
         try:
             self.margin_box.Text = str(self._grid.margin_mm)
         except Exception:
@@ -2977,6 +3453,22 @@ class StudioSettingsWindow(WPFWindow):
         first = self._vspans.get(r0, (r0, 1))[0]
         last_start, last_n = self._vspans.get(r1, (r1, 1))
         return first, (last_start + last_n) - first
+
+    def _neighbour_borders(self, r, c, dr, dc, band=None):
+        """The border dict of the cell next door, or None at the table edge.
+
+        Read through the merge origin, so a cell sitting beside a merged block
+        consults the block's rules rather than the empty cell it covers.
+        """
+        rr, cc = r + dr, c + dc
+        grid = self._grid
+        if not (0 <= rr < grid.n_rows and 0 <= cc < grid.n_cols):
+            return None
+        try:
+            orr, occ = grid.origin_of(rr, cc)
+        except Exception:
+            orr, occ = rr, cc
+        return studio_blocks.borders_for(grid.block_at(orr, occ), band or 'doc')
 
     @staticmethod
     def _band_kind(row_plan, item):
@@ -3150,18 +3642,68 @@ class StudioSettingsWindow(WPFWindow):
                     # too, and the preview would stop matching the workbook.
                     band = (self._band_kind(row_plan, item)
                             if repeats and vdomains.get(r) == 'sheet' else None)
+                    # ONE line per edge, in ONE colour.
+                    #
+                    # Two things used to double it up. Every cell drew all
+                    # four of its own sides, so the line between two rows was
+                    # actually two - the upper cell's bottom and the lower
+                    # cell's top - and where a border was set the black rule
+                    # was drawn beside the grey cell line rather than instead
+                    # of it, making three.
+                    #
+                    # So: each cell draws only its TOP and LEFT, which between
+                    # them cover every interior edge exactly once, plus the
+                    # bottom or right where it runs out at the edge of the
+                    # sheet. And an edge is EITHER a border or a cell line,
+                    # never both - the two Borders carry complementary sides.
                     border = _SWC.Border()
-                    border.BorderBrush = theme_brush('pill_off_border')
+                    border.BorderBrush = studio_blocks.CELL_LINE
+                    border.Background = _SWM.Brushes.White
+                    # Snapped to device pixels, or WPF anti-aliases a hairline
+                    # across two rows of pixels and it reads as a thick soft
+                    # band rather than the thin line it is.
+                    border.SnapsToDevicePixels = True
+                    border.UseLayoutRounding = True
+
                     # Group headers can rule themselves separately from the
                     # data rows, so the row kind picks the set - the same call
-                    # the exporters make.
+                    # the exporters make. Each side is then settled against
+                    # the neighbour that shares it, so an OFF next door
+                    # suppresses this cell's line and an UNSET never does.
                     borders = studio_blocks.borders_for(b, band or 'doc')
+                    top, bot, lef, rig = studio_blocks.resolve_sides(
+                        borders,
+                        above=self._neighbour_borders(r, c, -1, 0, band),
+                        below=self._neighbour_borders(r, c, 1, 0, band),
+                        before=self._neighbour_borders(r, c, 0, -1, band),
+                        after=self._neighbour_borders(r, c, 0, 1, band))
+                    # Bottom and right are only drawn where the sheet ends -
+                    # everywhere else the cell below or to the right draws
+                    # that same edge as its own top or left.
+                    _at_last_row = (v_row + v_span - 1) >= (len(self._vrows) - 1)
+                    _at_last_col = (c + col_span - 1) >= (grid.n_cols - 1)
+                    _draw = (True, _at_last_row, True, _at_last_col)
+                    _is_rule = (top, bot, lef, rig)
+
+                    _cw = studio_blocks.CELL_LINE_W
+                    _bw = studio_blocks.BORDER_W
+                    # Grey where the edge is drawn and is NOT a border...
                     border.BorderThickness = _SW.Thickness(
-                        1 if borders.get('l') else 0.4,
-                        1 if borders.get('t') else 0.4,
-                        1 if borders.get('r') else 0.4,
-                        1 if borders.get('b') else 0.4)
-                    border.Background = _SWM.Brushes.White
+                        _cw if (_draw[2] and not _is_rule[2]) else 0,
+                        _cw if (_draw[0] and not _is_rule[0]) else 0,
+                        _cw if (_draw[3] and not _is_rule[3]) else 0,
+                        _cw if (_draw[1] and not _is_rule[1]) else 0)
+
+                    rule = _SWC.Border()
+                    rule.SnapsToDevicePixels = True
+                    rule.UseLayoutRounding = True
+                    rule.BorderBrush = studio_blocks.BORDER_LINE
+                    # ...and black where it is.
+                    rule.BorderThickness = _SW.Thickness(
+                        _bw if (_draw[2] and _is_rule[2]) else 0,
+                        _bw if (_draw[0] and _is_rule[0]) else 0,
+                        _bw if (_draw[3] and _is_rule[3]) else 0,
+                        _bw if (_draw[1] and _is_rule[1]) else 0)
                     # Clip to the cell: a block taller than its row would
                     # otherwise render straight over the rows below, which
                     # looks like the grid has broken when a row is made
@@ -3176,7 +3718,8 @@ class StudioSettingsWindow(WPFWindow):
                             cell.get('block'), self._data, SCALE, grid.logo_path,
                             rev_index=rev_index, row_plan=row_plan, item=item)
                     if content:
-                        border.Child = content
+                        rule.Child = content
+                    border.Child = rule
                     # Every repeated Border reports the same model cell, so a
                     # click anywhere down the column selects that one cell of
                     # the layout - which is the thing the user can edit.

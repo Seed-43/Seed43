@@ -1,18 +1,16 @@
 title: "𝑨𝒃𝒐𝒖𝒕"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
-  _____________________________________________________________________
+tooltip: >
+  __________________________________________________________________
+
   Description:
-  Opens the Seed43 About window.
-  From here, you can check which version of the Seed43 toolbar is installed,
-  see what has changed in the latest version, and update to the newest version with one click.
-  You can also toggle individual tools and panels on or off directly from this window.
-  _____________________________________________________________________
-  Notes:
-  - An internet connection is required to check for and download updates
-  - After updating, you will need to reload pyRevit for the changes to take effect
-  - Toggling a tool off hides it from the Revit ribbon until it is turned back on
-  _____________________________________________________________________
-  Last update:
-  - Removed reordering; panel and tool order now follows bundle.yaml
-    _____________________________________________________________________
+
+  Opens the Seed43 About window. From here, you can check which version of
+  the Seed43 toolbar is installed, see what has changed in the latest
+  version, and update to the newest version with one click. You can also
+  toggle individual tools and panels on or off directly from this window. An
+  internet connection is required to check for and download updates, and
+  pyRevit needs to be reloaded after updating for the changes to take
+  effect.
+
+  __________________________________________________________________

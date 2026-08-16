@@ -6,8 +6,8 @@ def compute_cell_styles_from_grid(rows, groups, hlines, vlines,
     """
     Compute cell styles using the new hlines/vlines border grid.
 
-    hlines: {ri: [bool*4]} — bottom border of each col in row ri
-    vlines: {ri: [bool*5]} — right edge of vline positions 0-4 in row ri
+    hlines: {ri: [bool*4]}, bottom border of each col in row ri
+    vlines: {ri: [bool*5]}, right edge of vline positions 0-4 in row ri
             pos 0=outer-left, 1=A-B, 2=B-C, 3=C-D, 4=outer-right
 
     Returns same format as compute_cell_styles.
@@ -180,7 +180,7 @@ def compute_cell_styles(rows, groups, text_styles=None, max_rev_col=3, n_revs=10
                         'span': 1, 'ci_start': col_key, 'ci_end': col_key,
                     }
             else:
-                # Fixed columns A/B/C — span may cover multiple canvas cols
+                # Fixed columns A/B/C, span may cover multiple canvas cols
                 ci_end = min(ci_canvas + span - 1, max_rev_col - 1)
                 if ci_canvas + span - 1 >= max_rev_col:
                     ci_end = max_rev_col + n_revs - 1  # spans into rev cols
@@ -215,7 +215,7 @@ def compute_cell_styles(rows, groups, text_styles=None, max_rev_col=3, n_revs=10
 
     # ── Pass 2: on-beats-off shared edge resolution ──────────────────────────
     # A shared horizontal edge (bottom of row N = top of row N+1) is ON
-    # if EITHER side wants it on — but only if the block on that side
+    # if EITHER side wants it on, but only if the block on that side
     # participates in bordering (has at least one border set).
 
     def _has_any_border(ri, ci):
@@ -229,7 +229,7 @@ def compute_cell_styles(rows, groups, text_styles=None, max_rev_col=3, n_revs=10
     # If any block in a row has t or b, propagate to all blocks in that row.
     # This ensures "Revision" text gets same bottom as spine_rev in same row.
     # Exception: reason_list/method_list blocks are content within a vertical
-    # span — they should not receive same-row propagation from other columns.
+    # span, they should not receive same-row propagation from other columns.
     _CONTENT_TYPES = ('reason_list', 'method_list')
     _row_top = {}  # ri -> bool
     _row_bot = {}  # ri -> bool
@@ -240,12 +240,11 @@ def compute_cell_styles(rows, groups, text_styles=None, max_rev_col=3, n_revs=10
         if cell['brd'].get('b', False): _row_bot[ri] = True
 
     # ── Pass 2b: on-beats-off shared edge resolution ─────────────────────────
-    # For non-content blocks: use row-level maps (_row_bot/_row_top) so that
-    # a border on any col in a row propagates to all cols (e.g. spine_rev b:True
-    # gives the "Revision" text cell its bottom line).
-    # For content blocks (reason_list/method_list): only check same-ci neighbours
-    # to avoid bleeding from spine_dates b:True into the legend content above/below.
-    # blank blocks are fully immune.
+    # Non-content blocks use row-level maps (_row_bot/_row_top), so a border on
+    # any col propagates across the row (spine_rev b:True gives the "Revision"
+    # cell its bottom line). Content blocks (reason_list/method_list) check
+    # only same-ci neighbours, so spine_dates b:True can't bleed into the
+    # legend above/below. blank blocks are immune.
     for (ri, ci), cell in raw.items():
         resolved_brd = dict(cell['brd'])
         _btype = cell.get('block', {}).get('type', '') if cell.get('block') else ''
@@ -254,7 +253,7 @@ def compute_cell_styles(rows, groups, text_styles=None, max_rev_col=3, n_revs=10
             pass  # immune
 
         elif _btype in _CONTENT_TYPES:
-            # Same-ci only — no row-level cross-column bleeding
+            # Same-ci only, no row-level cross-column bleeding
             above_ci = raw.get((ri - 1, ci))
             if above_ci and above_ci['brd'].get('b', False):
                 resolved_brd['t'] = True
@@ -267,7 +266,7 @@ def compute_cell_styles(rows, groups, text_styles=None, max_rev_col=3, n_revs=10
             if _row_top.get(ri) or _row_bot.get(ri - 1):
                 resolved_brd['t'] = True
             # Bottom: on if THIS CELL wants b OR any block in row below has t
-            # Note: _row_bot[ri] is NOT used — it would bleed b:True from spine
+            # Note: _row_bot[ri] is NOT used, it would bleed b:True from spine
             # cols (ci=2/3) into label cols (ci=0/1) in the same row.
             if cell['brd'].get('b', False) or _row_top.get(ri + 1):
                 resolved_brd['b'] = True
@@ -366,8 +365,8 @@ def style_for_revit(cell_style, on_id, off_id):
 
     Parameters
     ----------
-    on_id  : ElementId — line style for visible borders (e.g. 'pyT On')
-    off_id : ElementId — line style for hidden borders (e.g. 'pyT Off')
+    on_id  : ElementId, line style for visible borders (e.g. 'pyT On')
+    off_id : ElementId, line style for hidden borders (e.g. 'pyT Off')
 
     Returns dict with keys matching TableCellStyle border properties:
         BorderTopLineStyle, BorderBottomLineStyle,

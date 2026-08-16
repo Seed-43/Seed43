@@ -2,6 +2,14 @@
 # BrandingSettings.py
 
 import os
+
+# pytransmit_paths lives in the pushbutton root, which is not guaranteed to be
+# on sys.path - pyTransmit loads these modules by inserting only Settings/.
+import sys as _sys
+_PT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PT_ROOT not in _sys.path:
+    _sys.path.insert(0, _PT_ROOT)
+from pytransmit_paths import SETTINGS_DIR, USER_DIR
 import json
 import shutil
 
@@ -35,7 +43,7 @@ class BrandingSettingsController(object):
 
     def __init__(self, script_dir):
         self._script_dir   = script_dir
-        self._settings_dir = os.path.join(script_dir, 'Settings')
+        self._settings_dir = SETTINGS_DIR
         self._config_path  = os.path.join(self._settings_dir, self.CONFIG_FILE)
         self._cfg          = dict(self.DEFAULT_CFG)
         self._host         = None
@@ -54,7 +62,7 @@ class BrandingSettingsController(object):
         """
         Called once on startup (before window shown).
         If source is configured and reachable, copies to Settings/logo.<ext>.
-        Silent — never raises.  Returns local logo path or ''.
+        Silent, never raises.  Returns local logo path or ''.
         """
         try:
             self._do_sync_logo()
@@ -73,7 +81,7 @@ class BrandingSettingsController(object):
             os.makedirs(self._settings_dir)
         shutil.copy2(src, dst)
 
-    # ── Public API used by script.py at generate-time ────────────────────────
+    # ── Public API used by pyTransmit.py at generate-time ────────────────────────
 
     def get_logo_path(self):
         """Return the best available local logo path, or '' if none."""
@@ -83,10 +91,12 @@ class BrandingSettingsController(object):
             p = os.path.join(self._settings_dir, fname)
             if os.path.exists(p):
                 return p
-        # Fallback: script root folder
+        # Fallback: the shipped logo, once migrated into .user. Not the script
+        # folder any more - the user owns this file and may replace or delete
+        # it, so an update must not be able to reach it.
         for fname in ('logo.png', 'logo.PNG', 'logo.jpg', 'logo.JPG',
                       'logo.jpeg', 'logo.JPEG', 'Logo.png', 'Logo.jpg'):
-            p = os.path.join(self._script_dir, fname)
+            p = os.path.join(USER_DIR, fname)
             if os.path.exists(p):
                 return p
         return ''
@@ -103,7 +113,7 @@ class BrandingSettingsController(object):
     def get_header_fg_color(self):
         return self._cfg.get('header_fg_color', self.DEFAULT_CFG['header_fg_color'])
 
-    # ── Save on panel close (called by styling_back_click in script.py) ───────
+    # ── Save on panel close (called by styling_back_click in pyTransmit.py) ───────
 
     def save_and_back(self):
         """
@@ -267,6 +277,6 @@ class BrandingSettingsController(object):
                     dst = os.path.join(self._settings_dir, 'logo' + ext)
                     self._host.logo_status_lbl.Text = u'\u2139\uFE0F  Will sync to: {}'.format(dst)
                 except: pass
-        except Exception, ex:
+        except Exception as ex:
             try: self._host.logo_status_lbl.Text = u'\u274C  Browse error: {}'.format(str(ex))
             except: pass

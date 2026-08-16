@@ -2,6 +2,14 @@
 # FileNamingSettings.py
 
 import os
+
+# pytransmit_paths lives in the pushbutton root, which is not guaranteed to be
+# on sys.path - pyTransmit loads these modules by inserting only Settings/.
+import sys as _sys
+_PT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PT_ROOT not in _sys.path:
+    _sys.path.insert(0, _PT_ROOT)
+from pytransmit_paths import SETTINGS_DIR
 import re
 import json
 
@@ -56,6 +64,7 @@ PATH_TOKENS = [
     {'template': '{date_mm}',               'desc': "Month (2-digit) e.g. '04'",                 'color': '#1a6b7a'},
     {'template': '{date_dd}',               'desc': "Day (2-digit) e.g. '20'",                   'color': '#1a6b7a'},
     {'template': '{proj_param:PARAM_NAME}', 'desc': "Value of Given Project Information Parameter", 'color': '#232933'},
+    {'template': '{*}', 'desc': "Auto-complete: put after a known token (e.g. {job_number}{*}) to match the full folder name found on disk", 'color': '#C0392B'},
 ]
 
 # ── Smart bucket finder ───────────────────────────────────────────────────────
@@ -110,15 +119,37 @@ def _resolve_bucket(root, job_int):
     return None
 
 
+WILDCARD = '{*}'
+
+
+def _match_wildcard(parent_dir, prefix, suffix):
+    """Find a folder in parent_dir starting with prefix and ending with
+    suffix (case-insensitive). Returns the matched folder name, or None."""
+    if not parent_dir or not os.path.isdir(parent_dir):
+        return None
+    try:
+        entries = [d for d in os.listdir(parent_dir)
+                  if os.path.isdir(os.path.join(parent_dir, d))]
+    except OSError:
+        return None
+    pl, sl = prefix.lower(), suffix.lower()
+    candidates = [d for d in entries
+                 if d.lower().startswith(pl) and d.lower().endswith(sl)]
+    if not candidates:
+        return None
+    candidates.sort(key=len)   # prefer the tightest match
+    return candidates[0]
+
+
 # ══════════════════════════════════════════════════════════════════════════════
-# PROJECT FOLDER RESOLVER  (standalone — usable without a UI)
+# PROJECT FOLDER RESOLVER  (standalone, usable without a UI)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def find_project_folder(job_number, roots):
     """
     Locate the project folder for *job_number* inside one or more *roots*.
 
-    Works with any folder naming convention — no wildcards or config needed.
+    Works with any folder naming convention, no wildcards or config needed.
     See _resolve_bucket for matching logic.
 
     Returns the absolute path to the project folder, or None.
@@ -135,11 +166,11 @@ def find_project_folder(job_number, roots):
             continue
         bucket_name, bmin, bmax = result
 
-        # Exact/floor match — the bucket folder IS the project folder
+        # Exact/floor match, the bucket folder IS the project folder
         if bmin == bmax:
             return os.path.join(root, bucket_name)
 
-        # Range match — look for job subfolder inside the bucket
+        # Range match, look for job subfolder inside the bucket
         bucket_path = os.path.join(root, bucket_name)
         try:
             candidates = [
@@ -171,7 +202,7 @@ class FileNamingSettingsController(object):
 
     def __init__(self, script_dir):
         self._script_dir   = script_dir
-        self._settings_dir = os.path.join(script_dir, 'Settings')
+        self._settings_dir = SETTINGS_DIR
         self._config_path  = os.path.join(self._settings_dir, self.CONFIG_FILE)
         self._host         = None
         self._drop_pos      = 0
@@ -310,9 +341,12 @@ class FileNamingSettingsController(object):
         """Return the saved output path template string."""
         return self._path_template
 
-    def resolve_output_path(self, job_number, values=None):
+    def resolve_output_path(self, job_number, values=None, template=None):
         """
-        Resolve the output path template for *job_number*.
+        Resolve an output path template for *job_number*.
+
+        *template* overrides the saved template, used by the live preview
+        so it reflects unsaved edits. Defaults to self._path_template.
 
         *values* is an optional dict of extra token substitutions, e.g.:
             {'proj_name': 'PROJECT_BURGUNDY', 'issue_date': '2026-04-20'}
@@ -321,8 +355,10 @@ class FileNamingSettingsController(object):
             {projects_root}   → self._projects_root
             {older_jobs_root} → self._projects_older_root
             {bucket}          → range-bucket folder name (found by scanning roots)
-            {job_number}      → job_number
-            {proj_number}     → job_number  (alias)
+            {job_number}      → job_number   (literal number, NOT auto-completed)
+            {proj_number}     → job_number   (alias)
+        Use the {*} token to auto-complete a segment from what's actually on
+        disk, e.g. "{job_number}{*}" → "4293 - Amenities Pavilion".
         All other tokens are substituted from *values* if provided.
 
         Returns the resolved path string (tokens that couldn't be resolved
@@ -330,6 +366,7 @@ class FileNamingSettingsController(object):
         """
         import datetime
         job_str = str(job_number).strip()
+        path_template = template if template is not None else self._path_template
 
         # Try projects_root first, fall back to older_jobs_root only if not found there
         roots_ordered = [r for r in [self._projects_root, self._projects_older_root] if r]
@@ -377,10 +414,23 @@ class FileNamingSettingsController(object):
                 key = k if k.startswith('{') else '{' + k + '}'
                 subs[key] = v
 
-        tmpl = self._path_template
-        for token, val in subs.items():
-            tmpl = tmpl.replace(token, val)
-        return tmpl
+        # Walk the template segment by segment so {*} can see what's
+        # already on disk in the resolved parent folder at each step.
+        segments = re.split(r'[\\/]', path_template)
+        resolved = []
+        current_path = ''
+        for seg in segments:
+            text = seg
+            for token, val in subs.items():
+                text = text.replace(token, val)
+            if WILDCARD in text:
+                prefix, suffix = text.split(WILDCARD, 1)
+                match = _match_wildcard(current_path, prefix, suffix)
+                text = match if match is not None else (prefix + suffix)
+            resolved.append(text)
+            current_path = (os.path.join(current_path, text)
+                            if current_path else text)
+        return os.sep.join(resolved)
 
     def save_and_back(self):
         """Save config then navigate back to the main panel."""
@@ -481,69 +531,65 @@ class FileNamingSettingsController(object):
         import datetime
         import System.Windows.Media as _SWM
 
-        today      = datetime.date.today()
-        today_str  = today.strftime('%Y-%m-%d')
         live       = self._live
         proj_root  = self._projects_root or r'N:\JOBS'
-        older_root = self._projects_older_root or r'N:\JOBS\Older Jobs'
-        active_root = live.get('active_root', proj_root)
+        job_str    = live.get('job_number') or '4286'
 
-        # Use real live values where available, fallback to illustrative dummy
-        has_real_job    = bool(live.get('job_number'))
-        has_real_bucket = bool(live.get('bucket_folder'))
+        # Recompute bucket status fresh (don't trust a possibly-stale
+        # self._live cache) so the warning matches what actually resolved.
+        has_real_job = bool(live.get('job_number'))
+        has_real_bucket = False
+        if has_real_job:
+            try:
+                job_int = int(re.sub(r'\D', '', job_str))
+                roots = [r for r in [self._projects_root,
+                                     self._projects_older_root] if r]
+                has_real_bucket = any(_resolve_bucket(r, job_int)
+                                      for r in roots)
+            except Exception:
+                pass
 
-        # Try to resolve the full folder name on disk (e.g. "4285 - Alterations...")
-        job_folder_name = live.get('job_number') or '4286'
-        if live.get('job_number') and self._projects_root:
-            roots = [r for r in [self._projects_root, self._projects_older_root] if r]
-            resolved = find_project_folder(live.get('job_number'), roots)
-            if resolved:
-                job_folder_name = os.path.basename(resolved)
-
-        sample = {
-            '{projects_root}':          proj_root,
-            '{older_jobs_root}':        active_root,
-            '{bucket_folder}':          live.get('bucket_folder') or '#JOB-4251-4300',
-            '{bucket}':                 live.get('bucket')        or '4251-4300',
-            '{bucket_min}':             live.get('bucket_min')    or '4251',
-            '{bucket_max}':             live.get('bucket_max')    or '4300',
-            '{job_number}':             job_folder_name,
-            '{proj_number}':            job_folder_name,
-            '{proj_name}':              live.get('proj_name')     or 'PROJECT_BURGUNDY',
-            '{current_date}':           today_str,
-            '{issue_date}':             today_str,
-            '{date_cc}':                today.strftime('%Y')[:2],
-            '{date_yy}':                today.strftime('%y'),
-            '{date_mm}':                today.strftime('%m'),
-            '{date_dd}':                today.strftime('%d'),
-            '{proj_param:PARAM_NAME}':  'PARAM_VALUE',
-        }
-
-        tmpl    = self._get_from_tb('filenaming_path_template_tb', DEFAULT_PATH_TEMPLATE)
-        preview = tmpl
-        for token, val in sample.items():
-            preview = preview.replace(token, val)
+        tmpl = self._get_from_tb('filenaming_path_template_tb', DEFAULT_PATH_TEMPLATE)
+        try:
+            preview = self.resolve_output_path(
+                job_str,
+                values={'proj_name': live.get('proj_name') or 'PROJECT_BURGUNDY',
+                       'proj_param:PARAM_NAME': 'PARAM_VALUE'},
+                template=tmpl)
+        except Exception as ex:
+            # Never leave the preview stale, show the real error so it's
+            # obvious what to fix, instead of silently not updating.
+            try:
+                preview_tb.Text = 'Preview error: {}'.format(ex)
+                preview_tb.Foreground = _SWM.SolidColorBrush(
+                    _SWM.ColorConverter.ConvertFromString('#E05555'))
+            except Exception:
+                pass
+            return
 
         # Check if the resolved path actually exists on disk
-        path_exists = os.path.isdir(preview)
+        try:
+            path_exists = os.path.isdir(preview)
+        except Exception:
+            path_exists = False
 
         # Colour feedback: green = found, amber = resolved but missing, grey = not configured
         roots_set = bool(self._projects_root)
         if path_exists:
-            colour = '#27AE60'   # green  — real path found on disk
+            colour = '#27AE60'   # green, real path found on disk
             suffix = u'  \u2713'  # ✓
         elif has_real_job and has_real_bucket:
-            colour = '#E67E22'   # amber  — resolved but folder missing on disk
+            colour = '#E67E22'   # amber, resolved but folder missing on disk
             suffix = u'  \u26A0 Folder not found — check path template or create folder'
         elif has_real_job and not has_real_bucket and roots_set:
-            colour = '#E67E22'   # amber  — job number found but no matching bucket
+            colour = '#E67E22'   # amber, job number found but no matching bucket
             suffix = u'  \u26A0 No bucket folder found for job {} in {}'.format(
                 live.get('job_number', ''), self._projects_root)
         elif not roots_set:
-            colour = '#E05555'   # red    — roots not set at all
+            colour = '#E05555'   # red, roots not set at all
             suffix = u'  \u2715 Folder scan failed — Projects Root not configured'
         else:
-            colour = '#E05555'   # red    — something else wrong
+            colour = '#E05555'   # red, something else wrong
             suffix = u'  \u2715 Folder scan failed — check Projects Root path'
 
         try:
@@ -561,7 +607,7 @@ class FileNamingSettingsController(object):
         if h is None:
             return
 
-        # Build token chips directly into WrapPanel (IronPython 2 safe — no DataTemplate/binding)
+        # Build token chips directly into WrapPanel (IronPython 2 safe, no DataTemplate/binding)
         tokens_wp = getattr(h, 'filenaming_formatters_wp', None)
         if tokens_wp is not None:
             try:
@@ -597,7 +643,7 @@ class FileNamingSettingsController(object):
             except Exception:
                 pass
 
-        # Template TextBox — live preview + drag-drop target
+        # Template TextBox, live preview + drag-drop target
         tb = getattr(h, 'filenaming_template_tb', None)
         if tb is not None:
             try:

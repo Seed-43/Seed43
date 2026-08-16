@@ -11,10 +11,15 @@ def get_revision_description(rev):
     """
     Return the user-visible description of a revision.
 
-    Reads the PROJECT_REVISION_REVISION_DESCRIPTION parameter first.
-    Falls back to the revision Name if the description is empty.
-    Returns "?" if both fail.
+    Prefers the Description property (no parameter lookup needed), then
+    PROJECT_REVISION_REVISION_DESCRIPTION, then Name. Returns "?" if all
+    three fail.
     """
+    try:
+        if rev.Description:
+            return rev.Description
+    except Exception:
+        pass
     try:
         param = rev.get_Parameter(
             BuiltInParameter.PROJECT_REVISION_REVISION_DESCRIPTION)

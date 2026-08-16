@@ -2,8 +2,16 @@
 # OptionsSettings.py
 
 import os
+
+# pytransmit_paths lives in the pushbutton root, which is not guaranteed to be
+# on sys.path - pyTransmit loads these modules by inserting only Settings/.
+import sys as _sys
+_PT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PT_ROOT not in _sys.path:
+    _sys.path.insert(0, _PT_ROOT)
+from pytransmit_paths import SETTINGS_DIR
 import json
-from pyrevit import forms
+from pyrevit import forms, script
 from pyrevit.forms import WPFWindow
 import clr
 
@@ -16,11 +24,33 @@ from System.Windows.Forms import OpenFileDialog, SaveFileDialog, DialogResult
 from System.Collections.ObjectModel import ObservableCollection
 from System.ComponentModel import INotifyPropertyChanged, PropertyChangedEventArgs
 
-# xlsxwriter is bundled with pyRevit's IronPython environment — no install needed.
+try:
+    from Snippets import _dialogs as sdlg
+except Exception:
+    sdlg = None
 
-# Database paths
-# Databases saved next to OptionsManager.py
-DB_FOLDER = os.path.dirname(os.path.abspath(__file__))
+def _alert(message, title='', exitscript=False):
+    """Themed popup via the shared Snippets dialog lib, falls back to
+    pyRevit's default forms.alert if the shared lib isn't available."""
+    if sdlg:
+        sdlg.message(message, title=title)
+    else:
+        forms.alert(message, title=title)
+    if exitscript:
+        script.exit()
+
+def _confirm(message, title='', no='No'):
+    """Themed yes/no popup, returns True on yes."""
+    if sdlg:
+        return sdlg.confirm(message, title=title, no=no)
+    return bool(forms.alert(message, title=title, ok=False, yes=True, no=True))
+
+# xlsxwriter is bundled with pyRevit's IronPython environment, no install needed.
+
+# Database paths. The vocabularies live in .user now - see pytransmit_paths.
+# This used to be this module's own folder, which is why the shipped copy and
+# the user's copy were the same file.
+DB_FOLDER = SETTINGS_DIR
 REASON_DB = os.path.join(DB_FOLDER, 'reason.json')
 METHOD_DB = os.path.join(DB_FOLDER, 'method.json')
 FORMAT_DB = os.path.join(DB_FOLDER, 'format.json')
@@ -363,7 +393,7 @@ class SettingsManagerWindow(WPFWindow):
         """Import data from Excel or CSV file"""
         file_path = self.file_path_tb.Text
         if not os.path.exists(file_path):
-            forms.alert("File not found!", title="Import Error")
+            _alert("File not found!", title="Import Error")
             return
         
         ext = os.path.splitext(file_path)[1].lower()
@@ -373,7 +403,7 @@ class SettingsManagerWindow(WPFWindow):
         elif ext in ['.xlsx', '.xls']:
             self._import_excel(file_path)
         else:
-            forms.alert("Unsupported file format", title="Import Error")
+            _alert("Unsupported file format", title="Import Error")
     
     def _import_csv(self, file_path):
         """Import from single CSV file with sections"""
@@ -436,7 +466,7 @@ class SettingsManagerWindow(WPFWindow):
             self._update_record_count()
             
         except Exception as e:
-            forms.alert("Error importing CSV:\n{}".format(str(e)), title="Import Error")
+            _alert("Error importing CSV:\n{}".format(str(e)), title="Import Error")
     
     def _import_excel(self, file_path):
         """Import data from Excel file with multiple sheets"""
@@ -507,7 +537,7 @@ class SettingsManagerWindow(WPFWindow):
                 raise
                 
         except Exception as e:
-            forms.alert("Error importing Excel:\n{}".format(str(e)), title="Import Error")
+            _alert("Error importing Excel:\n{}".format(str(e)), title="Import Error")
     
     def _import_sheet(self, worksheet, sheet_name):
         """Import data from a worksheet"""
@@ -634,10 +664,10 @@ class SettingsManagerWindow(WPFWindow):
                 ws.write(i, 0, r.Value)
 
             workbook.close()
-            forms.alert("Exported successfully!\n\n4 sheets: Reason, Method, Format, Print Size",
+            _alert("Exported successfully!\n\n4 sheets: Reason, Method, Format, Print Size",
                         title="Export Success")
         except Exception as e:
-            forms.alert("Error exporting:\n{}".format(str(e)), title="Export Error")
+            _alert("Error exporting:\n{}".format(str(e)), title="Export Error")
     
     def _export_csv(self):
         """Export all tabs as single CSV file with sections"""
@@ -681,31 +711,31 @@ class SettingsManagerWindow(WPFWindow):
                 for r in self.printsize_data:
                     writer.writerow([r.Value])
             
-            forms.alert("Exported successfully to:\n{}".format(dialog.FileName), title="Export Success")
+            _alert("Exported successfully to:\n{}".format(dialog.FileName), title="Export Success")
             
         except Exception as e:
-            forms.alert("Error exporting:\n{}".format(str(e)), title="Export Error")
+            _alert("Error exporting:\n{}".format(str(e)), title="Export Error")
 
 def main():
     try:
         window = SettingsManagerWindow()
         window.ShowDialog()
     except Exception as e:
-        forms.alert("Error: {}".format(str(e)), exitscript=True)
+        _alert("Error: {}".format(str(e)), exitscript=True)
 
 if __name__ == "__main__":
     main()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# PANEL CONTROLLER  — embedded use inside pyTransmit main window
+# PANEL CONTROLLER, embedded use inside pyTransmit main window
 # ═══════════════════════════════════════════════════════════════════════════
 
 class OptionsSettingsController(object):
     """
     Drives the Options panel when embedded inside pyTransmit.
 
-    script.py usage:
+    pyTransmit.py usage:
         import sys
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'Options Manager'))
         from OptionsManager import OptionsPanelController
@@ -1051,10 +1081,7 @@ class OptionsSettingsController(object):
 
     def _show_tab(self, tab_name):
         self.current_tab = tab_name
-        import System.Windows.Media as M
         from System.Windows import Visibility
-        green = M.SolidColorBrush(M.Color.FromRgb(0x20, 0x8A, 0x3C))
-        grey  = M.SolidColorBrush(M.Color.FromRgb(0x40, 0x45, 0x53))
         tabs  = {'reason':    ('opt_reason_grid',    'opt_reason_tab_btn'),
                  'method':    ('opt_method_grid',    'opt_method_tab_btn'),
                  'format':    ('opt_format_grid',    'opt_format_tab_btn'),
@@ -1064,7 +1091,13 @@ class OptionsSettingsController(object):
             btn  = getattr(self, btn_attr,  None)
             active = (name == tab_name)
             if grid: grid.Visibility = Visibility.Visible if active else Visibility.Collapsed
-            if btn:  btn.Background  = green if active else grey
+            if btn:
+                try:
+                    style_key = 'SmallButtonStyle' if active else 'SmallSecondaryButtonStyle'
+                    style = btn.TryFindResource(style_key)
+                    if style:
+                        btn.Style = style
+                except: pass
 
     def switch_to_reason_tab(self,    sender, args): self._show_tab('reason')
     def switch_to_method_tab(self,    sender, args): self._show_tab('method')
@@ -1101,8 +1134,7 @@ class OptionsSettingsController(object):
         to_remove = self._grid_selected_items()
         if not to_remove:
             return
-        if forms.alert('Delete {} record(s)?'.format(len(to_remove)),
-                       title='Confirm Delete', ok=False, yes=True, no=True):
+        if _confirm('Delete {} record(s)?'.format(len(to_remove)), title='Confirm Delete'):
             data = self._current_data()
             for r in to_remove:
                 data.Remove(r)
@@ -1155,7 +1187,7 @@ class OptionsSettingsController(object):
         except: pass
 
     def clear_selections(self):
-        """Clear grid highlights on all four grids. Called by script.py on panel close."""
+        """Clear grid highlights on all four grids. Called by pyTransmit.py on panel close."""
         for gname in ['opt_reason_grid', 'opt_method_grid',
                       'opt_format_grid', 'opt_printsize_grid']:
             try:
@@ -1179,8 +1211,7 @@ class OptionsSettingsController(object):
         to_remove = self._grid_selected_items()
         if not to_remove:
             return
-        if forms.alert('Delete {} record(s)?'.format(len(to_remove)),
-                       title='Confirm Delete', ok=False, yes=True, no=True):
+        if _confirm('Delete {} record(s)?'.format(len(to_remove)), title='Confirm Delete'):
             data = self._current_data()
             for r in to_remove:
                 data.Remove(r)
@@ -1238,9 +1269,9 @@ class OptionsSettingsController(object):
                     else:
                         ws.write(row, 0, r.Value)
             workbook.close()
-            forms.alert('Exported to:\n{}'.format(dialog.FileName), title='Export Complete')
+            _alert('Exported to:\n{}'.format(dialog.FileName), title='Export Complete')
         except Exception as e:
-            forms.alert('Export error:\n{}'.format(str(e)), title='Export Error')
+            _alert('Export error:\n{}'.format(str(e)), title='Export Error')
 
     def _export_csv(self):
         import csv as _csv
@@ -1267,9 +1298,9 @@ class OptionsSettingsController(object):
                 w.writerow(['[Print Size]'])
                 w.writerow(['Print Size'])
                 for r in self.printsize_data: w.writerow([r.Value])
-            forms.alert('Exported to:\n{}'.format(dialog.FileName), title='Export Complete')
+            _alert('Exported to:\n{}'.format(dialog.FileName), title='Export Complete')
         except Exception as e:
-            forms.alert('Export error:\n{}'.format(str(e)), title='Export Error')
+            _alert('Export error:\n{}'.format(str(e)), title='Export Error')
 
     # ── Column-header sort ────────────────────────────────────────────
 
@@ -1277,7 +1308,7 @@ class OptionsSettingsController(object):
 
     def _header_click_check(self, sender, args):
         """Fires on every mouse-down on the grid. If the click landed on a
-        DataGridColumnHeader, read its text and sort — no visual-tree
+        DataGridColumnHeader, read its text and sort, no visual-tree
         walking required at wire-up time."""
         try:
             from System.Windows.Media import VisualTreeHelper
@@ -1322,7 +1353,7 @@ class OptionsSettingsController(object):
             }
             key_fn = col_map.get(col_header)
             if key_fn is None:
-                return  # unknown column — skip
+                return  # unknown column, skip
 
             tab  = self.current_tab
             prev = self._last_sort.get(tab)
@@ -1350,7 +1381,7 @@ class OptionsSettingsController(object):
     def import_data(self, sender, args):
         fp = getattr(getattr(self, 'opt_file_path_tb', None), 'Text', '')
         if not fp or not os.path.exists(fp):
-            forms.alert("Please browse to a valid file first.", title="Import"); return
+            _alert("Please browse to a valid file first.", title="Import"); return
         ext = os.path.splitext(fp)[1].lower()
         try:
             if ext == '.csv':
@@ -1358,14 +1389,14 @@ class OptionsSettingsController(object):
             elif ext in ('.xlsx', '.xls'):
                 self._import_excel(fp)
             else:
-                forms.alert("Unsupported format.", title="Import"); return
+                _alert("Unsupported format.", title="Import"); return
             self.opt_file_path_tb.Text    = ""
             self.opt_import_btn.IsEnabled = False
         except Exception as e:
-            forms.alert("Import error:\n{}".format(str(e)), title="Import")
+            _alert("Import error:\n{}".format(str(e)), title="Import")
 
     def _import_csv(self, file_path):
-        """Import from sectioned CSV — same format as standalone export."""
+        """Import from sectioned CSV, same format as standalone export."""
         import csv as _csv
         with open(file_path, 'r') as f:
             rows = list(_csv.reader(f))

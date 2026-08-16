@@ -7,6 +7,28 @@ _p = globals().get('PYTRANSMIT_PAYLOAD', {})
 
 from pyrevit.framework import List
 from pyrevit import revit, script, DB, forms
+
+try:
+    from Snippets import _dialogs as sdlg
+except Exception:
+    sdlg = None
+
+def _alert(message, title='', exitscript=False):
+    """Themed popup via the shared Snippets dialog lib, falls back to
+    pyRevit's default forms.alert if the shared lib isn't available."""
+    if sdlg:
+        sdlg.message(message, title=title)
+    else:
+        forms.alert(message, title=title)
+    if exitscript:
+        script.exit()
+
+def _confirm(message, title='', no='No'):
+    """Themed yes/no popup, returns True on yes."""
+    if sdlg:
+        return sdlg.confirm(message, title=title, no=no)
+    return bool(forms.alert(message, title=title, ok=False, yes=True, no=True))
+
 from Autodesk.Revit.DB import (
     FilteredElementCollector, CurveElement, TextNote,
     ImageInstance, FilledRegion, ViewFamilyType, ViewFamily,
@@ -45,10 +67,9 @@ import sys as _sys
 _settings_dir = os.path.join(os.path.dirname(_script_dir), 'Settings')
 if _settings_dir not in _sys.path:
     _sys.path.insert(0, _settings_dir)
-from Dialogs import Dialogs
 
 if not os.path.exists(_drafting_path):
-    forms.alert(
+    _alert(
         "script_create_drafting_view.py not found at:\n{}".format(_drafting_path),
         exitscript=True
     )
@@ -68,7 +89,7 @@ try:
     exec(_src, _ns)
 except Exception as _e:
     import traceback as _tb
-    forms.alert(
+    _alert(
         "Error running drafting view script:\n{}".format(_tb.format_exc() or str(_e)),
         exitscript=True
     )
@@ -85,7 +106,7 @@ for v in revit.query.get_elements_by_class(ViewDrafting, doc=doc):
         pass
 
 if not temp_view:
-    forms.alert(
+    _alert(
         "Temp drafting view '{}' not found after generation.".format(TEMP_VIEW_NAME),
         exitscript=True
     )
@@ -105,9 +126,9 @@ for v in revit.query.get_elements_by_class(DB.View, doc=doc):
         pass
 
 if not base_legend:
-    Dialogs.alert(
-        "No Legend View Found",
-        "This model does not have a Legend view. Create one first: View tab > New > Legend, then re-run pyTransmit."
+    _alert(
+        "This model does not have a Legend view. Create one first: View tab > New > Legend, then re-run pyTransmit.",
+        title="No Legend View Found"
     )
     import sys; sys.exit(0)
 
@@ -122,7 +143,7 @@ for el in FilteredElementCollector(doc, temp_view.Id).ToElements():
         pass
 
 if not elements_to_copy:
-    forms.alert("Temp drafting view is empty, nothing to copy.", exitscript=True)
+    _alert("Temp drafting view is empty, nothing to copy.", exitscript=True)
 
 # ── STEP 5, COPY TO LEGEND AND DELETE TEMP ───────────────────────────────────
 

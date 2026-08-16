@@ -1,0 +1,371 @@
+# -*- coding: utf-8 -*-
+"""Seed43 shared colour palette loader/applier.
+
+Reads seed43_palette.json from the same folder as this module (Snippets/),
+same convention as _icons.py's own _icons.json, and injects WPF
+SolidColorBrush resources into a window's Resources dictionary AFTER
+wpf.LoadComponent / forms.WPFWindow has already parsed the XAML.
+
+IMPORTANT - call order:
+    Each window is self-contained (its XAML embeds its own colour Setters,
+    no merged dictionary), so apply_seed43_palette() must run AFTER the XAML
+    has loaded. {DynamicResource BrushXxx} resolves against whatever is in
+    Resources when WPF paints, which is what lets the injected brush win.
+
+Usage in a tool's __init__:
+
+    forms.WPFWindow.__init__(self, 'MyTool.xaml')   # or wpf.LoadComponent(...)
+    apply_seed43_palette(self, _SCRIPT_DIR)
+
+Sizing is handled separately by apply_seed43_dimensions(), same call order.
+"""
+import os
+import json
+
+import System
+from System.Windows.Media import SolidColorBrush, Color
+
+
+# Canonical semantic-key -> WPF brush-name mapping. Every tool's XAML
+# should reference these same names via DynamicResource so one palette
+# file drives all of them.
+KEY_TO_BRUSH = {
+    "accent":                 "BrushPrimaryGreen",
+    "accent_hover":           "BrushPrimaryGreenHover",
+    "accent_pressed":         "BrushPrimaryGreenPressed",
+    "window_bg":               "BrushWindowBg",
+    "card_bg":                 "BrushCardBg",
+    "header_bg":                "BrushHeaderBg",
+    "text_primary":            "BrushTextPrimary",
+    "text_input":              "BrushTextInput",
+    "input_bg":                "BrushInputBg",
+    "input_bg_hover":          "BrushInputBgHover",
+    "input_bg_pressed":        "BrushInputBgPressed",
+    "border_default":          "BrushBorderDefault",
+    "border_hover":            "BrushBorderHover",
+    "border_pressed":          "BrushBorderPressed",
+    "border_muted":            "BrushBorderMuted",
+    "secondary_bg":             "BrushSecondaryBg",
+    "secondary_hover":         "BrushSecondaryHover",
+    "secondary_pressed":       "BrushSecondaryPressed",
+    "secondary_disabled_bg":   "BrushSecondaryDisabledBg",
+    "secondary_disabled_fg":   "BrushSecondaryDisabledFg",
+    "dropdown_item_hover":     "BrushDropdownItemHover",
+    "toggle_off_bg":            "BrushToggleOffBg",
+    "toggle_off_hover":        "BrushToggleOffHover",
+    "toggle_off_pressed":      "BrushToggleOffPressed",
+    "toggle_knob":              "BrushToggleKnob",
+    "danger":                   "BrushDanger",
+    "danger_hover":             "BrushDangerHover",
+    "danger_pressed":           "BrushDangerPressed",
+    "pill_off_bg":              "BrushPillOffBg",
+    "pill_off_border":          "BrushPillOffBorder",
+    "text_muted":               "BrushTextMuted",
+    "success":                  "BrushSuccess",
+    "success_hover":            "BrushSuccessHover",
+    "selected_row_bg":         "BrushSelectedRowBg",
+    "highlighted_row_bg":      "BrushHighlightedRowBg",
+}
+
+_PALETTE_FILENAME = "seed43_palette.json"
+
+
+def _find_palette_path(start_dir=None):
+    """Locate seed43_palette.json, which sits alongside this module in
+    lib/Snippets/ - same convention _icons.py uses for _icons.json - so it
+    is resolved from this file's own location.
+
+    start_dir is accepted but unused; every call site still passes it, so
+    the parameter stays for backward compatibility.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidate = os.path.join(here, _PALETTE_FILENAME)
+    return candidate if os.path.isfile(candidate) else None
+
+
+def load_palette(start_dir=None):
+    """Return the full parsed palette dict, or None if not found/unreadable."""
+    path = _find_palette_path(start_dir)
+    if not path:
+        return None
+    try:
+        with open(path, "r") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def get_active_profile(start_dir):
+    """Return 'dark' or 'light' - defaults to 'dark' if anything's missing."""
+    data = load_palette(start_dir)
+    if not data:
+        return "dark"
+    return data.get("active_profile", "dark")
+
+
+def get_color(start_dir, semantic_key, profile=None, fallback="#FFFFFF"):
+    """Return the hex string for a semantic palette key (e.g. 'text_primary')
+    in the active (or given) profile, read straight from the JSON file - no
+    WPF resource dictionary involved at all.
+
+    For callers needing a fixed colour at one point in time rather than a
+    live DynamicResource binding - most notably make_icon(), whose vector
+    icons bake in their Fill at creation. Reading the JSON directly avoids
+    depending on TryFindResource having resolved by then, which
+    self._theme_hex()-style helpers are exposed to.
+    """
+    data = load_palette(start_dir)
+    if not data:
+        return fallback
+    profile = profile or data.get("active_profile", "dark")
+    colors = data.get("profiles", {}).get(profile)
+    if not colors:
+        return fallback
+    return colors.get(semantic_key, fallback)
+
+
+def _hex_to_color(hex_str):
+    hex_str = hex_str.lstrip("#")
+    r = int(hex_str[0:2], 16)
+    g = int(hex_str[2:4], 16)
+    b = int(hex_str[4:6], 16)
+    return Color.FromRgb(r, g, b)
+
+
+def apply_seed43_palette(window, start_dir, profile=None):
+    """Inject SolidColorBrush resources into window.Resources.
+
+    Call this AFTER the window's XAML has already been loaded (see
+    module docstring). Silently does nothing if the palette file can't
+    be found or parsed, so a tool never hard-fails just because the
+    palette is missing - it keeps whatever colours its own XAML shipped
+    with as a fallback.
+    """
+    data = load_palette(start_dir)
+    if not data:
+        return False
+
+    profile = profile or data.get("active_profile", "dark")
+    colors = data.get("profiles", {}).get(profile)
+    if not colors:
+        return False
+
+    for key, hex_value in colors.items():
+        brush_name = KEY_TO_BRUSH.get(key)
+        if not brush_name:
+            continue
+        try:
+            window.Resources[brush_name] = SolidColorBrush(_hex_to_color(hex_value))
+        except Exception:
+            continue
+    return True
+
+
+def set_active_profile(start_dir, profile):
+    """Write a new active_profile ('dark'/'light') back to the JSON on disk."""
+    path = _find_palette_path(start_dir)
+    if not path:
+        return False
+    try:
+        with open(path, "r") as f:
+            data = json.load(f)
+        data["active_profile"] = profile
+        with open(path, "w") as f:
+            json.dump(data, f, indent=2)
+        return True
+    except Exception:
+        return False
+
+
+def _hex_shade(hex_str, percent):
+    """percent > 0 lightens toward white, < 0 darkens toward black."""
+    hex_str = hex_str.lstrip("#")
+    r = int(hex_str[0:2], 16)
+    g = int(hex_str[2:4], 16)
+    b = int(hex_str[4:6], 16)
+    target = 0 if percent < 0 else 255
+    p = abs(percent)
+    r = int(round(r + (target - r) * p))
+    g = int(round(g + (target - g) * p))
+    b = int(round(b + (target - b) * p))
+    return "#{0:02X}{1:02X}{2:02X}".format(r, g, b)
+
+
+# Maps a dot-path in the JSON's "dimensions" block to a resource key and
+# the .NET type to build. Unlike colours (always a SolidColorBrush), sizing
+# needs Thickness, CornerRadius or a plain double, so each entry names its
+# own kind.
+DIM_TO_RESOURCE = {
+    # (json path)                          (resource key)                (kind)
+    "button_primary.corner_radius":        ("CornerRadiusButton",        "corner"),
+    "button_primary.font_size":            ("FontSizeButton",            "double"),
+    "button_small.height":                 ("HeightButtonSmall",         "double"),
+    "button_small.corner_radius":          ("CornerRadiusButtonSmall",   "corner"),
+    "button_small.font_size":              ("FontSizeButtonSmall",       "double"),
+    "button_secondary.corner_radius":      ("CornerRadiusButtonSecondary", "corner"),
+    "button_secondary.font_size":          ("FontSizeButtonSecondary",   "double"),
+    "button_close.width":                  ("WidthButtonClose",          "double"),
+    "button_close.height":                 ("HeightButtonClose",         "double"),
+    "button_close.corner_radius":          ("CornerRadiusButtonClose",   "corner"),
+    "button_round.width":                  ("WidthButtonRound",          "double"),
+    "button_round.height":                 ("HeightButtonRound",         "double"),
+    "button_round.corner_radius":          ("CornerRadiusButtonRound",   "corner"),
+    # Percentage (0-100) of button_round.width/height, NOT absolute pixels:
+    # compute with round(width * (icon_size / 100.0)), the same formula the
+    # palette editor previews with. Primary/delete round buttons only - the
+    # toggle's icon fills its whole transparent button.
+    "button_round.icon_size":              ("SizeButtonRoundIcon",       "double"),
+    "button_menu.width":                   ("WidthButtonMenu",           "double"),
+    "button_menu.height":                  ("HeightButtonMenu",          "double"),
+    "button_menu.corner_radius":           ("CornerRadiusButtonMenu",    "corner"),
+    "input_textbox.height":                ("HeightInput",               "double"),
+    "input_textbox.corner_radius":         ("CornerRadiusInput",         "corner"),
+    "input_textbox.border_thickness":      ("BorderThicknessInput",      "thickness_uniform"),
+    "input_textbox.font_size":             ("FontSizeInput",             "double"),
+    "input_combobox.height":               ("HeightCombobox",            "double"),
+    "input_combobox.corner_radius":        ("CornerRadiusCombobox",      "corner"),
+    "input_combobox.border_thickness":     ("BorderThicknessCombobox",   "thickness_uniform"),
+    "input_combobox.font_size":            ("FontSizeCombobox",          "double"),
+    "dropdown_filter_combo.width":         ("WidthFilterCombo",          "double"),
+    "dropdown_filter_combo.height":        ("HeightFilterCombo",         "double"),
+    "dropdown_filter_combo.corner_radius": ("CornerRadiusFilterCombo",   "corner"),
+    "dropdown_popup.corner_radius":        ("CornerRadiusDropdownPopup", "corner"),
+    "dropdown_popup.min_width":            ("MinWidthDropdownPopup",     "double"),
+    "dropdown_popup.item_corner_radius":   ("CornerRadiusDropdownItem",  "corner"),
+    "dropdown_popup.arrow_size":           ("SizeDropdownArrow",         "double"),
+    "top_bar.caption_height":              ("HeightTopBar",              "double"),
+    "top_bar.corner_radius":               ("CornerRadiusWindow",        "corner"),
+    "top_bar.corner_radius_bottom":        ("CornerRadiusTopBarBottom",  "corner"),
+    "top_bar.body_margin_top":             ("MarginTopBarBody",          "double"),
+    "top_bar.logo_size":                   ("SizeTopBarLogo",            "double"),
+    "menu_item.font_size":                 ("FontSizeMenuItem",          "double"),
+    "toggle.width":                        ("WidthToggle",               "double"),
+    "toggle.height":                       ("HeightToggle",              "double"),
+    "toggle.corner_radius":                ("CornerRadiusToggle",        "corner"),
+    "toggle.knob_size":                    ("SizeToggleKnob",            "double"),
+    "toggle.knob_corner_radius":           ("CornerRadiusToggleKnob",    "corner"),
+    "toggle.knob_margin":                  ("MarginToggleKnob",          "double"),
+    "card.corner_radius":                  ("CornerRadiusCard",          "corner"),
+    "card.padding":                        ("PaddingCard",               "thickness_uniform"),
+    "icon.default_size":                   ("SizeIconDefault",           "double"),
+    "text.section_label":                  ("FontSizeSectionLabel",      "double"),
+    "text.field_label":                    ("FontSizeFieldLabel",        "double"),
+    "text.heading":                        ("FontSizeHeading",           "double"),
+    "text.body":                           ("FontSizeBody",              "double"),
+    "data_grid.header_height":             ("HeightGridHeader",          "double"),
+    "data_grid.row_height":                ("HeightGridRow",             "double"),
+    "data_grid.header_font_size":          ("FontSizeGridHeader",        "double"),
+    "data_grid.cell_font_size":            ("FontSizeGridCell",          "double"),
+    "data_grid.cell_padding_x":            ("PaddingGridCellX",          "double"),
+    "data_grid.border_thickness":          ("BorderThicknessGrid",       "thickness_uniform"),
+    "checkbox.size":                       ("SizeCheckbox",              "double"),
+    "checkbox.corner_radius":              ("CornerRadiusCheckbox",      "corner"),
+    "checkbox.border_thickness":           ("BorderThicknessCheckbox",   "thickness_uniform"),
+    "progress_bar.height":                 ("HeightProgressBar",         "double"),
+    "progress_bar.corner_radius":          ("CornerRadiusProgressBar",   "corner"),
+    "badge.corner_radius":                 ("CornerRadiusBadge",         "corner"),
+    "badge.font_size":                     ("FontSizeBadge",             "double"),
+}
+
+
+def _get_dim(dimensions, dotted_path):
+    a, b = dotted_path.split(".")
+    group = dimensions.get(a)
+    if not group:
+        return None
+    return group.get(b)
+
+
+def apply_seed43_dimensions(window, start_dir):
+    """Inject sizing resources (Thickness/CornerRadius/double) into
+    window.Resources, same call-order rule as apply_seed43_palette:
+    call this AFTER the window's XAML has loaded.
+    """
+    import System.Windows
+
+    data = load_palette(start_dir)
+    if not data:
+        return False
+    dimensions = data.get("dimensions")
+    if not dimensions:
+        return False
+
+    for dotted_path, (res_key, kind) in DIM_TO_RESOURCE.items():
+        value = _get_dim(dimensions, dotted_path)
+        if value is None:
+            continue
+        try:
+            if kind == "double":
+                window.Resources[res_key] = float(value)
+            elif kind == "corner":
+                window.Resources[res_key] = System.Windows.CornerRadius(float(value))
+            elif kind == "thickness_uniform":
+                window.Resources[res_key] = System.Windows.Thickness(float(value))
+        except Exception:
+            continue
+
+    # Padding pairs (padding_x/padding_y -> a single Thickness) need both
+    # halves read together, so handle them separately from the 1:1 table.
+    padding_pairs = {
+        "button_primary":   "PaddingButtonPrimary",
+        "button_small":     "PaddingButtonSmall",
+        "button_secondary": "PaddingButtonSecondary",
+        "input_textbox":    "PaddingInput",
+        "input_combobox":   "PaddingCombobox",
+        "dropdown_popup":   "PaddingDropdownItem",  # uses item_padding_x/y below
+        "menu_item":        "PaddingMenuItem",
+        "badge":            "PaddingBadge",
+    }
+    for group_name, res_key in padding_pairs.items():
+        group = dimensions.get(group_name)
+        if not group:
+            continue
+        if group_name == "dropdown_popup":
+            px, py = group.get("item_padding_x"), group.get("item_padding_y")
+        else:
+            px, py = group.get("padding_x"), group.get("padding_y")
+        if px is None or py is None:
+            continue
+        try:
+            window.Resources[res_key] = System.Windows.Thickness(float(px), float(py), float(px), float(py))
+        except Exception:
+            continue
+
+    return True
+
+
+def set_accent(start_dir, hex_color, profiles=("dark", "light")):
+    """Set a new accent colour, deriving hover/pressed/border/border_muted
+    with the palette's usual 8%/27% lighten gradient, plus two darkened
+    tints (selected_row_bg/highlighted_row_bg) so grid row highlights track
+    the chosen accent instead of staying fixed. Writes both profiles by
+    default.
+    """
+    path = _find_palette_path(start_dir)
+    if not path:
+        return False
+    try:
+        with open(path, "r") as f:
+            data = json.load(f)
+        hover = _hex_shade(hex_color, 0.08)
+        pressed = _hex_shade(hex_color, 0.27)
+        selected_row_bg = _hex_shade(hex_color, -0.75)
+        highlighted_row_bg = _hex_shade(hex_color, -0.55)
+        for profile in profiles:
+            p = data.get("profiles", {}).get(profile)
+            if not p:
+                continue
+            p["accent"] = hex_color
+            p["accent_hover"] = hover
+            p["accent_pressed"] = pressed
+            p["border_default"] = hex_color
+            p["border_hover"] = hover
+            p["border_pressed"] = pressed
+            p["border_muted"] = hex_color
+            p["selected_row_bg"] = selected_row_bg
+            p["highlighted_row_bg"] = highlighted_row_bg
+        with open(path, "w") as f:
+            json.dump(data, f, indent=2)
+        return True
+    except Exception:
+        return False

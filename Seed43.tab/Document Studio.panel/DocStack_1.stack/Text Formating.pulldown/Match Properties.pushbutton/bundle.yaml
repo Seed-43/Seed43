@@ -1,21 +1,12 @@
 title: "Match Properties"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
-  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 260521
-  _____________________________________________________________________
+tooltip: >
+  __________________________________________________________________
+
   Description:
-  Matches properties between annotation labels and text elements in the model.
-  
-  Provides controlled transfer of key annotation formatting properties from a reference element to one or more target elements.
-  
-  Supports selective matching of:
-  - Text Style (Type)
-  - Width (where supported)
-  - Horizontal Alignment
-  - Vertical Alignment
-  
-  Useful for standardising annotation consistency across views, families,
-  and documentation sheets.
-  _____________________________________________________________________
-  Last update:
-  - Updated to use pyrevitlib  _____________________________________________________________________
+
+  Matches Text Style, width, and horizontal/vertical alignment from a
+  reference annotation or text element to one or more target elements, for
+  consistent annotation across views, families, and documentation sheets.
+
+  __________________________________________________________________

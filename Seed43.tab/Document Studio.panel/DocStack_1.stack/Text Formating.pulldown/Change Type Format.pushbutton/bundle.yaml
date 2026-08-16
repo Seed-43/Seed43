@@ -1,27 +1,13 @@
-﻿title: "Change Type &/ Format"
+title: "Change Type &/ Format"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
-  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 260520
-  _____________________________________________________________________
+tooltip: >
+  __________________________________________________________________
+
   Description:
-  Batch updates Text Notes across the project by changing their Text Type and applying formatting.
-  
-  - Change Text Type (optional)
-  - Apply formatting:
-      - Bold
-      - Italic
-      - Underline
-  - Works across the entire project
-  
-  Worksharing support:
-  - Automatically checks out required elements
-  - Handles worksets safely
-  - Optional sync with central
-  
-  Useful for:
-  - Global text standardisation
-  - QA cleanup
-  - Fixing inconsistent annotation styles
-  _____________________________________________________________________
-  Last update:
-  - Updated to use pyrevitlib  _____________________________________________________________________
+
+  Batch updates Text Notes across the project, changing their Text Type and
+  applying Bold, Italic, or Underline formatting. Handles worksharing
+  automatically, checking out required elements and worksets as needed, with
+  an optional sync at the end.
+
+  __________________________________________________________________

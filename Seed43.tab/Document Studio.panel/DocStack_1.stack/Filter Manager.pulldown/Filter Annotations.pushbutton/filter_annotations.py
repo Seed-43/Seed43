@@ -154,12 +154,10 @@ class AnnotationSelFilter(ISelectionFilter):
 def _safe_viewtype(name):
     return getattr(DB.ViewType, name, None)
 
-# Revit's own Family-and-Type value list for view markers excludes view
-# types that don't really have a normal "type" the way plans/sections/
-# details do (Schedules, Sheets, 3D Views, Legends), but it does NOT
-# restrict to only the chosen marker category, e.g. "Sections" still
-# shows Floor Plans and Structural Plans as valid options. This matches
-# that behavior instead of over-filtering to an exact category match.
+# Revit's own Family-and-Type list for view markers drops view types with no
+# normal "type" (Schedules, Sheets, 3D Views, Legends) but does NOT restrict
+# to the chosen marker category - "Sections" still offers Floor Plans and
+# Structural Plans. Match that rather than over-filtering to an exact category.
 EXCLUDED_VIEWTYPES_FOR_MARKER_SCAN = set(filter(None, [
     _safe_viewtype("ThreeD"),          _safe_viewtype("Schedule"),
     _safe_viewtype("DrawingSheet"),    _safe_viewtype("Legend"),
@@ -204,13 +202,11 @@ def get_filterable_params(category, doc):
     return result
 
 
-# ParameterFilterUtilities.GetFilterableParametersInCommon does not return
-# the full parameter set for the "Views" category (sections/elevations/
-# callouts) the way it does for ordinary model categories -- it's a real
-# gap in that API, not a category-lookup mistake. These ids were captured
-# directly from Fred's own element inspector against a live section view,
-# so they're confirmed-real rather than guessed. If Create() rejects one,
-# it fails with a normal catchable error, it won't crash Revit.
+# ParameterFilterUtilities.GetFilterableParametersInCommon doesn't return the
+# full parameter set for the "Views" category (sections/elevations/callouts)
+# as it does for model categories - a real gap in that API, not a lookup
+# mistake. These ids were captured from the element inspector against a live
+# section view. A rejected id fails Create() with a catchable error.
 VIEW_CATEGORY_PARAMS = {
     "Detail Level":                 -1011002,
     "Discipline":                   -1005163,

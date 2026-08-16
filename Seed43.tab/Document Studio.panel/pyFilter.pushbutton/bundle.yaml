@@ -1,0 +1,13 @@
+title: "pyFilter"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Create and manage View Filter templates, then push them onto views or view
+  templates - or pull existing filters back into a template. Supports
+  exporting and importing templates as JSON for sharing between projects,
+  with optional sync to a shared server folder.
+
+  __________________________________________________________________

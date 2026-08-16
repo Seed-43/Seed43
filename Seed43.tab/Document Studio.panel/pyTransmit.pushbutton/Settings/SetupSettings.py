@@ -2,6 +2,14 @@
 # SetupSettings.py
 
 import os
+
+# pytransmit_paths lives in the pushbutton root, which is not guaranteed to be
+# on sys.path - pyTransmit loads these modules by inserting only Settings/.
+import sys as _sys
+_PT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PT_ROOT not in _sys.path:
+    _sys.path.insert(0, _PT_ROOT)
+from pytransmit_paths import SETUP_FILE
 import json
 
 # ── WPF imports ────────────────────────────────────────────────────────────────
@@ -23,8 +31,8 @@ class SetupSettingsController(object):
     Drives the Setup panel (embedded in pyTransmit main window).
 
     The controller deliberately does NOT call _apply_setup during
-    _load_config  — it only populates the UI controls. _apply_setup
-    is called explicitly by the host (script.py) after full init, and
+    _load_config, it only populates the UI controls. _apply_setup
+    is called explicitly by the host (pyTransmit.py) after full init, and
     again by the Checked/Unchecked event handlers so changes are
     immediate and visible behind the open Setup panel.
     """
@@ -57,11 +65,12 @@ class SetupSettingsController(object):
         Parameters
         ----------
         script_dir : str
-            Absolute path of the folder that contains script.py.
-            Config file is written here.
+            Absolute path of the folder that contains pyTransmit.py.
+            Kept for callers that still pass it; the config itself now lives
+            in .user, not here.
         """
         self._script_dir    = script_dir
-        self._config_path   = os.path.join(script_dir, self.CONFIG_FILE)
+        self._config_path   = SETUP_FILE
         self._cfg           = dict(self.DEFAULT_CFG)
         self._host          = None      # the WPFWindow (set by attach())
         self._applying      = False     # re-entrancy guard
@@ -72,7 +81,7 @@ class SetupSettingsController(object):
         """
         Attach to the host WPFWindow.
         Call this once after WPFWindow.__init__ has registered all named elements.
-        Does NOT call load_and_apply — call that separately after full init.
+        Does NOT call load_and_apply, call that separately after full init.
         """
         self._host = host
         self._wire_events()
@@ -88,9 +97,9 @@ class SetupSettingsController(object):
         """Restore sheet grouping parameters onto the host window.
 
         Source priority:
-          1. GP: tag in the last issued revision's IssuedTo  — project-specific,
+          1. GP: tag in the last issued revision's IssuedTo, project-specific,
              always correct for this model.
-          2. pytransmit_setup.json group_params              — fallback for
+          2. pytransmit_setup.json group_params, fallback for
              projects issued before GP: tag was introduced, filtered to params
              that exist in the current model to prevent cross-project bleed.
         """
@@ -148,7 +157,7 @@ class SetupSettingsController(object):
                              if p not in saved[:i]]
                 cb2.ItemsSource = ["(None)"] + available
                 cb2.Margin = _SW2.Thickness(0, 0, 0, 4)
-                try: cb2.Style = h.FindResource("ModernComboBoxStyle")
+                try: cb2.Style = h.FindResource("ComboBoxStyle")
                 except: pass
                 if param_val and param_val in all_params:
                     try: cb2.SelectedItem = param_val
@@ -158,7 +167,7 @@ class SetupSettingsController(object):
                 cb2.SelectionChanged += h.sheet_param_selection_changed
                 combos_stack.Children.Add(cb2)
                 h.sheet_param_combos.append(cb2)
-            # Keep sheet_param_cb_1 in sync — it was cleared from the stack
+            # Keep sheet_param_cb_1 in sync, it was cleared from the stack
             # so update the host reference to point to the new first combo
             if h.sheet_param_combos:
                 try: h.sheet_param_cb_1 = h.sheet_param_combos[0]

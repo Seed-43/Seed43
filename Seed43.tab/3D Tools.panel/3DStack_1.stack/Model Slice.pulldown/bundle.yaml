@@ -1,0 +1,15 @@
+title: "Model Slice"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Sets the 3D view's section box to a thin slice of the model around a
+  chosen level or grid - 500mm either side of the line. Useful for looking
+  at one floor, or one grid line, without hiding anything.
+
+  __________________________________________________________________
+layout:
+  - Level Slice
+  - Grid Slice

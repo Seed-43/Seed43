@@ -17,10 +17,13 @@ from System.Windows import (
     Duration, CornerRadius, FrameworkElement, HorizontalAlignment, VerticalAlignment
 )
 from System.Windows.Controls import (
-    StackPanel, Border, TextBlock, DockPanel, Dock
+    StackPanel, Border, TextBlock, DockPanel, Dock, Button, Viewbox
 )
 from System.Windows.Input import Cursors, MouseButtonState
-from System.Windows.Media import SolidColorBrush, ColorConverter, Brushes
+from System.Windows.Media import SolidColorBrush, ColorConverter, Brushes, Color
+from System.Windows.Shapes import Path as ShapePath
+from System.Windows.Media import Geometry, RotateTransform, Stretch
+from System.Windows import Point
 from System.Windows.Media.Animation import (
     ThicknessAnimation, ColorAnimation, CubicEase, EasingMode
 )
@@ -48,6 +51,24 @@ REPO_ZIP_URL  = "https://github.com/{}/{}/archive/refs/heads/{}.zip".format(
 SCRIPT_DIR = os.path.dirname(__file__)
 XAML_PATH  = os.path.join(SCRIPT_DIR, "About.xaml")
 ICON_PATH  = os.path.join(SCRIPT_DIR, "icon.png")
+
+
+def _log_icon_rebuild(written, problems):
+    """Record an icon rebuild that hit trouble, in startup.py's log.
+
+    Deliberately not printed: pyRevit surfaces print output as a window, and
+    nobody closing About asked to see one. Whatever failed here is retried at
+    the next Revit start anyway."""
+    try:
+        import datetime as _dt
+        stamp = _dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with open(os.path.join(EXTENSION_DIR, "startup_error.log"), "a") as f:
+            f.write("[{}] About icon rebuild: {} written, {} problem(s)\n".format(
+                stamp, len(written), len(problems)))
+            for problem in problems:
+                f.write("    {}\n".format(problem))
+    except Exception:
+        pass
 
 # Walk up to find the enclosing .tab folder for the tool scanner
 TAB_DIR  = None
@@ -133,133 +154,38 @@ def dispatch(window, fn):
 
 # ── Migration helpers ─────────────────────────────────────────────────────────
 
-def read_migrations(extracted_root):
+def _load_migrations():
+    """Import Snippets._migrations lazily, returning (read, apply) or (None, None).
+
+    Deliberately not a top-level import. The updater never syncs lib/ (it is in
+    ROOT_SKIP below and sync_tree only runs on Seed43.tab), so this file can be
+    updated on a machine whose lib/ predates _migrations.py. A top-level import
+    would then raise at load and take the whole About window - and with it the
+    manual update path - down with it.
     """
-    Parse seed43_migrations.yaml from the extracted repo root.
-    Returns a list of migration dicts:
-      [{'from': 'rel/path', 'to': 'rel/path',
-        'subfolders': [{'from': 'x', 'to': 'y'}, ...]}, ...]
-    Paths are relative to Seed43.tab.
-    Returns [] if file not found or parse fails.
-    """
-    yaml_path = os.path.join(extracted_root, "seed43_migrations.yaml")
-    if not os.path.exists(yaml_path):
-        return []
-    migrations = []
-    current    = None
     try:
-        with open(yaml_path, "r") as f:
-            lines = f.readlines()
-        for line in lines:
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#"):
-                continue
-            # Top-level migration entry
-            if stripped.startswith("- from:"):
-                if current:
-                    migrations.append(current)
-                current = {
-                    'from':       stripped[len("- from:"):].strip(),
-                    'to':         None,
-                    'subfolders': []
-                }
-            elif stripped.startswith("to:") and current and current['to'] is None:
-                current['to'] = stripped[len("to:"):].strip()
-            elif stripped.startswith("subfolders:"):
-                pass  # section marker, nothing to capture
-            # Subfolder entry (indented with - from:)
-            elif stripped.startswith("- from:") and current:
-                # Already handled above as new top-level entry check
-                # but subfolders use same syntax indented
-                pass
-            # Handle subfolder entries: lines like "  - from: x"
-        # Subfolder lines have extra indent — re-parse properly
-        current    = None
-        migrations = []
-        in_sub     = False
-        sub_from   = None
-        for line in lines:
-            stripped = line.strip()
-            indent   = len(line) - len(line.lstrip())
-            if not stripped or stripped.startswith("#"):
-                continue
-            if stripped.startswith("migrations:"):
-                continue
-            # Top-level migration (indent 2, starts with "- from:")
-            if indent <= 4 and stripped.startswith("- from:"):
-                if current:
-                    migrations.append(current)
-                current  = {'from': stripped[len("- from:"):].strip(),
-                            'to': None, 'subfolders': []}
-                in_sub   = False
-                sub_from = None
-            elif indent <= 4 and stripped.startswith("to:") and current and current['to'] is None:
-                current['to'] = stripped[len("to:"):].strip()
-            elif stripped == "subfolders:":
-                in_sub = True
-            elif in_sub and stripped.startswith("- from:"):
-                sub_from = stripped[len("- from:"):].strip()
-            elif in_sub and stripped.startswith("to:") and sub_from:
-                current['subfolders'].append({
-                    'from': sub_from,
-                    'to':   stripped[len("to:"):].strip()
-                })
-                sub_from = None
-        if current:
-            migrations.append(current)
+        from Snippets._migrations import read_migrations, apply_migrations
+        return read_migrations, apply_migrations
     except Exception:
-        return []
-    return [m for m in migrations if m.get('from') and m.get('to')]
+        return None, None
 
-
-def apply_migrations(migrations, tab_dst):
-    """
-    For each migration entry, copy .json files from the old folder path
-    to the new folder path inside tab_dst, then for each subfolder do the same.
-    Paths in the migration are relative to Seed43.tab.
-    Old folders are left in place for sync_tree to clean up.
-    """
-    for m in migrations:
-        old_dir = os.path.join(tab_dst, m['from'])
-        new_dir = os.path.join(tab_dst, m['to'])
-
-        if not os.path.isdir(old_dir):
-            continue  # nothing to migrate
-
-        # Ensure destination exists
-        if not os.path.isdir(new_dir):
-            os.makedirs(new_dir)
-
-        # Copy json files from old root to new root
-        for fname in os.listdir(old_dir):
-            if fname.lower().endswith(".json"):
-                src = os.path.join(old_dir, fname)
-                dst = os.path.join(new_dir, fname)
-                if not os.path.exists(dst):
-                    shutil.copy2(src, dst)
-
-        # Handle subfolders
-        for sub in m.get('subfolders', []):
-            old_sub = os.path.join(old_dir, sub['from'])
-            new_sub = os.path.join(new_dir, sub['to'])
-            if not os.path.isdir(old_sub):
-                continue
-            if not os.path.isdir(new_sub):
-                os.makedirs(new_sub)
-            for fname in os.listdir(old_sub):
-                if fname.lower().endswith(".json"):
-                    src = os.path.join(old_sub, fname)
-                    dst = os.path.join(new_sub, fname)
-                    if not os.path.exists(dst):
-                        shutil.copy2(src, dst)
 
 # ── Sync helper ───────────────────────────────────────────────────────────────
 
-def sync_tree(src, dst, skipped=None):
-    """Sync src into dst file by file.
-    Tries to copy/update all files. If a file is locked by Revit the
-    exception is caught silently and the file is added to the skipped list.
-    Removes dst files and dirs not in src, skipping locked ones silently."""
+def sync_tree(src, dst, skipped=None, keep_json=True):
+    """Sync src into dst file by file. Same rules as startup.py's sync_tree -
+    this is the manual trigger for the same update, so it must not treat user
+    data differently:
+    - Copies all files from src, skipping .json files
+    - Deletes files in dst that are not in src, but keeps .json files
+    - Removes dirs in dst not in src only if they contain no .json files
+
+    keep_json=False syncs everything including .json, for lib/, which is
+    shipped code rather than user settings.
+
+    Differs from startup.py's version only in that a file locked by Revit is
+    caught and recorded in the returned skipped list instead of raising.
+    """
     if skipped is None:
         skipped = []
     if not os.path.isdir(dst):
@@ -270,8 +196,8 @@ def sync_tree(src, dst, skipped=None):
         s = os.path.join(src, name)
         d = os.path.join(dst, name)
         if os.path.isdir(s):
-            sync_tree(s, d, skipped)
-        else:
+            sync_tree(s, d, skipped, keep_json)
+        elif not (keep_json and name.lower().endswith(".json")):
             try:
                 shutil.copy2(s, d)
             except Exception:
@@ -280,15 +206,22 @@ def sync_tree(src, dst, skipped=None):
         if name not in src_names:
             d = os.path.join(dst, name)
             if os.path.isfile(d):
-                try:
-                    os.remove(d)
-                except Exception:
-                    skipped.append(d)
+                if not (keep_json and name.lower().endswith(".json")):
+                    try:
+                        os.remove(d)
+                    except Exception:
+                        skipped.append(d)
             elif os.path.isdir(d):
-                try:
-                    shutil.rmtree(d)
-                except Exception:
-                    skipped.append(d)
+                has_json = keep_json and any(
+                    f.lower().endswith(".json")
+                    for _, _, files in os.walk(d)
+                    for f in files
+                )
+                if not has_json:
+                    try:
+                        shutil.rmtree(d)
+                    except Exception:
+                        skipped.append(d)
     return skipped
 
 # ── YAML order helpers ────────────────────────────────────────────────────────
@@ -518,15 +451,63 @@ class ToolManager(object):
     def __init__(self, window):
         self.window    = window
         self.container = window.FindName("tools_container")
+        self.tools_card = window.FindName("tools_card")
+        try:
+            from Snippets._icons import make_icon
+            self._make_icon = make_icon
+        except Exception:
+            self._make_icon = None
+        self._chevrons = []
+        self._headers  = []   # (border, body) pairs - body tells us open/closed
+        self._popups   = []
 
     def build(self):
         if not self.container:
             return
         self.container.Children.Clear()
+        self._chevrons = []
+        self._headers  = []
+        self._popups   = []
         for panel in self._scan():
             self.container.Children.Add(
                 self._panel_ui(panel['name'], panel['path'], panel['items'])
             )
+
+    def refresh_theme(self):
+        """Re-fetch the current theme colours for everything this
+        ToolManager built with direct property assignment (a snapshot at
+        creation time) rather than a DynamicResource-backed style -
+        chevrons, and now the dropdown-style header/popup borders too."""
+        text_brush   = self.window.TryFindResource("BrushTextPrimary")
+        input_brush  = self.window.TryFindResource("BrushInputBg")
+        border_brush = self.window.TryFindResource("BrushBorderDefault")
+        hover_brush  = self.window.TryFindResource("BrushBorderHover")
+        muted_brush  = self.window.TryFindResource("BrushBorderMuted") or border_brush
+
+        if text_brush:
+            for chevron in self._chevrons:
+                if getattr(chevron, "Child", None) is not None:
+                    chevron.Child.Fill = text_brush
+                else:
+                    chevron.Fill = text_brush
+
+        for header, body in self._headers:
+            if input_brush:
+                header.Background = input_brush
+            is_open = body.Visibility == Visibility.Visible
+            b = hover_brush if (is_open and hover_brush) else border_brush
+            if b:
+                header.BorderBrush = b
+
+        card_brush = self.window.TryFindResource("BrushCardBg")
+        for popup in self._popups:
+            if card_brush:
+                popup.Background = card_brush
+            if muted_brush:
+                popup.BorderBrush = muted_brush
+
+        if self.tools_card and card_brush:
+            self.tools_card.Background = card_brush
 
     def _scan(self):
         panels = []
@@ -548,64 +529,156 @@ class ToolManager(object):
 
     def _panel_ui(self, name, panel_path, items):
         renamer = FolderRenamer(panel_path)
-        body    = StackPanel()
+        rows    = StackPanel()
 
         for item in apply_yaml_order(items, panel_path):
             if item['type'] == 'button':
-                body.Children.Add(self._tool_row(item, renamer))
+                rows.Children.Add(self._tool_row(item, renamer))
             elif item['type'] in ('pulldown', 'splitpushbutton'):
-                body.Children.Add(self._tool_row(item, renamer))
+                rows.Children.Add(self._tool_row(item, renamer))
             elif item['type'] == 'stack':
                 stack_renamer = FolderRenamer(item['path'], parent=renamer)
                 for child in apply_yaml_order(item['children'], item['path']):
                     if child['type'] == 'button':
-                        body.Children.Add(self._tool_row(child, stack_renamer))
+                        rows.Children.Add(self._tool_row(child, stack_renamer))
                     elif child['type'] in ('pulldown', 'splitpushbutton'):
-                        body.Children.Add(self._tool_row(child, stack_renamer))
+                        rows.Children.Add(self._tool_row(child, stack_renamer))
+
+        body               = Border()
+        body.Background    = self.window.TryFindResource("BrushCardBg") or Brushes.Transparent
+        body.BorderBrush   = self.window.TryFindResource("BrushBorderMuted") or Brushes.Transparent
+        body.BorderThickness = Thickness(1)
+        body.CornerRadius  = self.window.TryFindResource("CornerRadiusDropdownPopup") or CornerRadius(6)
+        body.Padding       = Thickness(8)
+        body.Child         = rows
+        self._popups.append(body)
 
         header = self._make_collapsible_header(name, body)
 
-        outer = StackPanel()
-        outer.Children.Add(header)
-        outer.Children.Add(body)
+        inner = StackPanel()
+        inner.Margin = Thickness(0, 0, 0, 10)
+        inner.Children.Add(header)
+        inner.Children.Add(body)
+        return inner
 
-        card       = Border()
-        card.Style = self.window.FindResource("Card")
-        card.Child = outer
-        return card
+    @staticmethod
+    def _brush_to_hex(brush, fallback):
+        try:
+            c = brush.Color
+            return "#{0:02X}{1:02X}{2:02X}".format(c.R, c.G, c.B)
+        except Exception:
+            return fallback
+
+    def _make_chevron(self):
+        size = self.window.TryFindResource("SizeDropdownArrow") or 10.0
+        text_brush = self.window.TryFindResource("BrushTextPrimary")
+        hex_colour = self._brush_to_hex(text_brush, "#F4FAFF")
+
+        if self._make_icon:
+            icon = self._make_icon("chevron_down", size=int(size), color=hex_colour)
+        else:
+            # Icon module unavailable - fall back to the hand-drawn shape,
+            # still wrapped in a Viewbox so callers see a consistent type
+            path = ShapePath()
+            path.Data = Geometry.Parse("M7,10L12,15L17,10Z")
+            path.Fill = Brushes.White
+            path.Stretch = Stretch.Uniform
+            icon = Viewbox()
+            icon.Width = size
+            icon.Height = size
+            icon.Child = path
+
+        icon.RenderTransformOrigin = Point(0.5, 0.5)
+        icon.RenderTransform = RotateTransform(0)
+        return icon
 
     def _make_collapsible_header(self, label_text, body):
-        body.Visibility   = Visibility.Collapsed
-        header            = Border()
-        header.Padding    = Thickness(6, 6, 10, 6)
-        header.Background = Brushes.Transparent
-        header.Cursor     = Cursors.Hand
+        body.Visibility = Visibility.Collapsed
+
+        input_brush  = self.window.TryFindResource("BrushInputBg")
+        text_brush   = self.window.TryFindResource("BrushTextInput")
+        border_brush = self.window.TryFindResource("BrushBorderDefault")
+        radius       = self.window.TryFindResource("CornerRadiusCombobox") or CornerRadius(6)
+        padding      = self.window.TryFindResource("PaddingCombobox") or Thickness(8, 4, 8, 4)
+        height       = self.window.TryFindResource("HeightCombobox") or 28.0
+
+        header               = Border()
+        header.Background    = input_brush or Brushes.Transparent
+        header.BorderBrush    = border_brush or Brushes.Transparent
+        header.BorderThickness = Thickness(1)
+        header.CornerRadius   = radius
+        header.Padding        = padding
+        header.Height         = height
+        header.Cursor         = Cursors.Hand
+        header.Margin         = Thickness(0, 0, 0, 6)
 
         dock = DockPanel()
 
         title       = TextBlock()
         title.Text  = label_text
-        title.Style = self.window.FindResource("Title")
+        title.Foreground = text_brush or Brushes.White
+        title.FontSize   = self.window.TryFindResource("FontSizeCombobox") or 12.0
+        title.VerticalAlignment = VerticalAlignment.Center
 
-        arrow        = TextBlock()
-        arrow.Text   = u"\u25BC"
+        arrow = self._make_chevron()
+        self._chevrons.append(arrow)
         arrow.Margin = Thickness(6, 0, 0, 0)
-        arrow.Style  = self.window.FindResource("Title")
+        arrow.VerticalAlignment = VerticalAlignment.Center
 
         DockPanel.SetDock(arrow, Dock.Right)
         dock.Children.Add(arrow)
         dock.Children.Add(title)
         header.Child = dock
 
+        hover_brush = self.window.TryFindResource("BrushBorderHover")
+
         def toggle(s, e):
             if body.Visibility == Visibility.Collapsed:
                 body.Visibility = Visibility.Visible
-                arrow.Text      = u"\u25B2"
+                arrow.RenderTransform = RotateTransform(180)
+                if hover_brush:
+                    header.BorderBrush = hover_brush
             else:
                 body.Visibility = Visibility.Collapsed
-                arrow.Text      = u"\u25BC"
+                arrow.RenderTransform = RotateTransform(0)
+                if border_brush:
+                    header.BorderBrush = border_brush
+            hover_bg = self.window.TryFindResource("BrushInputBgHover")
+            if hover_bg:
+                header.Background = hover_bg
 
+        def is_open():
+            return body.Visibility == Visibility.Visible
+
+        def on_enter(s, e):
+            bg = self.window.TryFindResource("BrushInputBgHover")
+            bd = self.window.TryFindResource("BrushBorderHover")
+            if bg:
+                header.Background = bg
+            if bd:
+                header.BorderBrush = bd
+
+        def on_leave(s, e):
+            bg = self.window.TryFindResource("BrushInputBg")
+            bd = self.window.TryFindResource("BrushBorderHover") if is_open() else self.window.TryFindResource("BrushBorderDefault")
+            if bg:
+                header.Background = bg
+            if bd:
+                header.BorderBrush = bd
+
+        def on_down(s, e):
+            bg = self.window.TryFindResource("BrushInputBgPressed")
+            bd = self.window.TryFindResource("BrushBorderPressed")
+            if bg:
+                header.Background = bg
+            if bd:
+                header.BorderBrush = bd
+
+        header.MouseEnter += on_enter
+        header.MouseLeave += on_leave
+        header.MouseLeftButtonDown += on_down
         header.MouseLeftButtonUp += toggle
+        self._headers.append((header, body))
         return header
 
     def _tool_row(self, item, renamer):
@@ -615,7 +688,7 @@ class ToolManager(object):
 
         label                   = TextBlock()
         label.Text              = name
-        label.Style             = self.window.FindResource("ToolText")
+        label.Style             = self.window.FindResource("FieldLabelStyle")
         label.VerticalAlignment = VerticalAlignment.Center
 
         switch              = Border()
@@ -656,23 +729,230 @@ class Seed43Dialog(object):
     def __init__(self):
         self.window = load_xaml(XAML_PATH)
 
-        if os.path.exists(ICON_PATH):
-            img           = self.window.FindName("header_icon")
-            bmp           = BitmapImage()
-            bmp.BeginInit()
-            bmp.UriSource = Uri(ICON_PATH, UriKind.Absolute)
-            bmp.EndInit()
-            img.Source    = bmp
+        # Via the shared loader, which reads the file and closes the handle.
+        # Loading it the plain way keeps icon.png open for as long as this
+        # window lives, and the rebuild on close then cannot overwrite the
+        # very icon an accent change was meant to update.
+        try:
+            from Snippets._icons import set_header_icon
+            set_header_icon(self.window, SCRIPT_DIR)
+        except Exception:
+            pass
 
         self._bind()
+        self._init_appearance()
         self._init_tools()
         self._check_versions()
+
+        # Button icons are baked PNGs, so they don't follow a live accent
+        # change the way the windows do. They are rebuilt from lib/icons on
+        # close, and only if the accent actually ended up different - not on
+        # every swatch click while the user is still trying colours out.
+        self._accent_at_open = getattr(self, "_current_accent", None)
+        self.window.Closed += self._on_window_closed
 
     def _bind(self):
         self.window.FindName("footer_reload").Click             += self._on_reload
         self.window.FindName("header_update_btn").Click         += self._on_s43_update
         self.window.FindName("update_ribbon").MouseLeftButtonUp += self._on_s43_update
         self.window.FindName("issues_btn").Click                += self._on_issues
+        self.window.FindName("close_btn").Click                 += self._on_close
+
+    def _on_close(self, sender, args):
+        self.window.Close()
+
+    def _on_window_closed(self, sender, args):
+        """Rebuild the button icons if the accent changed while we were open.
+
+        Silent by design: this runs as the window is going away, so there is
+        nowhere sensible to report to, and a failed icon rebuild must never
+        be the thing that breaks closing About."""
+        try:
+            current = getattr(self, "_current_accent", None)
+            if not current or current == self._accent_at_open:
+                return
+            from Snippets import _svg_icons
+            written, problems = _svg_icons.rebuild_all(EXTENSION_DIR)
+            # Never print: in pyRevit that throws the output window in the
+            # user's face for something they did not ask to see. Anything
+            # that failed here is retried at the next Revit start, where the
+            # file is no longer open. The log is the place to look.
+            if problems:
+                _log_icon_rebuild(written, problems)
+        except Exception as ex:
+            _log_icon_rebuild([], ["{}: {}".format(type(ex).__name__, ex)])
+
+    # -- Appearance section (dark/light + accent) ---------------------------
+
+    def _theme_brush(self, key, fallback_hex):
+        """Look up a palette brush live so Python-built text (changelog,
+        update messages) follows the current theme instead of being
+        baked in at the moment it was created."""
+        brush = self.window.TryFindResource(key)
+        if brush:
+            return brush
+        return SolidColorBrush(ColorConverter.ConvertFromString(fallback_hex))
+
+    def _refresh_changelog_colours(self):
+        """Re-render the changelog so its TextBlocks (built once, with
+        colours baked in at that moment) pick up the new theme."""
+        notes = getattr(self, "_last_changelog_notes", None)
+        if notes is not None:
+            self._render_changelog(notes)
+
+    def _init_appearance(self):
+        try:
+            from Snippets.seed43_theme import (
+                apply_seed43_palette, apply_seed43_dimensions, get_active_profile,
+                set_active_profile, set_accent, load_palette,
+            )
+        except Exception:
+            return
+        self._apply_seed43_palette = apply_seed43_palette
+        self._set_active_profile = set_active_profile
+        self._set_accent = set_accent
+        self._load_palette = load_palette
+        try:
+            from Snippets._icons import make_icon
+            self._make_icon = make_icon
+        except Exception:
+            self._make_icon = None
+
+        self._is_dark = get_active_profile(SCRIPT_DIR) == "dark"
+        apply_seed43_palette(self.window, SCRIPT_DIR)
+        apply_seed43_dimensions(self.window, SCRIPT_DIR)
+
+        self._dark_toggle = self.window.FindName("dark_mode_toggle")
+        self._dark_toggle_tb = self.window.FindName("dark_mode_toggle_tb")
+        self._dark_toggle.MouseLeftButtonUp += self._on_dark_mode_toggle
+        self._refresh_dark_toggle()
+
+        self._accent_panel = self.window.FindName("accent_swatch_panel")
+        self._build_accent_swatches()
+        self._refresh_close_icon()
+
+    def _current_hex(self, key, fallback):
+        """Read a raw hex value straight from the loaded palette JSON for
+        the active profile - needed for make_icon()'s colour param, which
+        wants a hex string rather than a WPF Brush."""
+        data = self._load_palette(SCRIPT_DIR) or {}
+        profile = data.get("active_profile", "dark")
+        return data.get("profiles", {}).get(profile, {}).get(key, fallback)
+
+    def _refresh_close_icon(self):
+        """The close button uses the real icon set (make_icon('close', ...))
+        rather than a hardcoded glyph. make_icon bakes in a static colour
+        at build time, so it has to be rebuilt (not just re-coloured) any
+        time the theme changes."""
+        if not self._make_icon:
+            return
+        close_btn = self.window.FindName("close_btn")
+        if not close_btn:
+            return
+        hex_colour = self._current_hex("text_primary", "#F4FAFF")
+        close_btn.Content = self._make_icon("close", size=14, color=hex_colour)
+
+    def _refresh_dark_toggle(self):
+        on_brush = self.window.TryFindResource("BrushPrimaryGreen")
+        off_brush = self.window.TryFindResource("BrushToggleOffBg")
+        knob_brush = self.window.TryFindResource("BrushToggleKnob") or Brushes.White
+        self._dark_toggle.Background = on_brush if self._is_dark else off_brush
+
+        track_w = self.window.TryFindResource("WidthToggle") or 40.0
+        knob_size = self.window.TryFindResource("SizeToggleKnob") or 16.0
+        knob_margin = self.window.TryFindResource("MarginToggleKnob") or 2.0
+        knob_radius = self.window.TryFindResource("CornerRadiusToggleKnob")
+        if not knob_radius:
+            knob_radius = CornerRadius(knob_size / 2.0)
+
+        knob = Border()
+        knob.Width = knob_size
+        knob.Height = knob_size
+        knob.CornerRadius = knob_radius
+        knob.Background = knob_brush
+        knob.HorizontalAlignment = HorizontalAlignment.Left
+        on_offset = track_w - knob_size - knob_margin
+        knob.Margin = (
+            Thickness(on_offset, knob_margin, 0, knob_margin) if self._is_dark
+            else Thickness(knob_margin, knob_margin, 0, knob_margin)
+        )
+        self._dark_toggle.Child = knob
+        self._dark_toggle_tb.Text = "Dark" if self._is_dark else "Light"
+
+    def _on_dark_mode_toggle(self, sender, args):
+        self._is_dark = not self._is_dark
+        profile = "dark" if self._is_dark else "light"
+        self._set_active_profile(SCRIPT_DIR, profile)
+        self._apply_seed43_palette(self.window, SCRIPT_DIR, profile=profile)
+        self._refresh_dark_toggle()
+        self._refresh_swatch_selection()
+        self._refresh_changelog_colours()
+        self._refresh_close_icon()
+        if getattr(self, "_tool_manager", None):
+            self._tool_manager.refresh_theme()
+
+    _ACCENT_OPTIONS = [
+        ("green",  "Green",  "#208A3C"),
+        ("blue",   "Blue",   "#3584e4"),
+        ("teal",   "Teal",   "#2190a4"),
+        ("yellow", "Yellow", "#c88800"),
+        ("orange", "Orange", "#ed5b00"),
+        ("red",    "Red",    "#e62d42"),
+        ("pink",   "Pink",   "#d56199"),
+        ("purple", "Purple", "#9141ac"),
+        ("slate",  "Slate",  "#6f8396"),
+    ]
+
+    def _build_accent_swatches(self):
+        data = self._load_palette(SCRIPT_DIR) or {}
+        profile = data.get("active_profile", "dark")
+        current = data.get("profiles", {}).get(profile, {}).get("accent", "#208A3C")
+        self._current_accent = current.upper()
+
+        self._accent_panel.Children.Clear()
+        self._swatch_buttons = {}
+
+        for key, label, hex_value in self._ACCENT_OPTIONS:
+            btn = Button()
+            btn.Style = self.window.FindResource("AccentSwatchStyle")
+            btn.ToolTip = label
+            btn.Tag = hex_value
+            btn.Background = SolidColorBrush(self._hex_to_color(hex_value))
+            btn.Click += self._on_accent_swatch_clicked
+            self._accent_panel.Children.Add(btn)
+            self._swatch_buttons[hex_value.upper()] = btn
+
+        self._refresh_swatch_selection()
+
+    def _refresh_swatch_selection(self):
+        for hex_value, btn in self._swatch_buttons.items():
+            ring = btn.Template.FindName("Ring", btn) if btn.Template else None
+            if ring is None:
+                continue
+            ring.Visibility = (
+                Visibility.Visible
+                if hex_value == self._current_accent
+                else Visibility.Collapsed
+            )
+
+    def _on_accent_swatch_clicked(self, sender, args):
+        hex_value = str(sender.Tag)
+        self._current_accent = hex_value.upper()
+        self._set_accent(SCRIPT_DIR, hex_value)
+        self._apply_seed43_palette(self.window, SCRIPT_DIR)
+        self._refresh_swatch_selection()
+        self._refresh_dark_toggle()
+        self._refresh_changelog_colours()
+        if getattr(self, "_tool_manager", None):
+            self._tool_manager.refresh_theme()
+
+    @staticmethod
+    def _hex_to_color(hex_str):
+        hex_str = hex_str.lstrip("#")
+        r = int(hex_str[0:2], 16)
+        g = int(hex_str[2:4], 16)
+        b = int(hex_str[4:6], 16)
+        return Color.FromRgb(r, g, b)
 
     def _init_tools(self):
         self._tool_manager = ToolManager(self.window)
@@ -702,6 +982,7 @@ class Seed43Dialog(object):
         t.Start()
 
     def _render_changelog(self, notes):
+        self._last_changelog_notes = notes
         from System.Windows import Thickness, FontWeights, TextWrapping
         container = self.window.FindName("s43_changelog_panel")
         if not container:
@@ -724,7 +1005,7 @@ class Seed43Dialog(object):
                 dash = TextBlock()
                 dash.Text       = u"-"
                 dash.FontSize   = 12
-                dash.Foreground = SolidColorBrush(ColorConverter.ConvertFromString("#F4FAFF"))
+                dash.Foreground = self._theme_brush("BrushTextPrimary", "#F4FAFF")
                 dash.Opacity    = 0.9
                 Grid.SetColumn(dash, 0)
                 g.Children.Add(dash)
@@ -732,7 +1013,7 @@ class Seed43Dialog(object):
                 body.Text        = stripped[1:].strip()
                 body.FontSize    = 12
                 body.TextWrapping = TextWrapping.Wrap
-                body.Foreground  = SolidColorBrush(ColorConverter.ConvertFromString("#F4FAFF"))
+                body.Foreground  = self._theme_brush("BrushTextPrimary", "#F4FAFF")
                 body.Opacity     = 0.9
                 Grid.SetColumn(body, 1)
                 g.Children.Add(body)
@@ -741,7 +1022,7 @@ class Seed43Dialog(object):
                 tb            = TextBlock()
                 tb.Text       = stripped
                 tb.FontSize   = 12
-                tb.Foreground = SolidColorBrush(ColorConverter.ConvertFromString("#208A3C"))
+                tb.Foreground = self._theme_brush("BrushPrimaryGreen", "#208A3C")
                 tb.FontWeight = FontWeights.SemiBold
                 tb.Margin     = Thickness(0, 6, 0, 2)
                 container.Children.Add(tb)
@@ -780,7 +1061,7 @@ class Seed43Dialog(object):
                 tb = TextBlock()
                 tb.Text       = u"Updating" + dots
                 tb.FontSize   = 12
-                tb.Foreground = SolidColorBrush(ColorConverter.ConvertFromString("#208A3C"))
+                tb.Foreground = self._theme_brush("BrushPrimaryGreen", "#208A3C")
                 tb.Margin     = Thickness(0, 2, 0, 2)
                 container.Children.Add(tb)
         self._spinner_timer.Tick += tick
@@ -856,16 +1137,32 @@ class Seed43Dialog(object):
 
                 # ── Apply migrations before syncing ───────────────────────────
                 log("Checking migrations...")
-                migrations = read_migrations(extracted_root)
-                if migrations:
-                    apply_migrations(migrations, TAB_DIR_DEST)
+                read_migrations, apply_migrations = _load_migrations()
+                if read_migrations:
+                    migrations = read_migrations(extracted_root)
+                    if migrations:
+                        apply_migrations(migrations, TAB_DIR_DEST)
+                else:
+                    log("  migrations module unavailable, skipping")
 
                 log("Installing...")
                 skipped = sync_tree(new_tab, TAB_DIR_DEST)
 
-                # ── Sync root files (startup.py, extension.json, etc.) ────────
+                # ── Sync lib/ (shared Snippets modules) ───────────────────────
+                # Skipped by the root-file loop below, which only handles
+                # files. Without this, lib/ stays frozen at whatever pyRevit
+                # cloned on first install and no shared-module fix ever lands.
+                new_lib = os.path.join(extracted_root, "lib")
+                if os.path.isdir(new_lib):
+                    log("Updating shared modules...")
+                    sync_tree(new_lib, os.path.join(S43_INSTALL, "lib"),
+                              skipped, keep_json=False)
+
+                # ── Sync root files (startup.py, the yaml, etc.) ──────────────
+                # Seed43.tab and lib are folders, synced above. Matches
+                # startup.py: root .json and .png are left alone.
                 ROOT_SKIP = {
-                    "Seed43.tab", "lib", "UI",
+                    "Seed43.tab", "lib",
                     ".git", ".gitignore", "README.md", "LICENSE",
                     "install.bat", "sync-start.bat", "sync-end.bat",
                 }
@@ -875,6 +1172,9 @@ class Seed43Dialog(object):
                     src = os.path.join(extracted_root, fname)
                     dst = os.path.join(S43_INSTALL, fname)
                     if os.path.isfile(src):
+                        low = fname.lower()
+                        if low.endswith(".json") or low.endswith(".png"):
+                            continue
                         try:
                             shutil.copy2(src, dst)
                         except Exception:
@@ -927,8 +1227,8 @@ class Seed43Dialog(object):
                 tb.Text        = text
                 tb.FontSize    = 12
                 tb.TextWrapping = TextWrapping.Wrap
-                tb.Foreground  = SolidColorBrush(ColorConverter.ConvertFromString(
-                    "#A0AABB" if dim else "#F4FAFF"))
+                tb.Foreground  = (self._theme_brush("BrushTextPrimary", "#A0AABB") if dim
+                    else self._theme_brush("BrushTextPrimary", "#F4FAFF"))
                 tb.Opacity     = 0.7 if dim else 0.9
                 tb.Margin      = Thickness(0, 1, 0, 1)
                 panel.Children.Add(tb)
@@ -941,7 +1241,7 @@ class Seed43Dialog(object):
                     len(names), "s" if len(names) != 1 else "")
                 tb.FontSize    = 12
                 tb.TextWrapping = TextWrapping.Wrap
-                tb.Foreground  = SolidColorBrush(ColorConverter.ConvertFromString("#D4720A"))
+                tb.Foreground  = self._theme_brush("BrushPrimaryGreen", "#D4720A")
                 panel.Children.Add(tb)
                 for n in names:
                     add_line(u"  - " + n, dim=True)
@@ -949,7 +1249,7 @@ class Seed43Dialog(object):
                 tb2.Text      = u"Reload PyRevit to apply the remaining changes."
                 tb2.FontSize  = 12
                 tb2.TextWrapping = TextWrapping.Wrap
-                tb2.Foreground = SolidColorBrush(ColorConverter.ConvertFromString("#F4FAFF"))
+                tb2.Foreground = self._theme_brush("BrushTextPrimary", "#F4FAFF")
                 tb2.Opacity   = 0.9
                 tb2.Margin    = Thickness(0, 8, 0, 0)
                 panel.Children.Add(tb2)

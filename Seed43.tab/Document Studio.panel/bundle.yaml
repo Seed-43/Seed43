@@ -1,8 +1,10 @@
 
 layout:
+  - pySheets
   - pyTransmit
-  - PyTables
+  - pyLink
+  - pyTable
+  - pyFilter
+  - ----
   - DocStack_1
   - DocStack_2
-
-

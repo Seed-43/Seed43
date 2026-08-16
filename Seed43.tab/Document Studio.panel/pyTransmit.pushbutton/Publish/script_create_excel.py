@@ -18,6 +18,27 @@ def _log(msg):
 from pyrevit import revit, script, DB, forms
 import re, os, json, copy
 
+try:
+    from Snippets import _dialogs as sdlg
+except Exception:
+    sdlg = None
+
+def _alert(message, title='', exitscript=False):
+    """Themed popup via the shared Snippets dialog lib, falls back to
+    pyRevit's default forms.alert if the shared lib isn't available."""
+    if sdlg:
+        sdlg.message(message, title=title)
+    else:
+        forms.alert(message, title=title)
+    if exitscript:
+        script.exit()
+
+def _confirm(message, title='', no='No'):
+    """Themed yes/no popup, returns True on yes."""
+    if sdlg:
+        return sdlg.confirm(message, title=title, no=no)
+    return bool(forms.alert(message, title=title, ok=False, yes=True, no=True))
+
 output = script.get_output()
 output.hide()
 
@@ -38,7 +59,7 @@ MM_TO_CH = 0.175          # 1 mm ≈ 0.175 Excel character-width units (approx, 
 # ── Load layout JSON ─────────────────────────────────────────────────────────
 
 def _load_layout():
-    # 1. Explicit path injected by script.py from the Export Settings assignment
+    # 1. Explicit path injected by pyTransmit.py from the Export Settings assignment
     _explicit = _p.get('layout_json_path')
     if _explicit and os.path.isfile(_explicit):
         try:
@@ -53,6 +74,7 @@ def _load_layout():
     script_dir = (_p.get('script_dir') or
                   os.path.dirname(os.path.abspath(__file__)))
     candidates = [
+        (_p.get('_layouts_dir') and os.path.join(_p['_layouts_dir'], 'Excel.json')) or '',
         os.path.join(script_dir, 'Layout', 'Layouts', 'Excel.json'),
         os.path.join(script_dir, 'Layouts', 'Excel.json'),
         os.path.join(script_dir, 'Excel.json'),
@@ -127,32 +149,27 @@ def natural_sort_key(s):
     return [int(p) if p.isdigit() else p.lower() for p in parts]
 
 def parse_date(raw, fmt='dd/MM/yyyy'):
-    if not raw: return ""
-    m = re.search(r'(\d{1,2})\D(\d{1,2})\D(\d{2,4})', str(raw).strip())
-    if not m: return str(raw)
-    d, mo, yr = int(m.group(1)), int(m.group(2)), int(m.group(3))
-    if yr < 100: yr += 2000
-    if not (1 <= mo <= 12): return str(raw)
-    sep = '/' if '/' in (fmt or '') else ('.' if '.' in (fmt or '') else '-')
-    if fmt and 'MMMM' in fmt:
-        if 'dddd' in fmt:
-            import datetime
-            try:
-                dt = datetime.date(yr, mo, d)
-                return dt.strftime('%A, %d %B %Y')
-            except: pass
-        return "{} {} {}".format(d, MONTHS[mo-1], yr)
-    short_yr = fmt and 'yy' in fmt and 'yyyy' not in fmt
-    yr_str = str(yr)[2:] if short_yr else str(yr)
-    return "{:02d}{}{:02d}{}{}".format(d, sep, mo, sep, yr_str)
+    """Print the revision date exactly as it was typed in Revit.
+
+    This used to re-parse and re-format the date, and got it wrong for any
+    year-first date. The pattern (\\d{1,2})\\D(\\d{1,2})\\D(\\d{2,4}) cannot
+    match a four digit year in the first field, so on "2026/06/06" it skipped
+    the leading "20" and locked onto 26 / 06 / 06 - then, seeing a two digit
+    year, added 2000 to it and wrote "26/06/2006". A date the user had typed
+    correctly came out as a different date entirely, which is worse than any
+    formatting is worth on a document that goes out to consultants.
+
+    The date is now passed straight through. `fmt` is accepted and ignored so
+    every existing call site and saved layout keeps working; if per-block date
+    formatting is ever wanted back, it needs a parser that understands
+    year-first input rather than this one.
+    """
+    return "" if not raw else str(raw).strip()
 
 def parse_date_long(raw):
-    if not raw: return ""
-    m = re.search(r'(\d{1,2})\D(\d{1,2})\D(\d{2,4})', str(raw).strip())
-    if not m: return str(raw)
-    d, mo, yr = int(m.group(1)), int(m.group(2)), int(m.group(3))
-    if yr < 100: yr += 2000
-    return "{} {} {}".format(d, MONTHS[mo-1], yr) if 1 <= mo <= 12 else str(raw)
+    """As typed, like parse_date() above - see the note there for why the old
+    re-parsing was removed."""
+    return "" if not raw else str(raw).strip()
 
 def get_param(el, name):
     try:
@@ -541,7 +558,7 @@ def data_row_fmt(block, row_idx, n_rows, bot_b, extra=None):
 
 def _resolve_borders(block, above_block, below_block):
     """Resolve shared borders: on beats off.
-    A shared edge is ON if either side wants it — but only if the current
+    A shared edge is ON if either side wants it, but only if the current
     block participates in bordering (has at least one border set).
     Returns (top, bottom) for THIS block after resolving with neighbours."""
     bords  = block.get('borders', {}) if block else {}
@@ -727,7 +744,7 @@ for _er, _h in _row_heights.items():
 
 # ── Main writing loop ─────────────────────────────────────────────────────────
 
-# _prev_row_blocks no longer needed — borders resolved by layout_Style_Algoruthum
+# _prev_row_blocks no longer needed, borders resolved by layout_Style_Algoruthum
 _prev_row_blocks = [None, None, None, None]  # kept for write_legend compatibility
 
 output.print_md("Writing {} layout rows → {} Excel rows...".format(len(ROWS), _total_excel_rows))
@@ -786,11 +803,10 @@ for ri, row in enumerate(ROWS):
         rgt_b  = 1 if _cs.get('r', False) else 0
         _cell_bg = _cs.get('bg') or (_hex(b.get('bg_color'), None) if b.get('bg_color') else None)
         # ── Determine vertical Excel row span for this block ──────
-        # 'row_span' on the block is the authoritative vertical-span signal
-        # (set by the layout builder). merge_down alone is not used here,
-        # a None column in a following row can also be caused by horizontal
-        # span consumption from an earlier column in that row, which is not
-        # a vertical span of this block.
+        # 'row_span' (set by the layout builder) is the authoritative
+        # vertical-span signal. merge_down is not used: a None column in a
+        # following row can come from horizontal span consumption earlier in
+        # that row, which is not a vertical span of this block.
         er_end = er_start + er_count - 1
         if row_span > 1 and grp_end >= ri + row_span - 1:
             er_end = _row_excel_start[ri + row_span - 1] + _row_excel_count[ri + row_span - 1] - 1
@@ -891,7 +907,7 @@ for ri, row in enumerate(ROWS):
                                 'x_offset': 0, 'y_offset': 2,
                                 'object_position': 1})
                     else:
-                        # No dimension info — use fixed scale
+                        # No dimension info, use fixed scale
                         _anchor = LAST_COL if _just == 'right' else ec_start
                         ws.insert_image(er_start, _anchor, _lp,
                             {'x_scale': 0.5, 'y_scale': 0.5, 'object_position': 1})
@@ -1132,7 +1148,7 @@ for ri, row in enumerate(ROWS):
 
 # ── Print setup ──────────────────────────────────────────────────────────────
 
-# Paper size: xlsxwriter codes — 9=A4, 8=A3, 1=Letter
+# Paper size: xlsxwriter codes, 9=A4, 8=A3, 1=Letter
 _paper_map = {
     (210, 297): 9,   # A4 portrait
     (297, 210): 9,   # A4 landscape
@@ -1228,19 +1244,18 @@ for attempt in range(MAX_RETRIES):
     except Exception as e:
         err_msg = str(e)
         if attempt < MAX_RETRIES - 1:
-            retry = forms.alert(
-                "Could not save — the file may already be open in Excel.\n\n"
+            retry = _confirm(
+                "Could not save, the file may already be open in Excel.\n\n"
                 "Please close the file then click Retry, or Cancel to abort.\n\n"
                 "File: {}\n\nError: {}".format(save_path, err_msg),
-                title="File Locked — Please Close Excel",
-                yes=True, no=True)
+                title="File Locked: Please Close Excel")
             if not retry:
                 output.print_md("Save aborted.")
                 script.exit()
             time.sleep(1)
         else:
             output.print_md("## Save failed after {} attempts".format(MAX_RETRIES))
-            forms.alert("Could not save after {} attempts:\n{}".format(MAX_RETRIES, err_msg))
+            _alert("Could not save after {} attempts:\n{}".format(MAX_RETRIES, err_msg))
             script.exit()
 
 if saved:
@@ -1252,5 +1267,5 @@ if saved:
         if _open_dlg:
             if _open_dlg(u'Excel Saved', u'Open the file?'):
                 os.startfile(save_path)
-        elif forms.alert("Excel saved!\n\nOpen the file?", yes=True, no=True):
+        elif _confirm("Excel saved!\n\nOpen the file?"):
             os.startfile(save_path)

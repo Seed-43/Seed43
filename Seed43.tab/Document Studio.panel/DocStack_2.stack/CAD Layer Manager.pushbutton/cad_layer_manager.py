@@ -17,6 +17,7 @@ from System.IO import File
 
 # ── [LIB] Snippets/_selection.py ─────────────────────────────────────────────
 from Snippets._selection import resolve_cad_instance
+from Snippets.seed43_theme import apply_seed43_palette
 
 doc         = revit.doc
 uidoc       = revit.uidoc
@@ -79,6 +80,7 @@ class LayerManagerWindow(object):
     def __init__(self):
         xaml_text   = File.ReadAllText(XAML_PATH)
         self.window = XamlReader.Parse(xaml_text)
+        apply_seed43_palette(self.window, os.path.dirname(__file__))
 
         self.cad_name_lbl       = self.window.FindName("cad_name_lbl")
         self.search_tb          = self.window.FindName("search_tb")

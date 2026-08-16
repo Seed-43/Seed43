@@ -2,6 +2,14 @@
 # LayoutSettings.py
 
 import os
+
+# pytransmit_paths lives in the pushbutton root, which is not guaranteed to be
+# on sys.path - pyTransmit loads this module by inserting only its own folder.
+import sys as _sys
+_PT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PT_ROOT not in _sys.path:
+    _sys.path.insert(0, _PT_ROOT)
+from pytransmit_paths import LAYOUT_CONFIG, LAYOUTS_DIR
 import json
 import copy
 
@@ -21,13 +29,22 @@ import System.Windows.Shapes as _SWS
 
 from pyrevit.forms import WPFWindow
 from Snippets._icons import make_icon
+try:
+    from Snippets import _dialogs as sdlg
+except Exception:
+    sdlg = None
+try:
+    from Snippets.seed43_theme import apply_seed43_palette, apply_seed43_dimensions
+except Exception:
+    apply_seed43_palette = None
+    apply_seed43_dimensions = None
 
 
-# ── Paths ─────────────────────────────────────────────────────────
+# -- Paths --------------------------------------------------------------
 LAYOUT_CONFIG_FILE = 'layout_config.json'    # UI state only
 LAYOUTS_SUBDIR     = 'Layouts'                # per-template JSON files
 
-# ── Palette definition ────────────────────────────────────────────
+# -- Palette definition ---------------------------------------------------
 # (type, label, icon, group, subtext)
 # group: layout | project | dist | docs | revision | meta
 PALETTE = [
@@ -73,7 +90,7 @@ PALETTE = [
 TYPE_NAMES  = {p[0]: p[1] for p in PALETTE if p[0] != '__grp__'}
 TYPE_ICONS  = {p[0]: p[2] for p in PALETTE if p[0] != '__grp__'}
 TYPE_GROUP  = {p[0]: p[3] for p in PALETTE if p[0] != '__grp__'}
-# Spine blocks aren't in the palette — group them as 'revision'
+# Spine blocks aren't in the palette, group them as 'revision'
 for _t in ('spine_dates','spine_initials','spine_reason','spine_method','spine_doc_type','spine_print_size','spine_copies','spine_rev'):
     TYPE_GROUP.setdefault(_t, 'revision')
 
@@ -110,7 +127,7 @@ DATA_BLOCK_TYPES = {'sent_to','attn_to','sheet_number','sheet_desc',
 SPINE_HEADER_TYPES = {'spine_dates','spine_initials',
                       'spine_reason','spine_method','spine_doc_type','spine_print_size'}
 
-# ── Default text styles ───────────────────────────────────────────
+# -- Default text styles --------------------------------------------------
 DEFAULT_TEXT_STYLES = {
     'Title':   {'font':'Arial','size_mm':4.5, 'bold':True, 'italic':False,'underline':False,'color':'#000000'},
     'Header':  {'font':'Arial','size_mm':2.5, 'bold':True, 'italic':False,'underline':False,'color':'#000000'},
@@ -120,7 +137,7 @@ DEFAULT_TEXT_STYLES = {
 # Page sizes in mm (portrait)
 PAGE_SIZES = {'a4': (210, 297), 'a4l': (297, 210), 'a3': (297, 420), 'a3l': (420, 297)}
 
-# ── Dummy data ────────────────────────────────────────────────────
+# -- Dummy data -------------------------------------------------------------
 DUMMY = {
     'proj_org':    'Organization Name',
     'proj_client': 'Client Name',
@@ -171,7 +188,7 @@ DUMMY = {
     ],
 }
 
-# ── Default template layout ───────────────────────────────────────
+# -- Default template layout ------------------------------------------------
 DATE_FORMATS = [
     'dd/MM/yyyy',
     'dd/MM/yy',
@@ -223,7 +240,7 @@ DEFAULT_ROWS = [
     {'blocks': [_mk('sheet_number',alt_rows=True), _mk('sheet_desc',span=2,alt_rows=True), None, _mk('spine_rev')], 'merge_down': False},
 ]
 
-# ── Colour helpers ────────────────────────────────────────────────
+# -- Colour helpers ---------------------------------------------------------
 def _brush(r, g, b, a=255):
     return _SWM.SolidColorBrush(_SWM.Color.FromArgb(a, r, g, b))
 
@@ -231,6 +248,101 @@ def _hbrush(h):
     h = (h or '#000000').lstrip('#')
     if len(h) == 3: h = h[0]*2 + h[1]*2 + h[2]*2
     return _brush(int(h[0:2],16), int(h[2:4],16), int(h[4:6],16))
+
+def _apply_hover_template(btn, corner_radius=4):
+    """Give a manually-built Button (one whose colour is set directly, e.g.
+    a colour-swatch button or an active/inactive toggle, rather than through
+    one of the standard PBtn/SecondaryButtonStyle/TabButtonStyle styles) real idle/hover/pressed
+    feedback. Uses proportional Opacity dimming on the whole button rather
+    than a fixed hover colour, so it works regardless of the button's own
+    (possibly dynamic) base Background - the same approach PBtn's own
+    IsPressed trigger already uses."""
+    import System.Windows.Markup as _Markup
+    xaml = (
+        '<ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" '
+        'xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" '
+        'TargetType="Button">'
+        '<Border x:Name="bd" Background="{TemplateBinding Background}" '
+        'BorderBrush="{TemplateBinding BorderBrush}" '
+        'BorderThickness="{TemplateBinding BorderThickness}" '
+        'CornerRadius="' + str(int(corner_radius)) + '" '
+        'Padding="{TemplateBinding Padding}">'
+        '<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>'
+        '</Border>'
+        '<ControlTemplate.Triggers>'
+        '<Trigger Property="IsMouseOver" Value="True">'
+        '<Setter TargetName="bd" Property="Opacity" Value="0.85"/>'
+        '</Trigger>'
+        '<Trigger Property="IsPressed" Value="True">'
+        '<Setter TargetName="bd" Property="Opacity" Value="0.65"/>'
+        '</Trigger>'
+        '</ControlTemplate.Triggers>'
+        '</ControlTemplate>'
+    )
+    try:
+        btn.Template = _Markup.XamlReader.Parse(xaml)
+    except Exception:
+        pass
+
+def _apply_delete_circle_template(btn, size=22):
+    """Matches del_template_btn in the main header exactly: a permanently
+    red, fully circular button (not transparent-until-hover like
+    _apply_danger_hover_template above), with a simple opacity dim on
+    hover rather than a colour change. Used so every 'delete this thing'
+    button in the Layout Builder looks and behaves the same way."""
+    import System.Windows.Markup as _Markup
+    r = int(size) // 2
+    xaml = (
+        '<ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" '
+        'xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" '
+        'TargetType="Button">'
+        '<Border x:Name="bd" Background="{TemplateBinding Background}" '
+        'CornerRadius="' + str(r) + '" Width="' + str(size) + '" Height="' + str(size) + '">'
+        '<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>'
+        '</Border>'
+        '<ControlTemplate.Triggers>'
+        '<Trigger Property="IsMouseOver" Value="True">'
+        '<Setter TargetName="bd" Property="Opacity" Value="0.8"/>'
+        '</Trigger>'
+        '</ControlTemplate.Triggers>'
+        '</ControlTemplate>'
+    )
+    try:
+        btn.Template = _Markup.XamlReader.Parse(xaml)
+    except Exception:
+        pass
+
+def _apply_danger_hover_template(btn, corner_radius=3):
+    """Same idle/hover/pressed feel as every close (X) button elsewhere in
+    the extension (transparent -> danger red background on hover), for a
+    delete/remove icon button that isn't actually a close button - the
+    action is 'delete', not 'close', so it keeps its own bin/trash icon
+    rather than switching to an X, but it should still animate the same way
+    those do."""
+    import System.Windows.Markup as _Markup
+    xaml = (
+        '<ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" '
+        'xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" '
+        'TargetType="Button">'
+        '<Border x:Name="bd" Background="{TemplateBinding Background}" '
+        'CornerRadius="' + str(int(corner_radius)) + '" '
+        'Padding="{TemplateBinding Padding}">'
+        '<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>'
+        '</Border>'
+        '<ControlTemplate.Triggers>'
+        '<Trigger Property="IsMouseOver" Value="True">'
+        '<Setter TargetName="bd" Property="Background" Value="{DynamicResource Danger}"/>'
+        '</Trigger>'
+        '<Trigger Property="IsPressed" Value="True">'
+        '<Setter TargetName="bd" Property="Opacity" Value="0.8"/>'
+        '</Trigger>'
+        '</ControlTemplate.Triggers>'
+        '</ControlTemplate>'
+    )
+    try:
+        btn.Template = _Markup.XamlReader.Parse(xaml)
+    except Exception:
+        pass
 
 def _color_from_hex(h):
     h = (h or '#000000').lstrip('#')
@@ -249,6 +361,10 @@ BK = {
     'muted':  _brush(0xE0,0xE6,0xEE),
     'bdr':    _brush(0x40,0x4E,0x62),
     'danger': _brush(0xC0,0x39,0x2B),
+    'sec_bg':    _brush(0x48,0x48,0x4B),
+    'sec_hover': _brush(0x51,0x51,0x55),
+    'dis_bg':    _brush(0x2E,0x2E,0x32),
+    'dis_fg':    _brush(0x77,0x76,0x7B),
     'white':  _SWM.Brushes.White,
     'black':  _SWM.Brushes.Black,
     'transp': _SWM.Brushes.Transparent,
@@ -256,14 +372,14 @@ BK = {
 SLOT_BRUSHES = [_SWM.SolidColorBrush(c) for c in SLOT_COLORS]
 
 
-# ══════════════════════════════════════════════════════════════════
+# =============================================================================
 # PREVIEW BUILDER
-# ══════════════════════════════════════════════════════════════════
+# =============================================================================
 
 class PreviewBuilder(object):
 
     # Paper widths for preview (pixels) based on available width
-    # All measurements derived from mm → px at preview scale
+    # All measurements derived from mm -> px at preview scale
 
     def build(self, rows, rev_count, col_pct, page_w_mm, avail_px,
               text_styles, logo_path='', hlines=None, vlines=None):
@@ -310,7 +426,7 @@ class PreviewBuilder(object):
                 grp_end += 1
 
             if grp_end > grp_start:
-                # Merged group — build a single combined row
+                # Merged group, build a single combined row
                 el = self._build_merged_rows(active[grp_start:grp_end + 1],
                                              col_px, revs, cw, scale, text_styles, logo_path)
                 if el:
@@ -446,7 +562,7 @@ class PreviewBuilder(object):
             grid.ColumnDefinitions.Add(cd)
 
         outer = _SWC.Border()
-        # Row-level border left off — each cell gets its own border from block settings
+        # Row-level border left off, each cell gets its own border from block settings
 
         for idx, v in enumerate(visible):
             cell = _SWC.Border()
@@ -545,11 +661,11 @@ class PreviewBuilder(object):
         pad = max(1, int(2 * scale))
         thick = _SW.Thickness(pad)
 
-        # Data row height calculation — for consistent alignment across data blocks
+        # Data row height calculation, for consistent alignment across data blocks
         _st = text_styles.get(block.get('text_style', 'Data')) or DEFAULT_TEXT_STYLES.get('Data') or {'size_mm': 2.2}
         st_mm = _st.get('size_mm', 2.2)
 
-        # Fixed data row height — ensures all data blocks align row-by-row in merged groups
+        # Fixed data row height, ensures all data blocks align row-by-row in merged groups
         data_row_h = max(10, int(st_mm * scale * 1.8 + 2 * pad))
 
         def tb_row(text, style_name, just, alt=False, alt_color='#F5F7FA', show_h=True):
@@ -568,7 +684,7 @@ class PreviewBuilder(object):
             row_b.Child = tb
             return row_b
 
-        # ── Blank row ────────────────────────────────────────────
+        # -- Blank row --------------------------------------------------
         if t == 'blank':
             base = max(4, int(6 * scale))
             h_pct = block.get('height_pct') or 100
@@ -576,7 +692,7 @@ class PreviewBuilder(object):
             el.Height = base * h_pct / 100
             return el
 
-        # ── Text / Heading / Title ────────────────────────────────
+        # -- Text / Heading / Title --------------------------------------
         if t in ('title', 'heading', 'text'):
             # Use Grid so VerticalAlignment on inner wrapper is respected
             g = _SWC.Grid()
@@ -600,7 +716,7 @@ class PreviewBuilder(object):
             g.Children.Add(wrapper)
             return g
 
-        # ── Logo ─────────────────────────────────────────────────
+        # -- Logo ----------------------------------------------------------
         if t == 'logo':
             # Wrap in Grid so vertical alignment has room to work
             g = _SWC.Grid()
@@ -624,7 +740,7 @@ class PreviewBuilder(object):
             sp.Children.Add(g)
             return sp
 
-        # ── KV fields ─────────────────────────────────────────────
+        # -- KV fields -------------------------------------------------------
         KV_MAP = {
             'proj_org':    'Organisation',  'proj_client': 'Client',
             'proj_number': 'Project No',    'proj_name':   'Project',
@@ -662,7 +778,7 @@ class PreviewBuilder(object):
             g.Children.Add(wrapper)
             return g
 
-        # ── Page Count ────────────────────────────────────────────
+        # -- Page Count -------------------------------------------------------
         if t == 'page_count':
             g = _SWC.Grid()
             st = text_styles.get(block.get('text_style','Data')) or DEFAULT_TEXT_STYLES['Data']
@@ -696,7 +812,7 @@ class PreviewBuilder(object):
             sp.Children.Add(g)
             return sp
 
-        # ── Current Issue Date ───────────────────────────────────
+        # -- Current Issue Date --------------------------------------------------
         if t == 'issue_date':
             g = _SWC.Grid()
             st = text_styles.get(block.get('text_style','Data')) or DEFAULT_TEXT_STYLES['Data']
@@ -727,7 +843,7 @@ class PreviewBuilder(object):
             sp.Children.Add(g)
             return sp
 
-        # ── Row-per-item data blocks ──────────────────────────────
+        # -- Row-per-item data blocks -------------------------------------------------
         alt = block.get('alt_rows', False)
         alt_c = block.get('alt_color', '#F5F7FA')
         st_name = block.get('text_style', 'Data')
@@ -753,7 +869,7 @@ class PreviewBuilder(object):
             g.Children.Add(sp)
             return g
 
-        # ── Drawing groups ────────────────────────────────────────
+        # -- Drawing groups -----------------------------------------------------
         if t == 'drawing_group':
             db = block.get('data_borders', {'h':True,'v':True})
             show_h = bool(db.get('h', True))
@@ -785,7 +901,7 @@ class PreviewBuilder(object):
             g.Children.Add(sp)
             return g
 
-        # ── Reason / Method ───────────────────────────────────────
+        # -- Reason / Method --------------------------------------------------
         items_map = {
             'reason_list': DUMMY['reasons'],
             'method_list': DUMMY['methods'],
@@ -793,7 +909,7 @@ class PreviewBuilder(object):
         if t in items_map:
             items = items_map[t]
             if block.get('list_style') == 'row':
-                # Horizontal text row — evenly spaced, no boxes
+                # Horizontal text row, evenly spaced, no boxes
                 row_g = _SWC.Grid()
                 row_g.Margin = _SW.Thickness(pad)
                 for _ in items:
@@ -841,7 +957,7 @@ class PreviewBuilder(object):
             g_outer.Children.Add(sp)
             return g_outer
 
-        # ── Spine blocks ──────────────────────────────────────────
+        # -- Spine blocks -----------------------------------------------------
         n = len(revs)
         if n == 0: return sp
 
@@ -979,27 +1095,113 @@ class PreviewBuilder(object):
         return sp
 
 
-# ══════════════════════════════════════════════════════════════════
+# =============================================================================
 # WINDOW
-# ══════════════════════════════════════════════════════════════════
+# =============================================================================
 
 class LayoutSettingsWindow(WPFWindow):
+
+    def _apply_seed43_theme(self, script_dir):
+        """Wire this window into the shared Seed43 palette.
+
+        This file used to have its own internal named-alias-brush system
+        (BgDeep/BgCard/Accent/etc, bridged from the canonical Brush* names
+        by this method) - that's been eliminated. LayoutSettings.xaml now
+        references the canonical Brush* names directly via DynamicResource,
+        the same way pyTransmit and About do, so apply_seed43_palette()/
+        apply_seed43_dimensions() alone is enough to theme the window; no
+        extra injection step is needed for those.
+
+        LocalBrushTextMuted used to be injected here by hand (computed as
+        BrushTextPrimary at reduced opacity) because no canonical
+        muted/secondary-text token existed. seed43_palette.json now has a
+        real "text_muted" key (-> BrushTextMuted), so this window's XAML
+        references BrushTextMuted via DynamicResource directly, same as
+        every other themed brush, and apply_seed43_palette() alone covers
+        it - no special-case injection needed any more.
+
+        LocalBrushRowBg/LocalBrushHoverBg/LocalBrushBorderNeutral and
+        ColA-D are declared as static local brushes directly in the XAML
+        instead, not injected here at all - the first three because no
+        canonical token exists yet for a neutral (non-accent) border/row
+        colour (every canonical border token is currently accent-green,
+        and using one would turn this file's neutral dividers green), and
+        ColA-D because they're intentional, distinct functional markers
+        for the 4 layout columns, not theme colours - forcing them onto
+        one shared accent colour would defeat the point of them being
+        different colours. All four are real candidates to promote into
+        seed43_palette.json later, if other tools end up wanting the same
+        neutral-border/row-tint pattern.
+        """
+        if apply_seed43_palette:
+            try:
+                apply_seed43_palette(self, script_dir)
+            except Exception:
+                pass
+        if apply_seed43_dimensions:
+            try:
+                apply_seed43_dimensions(self, script_dir)
+            except Exception:
+                pass
+
+        def _find(key, fallback_hex):
+            try:
+                b = self.TryFindResource(key)
+                if b:
+                    return b
+            except Exception:
+                pass
+            return _hbrush(fallback_hex)
+
+        bg_window = _find('BrushWindowBg',        '#3B4553')
+        bg_deep   = _find('BrushHeaderBg',         '#232933')
+        bg_card   = _find('BrushCardBg',           '#2B3340')
+        accent    = _find('BrushPrimaryGreen',     '#208A3C')
+        accent_lt = _find('BrushPrimaryGreenHover','#32934C')
+        text_main = _find('BrushTextPrimary',      '#FFFFFF')
+        danger    = _find('BrushDanger',           '#E01B24')
+        sec_bg    = _find('BrushSecondaryBg',        '#48484B')
+        sec_hover = _find('BrushSecondaryHover',     '#515155')
+        sec_dis_bg = _find('BrushSecondaryDisabledBg', '#2E2E32')
+        sec_dis_fg = _find('BrushSecondaryDisabledFg', '#77767B')
+        text_mute = _find('BrushTextMuted', '#9CA3AF')
+
+        # Mirror the same live brushes into the module-level BK dict, so
+        # every Python-built dynamic element (canvas blocks, drag handles,
+        # tab highlights, etc, all built via BK[...] lookups) follows the
+        # theme too, from this one place.
+        try:
+            BK['bg']     = bg_window
+            BK['deep']   = bg_deep
+            BK['card']   = bg_card
+            BK['accent'] = accent
+            BK['aclt']   = accent_lt
+            BK['text']   = text_main
+            BK['muted']  = text_mute
+            BK['danger'] = danger
+            BK['sec_bg']     = sec_bg
+            BK['sec_hover']  = sec_hover
+            BK['dis_bg']     = sec_dis_bg
+            BK['dis_fg']     = sec_dis_fg
+        except Exception:
+            pass
 
     def __init__(self, script_dir=None):
         if script_dir is None:
             script_dir = os.path.dirname(os.path.abspath(__file__))
         self._script_dir   = script_dir
-        # Config and layouts live alongside this script (in the Layout/ folder)
-        self._config_path  = os.path.join(script_dir, LAYOUT_CONFIG_FILE)
-        self._layouts_dir  = os.path.join(script_dir, LAYOUTS_SUBDIR)
+        # Config and layouts live in .user now, not beside this script.
+        self._config_path  = LAYOUT_CONFIG
+        self._layouts_dir  = LAYOUTS_DIR
 
         if not os.path.isdir(self._layouts_dir):
             try: os.makedirs(self._layouts_dir)
             except: pass
 
-        # Resolve XAML — same folder as this script
+        # Resolve XAML, same folder as this script
         xaml = os.path.join(script_dir, 'LayoutSettings.xaml')
         WPFWindow.__init__(self, xaml)
+        self._apply_seed43_theme(script_dir)
 
         # State
         self._rows          = []
@@ -1031,11 +1233,12 @@ class LayoutSettingsWindow(WPFWindow):
 
         # Settings tab is open by default (XAML Visibility="Visible")
         # Set tab button highlight to match
-        self.pal_settings_btn.Background = BK['accent']
-        self.pal_blocks_btn.Background   = BK['row']
+        self._set_tab_active(self.pal_settings_btn, True)
+        self._set_tab_active(self.pal_blocks_btn, False)
+        self._set_tab_active(self.pal_options_btn, False)
         self._render_style_cards()
 
-        # ── Load UI icons ─────────────────────────────────────────────────────
+        # -- Load UI icons -------------------------------------------------------
         self.del_template_btn.Content = make_icon('delete', size=12, color='#FFFFFF')
         self.col_settings_btn.Content = make_icon('setup', size=12, color='#FFFFFF')
 
@@ -1049,20 +1252,73 @@ class LayoutSettingsWindow(WPFWindow):
         self.AllowDrop = True
         self.DragOver += self._window_drag_over
 
+        # Said over the open window, not in front of one that has not drawn
+        # yet - see _show_deprecation_notice().
+        self.ContentRendered += self._show_deprecation_notice
+
+    # -- Deprecation notice ----------------------------------------------------
+    _DEPRECATION_ENV = 'PYTRANSMIT_LB_DEPRECATION_SHOWN'
+
+    def _show_deprecation_notice(self, sender=None, args=None):
+        """Say, once per Revit session, that this tool is no longer developed.
+
+        Once per SESSION rather than once ever: a notice that can be dismissed
+        for good on the first day stops doing its job, and this one needs to
+        keep pointing at Studio for as long as the old builder is still in
+        use. The environment variable lasts the life of the Revit process,
+        which is the same trick pyTransmit uses to hand the group parameters
+        to its publish scripts.
+
+        Unsubscribed on the first firing because ContentRendered fires again
+        every time the window re-renders its content.
+        """
+        try:
+            self.ContentRendered -= self._show_deprecation_notice
+        except Exception:
+            pass
+        if os.environ.get(self._DEPRECATION_ENV):
+            return
+        os.environ[self._DEPRECATION_ENV] = '1'
+
+        message = (
+            u'Document Layout still works exactly as it always has. Your '
+            u'templates are safe, nothing has been removed, and every '
+            u'transmittal you publish from here comes out the same as '
+            u'before.\n\n'
+            u'It is no longer being developed, though. This builder describes '
+            u'a page as rows of four slots with a revision "spine" fanned out '
+            u'across the last one, and that model turned out to be far harder '
+            u'to work on than the documents it produces.\n\n'
+            u'New work goes into pyTransmit Studio instead, which lays a '
+            u'transmittal out on a plain spreadsheet grid - a cell is a cell, '
+            u'a merge is a merge - and publishes to Excel, PDF, Schedule, '
+            u'Drafting View and Legend alike.\n\n'
+            u'Next time you start a layout from scratch, start it in Studio: '
+            u'the ☰ menu in pyTransmit, then Layout Studio.')
+        title = 'Document Layout is no longer being developed'
+        try:
+            if sdlg:
+                sdlg.message(message, title=title)
+            else:
+                from pyrevit import forms as _forms
+                _forms.alert(message, title=title)
+        except Exception:
+            pass
+
     def _window_drag_over(self, sender, args):
-        """Accept drag at window level — prevents WPF returning None effect."""
+        """Accept drag at window level, prevents WPF returning None effect."""
         try:
             args.Effects = _SW.DragDropEffects.Move
             args.Handled = True
         except Exception:
             pass
 
-    # ── nid ─────────────────────────────────────────────────────
+    # -- nid ---------------------------------------------------------------
     def _nid(self):
         self._uid += 1
         return self._uid
 
-    # ── Config I/O ───────────────────────────────────────────────
+    # -- Config I/O -------------------------------------------------------------
     def _template_file(self, name):
         """Sanitise template name for filesystem use."""
         safe = name.replace('/', '_').replace('\\', '_').replace(':', '_').strip()
@@ -1127,7 +1383,7 @@ class LayoutSettingsWindow(WPFWindow):
         if self._active_tmpl not in self._templates:
             self._active_tmpl = list(self._templates.keys())[0]
 
-        # Migrate legacy block types (heading/title removed — text covers both)
+        # Migrate legacy block types (heading/title removed, text covers both)
         for tname, td in self._templates.items():
             for row in td.get('rows', []):
                 for b in row.get('blocks', []):
@@ -1189,7 +1445,7 @@ class LayoutSettingsWindow(WPFWindow):
         if failed:
             self._status('Save failed for: {}'.format(', '.join(failed)))
         else:
-            self._status('Saved {} template(s) \u2713'.format(len(self._templates)))
+            self._status('Saved {} template(s) OK'.format(len(self._templates)))
 
     def _flush_template(self):
         # Re-read custom dimension TextBoxes directly so a partial edit is captured
@@ -1216,7 +1472,7 @@ class LayoutSettingsWindow(WPFWindow):
             'vlines': {str(k): list(v) for k,v in getattr(self, '_vlines', {}).items()},
         }
 
-    # ── Border grid helpers ─────────────────────────────────────────────
+    # -- Border grid helpers -------------------------------------------------------
     def _get_hline(self, ri, ci):
         hl = getattr(self, '_hlines', {})
         row_hl = hl.get(ri, [False]*4)
@@ -1243,7 +1499,7 @@ class LayoutSettingsWindow(WPFWindow):
         self._status('vline toggled: row={} pos={} value={}'.format(ri, pos, self._vlines[ri][pos]))
         self._render_canvas(); self._render_preview()
 
-    # ── Sync UI controls ─────────────────────────────────────────
+    # -- Sync UI controls -------------------------------------------------------
     # Canonical template order
     _TEMPLATE_ORDER = ['Excel', 'PDF', 'Revit Schedule', 'Revit Drafting View', 'Revit Legend']
 
@@ -1282,13 +1538,13 @@ class LayoutSettingsWindow(WPFWindow):
         self._sync_page_cb()
 
     def _update_rev_label(self):
-        # No-op now — lbl_d shows the column percentage, not rev count
+        # No-op now, lbl_d shows the column percentage, not rev count
         # (rev count is shown in the header rev stepper and prev_info_tb)
         pass
 
     def _update_prev_info(self):
         try:
-            self.prev_info_tb.Text = '{}x{}mm {} · {} revs · dummy data'.format(
+            self.prev_info_tb.Text = '{}x{}mm {} - {} revs - dummy data'.format(
                 int(self._page_w_mm), int(self._page_h_mm), self._orientation, self._rev_count)
         except Exception: pass
 
@@ -1300,7 +1556,7 @@ class LayoutSettingsWindow(WPFWindow):
             self.lbl_a.Text = '{}'.format(a)
             self.lbl_b.Text = '{}'.format(b)
             self.lbl_c.Text = '{}'.format(c)
-            # lbl_d is a TextBlock (residual, no '%' — % is adjacent)
+            # lbl_d is a TextBlock (residual, no '%', % is adjacent)
             self.lbl_d.Text = '{}'.format(d)
             # Update the splitter bar's column ratios
             try:
@@ -1399,7 +1655,7 @@ class LayoutSettingsWindow(WPFWindow):
                     new_c = max(5, c0 - actual)
                     self._col_pct = [a0, new_b, new_c]
                 else:
-                    # CD boundary — moving means changing C; D = residual
+                    # CD boundary, moving means changing C; D = residual
                     new_c = max(5, min(60, c0 + delta_pct))
                     # Ensure D stays >= 5%
                     max_c = 100 - a0 - b0 - 5
@@ -1421,7 +1677,7 @@ class LayoutSettingsWindow(WPFWindow):
         splitter.MouseMove           += on_move
         splitter.MouseLeftButtonUp   += on_up
 
-    # ── Header events ─────────────────────────────────────────────
+    # -- Header events -------------------------------------------------------
     def rev_dec_click(self, s, e):
         if self._rev_count > 1:
             self._rev_count -= 1
@@ -1562,7 +1818,7 @@ class LayoutSettingsWindow(WPFWindow):
                 except Exception: pass
                 self._render_canvas()
             self._canvas_debounce_timer.Tick += _tick
-        # Reset the timer — keep extending it until slider stops moving
+        # Reset the timer, keep extending it until slider stops moving
         try: self._canvas_debounce_timer.Stop()
         except Exception: pass
         self._canvas_debounce_timer.Start()
@@ -1632,7 +1888,7 @@ class LayoutSettingsWindow(WPFWindow):
         name = self._active_tmpl
         confirm = self._prompt('To delete, type the template name exactly:\n"{}"'.format(name), default='')
         if not confirm or confirm.strip() != name:
-            self._status('Delete cancelled — name did not match'); return
+            self._status('Delete cancelled - name did not match'); return
         del self._templates[name]
         # Remove the template JSON file from disk
         try:
@@ -1678,14 +1934,24 @@ class LayoutSettingsWindow(WPFWindow):
     def close_click(self, s, e):
         self.Close()
 
-    # ── Palette tabs ──────────────────────────────────────────────
+    def _set_tab_active(self, btn, active):
+        """Swap the whole Style, not just Background - TabButtonStyle's hover trigger
+        is hardcoded and ignores whatever Background an instance happens to
+        have, so just poking .Background (the old approach here) meant an
+        inactive tab would flash the active tab's hover colour. Same fix as
+        SmallSecondaryButtonStyle elsewhere in this extension."""
+        style = self.TryFindResource('PBtn' if active else 'TabButtonStyle')
+        if style:
+            btn.Style = style
+
+    # -- Palette tabs -------------------------------------------------------
     def pal_tab_blocks(self, s, e):
         self.pal_blocks_scroll.Visibility    = _SW.Visibility.Visible
         self.pal_settings_scroll.Visibility  = _SW.Visibility.Collapsed
-        self.pal_inspector_scroll.Visibility = _SW.Visibility.Collapsed
-        self.pal_blocks_btn.Background    = BK['accent']
-        self.pal_settings_btn.Background  = BK['row']
-        self.pal_inspector_btn.Background = BK['row']
+        self.pal_options_scroll.Visibility   = _SW.Visibility.Collapsed
+        self._set_tab_active(self.pal_blocks_btn, True)
+        self._set_tab_active(self.pal_settings_btn, False)
+        self._set_tab_active(self.pal_options_btn, False)
         if not getattr(self, '_palette_built', False):
             self._build_palette()
             self._palette_built = True
@@ -1693,60 +1959,72 @@ class LayoutSettingsWindow(WPFWindow):
     def pal_tab_settings(self, s, e):
         self.pal_blocks_scroll.Visibility    = _SW.Visibility.Collapsed
         self.pal_settings_scroll.Visibility  = _SW.Visibility.Visible
-        self.pal_inspector_scroll.Visibility = _SW.Visibility.Collapsed
-        self.pal_blocks_btn.Background    = BK['row']
-        self.pal_settings_btn.Background  = BK['accent']
-        self.pal_inspector_btn.Background = BK['row']
+        self.pal_options_scroll.Visibility   = _SW.Visibility.Collapsed
+        self._set_tab_active(self.pal_blocks_btn, False)
+        self._set_tab_active(self.pal_settings_btn, True)
+        self._set_tab_active(self.pal_options_btn, False)
         self._render_style_cards()
 
-    def pal_tab_inspector(self, s, e):
-        self.pal_blocks_scroll.Visibility    = _SW.Visibility.Collapsed
-        self.pal_settings_scroll.Visibility  = _SW.Visibility.Collapsed
-        self.pal_inspector_scroll.Visibility = _SW.Visibility.Visible
-        self.pal_blocks_btn.Background    = BK['row']
-        self.pal_settings_btn.Background  = BK['row']
-        self.pal_inspector_btn.Background = BK['accent']
-
     def _show_inspector(self, ri, ci, block):
-        # Populate and switch to the Inspector tab when a block is selected
-        self.pal_tab_inspector(None, None)
-        sp = self.inspector_panel
+        # Populate and switch to the Options tab when a block is selected -
+        # this is the tab whose container structure is confirmed to render
+        # cards at full width; the old Inspector tab (separate container)
+        # never did, even after many attempts, so it's been removed rather
+        # than continuing to chase why.
+        self.pal_tab_options(None, None)
+        try:
+            self.options_note_tb.Text = 'Click on the lines on the canvas to set borders'
+            self.options_header_tb.Text = TYPE_NAMES.get(
+                block.get('type'), block.get('type','').replace('_',' ').title())
+        except Exception:
+            pass
+        self._populate_inspector_target(self.options_dynamic_panel, ri, ci, block)
+
+    def _populate_inspector_target(self, sp, ri, ci, block):
         sp.Children.Clear()
         if block is None:
-            lbl = _SWC.TextBlock()
-            lbl.Text = 'Select a block to inspect'
-            lbl.Foreground = BK['muted']; lbl.FontSize = 10
-            lbl.Margin = _SW.Thickness(0, 12, 0, 0)
-            lbl.HorizontalAlignment = _SW.HorizontalAlignment.Center
-            sp.Children.Add(lbl)
             return
 
-        # Block title
-        hdr = _SWC.TextBlock()
-        hdr.Text = block.get('type','').replace('_',' ').title()
-        hdr.Foreground = BK['accent']; hdr.FontSize = 11; hdr.FontWeight = _SW.FontWeights.Bold
-        hdr.Margin = _SW.Thickness(0,0,0,8)
-        sp.Children.Add(hdr)
-
-        # Edit text button for text blocks
+        # Inline text editor, in its own card matching every other section
+        # (COLUMN SPAN, ROW SPAN, etc) - only for text-content blocks, since
+        # the block's name is now shown in the header above instead of
+        # repeated here, and non-text blocks have nothing to edit inline.
         if block.get('type') in ('text','title','heading'):
-            edit_btn = _SWC.Button()
-            edit_btn.Content = 'Edit Text'
-            edit_btn.Height = 24; edit_btn.FontSize = 10
-            edit_btn.Background = BK['row']; edit_btn.Foreground = BK['text']
-            edit_btn.BorderBrush = BK['bdr']; edit_btn.BorderThickness = _SW.Thickness(1)
-            edit_btn.Margin = _SW.Thickness(0,0,0,8); edit_btn.Cursor = _SWI.Cursors.Hand
-            edit_btn.Click += lambda s,e,r=ri,c=ci: self._edit_text_block(r,c)
-            sp.Children.Add(edit_btn)
+            title_card = _SWC.Border()
+            title_card.Background = BK['card']; title_card.CornerRadius = _SW.CornerRadius(6)
+            title_card.BorderBrush = BK['bdr']; title_card.BorderThickness = _SW.Thickness(1)
+            title_card.Padding = _SW.Thickness(10); title_card.Margin = _SW.Thickness(0,0,0,8)
+            title_body = _SWC.StackPanel()
+            title_card.Child = title_body
 
-        # ── Hint about border editing ─────────────────────────────
-        hint = _SWC.TextBlock()
-        hint.Text = 'Click the white lines on the canvas to set borders'
-        hint.Foreground = BK['muted']; hint.FontSize = 9
-        hint.Margin = _SW.Thickness(0, 0, 0, 8)
-        sp.Children.Add(hint)
+            lbl_grid = _SWC.Grid()
+            lbl = _SWC.TextBlock()
+            lbl.Text = 'Text'; lbl.Foreground = BK['accent']; lbl.FontSize = 11
+            lbl.FontWeight = _SW.FontWeights.SemiBold; lbl.Margin = _SW.Thickness(0,0,0,6)
+            lbl_grid.Children.Add(lbl)
+            title_body.Children.Add(lbl_grid)
 
-        # ── Block settings ────────────────────────────────────────
+            text_tb = _SWC.TextBox()
+            _mtb = self.TryFindResource('TextBoxStyle')
+            if _mtb:
+                text_tb.Style = _mtb
+            else:
+                text_tb.Background = BK['row']; text_tb.Foreground = BK['text']
+                text_tb.BorderBrush = BK['bdr']; text_tb.BorderThickness = _SW.Thickness(1)
+                text_tb.Padding = _SW.Thickness(6,4,6,4)
+            text_tb.Text = block.get('content', '')
+            text_tb.FontSize = 10
+            text_tb.TextWrapping = _SW.TextWrapping.Wrap
+            text_tb.AcceptsReturn = True
+            text_tb.MinHeight = 26
+            text_tb.MaxHeight = 100
+            text_tb.VerticalScrollBarVisibility = _SWC.ScrollBarVisibility.Auto
+            text_tb.TextChanged += lambda s,e,r=ri,c=ci: self._set_block_content(r,c,s.Text)
+            title_body.Children.Add(text_tb)
+
+            sp.Children.Add(title_card)
+
+        # -- Block settings -------------------------------------------------
         # Compute col-span max and group membership for the span controls
         _row = self._rows[ri] if ri < len(self._rows) else {}
         _n_cols = len(_row.get('blocks', []))
@@ -1754,15 +2032,27 @@ class LayoutSettingsWindow(WPFWindow):
         # A row is in a group if it has merge_down=True, or a row above it does
         _prev_merge = ri > 0 and self._rows[ri - 1].get('merge_down', False)
         _in_group = bool(_row.get('merge_down', False) or _prev_merge)
-        settings_panel = self._make_settings_panel(ri, ci, block, _mx, _in_group)
-        sp.Children.Add(settings_panel)
+        self._make_settings_panel(sp, ri, ci, block, _mx, _in_group)
 
-    # ── Palette builder ───────────────────────────────────────────
+    def pal_tab_options(self, s, e):
+        self.pal_blocks_scroll.Visibility    = _SW.Visibility.Collapsed
+        self.pal_settings_scroll.Visibility  = _SW.Visibility.Collapsed
+        self.pal_options_scroll.Visibility   = _SW.Visibility.Visible
+        self._set_tab_active(self.pal_blocks_btn, False)
+        self._set_tab_active(self.pal_settings_btn, False)
+        self._set_tab_active(self.pal_options_btn, True)
+
+    # -- Palette builder -------------------------------------------------------
     def _build_palette(self):
-        """Build blocks into palette_stack using the wide item layout that
-        properly stretches to scrollviewer width (proven via Settings 3)."""
+        """Build blocks into palette_stack: one card per group (LAYOUT,
+        PROJECT INFO, etc), with the 'Drag blocks...' hint as plain text
+        above each card and the draggable block items nested inside it as
+        rows - matching the Inspector tab's one-card-with-nested-rows
+        pattern, not a stack of separately-carded items."""
         stack = self.palette_stack
         stack.Children.Clear()
+        _current_group_sp = [None]  # inner StackPanel of whichever group's card is open right now
+
         for (tid, label, icon, grp, sub) in PALETTE:
             if tid == '__grp__':
                 hdr = _SWC.TextBlock()
@@ -1772,25 +2062,43 @@ class LayoutSettingsWindow(WPFWindow):
                 hdr.FontWeight = _SW.FontWeights.Bold
                 hdr.Margin = _SW.Thickness(0, 8, 0, 3)
                 stack.Children.Add(hdr)
+
+                group_card = _SWC.Border()
+                group_card.Background = BK['card']; group_card.CornerRadius = _SW.CornerRadius(8)
+                group_card.BorderBrush = BK['bdr']; group_card.BorderThickness = _SW.Thickness(1)
+                group_card.Padding = _SW.Thickness(10); group_card.Margin = _SW.Thickness(0, 0, 0, 8)
+                group_card.HorizontalAlignment = _SW.HorizontalAlignment.Stretch
+                group_sp = _SWC.StackPanel()
+                group_card.Child = group_sp
+
+                intro_tb = _SWC.TextBlock()
+                intro_tb.Text = 'Drag blocks - span columns - live preview'
+                intro_tb.Foreground = BK['muted']; intro_tb.FontSize = 9
+                intro_tb.Margin = _SW.Thickness(0, 0, 0, 8)
+                intro_tb.TextWrapping = _SW.TextWrapping.Wrap
+                group_sp.Children.Add(intro_tb)
+
+                stack.Children.Add(group_card)
+                _current_group_sp[0] = group_sp
                 continue
             item = self._make_palette2_item(tid, label, icon, grp, sub)
-            stack.Children.Add(item)
+            target = _current_group_sp[0] if _current_group_sp[0] is not None else stack
+            target.Children.Add(item)
 
     def _make_palette2_item(self, tid, label, icon, grp, sub):
-        """Edge-to-edge palette card — mirrors _make_style_card structure:
-        Border with BgCard background, CornerRadius=6, Bdr border, Padding=10, Margin bottom=8.
-        Inner StackPanel with a header line and optional muted subtitle.
-        """
+        """A nested row inside its group's card - matches the Inspector
+        tab's nested-row treatment (BK['bg'] background, no border of its
+        own, since the group card around it already provides that)."""
         grp_color = _SWM.SolidColorBrush(GROUP_COLORS.get(grp, GROUP_COLORS['layout']))
 
         outer = _SWC.Border()
         outer.Tag = tid
-        outer.Background = BK['card']
+        outer.Background = BK['bg']
         outer.CornerRadius = _SW.CornerRadius(6)
         outer.BorderBrush = BK['bdr']
         outer.BorderThickness = _SW.Thickness(1)
         outer.Padding = _SW.Thickness(10)
-        outer.Margin = _SW.Thickness(0, 0, 0, 8)
+        outer.Margin = _SW.Thickness(0, 0, 0, 6)
         outer.Cursor = _SWI.Cursors.Hand
         outer.AllowDrop = False
         outer.HorizontalAlignment = _SW.HorizontalAlignment.Stretch
@@ -1867,7 +2175,7 @@ class LayoutSettingsWindow(WPFWindow):
         except Exception:
             self._drag_type = None
 
-    # ── Canvas rows ───────────────────────────────────────────────
+    # -- Canvas rows -------------------------------------------------------
     def add_row_click(self, s, e):
         self._rows.append({'blocks': [None, None, None, None], 'merge_down': False, 'section': 'body'})
         self._render_canvas(); self._render_preview()
@@ -1894,7 +2202,7 @@ class LayoutSettingsWindow(WPFWindow):
 
     def _cycle_section(self, ri):
         """Cycle section and repeat state through 5 steps:
-        body → repeat_header (first page) → repeat_header (every page) → footer (first page) → footer (every page) → body."""
+        body -> repeat_header (first page) -> repeat_header (every page) -> footer (first page) -> footer (every page) -> body."""
         # Each state is (section, repeat_every_page)
         order = [
             ('body',          False),
@@ -1955,7 +2263,7 @@ class LayoutSettingsWindow(WPFWindow):
             self._rows.insert(insert_at + i, row)
         self._render_canvas(); self._render_preview()
 
-    # ── Block operations ──────────────────────────────────────────
+    # -- Block operations -------------------------------------------------------
     def _occupied(self, ri):
         occ = set()
         for i, b in enumerate(self._rows[ri]['blocks']):
@@ -2079,7 +2387,7 @@ class LayoutSettingsWindow(WPFWindow):
             self._render_canvas()
             self._render_preview()
 
-    # ── Section colour helpers ────────────────────────────────────
+    # -- Section colour helpers -------------------------------------------------
     def _section_brush(self, section, repeat_every_page=False):
         if section == 'repeat_header':
             c = _SWM.Color.FromRgb(0x85, 0xC1, 0xE9) if repeat_every_page else _SWM.Color.FromRgb(0x29, 0x80, 0xB9)
@@ -2096,7 +2404,7 @@ class LayoutSettingsWindow(WPFWindow):
             return 'FOOTER, EVERY PAGE' if repeat_every_page else 'FOOTER, LAST PAGE'
         return ''
 
-    # ── Canvas render ─────────────────────────────────────────────
+    # -- Canvas render -------------------------------------------------------
     def _render_canvas(self):
         stack = self.canvas_stack
         stack.Children.Clear()
@@ -2285,7 +2593,7 @@ class LayoutSettingsWindow(WPFWindow):
     def _make_canvas_row(self, ri, row, fracs, show_controls=True, in_group=False):
         occ = self._occupied(ri)
 
-        # Single-column outer — controls float right via negative margin
+        # Single-column outer, controls float right via negative margin
         outer = _SWC.Border()
         outer.Margin = _SW.Thickness(0, 0, 0, 2 if in_group else 4)
         outer.MinHeight = 80  # matches cell Height for uniform row height
@@ -2296,7 +2604,7 @@ class LayoutSettingsWindow(WPFWindow):
         dock.VerticalAlignment = _SW.VerticalAlignment.Stretch
         outer.Child = dock
 
-        # Row controls docked to the right — fixed width, no overlap
+        # Row controls docked to the right, fixed width, no overlap
         ctrl = _SWC.StackPanel()
         ctrl.VerticalAlignment = _SW.VerticalAlignment.Center
         ctrl.Margin = _SW.Thickness(2, 0, 0, 0)
@@ -2330,7 +2638,7 @@ class LayoutSettingsWindow(WPFWindow):
                 btn.MouseLeftButtonUp += fn
                 ctrl.Children.Add(btn)
 
-            # Section tag button — only on top row of group (or standalone)
+            # Section tag button, only on top row of group (or standalone)
             # Colour encodes both section type and repeat state:
             #   body              = card (dark, no colour)
             #   repeat_header     = dark blue   (first page only)
@@ -2370,7 +2678,7 @@ class LayoutSettingsWindow(WPFWindow):
             sec_btn.MouseLeftButtonUp += lambda s,e,r=ri: self._cycle_section(r)
             ctrl.Children.Add(sec_btn)
 
-        # Merge button — always shown (merge this row with the one below)
+        # Merge button, always shown (merge this row with the one below)
         is_merged = row.get('merge_down', False)
         merge_btn = _SWC.Border()
         merge_btn.Width = 18; merge_btn.Height = 18
@@ -2399,7 +2707,7 @@ class LayoutSettingsWindow(WPFWindow):
         slots_g.AllowDrop = True
         slots_g.VerticalAlignment = _SW.VerticalAlignment.Stretch
 
-        # Build locked set — vline positions interior to a span are locked
+        # Build locked set, vline positions interior to a span are locked
         locked_vpos = set()
         for ci2 in range(4):
             if ci2 in occ: continue
@@ -2493,11 +2801,27 @@ class LayoutSettingsWindow(WPFWindow):
         dock.Children.Add(slots_g)
         return outer
 
+    def _wire_cell_hover(self, cell, base_bg):
+        """Canvas blocks are plain Borders (they need drag/drop support a
+        Button doesn't give), so they get no hover feedback for free the way
+        PBtn/SecondaryButtonStyle/etc do - wire it manually here instead. Restores the cell's
+        own base colour on leave rather than a hardcoded one, since empty vs
+        filled cells already use the same BK['card'] base today but that's
+        not guaranteed to always be true."""
+        def _enter(s, e, c=cell):
+            try: c.Background = BK['hover']
+            except Exception: pass
+        def _leave(s, e, c=cell, bg=base_bg):
+            try: c.Background = bg
+            except Exception: pass
+        cell.MouseEnter += _enter
+        cell.MouseLeave += _leave
+
     def _make_cell(self, ri, ci, block, mx, in_group=False):
         # Check if this cell is vertically occupied by a block above
         v_owner = self._v_occupied(ri, ci) if in_group else None
         if v_owner:
-            # Cell is occupied by a row-spanning block above — show a greyed-out indicator
+            # Cell is occupied by a row-spanning block above, show a greyed-out indicator
             wrapper = _SWC.Border()
             wrapper.CornerRadius = _SW.CornerRadius(5)
             wrapper.Margin = _SW.Thickness(0, 0, 3, 0)
@@ -2514,7 +2838,7 @@ class LayoutSettingsWindow(WPFWindow):
             cell.Opacity = 0.4
             cell.CornerRadius = _SW.CornerRadius(3)
             lbl = _SWC.TextBlock()
-            lbl.Text = '↕'
+            lbl.Text = '<->'
             lbl.Foreground = BK['accent']; lbl.FontSize = 12
             lbl.HorizontalAlignment = _SW.HorizontalAlignment.Center
             lbl.VerticalAlignment   = _SW.VerticalAlignment.Center
@@ -2530,10 +2854,10 @@ class LayoutSettingsWindow(WPFWindow):
         # Wire drop events on the wrapper so palette drags are caught
         # even when the drag enters the cell's child elements
         wrapper.AllowDrop = True
-        # PreviewDragOver tunnels down — set effects here to allow drop
+        # PreviewDragOver tunnels down, set effects here to allow drop
         wrapper.PreviewDragOver += lambda s, e, r=ri, c=ci: self._cell_drag_over(s, e, r, c)
         wrapper.PreviewDragLeave += lambda s, e, r=ri, c=ci: self._cell_drag_leave(s, e, r, c)
-        # Use bubbling Drop (not PreviewDrop) — fires after tunneling completes
+        # Use bubbling Drop (not PreviewDrop), fires after tunneling completes
         wrapper.Drop += lambda s, e, r=ri, c=ci: self._cell_drop(s, e, r, c)
 
         wrapper.VerticalAlignment = _SW.VerticalAlignment.Stretch
@@ -2543,9 +2867,9 @@ class LayoutSettingsWindow(WPFWindow):
         cell_sp.VerticalAlignment = _SW.VerticalAlignment.Stretch
         wrapper.Child = cell_sp
 
-        # ── Top part: the block cell itself ──────────────────────
+        # -- Top part: the block cell itself -----------------------------------
         cell = _SWC.Border()
-        cell.Height = 80  # fixed — all canvas blocks (filled and empty) identical height
+        cell.Height = 80  # fixed, all canvas blocks (filled and empty) identical height
         cell.VerticalAlignment = _SW.VerticalAlignment.Stretch
         cell.HorizontalAlignment = _SW.HorizontalAlignment.Stretch
         cell.Cursor = _SWI.Cursors.Arrow
@@ -2561,6 +2885,7 @@ class LayoutSettingsWindow(WPFWindow):
             lbl.HorizontalAlignment = _SW.HorizontalAlignment.Center
             lbl.VerticalAlignment   = _SW.VerticalAlignment.Center
             cell.Child = lbl
+            self._wire_cell_hover(cell, BK['card'])
             cell_sp.Children.Add(cell)
             return wrapper
 
@@ -2570,6 +2895,7 @@ class LayoutSettingsWindow(WPFWindow):
         cell.BorderBrush = col_br
         cell.BorderThickness = _SW.Thickness(1, 2, 1, 1)
         if not block.get('enabled', True): cell.Opacity = 0.4
+        self._wire_cell_hover(cell, BK['card'])
 
         # Inner grid: handle | content | actions
         ig = _SWC.Grid()
@@ -2701,29 +3027,77 @@ class LayoutSettingsWindow(WPFWindow):
 
         return wrapper
 
-    def _make_settings_panel(self, ri, ci, block, mx=4, in_group=False):
-        panel = _SWC.Border()
-        panel.Background = BK['deep']
-        panel.BorderBrush = BK['bdr']; panel.BorderThickness = _SW.Thickness(0,1,0,0)
-        panel.Padding = _SW.Thickness(8, 6, 8, 8)
-        panel.Tag = 'settings_panel_border'
+    def _make_icon_toggle(self, content, active=False, enabled=True, width=24, height=24, tooltip=None, corner_radius=3):
+        """Small square icon/text button - col-span/row-span arrows, justify
+        buttons, data-grid-line toggles, orientation, alternate-rows,
+        display list/row, all belong through this one function rather than
+        each hand-rolling its own colour logic with no hover feedback at
+        all (which is what every one of them had before). Mirrors the
+        button_menu 'square icon button' role already established for the
+        hamburger menu button, using the palette's existing secondary_bg/
+        hover and secondary_disabled_bg/fg tokens for the unselected and
+        disabled states - accent/accent_hover already covers selected."""
+        btn = _SWC.Button()
+        btn.Content = content
+        btn.Width = width; btn.Height = height
+        btn.BorderThickness = _SW.Thickness(1)
+        btn.BorderBrush = BK['bdr']
+        if tooltip: btn.ToolTip = tooltip
+        if not enabled:
+            btn.Background = BK['dis_bg']; btn.Foreground = BK['dis_fg']
+            btn.IsEnabled = False; btn.Cursor = _SWI.Cursors.Arrow
+        else:
+            btn.Background = BK['accent'] if active else BK['sec_bg']
+            btn.Foreground = BK['text']; btn.Cursor = _SWI.Cursors.Hand
+        # Applied either way. Unlike WPF's default button chrome, which forces
+        # its own grey whenever IsEnabled=False, our template has no
+        # disabled-state override, and hover/pressed triggers never fire on a
+        # disabled button - so this is safe for both states and is what lets
+        # dis_bg/dis_fg show through.
+        _apply_hover_template(btn, corner_radius=corner_radius)
+        return btn
 
-        sp = _SWC.StackPanel()
-        panel.Child = sp
+    def _make_settings_panel(self, target_sp, ri, ci, block, mx=4, in_group=False):
+        # One card per section, following _make_style_card's pattern (BgCard,
+        # CornerRadius=6, Bdr border, Padding=10, Margin bottom=8), rather
+        # than a single outer card with nested rows. HACK: the nested version
+        # produced a width gap that was never isolated - sibling cards added
+        # straight to target_sp, as Settings' Text Style cards are, avoid it.
+
+        # _current[0] is whichever card's inner panel is currently open: sec()
+        # starts a new card and repoints it, and row_sp() plus every direct
+        # _current[0].Children.Add(...) below targets it, so each section
+        # (HEIGHT, COL SPAN, JUSTIFY, ...) becomes its own card. Points at
+        # target_sp initially as a safety net; every real path calls sec().
+        _current = [target_sp]
 
         def sec(lbl):
+            card = _SWC.Border()
+            card.Background = BK['card']; card.CornerRadius = _SW.CornerRadius(6)
+            card.BorderBrush = BK['bdr']; card.BorderThickness = _SW.Thickness(1)
+            card.Padding = _SW.Thickness(10); card.Margin = _SW.Thickness(0,0,0,8)
+            body = _SWC.StackPanel()
+            card.Child = body
+            # Grid, not a bare TextBlock on the StackPanel - matches
+            # _make_style_card's header (a Grid whose ColumnDefinition with no
+            # Width defaults to 1*). Its presence is what separates the cards
+            # that lay out correctly from the ones that showed the width gap.
+            hdr_grid = _SWC.Grid()
             tb = _SWC.TextBlock()
-            tb.Text = lbl; tb.Foreground = BK['muted']; tb.FontSize = 8
-            tb.FontWeight = _SW.FontWeights.Bold; tb.Margin = _SW.Thickness(0,4,0,2)
-            sp.Children.Add(tb)
+            tb.Text = lbl; tb.Foreground = BK['accent']; tb.FontSize = 11
+            tb.FontWeight = _SW.FontWeights.SemiBold; tb.Margin = _SW.Thickness(0,0,0,6)
+            hdr_grid.Children.Add(tb)
+            body.Children.Add(hdr_grid)
+            target_sp.Children.Add(card)
+            _current[0] = body
 
         def row_sp():
             s = _SWC.StackPanel(); s.Orientation = _SWC.Orientation.Horizontal
-            s.Margin = _SW.Thickness(0,0,0,4); sp.Children.Add(s); return s
+            s.Margin = _SW.Thickness(0,0,0,4); _current[0].Children.Add(s); return s
 
-        # ── Height (blank blocks only) ────────────────────────────
+        # -- Height (blank blocks only) ------------------------------------
         if block.get('type') == 'blank':
-            sec('HEIGHT')
+            sec('Height')
             h_row = row_sp()
             h_tb = _SWC.TextBox()
             h_tb.Text = str(block.get('height_pct') or 100)
@@ -2738,28 +3112,16 @@ class LayoutSettingsWindow(WPFWindow):
             h_pct.VerticalAlignment = _SW.VerticalAlignment.Center
             h_row.Children.Add(h_tb); h_row.Children.Add(h_pct)
 
-        # ── Col Span ──────────────────────────────────────────────
-        sec('COL SPAN')
+        # -- Col Span -------------------------------------------------------
+        sec('Column Span')
         span = block.get('span', 1)
         span_row = row_sp()
 
         def make_span_btn(icon_key, enabled, fn):
-            b = _SWC.Border()
-            b.Background = BK['row']; b.BorderBrush = BK['bdr']
-            b.BorderThickness = _SW.Thickness(1); b.CornerRadius = _SW.CornerRadius(2)
-            b.Width = 22; b.Height = 22
-            b.Cursor = _SWI.Cursors.Hand if enabled else _SWI.Cursors.Arrow
-            cc = _SWC.ContentControl()
-            cc.Content = make_icon(icon_key, size=10, color='#FFFFFF' if enabled else '#555555')
-            cc.HorizontalAlignment = _SW.HorizontalAlignment.Center
-            cc.VerticalAlignment = _SW.VerticalAlignment.Center
-            b.Child = cc
-            def on_enter(s, e):
-                if enabled: s.BorderBrush = BK['accent']
-            def on_leave(s, e):
-                s.BorderBrush = BK['bdr']
-            b.MouseEnter += on_enter; b.MouseLeave += on_leave
-            if enabled: b.MouseLeftButtonUp += fn
+            b = self._make_icon_toggle(
+                make_icon(icon_key, size=10, color='#FFFFFF' if enabled else '#77767B'),
+                active=False, enabled=enabled, width=22, height=22, corner_radius=2)
+            if enabled: b.Click += fn
             return b
 
         span_row.Children.Add(make_span_btn('arrow_left', span > 1, lambda s,e,r=ri,c=ci: self._decrease_span(r,c)))
@@ -2778,30 +3140,18 @@ class LayoutSettingsWindow(WPFWindow):
         span_row.Children.Add(span_lbl)
         span_row.Children.Add(make_span_btn('arrow_right', span < mx, lambda s,e,r=ri,c=ci: self._increase_span(r,c)))
 
-        # ── Row Span (merged groups only) ─────────────────────────
+        # -- Row Span (merged groups only) -------------------------------------------
         if in_group:
             rs = block.get('row_span', 1)
             max_rs = self._max_row_span(ri, ci)
-            sec('ROW SPAN')
+            sec('Row Span')
             rs_row = row_sp()
 
             def make_rs_btn(icon_key, enabled, fn):
-                b = _SWC.Border()
-                b.Background = BK['row']; b.BorderBrush = BK['bdr']
-                b.BorderThickness = _SW.Thickness(1); b.CornerRadius = _SW.CornerRadius(2)
-                b.Width = 22; b.Height = 22
-                b.Cursor = _SWI.Cursors.Hand if enabled else _SWI.Cursors.Arrow
-                cc = _SWC.ContentControl()
-                cc.Content = make_icon(icon_key, size=10, color='#FFFFFF' if enabled else '#555555')
-                cc.HorizontalAlignment = _SW.HorizontalAlignment.Center
-                cc.VerticalAlignment = _SW.VerticalAlignment.Center
-                b.Child = cc
-                def on_enter(s, e):
-                    if enabled: s.BorderBrush = BK['accent']
-                def on_leave(s, e):
-                    s.BorderBrush = BK['bdr']
-                b.MouseEnter += on_enter; b.MouseLeave += on_leave
-                if enabled: b.MouseLeftButtonUp += fn
+                b = self._make_icon_toggle(
+                    make_icon(icon_key, size=10, color='#FFFFFF' if enabled else '#77767B'),
+                    active=False, enabled=enabled, width=22, height=22, corner_radius=2)
+                if enabled: b.Click += fn
                 return b
 
             rs_row.Children.Add(make_rs_btn('arrow_up', rs > 1, lambda s,e,r=ri,c=ci: self._decrease_row_span(r,c)))
@@ -2813,8 +3163,8 @@ class LayoutSettingsWindow(WPFWindow):
             rs_row.Children.Add(rs_lbl)
             rs_row.Children.Add(make_rs_btn('arrow_down', rs < max_rs, lambda s,e,r=ri,c=ci: self._increase_row_span(r,c)))
 
-        # ── Horizontal Justification ──────────────────────────────
-        sec('JUSTIFY (Horizontal)')
+        # -- Horizontal Justification -------------------------------------------------
+        sec('Justify (Horizontal)')
         just_row = row_sp()
 
         def just_svg(jtype, active):
@@ -2822,20 +3172,16 @@ class LayoutSettingsWindow(WPFWindow):
 
         just_btns = {}
         for jval in ('left', 'center', 'right'):
-            btn = _SWC.Button()
-            btn.Width = 30; btn.Height = 24
             active = block.get('just','left') == jval
-            btn.Content = just_svg(jval, active)
-            btn.Background = BK['accent'] if active else BK['row']
-            btn.BorderBrush = BK['bdr']; btn.BorderThickness = _SW.Thickness(1)
-            btn.Cursor = _SWI.Cursors.Hand; btn.Margin = _SW.Thickness(0,0,3,0)
+            btn = self._make_icon_toggle(just_svg(jval, active), active=active, width=30, height=24)
+            btn.Margin = _SW.Thickness(0,0,3,0)
             btn.Tag = jval
             just_btns[jval] = btn
             btn.Click += lambda s,e,r=ri,c=ci,btns=just_btns: self._set_just_h(r,c,str(s.Tag), btns, just_svg)
             just_row.Children.Add(btn)
 
-        # ── Vertical Justification ────────────────────────────────
-        sec('JUSTIFY (Vertical)')
+        # -- Vertical Justification -------------------------------------------------
+        sec('Justify (Vertical)')
         vj_row = row_sp()
 
         def vj_svg(vtype, active):
@@ -2844,20 +3190,16 @@ class LayoutSettingsWindow(WPFWindow):
 
         vj_btns = {}
         for vval in ('top', 'middle', 'bottom'):
-            btn = _SWC.Button()
-            btn.Width = 30; btn.Height = 24
             active = block.get('v_just','middle') == vval
-            btn.Content = vj_svg(vval, active)
-            btn.Background = BK['accent'] if active else BK['row']
-            btn.BorderBrush = BK['bdr']; btn.BorderThickness = _SW.Thickness(1)
-            btn.Cursor = _SWI.Cursors.Hand; btn.Margin = _SW.Thickness(0,0,3,0)
+            btn = self._make_icon_toggle(vj_svg(vval, active), active=active, width=30, height=24)
+            btn.Margin = _SW.Thickness(0,0,3,0)
             btn.Tag = vval
             vj_btns[vval] = btn
             btn.Click += lambda s,e,r=ri,c=ci,btns=vj_btns: self._set_just_v(r,c,str(s.Tag), btns, vj_svg)
             vj_row.Children.Add(btn)
 
-        # ── Background colour ─────────────────────────────────────
-        sec('BACKGROUND')
+        # -- Background colour -------------------------------------------------------
+        sec('Background')
         bg_row = row_sp()
 
         swatch = _SWC.Border()
@@ -2870,12 +3212,9 @@ class LayoutSettingsWindow(WPFWindow):
         swatch.MouseLeftButtonUp += lambda s,e,r=ri,c=ci,sw=swatch,lb=None: self._pick_bg_color(r,c,sw)
         bg_row.Children.Add(swatch)
 
-        clear_btn = _SWC.Button()
-        clear_btn.Content = make_icon('remove', size=10, color='#888888')
-        clear_btn.Width = 24; clear_btn.Height = 24
-        clear_btn.FontSize = 10; clear_btn.Cursor = _SWI.Cursors.Hand
-        clear_btn.Background = BK['row']; clear_btn.Foreground = BK['muted']
-        clear_btn.BorderBrush = BK['bdr']; clear_btn.BorderThickness = _SW.Thickness(1)
+        clear_btn = self._make_icon_toggle(
+            make_icon('remove', size=10, color='#FFFFFF'), active=False, width=24, height=24,
+            tooltip='Clear background colour')
         clear_btn.Click += lambda s,e,r=ri,c=ci,sw=swatch: self._clear_bg(r,c,sw)
         bg_row.Children.Add(clear_btn)
 
@@ -2887,27 +3226,19 @@ class LayoutSettingsWindow(WPFWindow):
         swatch.Tag = bg_lbl  # so pick_bg_color can update label
         bg_row.Children.Add(bg_lbl)
 
-        # ── Text style ────────────────────────────────────────────
-        sec('TEXT STYLE')
+        # -- Text style -------------------------------------------------------
+        sec('Text Style')
         ts_cb = _SWC.ComboBox()
-        try:
-            ts_cb.Style = self.FindResource('MCB')
-        except Exception:
-            # Manual fallback styling
+        _mcb1 = self.TryFindResource('ComboBoxStyle')
+        if _mcb1:
+            ts_cb.Style = _mcb1
+        else:
             ts_cb.Background = BK['row']
             ts_cb.Foreground = BK['text']
             ts_cb.BorderBrush = BK['bdr']
             ts_cb.BorderThickness = _SW.Thickness(1)
         ts_cb.Height = 24; ts_cb.FontSize = 10
         ts_cb.Margin = _SW.Thickness(0, 0, 0, 4)
-        # Build items with proper item container style for dark popup
-        item_style = _SW.Style()
-        item_style.TargetType = _SWC.ComboBoxItem
-        item_style.Setters.Add(_SW.Setter(_SWC.Control.BackgroundProperty, BK['card']))
-        item_style.Setters.Add(_SW.Setter(_SWC.Control.ForegroundProperty, BK['text']))
-        item_style.Setters.Add(_SW.Setter(_SWC.Control.PaddingProperty, _SW.Thickness(8, 4, 8, 4)))
-        item_style.Setters.Add(_SW.Setter(_SWC.Control.FontSizeProperty, 11.0))
-        ts_cb.ItemContainerStyle = item_style
 
         current_style = block.get('text_style', 'Data')
         style_names = self._sorted_style_names()
@@ -2920,76 +3251,56 @@ class LayoutSettingsWindow(WPFWindow):
             ts_cb.SelectedIndex = 0
         ts_cb.SelectionChanged += lambda s, e, r=ri, c=ci: self._set_text_style(
             r, c, str(s.SelectedItem) if s.SelectedItem else 'Data')
-        sp.Children.Add(ts_cb)
+        _current[0].Children.Add(ts_cb)
 
 
 
-        # ── Spine block settings (vertical lines + rotation) ─────
-        # ── Data grid lines — H/V icons (data blocks + spine blocks) ──
+        # -- Data grid lines, H/V icons (data blocks + spine blocks) --------------
         _has_h = block.get('type') in DATA_BLOCK_TYPES
         _has_v = block.get('type') in DATA_BLOCK_TYPES or block.get('type') in SPINE_HEADER_TYPES
         if _has_h or _has_v:
-            sec('DATA GRID LINES')
+            sec('Data Grid Lines')
             db_row = row_sp()
             db = block.get('data_borders', {'h':True,'v':True})
-            # H icon: horizontal lines ≡
+            # H icon: horizontal lines
             if _has_h:
-                h_btn = _SWC.Button()
-                h_btn.Padding = _SW.Thickness(4,2,4,2)
-                h_btn.FontSize = 13; h_btn.Height = 26; h_btn.Width = 34
-                h_btn.Cursor = _SWI.Cursors.Hand; h_btn.Margin = _SW.Thickness(0,0,4,0)
-                h_btn.Background = BK['accent'] if db.get('h') else BK['row']
-                h_btn.Foreground = BK['text']
-                h_btn.BorderBrush = BK['bdr']; h_btn.BorderThickness = _SW.Thickness(1)
-                h_btn.ToolTip = 'Horizontal grid lines'
+                h_btn = self._make_icon_toggle(
+                    make_icon('h_align_left', size=14, color='#FFFFFF'),
+                    active=bool(db.get('h')), width=34, height=26, tooltip='Horizontal grid lines')
+                h_btn.Margin = _SW.Thickness(0,0,4,0)
                 h_btn.Tag = 'h'
-                # ≡ icon drawn as horizontal lines icon
-                h_btn.Content = make_icon('h_align_left', size=14, color='#FFFFFF')
                 h_btn.Click += lambda s,e,r=ri,c=ci: self._toggle_data_border(r,c,'h',s)
                 db_row.Children.Add(h_btn)
-            # V icon: vertical lines |||
+            # V icon: vertical lines
             if _has_v:
-                v_btn2 = _SWC.Button()
-                v_btn2.Padding = _SW.Thickness(4,2,4,2)
-                v_btn2.FontSize = 13; v_btn2.Height = 26; v_btn2.Width = 34
-                v_btn2.Cursor = _SWI.Cursors.Hand; v_btn2.Margin = _SW.Thickness(0,0,0,0)
-                v_btn2.Background = BK['accent'] if db.get('v') else BK['row']
-                v_btn2.Foreground = BK['text']
-                v_btn2.BorderBrush = BK['bdr']; v_btn2.BorderThickness = _SW.Thickness(1)
-                v_btn2.ToolTip = 'Vertical grid lines'
+                v_btn2 = self._make_icon_toggle(
+                    make_icon('column_mapping', size=14, color='#FFFFFF'),
+                    active=bool(db.get('v')), width=34, height=26, tooltip='Vertical grid lines')
                 v_btn2.Tag = 'v'
-                v_btn2.Content = make_icon('column_mapping', size=14, color='#FFFFFF')
                 v_btn2.Click += lambda s,e,r=ri,c=ci: self._toggle_data_border(r,c,'v',s)
                 db_row.Children.Add(v_btn2)
 
-        # ── Text orientation (spine blocks only) ──────────────────
+        # -- Text orientation (spine blocks only) ---------------------------------
         if block.get('type') in SPINE_HEADER_TYPES:
-            sec('TEXT ORIENTATION')
+            sec('Text Orientation')
             orient_row = row_sp()
             is_rotated = block.get('rotation', 270) == 270
             for lbl_o, rotated_val in [('Vertical', True), ('Horizontal', False)]:
-                o_btn = _SWC.Button()
-                o_btn.Content = lbl_o; o_btn.Padding = _SW.Thickness(6,2,6,2)
-                o_btn.FontSize = 9; o_btn.Height = 22; o_btn.Cursor = _SWI.Cursors.Hand
-                o_btn.Margin = _SW.Thickness(0,0,4,0)
-                o_btn.Background = BK['accent'] if is_rotated == rotated_val else BK['row']
-                o_btn.Foreground = BK['text']
-                o_btn.BorderBrush = BK['bdr']; o_btn.BorderThickness = _SW.Thickness(1)
+                active = is_rotated == rotated_val
+                o_btn = self._make_icon_toggle(lbl_o, active=active, width=64, height=22)
+                o_btn.FontSize = 9; o_btn.Padding = _SW.Thickness(6,2,6,2); o_btn.Margin = _SW.Thickness(0,0,4,0)
                 o_btn.Click += lambda s,e,r=ri,c=ci,rv=rotated_val: self._set_rotation(r,c,rv,s)
                 orient_row.Children.Add(o_btn)
 
-        # ── Alternate rows (data blocks) ──────────────────────────
+        # -- Alternate rows (data blocks) -----------------------------------------
         if block.get('type') in DATA_BLOCK_TYPES:
-            sec('ALTERNATE ROWS')
+            sec('Alternate Rows')
             alt_row_sp = row_sp()
 
-            alt_toggle = _SWC.Button()
-            alt_toggle.Content = 'On' if block.get('alt_rows') else 'Off'
-            alt_toggle.Width = 36; alt_toggle.Height = 22; alt_toggle.FontSize = 9
-            alt_toggle.Background = BK['accent'] if block.get('alt_rows') else BK['row']
-            alt_toggle.Foreground = BK['text']
-            alt_toggle.BorderBrush = BK['bdr']; alt_toggle.BorderThickness = _SW.Thickness(1)
-            alt_toggle.Cursor = _SWI.Cursors.Hand; alt_toggle.Margin = _SW.Thickness(0,0,6,0)
+            alt_toggle = self._make_icon_toggle(
+                'On' if block.get('alt_rows') else 'Off',
+                active=bool(block.get('alt_rows')), width=36, height=22)
+            alt_toggle.FontSize = 9; alt_toggle.Margin = _SW.Thickness(0,0,6,0)
             alt_toggle.Click += lambda s,e,r=ri,c=ci,btn=alt_toggle: self._toggle_alt_rows(r,c,btn)
             alt_row_sp.Children.Add(alt_toggle)
 
@@ -3010,38 +3321,30 @@ class LayoutSettingsWindow(WPFWindow):
             alt_lbl.Margin = _SW.Thickness(5,0,0,0)
             alt_row_sp.Children.Add(alt_lbl)
 
-        # ── List/Row for reason/method ────────────────────────────
+        # -- List/Row for reason/method -------------------------------------------
         if block.get('type') in ('reason_list', 'method_list'):
-            sec('DISPLAY')
+            sec('Display')
             ls_row = row_sp()
             for val, lbl in [('list','List'),('row','Row')]:
-                btn = _SWC.Button()
-                btn.Content = lbl; btn.Padding = _SW.Thickness(8,2,8,2)
-                btn.FontSize = 9; btn.Height = 22; btn.Cursor = _SWI.Cursors.Hand
-                btn.Margin = _SW.Thickness(0,0,4,0)
-                btn.Background = BK['accent'] if block.get('list_style','list')==val else BK['row']
-                btn.Foreground = BK['text']
-                btn.BorderBrush = BK['bdr']; btn.BorderThickness = _SW.Thickness(1)
+                active = block.get('list_style','list')==val
+                btn = self._make_icon_toggle(lbl, active=active, width=50, height=22)
+                btn.FontSize = 9; btn.Padding = _SW.Thickness(8,2,8,2); btn.Margin = _SW.Thickness(0,0,4,0)
                 btn.Tag = val
                 btn.Click += lambda s,e,r=ri,c=ci: self._set_list_style(r,c,str(s.Tag),ls_row)
                 ls_row.Children.Add(btn)
 
-        # ── Page Count settings ───────────────────────────────────
+        # -- Page Count settings -------------------------------------------------------
         if block.get('type') == 'page_count':
-            sec('FORMAT')
+            sec('Format')
             fmt_cb = _SWC.ComboBox()
-            try: fmt_cb.Style = self.FindResource('MCB')
-            except Exception:
+            _mcb2 = self.TryFindResource('ComboBoxStyle')
+            if _mcb2:
+                fmt_cb.Style = _mcb2
+            else:
                 fmt_cb.Background = BK['row']; fmt_cb.Foreground = BK['text']
                 fmt_cb.BorderBrush = BK['bdr']; fmt_cb.BorderThickness = _SW.Thickness(1)
             fmt_cb.Height = 24; fmt_cb.FontSize = 10
             fmt_cb.Margin = _SW.Thickness(0, 0, 0, 4)
-            item_style = _SW.Style()
-            item_style.TargetType = _SWC.ComboBoxItem
-            item_style.Setters.Add(_SW.Setter(_SWC.Control.BackgroundProperty, BK['card']))
-            item_style.Setters.Add(_SW.Setter(_SWC.Control.ForegroundProperty, BK['text']))
-            item_style.Setters.Add(_SW.Setter(_SWC.Control.PaddingProperty, _SW.Thickness(8, 4, 8, 4)))
-            fmt_cb.ItemContainerStyle = item_style
             cur_fmt = block.get('page_format', 'Page X of Y')
             for f in PAGE_COUNT_FORMATS:
                 fmt_cb.Items.Add(f)
@@ -3050,42 +3353,38 @@ class LayoutSettingsWindow(WPFWindow):
                     fmt_cb.SelectedIndex = PAGE_COUNT_FORMATS.index(cur_fmt)
             except Exception: fmt_cb.SelectedIndex = 1
             fmt_cb.SelectionChanged += lambda s,e,r=ri,c=ci: self._set_block_field(r,c,'page_format',str(s.SelectedItem) if s.SelectedItem else 'Page X of Y')
-            sp.Children.Add(fmt_cb)
+            _current[0].Children.Add(fmt_cb)
 
-            sec('PREFIX')
+            sec('Prefix')
             pfx_tb = _SWC.TextBox()
             pfx_tb.Text = block.get('prefix', ''); pfx_tb.FontSize = 10; pfx_tb.Height = 24
             pfx_tb.Background = BK['row']; pfx_tb.Foreground = BK['text']
             pfx_tb.BorderBrush = BK['bdr']; pfx_tb.BorderThickness = _SW.Thickness(1)
             pfx_tb.Margin = _SW.Thickness(0, 0, 0, 4)
             pfx_tb.LostFocus += lambda s,e,r=ri,c=ci: self._set_block_field(r,c,'prefix',s.Text)
-            sp.Children.Add(pfx_tb)
+            _current[0].Children.Add(pfx_tb)
 
-            sec('SUFFIX')
+            sec('Suffix')
             sfx_tb = _SWC.TextBox()
             sfx_tb.Text = block.get('suffix', ''); sfx_tb.FontSize = 10; sfx_tb.Height = 24
             sfx_tb.Background = BK['row']; sfx_tb.Foreground = BK['text']
             sfx_tb.BorderBrush = BK['bdr']; sfx_tb.BorderThickness = _SW.Thickness(1)
             sfx_tb.Margin = _SW.Thickness(0, 0, 0, 4)
             sfx_tb.LostFocus += lambda s,e,r=ri,c=ci: self._set_block_field(r,c,'suffix',s.Text)
-            sp.Children.Add(sfx_tb)
+            _current[0].Children.Add(sfx_tb)
 
-        # ── Current Issue Date settings ───────────────────────────
+        # -- Current Issue Date settings -------------------------------------------------
         if block.get('type') == 'issue_date':
-            sec('DATE FORMAT')
+            sec('Date Format')
             dfmt_cb = _SWC.ComboBox()
-            try: dfmt_cb.Style = self.FindResource('MCB')
-            except Exception:
+            _mcb3 = self.TryFindResource('ComboBoxStyle')
+            if _mcb3:
+                dfmt_cb.Style = _mcb3
+            else:
                 dfmt_cb.Background = BK['row']; dfmt_cb.Foreground = BK['text']
                 dfmt_cb.BorderBrush = BK['bdr']; dfmt_cb.BorderThickness = _SW.Thickness(1)
             dfmt_cb.Height = 24; dfmt_cb.FontSize = 10
             dfmt_cb.Margin = _SW.Thickness(0, 0, 0, 4)
-            item_style2 = _SW.Style()
-            item_style2.TargetType = _SWC.ComboBoxItem
-            item_style2.Setters.Add(_SW.Setter(_SWC.Control.BackgroundProperty, BK['card']))
-            item_style2.Setters.Add(_SW.Setter(_SWC.Control.ForegroundProperty, BK['text']))
-            item_style2.Setters.Add(_SW.Setter(_SWC.Control.PaddingProperty, _SW.Thickness(8, 4, 8, 4)))
-            dfmt_cb.ItemContainerStyle = item_style2
             cur_dfmt = block.get('date_format', 'dd/MM/yyyy')
             for f in DATE_FORMATS:
                 dfmt_cb.Items.Add(f)
@@ -3094,27 +3393,25 @@ class LayoutSettingsWindow(WPFWindow):
                     dfmt_cb.SelectedIndex = DATE_FORMATS.index(cur_dfmt)
             except Exception: dfmt_cb.SelectedIndex = 0
             dfmt_cb.SelectionChanged += lambda s,e,r=ri,c=ci: self._set_block_field(r,c,'date_format',str(s.SelectedItem) if s.SelectedItem else 'dd/MM/yyyy')
-            sp.Children.Add(dfmt_cb)
+            _current[0].Children.Add(dfmt_cb)
 
-            sec('PREFIX')
+            sec('Prefix')
             pfx_tb2 = _SWC.TextBox()
             pfx_tb2.Text = block.get('prefix', ''); pfx_tb2.FontSize = 10; pfx_tb2.Height = 24
             pfx_tb2.Background = BK['row']; pfx_tb2.Foreground = BK['text']
             pfx_tb2.BorderBrush = BK['bdr']; pfx_tb2.BorderThickness = _SW.Thickness(1)
             pfx_tb2.Margin = _SW.Thickness(0, 0, 0, 4)
             pfx_tb2.LostFocus += lambda s,e,r=ri,c=ci: self._set_block_field(r,c,'prefix',s.Text)
-            sp.Children.Add(pfx_tb2)
+            _current[0].Children.Add(pfx_tb2)
 
-            sec('SUFFIX')
+            sec('Suffix')
             sfx_tb2 = _SWC.TextBox()
             sfx_tb2.Text = block.get('suffix', ''); sfx_tb2.FontSize = 10; sfx_tb2.Height = 24
             sfx_tb2.Background = BK['row']; sfx_tb2.Foreground = BK['text']
             sfx_tb2.BorderBrush = BK['bdr']; sfx_tb2.BorderThickness = _SW.Thickness(1)
             sfx_tb2.Margin = _SW.Thickness(0, 0, 0, 4)
             sfx_tb2.LostFocus += lambda s,e,r=ri,c=ci: self._set_block_field(r,c,'suffix',s.Text)
-            sp.Children.Add(sfx_tb2)
-
-        return panel
+            _current[0].Children.Add(sfx_tb2)
 
     def _paint_bg_swatch(self, swatch, hex_color):
         """Paint a swatch showing either a colour or a '+' placeholder."""
@@ -3131,7 +3428,7 @@ class LayoutSettingsWindow(WPFWindow):
             plus.VerticalAlignment   = _SW.VerticalAlignment.Center
             swatch.Child = plus
 
-    # ── Block setting setters ─────────────────────────────────────
+    # -- Block setting setters -------------------------------------------------------
     def _set_just_h(self, ri, ci, val, btns, svg_fn):
         b = self._rows[ri]['blocks'][ci]
         if not b: return
@@ -3139,7 +3436,7 @@ class LayoutSettingsWindow(WPFWindow):
         # Update button highlights AND icon strokes in-place
         for jval, btn in btns.items():
             active = (jval == val)
-            btn.Background = BK['accent'] if active else BK['row']
+            btn.Background = BK['accent'] if active else BK['sec_bg']
             btn.Content = svg_fn(jval, active)
         self._render_preview()
 
@@ -3149,7 +3446,7 @@ class LayoutSettingsWindow(WPFWindow):
         b['v_just'] = val
         for vval, btn in btns.items():
             active = (vval == val)
-            btn.Background = BK['accent'] if active else BK['row']
+            btn.Background = BK['accent'] if active else BK['sec_bg']
             btn.Content = svg_fn(vval, active)
         self._render_preview()
 
@@ -3191,7 +3488,7 @@ class LayoutSettingsWindow(WPFWindow):
         if not b: return
         b.setdefault('data_borders', {'h':True,'v':True})
         b['data_borders'][axis] = not b['data_borders'].get(axis, True)
-        btn.Background = BK['accent'] if b['data_borders'][axis] else BK['row']
+        btn.Background = BK['accent'] if b['data_borders'][axis] else BK['sec_bg']
         self._render_preview()
 
     def _set_rotation(self, ri, ci, rotated, btn_clicked):
@@ -3218,7 +3515,7 @@ class LayoutSettingsWindow(WPFWindow):
         if not b: return
         b['alt_rows'] = not b.get('alt_rows', False)
         btn.Content = 'On' if b['alt_rows'] else 'Off'
-        btn.Background = BK['accent'] if b['alt_rows'] else BK['row']
+        btn.Background = BK['accent'] if b['alt_rows'] else BK['sec_bg']
         self._render_preview()
 
     def _pick_alt_color(self, ri, ci, swatch):
@@ -3237,7 +3534,7 @@ class LayoutSettingsWindow(WPFWindow):
         b['list_style'] = val
         for child in ls_row.Children:
             if hasattr(child,'Tag'):
-                child.Background = BK['accent'] if str(child.Tag)==val else BK['row']
+                child.Background = BK['accent'] if str(child.Tag)==val else BK['sec_bg']
         self._render_preview()
 
     def _set_height(self, ri, ci, val):
@@ -3254,10 +3551,21 @@ class LayoutSettingsWindow(WPFWindow):
         b[field] = val
         self._render_preview()
 
-    # ── Drag events ───────────────────────────────────────────────
+    def _set_block_content(self, ri, ci, val):
+        """Live content updates from the inline text editor - same effect as
+        _edit_text_block's popup used to have, just without the round-trip
+        through a dialog. Matches _update_block_label's lighter pattern
+        (preview only, not a full canvas rebuild) since this fires on every
+        keystroke."""
+        b = self._rows[ri]['blocks'][ci]
+        if not b: return
+        b['content'] = val
+        self._render_preview()
+
+    # -- Drag events -------------------------------------------------------------
     def _cell_drag_over(self, sender, args, ri, ci):
         try:
-            # Always show Move cursor — we verify data in Drop handler
+            # Always show Move cursor, we verify data in Drop handler
             args.Effects = _SW.DragDropEffects.Move
             args.Handled = True
             sender.BorderBrush = BK['accent']
@@ -3310,7 +3618,7 @@ class LayoutSettingsWindow(WPFWindow):
             _SW.DragDrop.DoDragDrop(sender, data, _SW.DragDropEffects.Move)
         except Exception: pass
 
-    # ── Text styles panel ─────────────────────────────────────────
+    # -- Text styles panel -------------------------------------------------------
     def add_style_click(self, s, e):
         name = self._prompt('Style name:')
         if not name or name in self._text_styles:
@@ -3364,14 +3672,17 @@ class LayoutSettingsWindow(WPFWindow):
         hdr = _SWC.Grid()
         h_tb = _SWC.TextBlock(); h_tb.Text = name; h_tb.Foreground = BK['accent']
         h_tb.FontSize = 11; h_tb.FontWeight = _SW.FontWeights.SemiBold
-        del_btn = _SWC.Button(); del_btn.Content = make_icon('delete', size=11, color='#888888')
-        del_btn.Background = _SWM.Brushes.Transparent; del_btn.BorderThickness = _SW.Thickness(0)
-        del_btn.Foreground = BK['muted']; del_btn.Cursor = _SWI.Cursors.Hand
+        del_btn = _SWC.Button(); del_btn.Content = make_icon('delete', size=12, color='#FFFFFF')
+        del_btn.Width = 22; del_btn.Height = 22
+        del_btn.Background = BK['danger']; del_btn.Foreground = _SWM.Brushes.White
+        del_btn.BorderThickness = _SW.Thickness(0); del_btn.Padding = _SW.Thickness(0)
+        del_btn.Cursor = _SWI.Cursors.Hand
         del_btn.HorizontalAlignment = _SW.HorizontalAlignment.Right
         built_in = name in ('Title','Header','Data')
-        # Built-in styles cannot be deleted — hide the X entirely
+        # Built-in styles cannot be deleted, hide the X entirely
         del_btn.Visibility = _SW.Visibility.Collapsed if built_in else _SW.Visibility.Visible
         del_btn.Click += lambda s,e,n=name: self._delete_style(n)
+        _apply_delete_circle_template(del_btn)
         hdr.Children.Add(h_tb); hdr.Children.Add(del_btn)
         sp.Children.Add(hdr)
 
@@ -3387,23 +3698,17 @@ class LayoutSettingsWindow(WPFWindow):
             fp.Children.Add(lbl); fp.Children.Add(control)
             _SWC.Grid.SetColumn(fp, col); _SWC.Grid.SetRow(fp, row); grid.Children.Add(fp)
 
-        # Font — enumerate system fonts (same set Revit uses for text styles)
+        # Font, enumerate system fonts (same set Revit uses for text styles)
         font_cb = _SWC.ComboBox()
-        try: font_cb.Style = self.FindResource('MCB')
-        except Exception:
+        _mcb_style = self.TryFindResource('ComboBoxStyle')
+        if _mcb_style:
+            font_cb.Style = _mcb_style
+        else:
             font_cb.Background = BK['row']
             font_cb.Foreground = BK['text']
             font_cb.BorderBrush = BK['bdr']
             font_cb.BorderThickness = _SW.Thickness(1)
         font_cb.FontSize = 10; font_cb.Height = 24
-        # ItemContainerStyle for dark popup
-        font_item_style = _SW.Style()
-        font_item_style.TargetType = _SWC.ComboBoxItem
-        font_item_style.Setters.Add(_SW.Setter(_SWC.Control.BackgroundProperty, BK['card']))
-        font_item_style.Setters.Add(_SW.Setter(_SWC.Control.ForegroundProperty, BK['text']))
-        font_item_style.Setters.Add(_SW.Setter(_SWC.Control.PaddingProperty, _SW.Thickness(8, 4, 8, 4)))
-        font_item_style.Setters.Add(_SW.Setter(_SWC.Control.FontSizeProperty, 11.0))
-        font_cb.ItemContainerStyle = font_item_style
         for f in self._get_system_fonts():
             font_cb.Items.Add(f)
         try: font_cb.SelectedItem = st.get('font','Arial')
@@ -3412,9 +3717,14 @@ class LayoutSettingsWindow(WPFWindow):
         add_field(fields, 0, 0, 'Font', font_cb)
 
         # Size mm
-        size_tb = _SWC.TextBox(); size_tb.Text=str(st.get('size_mm',2.5)); size_tb.Height=24; size_tb.FontSize=10
-        size_tb.Background=BK['row']; size_tb.Foreground=BK['text']; size_tb.BorderBrush=BK['bdr']; size_tb.BorderThickness=_SW.Thickness(1)
-        size_tb.Padding=_SW.Thickness(4,2,4,2); size_tb.VerticalContentAlignment=_SW.VerticalAlignment.Center
+        size_tb = _SWC.TextBox()
+        _mtb_style = self.TryFindResource('TextBoxStyle')
+        if _mtb_style:
+            size_tb.Style = _mtb_style
+        else:
+            size_tb.Background=BK['row']; size_tb.Foreground=BK['text']; size_tb.BorderBrush=BK['bdr']; size_tb.BorderThickness=_SW.Thickness(1)
+            size_tb.Padding=_SW.Thickness(4,2,4,2); size_tb.VerticalContentAlignment=_SW.VerticalAlignment.Center
+        size_tb.Text=str(st.get('size_mm',2.5)); size_tb.Height=24; size_tb.FontSize=10
         size_tb.TextChanged += lambda s,e,n=name: self._update_style_size(n,s.Text)
         add_field(fields, 1, 0, 'Size (mm)', size_tb)
 
@@ -3425,6 +3735,7 @@ class LayoutSettingsWindow(WPFWindow):
         except Exception: color_btn.Background=BK['card']
         color_btn.Content=st.get('color','#000000'); color_btn.Foreground=BK['text']
         color_btn.Click += lambda s,e,n=name,btn=color_btn: self._pick_style_color(n,btn)
+        _apply_hover_template(color_btn, corner_radius=4)
         add_field(fields, 0, 1, 'Colour', color_btn)
 
         # Style toggles
@@ -3440,6 +3751,7 @@ class LayoutSettingsWindow(WPFWindow):
             tb.BorderThickness = _SW.Thickness(1)
             tb.Tag = prop
             tb.Click += lambda s,e,n=name: self._toggle_style_prop(n, str(s.Tag), s)
+            _apply_hover_template(tb, corner_radius=4)
             tog_sp.Children.Add(tb)
         add_field(fields, 1, 1, 'Style', tog_sp)
 
@@ -3448,7 +3760,7 @@ class LayoutSettingsWindow(WPFWindow):
         # Preview swatch
         prev_b = _SWC.Border(); prev_b.Background=BK['row']; prev_b.CornerRadius=_SW.CornerRadius(3)
         prev_b.Padding=_SW.Thickness(6,3,6,3); prev_b.Margin=_SW.Thickness(0,6,0,0)
-        prev_tb = _SWC.TextBlock(); prev_tb.Text=name+' — The quick brown fox'
+        prev_tb = _SWC.TextBlock(); prev_tb.Text=name+' - The quick brown fox'
         try:
             prev_tb.FontFamily=_SWM.FontFamily(st.get('font','Arial'))
             prev_tb.FontSize=max(4, st.get('size_mm',2.5)*3.5)
@@ -3493,7 +3805,7 @@ class LayoutSettingsWindow(WPFWindow):
         del self._text_styles[name]
         self._render_style_cards()
 
-    # ── Preview ───────────────────────────────────────────────────
+    # -- Preview -------------------------------------------------------------------
     def _on_prev_resize(self, sender, args):
         self._render_preview()
 
@@ -3517,9 +3829,20 @@ class LayoutSettingsWindow(WPFWindow):
                 self.preview_stack.Children.Add(tb)
             except Exception: pass
 
-    # ── Colour picker dialog ──────────────────────────────────────
+    # -- Colour picker dialog -------------------------------------------------------
     def _color_dialog(self, current_hex=None):
         """Show a simple hex-input dialog for colour picking."""
+        if sdlg:
+            val = sdlg.ask_string(
+                'Enter hex colour (#RRGGBB)',
+                title='Background Colour',
+                default=current_hex or '#FFFFFF')
+            if val is None:
+                return None
+            val = val.strip()
+            if not val.startswith('#'):
+                val = '#' + val
+            return val
         import System.Windows.Markup as _Markup
         xaml_str = u'''<Window
             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -3564,8 +3887,10 @@ class LayoutSettingsWindow(WPFWindow):
         except Exception:
             return None
 
-    # ── Helpers ───────────────────────────────────────────────────
+    # -- Helpers -------------------------------------------------------------------
     def _prompt(self, message, default=''):
+        if sdlg:
+            return sdlg.ask_string(message, default=default or '')
         import System.Windows.Markup as _Markup
         xaml_str = u'''<Window
             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -3625,7 +3950,7 @@ class LayoutSettingsWindow(WPFWindow):
             t.Tick += tick; t.Start()
         except Exception: pass
 
-    # ── Public API ────────────────────────────────────────────────
+    # -- Public API -------------------------------------------------------------
     def get_active_layout(self):
         self._flush_template()
         return {
@@ -3639,7 +3964,7 @@ class LayoutSettingsWindow(WPFWindow):
         }
 
 
-# ── Entry point ───────────────────────────────────────────────────
+# -- Entry point -------------------------------------------------------------
 if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.abspath(__file__))
     win = LayoutSettingsWindow(script_dir)

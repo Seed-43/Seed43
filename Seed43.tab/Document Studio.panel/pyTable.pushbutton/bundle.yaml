@@ -1,0 +1,14 @@
+title: "pyTable"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Export model categories and schedule parameters to Excel or LibreOffice
+  Calc, edit them externally, then import the changes back into the model
+  with a full preview before anything is written. Type parameters are
+  written to the Type element, not the instance, and read-only parameters
+  are shown but never written back.
+
+  __________________________________________________________________

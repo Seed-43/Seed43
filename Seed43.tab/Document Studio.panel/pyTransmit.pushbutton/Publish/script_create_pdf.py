@@ -9,6 +9,27 @@ import re, os, time, sys, tempfile
 output = script.get_output()
 output.hide()
 
+try:
+    from Snippets import _dialogs as sdlg
+except Exception:
+    sdlg = None
+
+def _alert(message, title='', exitscript=False):
+    """Themed popup via the shared Snippets dialog lib, falls back to
+    pyRevit's default forms.alert if the shared lib isn't available."""
+    if sdlg:
+        sdlg.message(message, title=title)
+    else:
+        forms.alert(message, title=title)
+    if exitscript:
+        script.exit()
+
+def _confirm(message, title='', no='No'):
+    """Themed yes/no popup, returns True on yes."""
+    if sdlg:
+        return sdlg.confirm(message, title=title, no=no)
+    return bool(forms.alert(message, title=title, ok=False, yes=True, no=True))
+
 # ── Log capture via payload ───────────────────────────────────────────
 _log_lines = PYTRANSMIT_PAYLOAD.get('_log_lines', [])
 def _log(msg):
@@ -40,17 +61,35 @@ _temp_dir  = tempfile.gettempdir()
 _temp_xlsx = os.path.join(_temp_dir, "{}_TEMP.xlsx".format(_safe_base))
 
 # ── Step 1: Generate temp Excel ───────────────────────────────────────────────
+# The PDF is the Excel workbook converted, so it runs whichever Excel writer
+# matches the assigned layout. pyTransmit sets _layout_is_studio; when this
+# script is run on its own, fall back to reading the layout's schema, since a
+# Studio layout handed to the Layout Builder writer produces a blank PDF.
 _script_dir = os.path.dirname(os.path.abspath(__file__))
-_excel_path = os.path.join(_script_dir, 'script_create_excel.py')
+_is_studio = _p.get('_layout_is_studio')
+if _is_studio is None:
+    _is_studio = False
+    _lp = _p.get('layout_json_path')
+    if _lp and os.path.isfile(_lp):
+        try:
+            import json as _json_probe
+            with open(_lp, 'r') as _lf:
+                _ld = _json_probe.load(_lf)
+            _is_studio = ('cells' in _ld and 'rows' not in _ld)
+        except Exception:
+            pass
+_excel_path = os.path.join(
+    _script_dir,
+    'script_create_excel_studio.py' if _is_studio else 'script_create_excel.py')
 
 import sys as _sys
 _settings_dir = os.path.join(os.path.dirname(_script_dir), 'Settings')
 if _settings_dir not in _sys.path:
     _sys.path.insert(0, _settings_dir)
-from Dialogs import Dialogs
 
 if not os.path.exists(_excel_path):
-    forms.alert("script_create_excel.py not found at:\n{}".format(_excel_path), exitscript=True)
+    _alert("{} not found at:\n{}".format(
+        os.path.basename(_excel_path), _excel_path), exitscript=True)
 
 _payload_for_excel = dict(_p)
 _payload_for_excel['_pdf_temp_xlsx_path'] = _temp_xlsx
@@ -67,11 +106,11 @@ try:
     exec(_src, _ns)
 except Exception as _e:
     import traceback as _tb
-    forms.alert("Error generating temp Excel:\n{}".format(
+    _alert("Error generating temp Excel:\n{}".format(
         _tb.format_exc() or str(_e)), exitscript=True)
 
 if not os.path.exists(_temp_xlsx):
-    forms.alert("Temp Excel file was not created:\n{}".format(_temp_xlsx), exitscript=True)
+    _alert("Temp Excel file was not created:\n{}".format(_temp_xlsx), exitscript=True)
 
 output.print_md("Temp Excel created: `{}`".format(_temp_xlsx))
 
@@ -104,19 +143,26 @@ else:
 
 output.print_md("PDF path: `{}`".format(_pdf_path))
 
-# ── Step 3: Export via Shell (most reliable — no COM interop issues) ──────────
+# ── Step 3: Export via Shell (most reliable, no COM interop issues) ──────────
 output.print_md("Exporting to PDF...")
 
 # Delete existing PDF first so converter can write cleanly
-if os.path.exists(_pdf_path):
+# Retry rather than abandon the run: the temp workbook has already been built
+# by this point, and the usual cause - the previous PDF still open in a viewer
+# - takes seconds to fix.
+while os.path.exists(_pdf_path):
     try:
         os.remove(_pdf_path)
+        break
     except Exception as _del_existing:
-        Dialogs.alert(
-            "File In Use",
-            "Cannot overwrite the existing PDF, it may be open in another program. Please close it and try again."
-        )
-        sys.exit(0)
+        if not _confirm(
+                "Cannot overwrite the existing PDF - it is probably open in "
+                "another program.\n\nClose it, then choose Retry.\n\nFile:\n{}".format(_pdf_path),
+                title="File In Use", no="Cancel"):
+            output.print_md("PDF export cancelled - {} is in use.".format(_pdf_path))
+            try: os.remove(_temp_xlsx)
+            except Exception: pass
+            sys.exit(0)
 
 import subprocess as _sp
 
@@ -168,7 +214,7 @@ if not _pdf_written:
         'xl.Visible       = False\n'
         'xl.DisplayAlerts = False\n'
         'Set wb = xl.Workbooks.Open(xlPath, False, True)\n'
-        'wb.ExportAsFixedFormat 0, pdfPath, 0, True, False, , , False\n'
+        'wb.ExportAsFixedFormat 0, pdfPath, 0, True, False,,, False\n'
         'wb.Close False\n'
         'xl.Quit\n'
         'Set wb = Nothing\n'
@@ -197,9 +243,9 @@ if not _pdf_written:
 
 # ── No converter found ────────────────────────────────────────────────────────
 if not _pdf_written:
-    Dialogs.alert(
-        "PDF Export Failed",
-        "No supported PDF converter was found. Install Microsoft Office (Excel) or LibreOffice (free) from libreoffice.org, then re-run pyTransmit."
+    _alert(
+        "No supported PDF converter was found. Install Microsoft Office (Excel) or LibreOffice (free) from libreoffice.org, then re-run pyTransmit.",
+        title="PDF Export Failed"
     )
     try: os.remove(_temp_xlsx)
     except Exception: pass
@@ -217,5 +263,5 @@ if _pdf_path and os.path.exists(_pdf_path):
     if _open_dlg:
         if _open_dlg(u'PDF Saved', u'Open the file?'):
             os.startfile(_pdf_path)
-    elif forms.alert("PDF saved!\n\nOpen the file?", yes=True, no=True):
+    elif _confirm("PDF saved!\n\nOpen the file?"):
         os.startfile(_pdf_path)

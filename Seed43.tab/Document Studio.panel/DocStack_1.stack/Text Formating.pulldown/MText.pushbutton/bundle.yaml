@@ -1,13 +1,13 @@
-﻿title: "MText"
+title: "MText"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
-  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 260521
-  _____________________________________________________________________
-  Description:
-  Select multiple Text Notes in the current view and merge them into a single multi-line Text Note, similar to MText in AutoCAD.
+tooltip: >
+  __________________________________________________________________
 
-  Notes that are touching or overlapping are joined as one continuous paragraph. Notes with a visible gap between them become separate paragraphs in the merged result.
-  _____________________________________________________________________
-  Last update:
-  - Initial release
-  _____________________________________________________________________
+  Description:
+
+  Merges multiple selected Text Notes in the current view into a single
+  multi-line Text Note, similar to MText in AutoCAD. Notes that are touching
+  or overlapping join as one paragraph; notes with a visible gap become
+  separate paragraphs in the merged result.
+
+  __________________________________________________________________

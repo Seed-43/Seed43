@@ -2,6 +2,14 @@
 # ImportSettings.py
 
 import os
+
+# pytransmit_paths lives in the pushbutton root, which is not guaranteed to be
+# on sys.path - pyTransmit loads these modules by inserting only Settings/.
+import sys as _sys
+_PT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PT_ROOT not in _sys.path:
+    _sys.path.insert(0, _PT_ROOT)
+from pytransmit_paths import SETTINGS_DIR, SYNC_FILE as _SYNC_PATH
 import json
 import shutil
 
@@ -9,6 +17,8 @@ import clr
 clr.AddReference("PresentationFramework")
 clr.AddReference("PresentationCore")
 clr.AddReference("WindowsBase")
+
+from Snippets import _dialogs as sdlg
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CONTROLLER
@@ -32,8 +42,8 @@ class ImportSettingsController(object):
 
     def __init__(self, script_dir):
         self._script_dir   = script_dir
-        self._sync_path    = os.path.join(script_dir, self.SYNC_FILE)
-        self._settings_dir = os.path.join(script_dir, 'Settings')
+        self._sync_path    = _SYNC_PATH
+        self._settings_dir = SETTINGS_DIR
         self._host         = None
 
     # ── Attach ────────────────────────────────────────────────────────────────
@@ -151,7 +161,7 @@ class ImportSettingsController(object):
     # ── Event handlers ────────────────────────────────────────────────────────
 
     def _wire_events(self):
-        # Browse and Execute buttons are wired in XAML — don't bind here again (double-fire).
+        # Browse and Execute buttons are wired in XAML, don't bind here again (double-fire).
         # Wire LostFocus on the path textbox so typed/pasted paths are saved immediately.
         h = self._host
         if h is None:
@@ -256,39 +266,5 @@ class ImportSettingsController(object):
         except: pass
 
     def _alert(self, title, message):
-        try:
-            import System.Windows.Markup as Markup
-            xaml = (
-                '<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"'
-                ' xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"'
-                ' Title="" Width="360" SizeToContent="Height"'
-                ' WindowStyle="None" ResizeMode="NoResize"'
-                ' WindowStartupLocation="CenterScreen"'
-                ' Background="Transparent" FontFamily="Segoe UI" AllowsTransparency="True">'
-                '<Border Background="#2B3340" CornerRadius="10" Margin="12" Padding="24,20,24,20">'
-                '<Border.Effect><DropShadowEffect Color="Black" Opacity="0.5" ShadowDepth="4" BlurRadius="16"/></Border.Effect>'
-                '<StackPanel>'
-                '<Border Background="#208A3C" Height="3" CornerRadius="2" Margin="0,0,0,16"/>'
-                '<TextBlock x:Name="t" Foreground="#F4FAFF" FontSize="15" FontWeight="Bold" Margin="0,0,0,8"/>'
-                '<TextBlock x:Name="m" Foreground="#F4FAFF" FontSize="12" Opacity="0.85" TextWrapping="Wrap" Margin="0,0,0,24"/>'
-                '<StackPanel Orientation="Horizontal" HorizontalAlignment="Right">'
-                '<Button x:Name="ok" Content="OK" Foreground="#F4FAFF" FontSize="12" FontWeight="Bold"'
-                ' BorderThickness="0" Padding="28,8" Cursor="Hand">'
-                '<Button.Template><ControlTemplate TargetType="Button">'
-                '<Border x:Name="Bd" Background="#208A3C" CornerRadius="6" Padding="{TemplateBinding Padding}">'
-                '<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>'
-                '</Border></ControlTemplate></Button.Template>'
-                '</Button></StackPanel></StackPanel></Border></Window>'
-            )
-            dlg = Markup.XamlReader.Parse(xaml)
-            dlg.FindName("t").Text = title
-            dlg.FindName("m").Text = message
-            def on_ok(s, e): dlg.Close()
-            dlg.FindName("ok").Click += on_ok
-            dlg.ShowDialog()
-        except:
-            try:
-                from pyrevit import forms
-                forms.alert("{}\n\n{}".format(title, message))
-            except:
-                pass
+        """Themed info dialog, now the shared Snippets._dialogs card."""
+        sdlg.message(message, title=title)

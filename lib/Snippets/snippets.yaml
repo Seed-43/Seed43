@@ -1,5 +1,17 @@
 snippets:
 
+  _dialogs.py:
+    description: >
+      Themed message/confirm/text-input popups: borderless rounded dark card
+      with a green accent bar and drop shadow, no native title bar,
+      drag-movable by clicking anywhere on the card. The one popup style
+      every Seed43 tool should use instead of building its own message box.
+      Used by pySheets.
+    functions:
+      message:    Show a themed OK-only info popup.
+      confirm:    Show a themed yes/cancel popup, returns True on yes.
+      ask_string: Show a themed single-line text prompt, returns the string or None on cancel.
+
   _filters.py:
     description: >
       Shared helpers for creating and applying Revit view filters.
@@ -11,6 +23,38 @@ snippets:
       apply_filter_to_target:    Add and hide a filter on the active view or its template.
       create_parameter_filter:   Create a string-equals ParameterFilterElement.
       create_category_filter:    Create a category-only filter matching every element in a category.
+
+  _icons.py:
+    description: >
+      Vector icon rendering for Seed43 panels and scripts. Icons are drawn
+      as sharp scalable shapes from _icons.json, not bitmaps, so they stay
+      crisp at any size. Used by pyTransmit.
+    functions:
+      make_icon:            Return a Viewbox containing the named icon at a given size and color.
+      make_icon_with_label: Return a horizontal StackPanel with an icon and a text label beside it.
+      icon_keys:            Return a sorted list of all available icon key names.
+
+  _migrations.py:
+    description: >
+      Reads seed43_migrations.yaml and copies user .json config from renamed
+      tool folders to their new location before the updater syncs, so saved
+      settings survive a rename. Used by startup.py and About.
+    functions:
+      read_migrations:  Parse seed43_migrations.yaml into a list of migration dicts.
+      apply_migrations: Copy .json config from each old folder path to its new one.
+
+  _parameters.py:
+    description: >
+      Shared helpers for reading/writing Revit parameters (unit-aware via
+      SetValueString/AsValueString) and collecting categories/schedules.
+      Used by pyTable.
+    functions:
+      get_param_display_value:      Return a parameter's value as display text.
+      set_param_from_display_value: Write display text back to a parameter.
+      get_categories_with_elements: Return categories that have at least one placed element.
+      get_elements_by_category:     Return all instances (not types) in a category.
+      get_schedules:                Return all non-template ViewSchedules in the project.
+      get_param_dropdown_options:   Return valid options for a constrained parameter, or None.
 
   _revisions.py:
     description: >
@@ -24,6 +68,101 @@ snippets:
       load_backup:               Load a backup JSON file and return it as a dict.
       save_backup:               Write a dict to disk as a JSON backup file.
 
+  _svg_icons.py:
+    description: >
+      Renders the extension's icon.png files from the SVG sources in
+      lib/icons, swapping the two brand greens (#1f893c, #1faa3c) for the
+      palette's accent and accent_hover. Button icons are baked PNGs, so
+      without this they keep the old green after an accent change while
+      every window follows the new one. Any other colour is left alone -
+      pyLink's #28b74a document is deliberately not an accent. Parsing is
+      plain Python (testable outside Revit); only rendering needs WPF.
+      A targeted reader for Inkscape output, not a general SVG engine.
+      Used by About, which rebuilds on close if the accent changed.
+    functions:
+      accent_mapping:     "Build {source_hex: replacement_hex} from the palette."
+      substitute_colours: Swap the brand greens in raw SVG text, case-insensitively.
+      parse_svg:          Flatten an SVG to (viewport, shapes, gradients, skipped).
+      parse_transform:    Reduce an SVG transform list to one matrix tuple.
+      render_png:         Draw parsed shapes to a PNG via WPF (IronPython only).
+      icon_targets:       Map each lib/icons SVG to the icon.png it writes.
+      rebuild_all:        Regenerate every icon; returns (written, problems), never raises.
+
+  _schedule.py:
+    description: >
+      Scheduled-print state for pySheets, shared with startup.py so the
+      background scheduler and the pySheets window follow identical rules
+      about when a card is due. A "card" is a saved profile with a schedule
+      attached; its timing lives in the profile's own JSON, while the armed
+      file holds only runtime state (which document, when next due).
+      Imports nothing from pyrevit - startup.py must stay cheap.
+      Used by pySheets and startup.py.
+    functions:
+      parse_ts:         Parse an armed-file timestamp, or None if unusable.
+      compute_next_run: Next datetime a schedule block should fire, or None.
+      read_armed_file:  Read the armed cards, defaulted, upgrading a v1 file on the way.
+      write_armed_file: Write the armed cards, returning False instead of raising.
+      sort_entries:     Order cards by due time then profile name.
+      window_owns:      True while an open pySheets window has claimed a card's document.
+      due_entries:      Armed cards whose time has come, filtered by document and heartbeat.
+      is_stale:         True when a due card missed its slot by more than the grace window.
+      advance_entry:    Roll a card to its next occurrence; False if it is spent.
+
+  _timepicker.py:
+    description: >
+      The scrolling wheel time picker (hour / minute / AM-PM columns) used in
+      Seed43 schedule cards - drag, mouse wheel, snapping and the fade on rows
+      either side of centre. Owns three StackPanels declared inside a XAML
+      Popup, plus optionally the ToggleButton showing the chosen time.
+      Extracted from pySheets when Batch Upgrade needed the same control;
+      pySheets still runs its own inlined copy, so switching it over is
+      outstanding. Used by Batch Upgrade.
+    functions:
+      WheelTimePicker:      Drive three wheel columns as one time picker control.
+      time_label:           Format an hour/minute pair as the picker's caption.
+      current_time_rounded: Now, rounded up to the next step-minute mark.
+
+  _userdata.py:
+    description: >
+      Per-tool user settings under a single .user folder at the extension
+      root, so the updater never has to protect scattered .json files.
+      Migrates a tool's legacy beside-the-script file across on first run.
+    functions:
+      user_root:          Return the .user folder, creating it if needed.
+      user_path:          Return a path inside .user/<tool>/, creating parent folders.
+      user_dir:           Return a folder inside .user/<tool>/, creating it.
+      migrate:            Move a legacy file into .user once, then delete the original.
+      migrate_dir:        Move every matching file out of a legacy folder into .user.
+      migrate_tree:       Move a whole legacy folder tree into .user, structure intact.
+      seed_once:          Copy shipped defaults in on first run only, recorded by a marker.
+      seed_from_defaults: Copy shipped defaults in on request, never overwriting.
+
+  seed43_theme.py:
+    description: >
+      Loads seed43_palette.json and injects the colour and sizing resources
+      every Seed43 window's XAML references via DynamicResource. Must be
+      called AFTER the XAML has loaded, or the injected values lose to the
+      window's own Setters. Used by every WPF tool in the extension.
+    functions:
+      load_palette:            Return the full parsed palette dict, or None if not found/unreadable.
+      get_active_profile:      Return 'dark' or 'light', defaulting to 'dark'.
+      get_color:               Return the hex string for a semantic palette key, read straight from the JSON.
+      apply_seed43_palette:    Inject SolidColorBrush resources into window.Resources.
+      apply_seed43_dimensions: Inject sizing resources (Thickness/CornerRadius/double) into window.Resources.
+      set_active_profile:      Write a new active_profile ('dark'/'light') back to the JSON on disk.
+      set_accent:              Set a new accent colour, deriving hover/pressed/border shades from it.
+
+  _sectionbox.py:
+    description: >
+      Helpers for tools that drive a 3D view's section box - model extents,
+      the 3D-view guard, and applying a box.
+      Used by Grid Slice and Level Slice.
+    functions:
+      mm_to_ft:          Convert millimetres to Revit's internal feet.
+      require_3d_view:   Return the active view if it can take a section box, else None.
+      model_extents:     Return a BoundingBoxXYZ enclosing every model element.
+      apply_section_box: Turn the section box on and set it, in one transaction.
+
   _selection.py:
     description: >
       Shared helpers for picking and resolving elements in Revit.
@@ -34,3 +173,35 @@ snippets:
       get_element_category:      Return the Category for an element, falling back to its type.
       resolve_cad_instance:      Return the CAD ImportInstance to work with, from selection or pick.
       get_levels:                Return all levels in the project.
+      choose_datum:              Pick a level or grid from selection, a list, or by clicking it.
+
+  _spreadsheet.py:
+    description: >
+      xlsx and ods reader/writer with zero third-party dependencies - both
+      formats are zip archives of XML, written directly with zipfile and
+      ElementTree from the IronPython 2.7 stdlib (there is no pip here, so a
+      third-party package would have to be vendored by hand). Rows carry
+      their tab name in a "_category" key: an element category for pyTable,
+      a schedule name for pySheets. Was pyTable's own tools/pytable_io.py
+      until pySheets needed the same writer. Used by pyTable and pySheets.
+    functions:
+      write_workbook:  Write columns/rows to .xlsx or .ods, picking the format from the path's extension. locked= protects the sheets, legend= writes the explanatory Legend tab - both default True for pyTable's round trip, both off for a plain schedule dump.
+      read_workbook:   Read an .xlsx or .ods back into columns/rows, picking the format from the extension.
+      write_grid_workbook: Write a pre-laid-out styled grid to .xlsx or .ods - per-cell fill, text colour, bold/italic/underline, size, alignment, borders and merged cells. For callers that already know how the table should look (pySheets dumping a Revit schedule) rather than ones building pyTable's edit-and-reimport workbook.
+      write_xlsx:      Write an .xlsx directly - one tab per "_category", plus a Legend tab.
+      write_ods:       Write an .ods directly - same layout as write_xlsx.
+      read_xlsx:       Read an .xlsx into columns/rows.
+      read_ods:        Read an .ods into columns/rows.
+
+  _support.py:
+    description: >
+      Shared helpers behind every Seed43 tool's hamburger menu: the installed
+      version lookup, the pre-filled support email, and the pre-filled GitHub
+      issue link. Used by pySheets, pyLink, pyTable, pyFilter and pyTransmit.
+    functions:
+      find_seed43_version: Walk up from start_dir to Seed43.extension/version.txt and return just the version string.
+      revit_version:       Return the running Revit version, or 'unknown' outside Revit.
+      open_url:            Open a URL or mailto link in the default handler, without blocking the UI thread.
+      open_folder:         Show a folder in File Explorer, raising the window that already has it open instead of stacking up another one. Returns True if an existing window was reused.
+      support_mailto:      Return a mailto URI for a support email, pre-filled with the app name, the installed Seed43 version and the Revit version.
+      github_issue_url:    Return a GitHub 'new issue' URL for the Seed43 repo, pre-filled with the app name, Seed43 version and Revit version.

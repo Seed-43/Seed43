@@ -1,0 +1,16 @@
+title: "Studio"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Opens Seed43 Studio in your browser - a free viewer and converter for
+  StruCad .bsw structural-steel models, reading full marks, sections,
+  grades, custom parameters and grid axes. Also reads and writes IFC,
+  STEP, IGES, USD, DXF and STL, so a .bsw model can be taken straight
+  to IFC for Revit. Nothing is uploaded - the model is read in the
+  browser on your own machine. This button opens a web page rather
+  than running anything in Revit.
+
+  __________________________________________________________________

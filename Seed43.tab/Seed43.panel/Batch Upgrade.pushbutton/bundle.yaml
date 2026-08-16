@@ -1,0 +1,20 @@
+title: "Batch Upgrade"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Saves upgraded copies of a batch of Revit files - projects, families and
+  templates - in one or more target Revit versions. Add files or a folder,
+  pick an output folder, tick every Revit version you want copies for, then
+  hit Upgrade. Copies land in a per-version subfolder so the originals are
+  never touched. Revit can only save in its own version, so any target other
+  than the running one is produced by launching that Revit through the
+  pyRevit CLI - versions that are not installed show greyed out. Downgrades,
+  workshared central models and unreadable files are skipped with a reason,
+  and a full report is written to the output window and a log file.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

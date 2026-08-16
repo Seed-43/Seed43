@@ -1,0 +1,14 @@
+title: "pySheets"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Prints and exports Revit sheets and views to PDF and other formats. Three
+  step workflow, select your sheets or views, choose export settings for
+  each format, then print or export.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

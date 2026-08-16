@@ -6,6 +6,28 @@
 _p = globals().get('PYTRANSMIT_PAYLOAD', {})
 
 from pyrevit import revit, script, DB, forms
+
+try:
+    from Snippets import _dialogs as sdlg
+except Exception:
+    sdlg = None
+
+def _alert(message, title='', exitscript=False):
+    """Themed popup via the shared Snippets dialog lib, falls back to
+    pyRevit's default forms.alert if the shared lib isn't available."""
+    if sdlg:
+        sdlg.message(message, title=title)
+    else:
+        forms.alert(message, title=title)
+    if exitscript:
+        script.exit()
+
+def _confirm(message, title='', no='No'):
+    """Themed yes/no popup, returns True on yes."""
+    if sdlg:
+        return sdlg.confirm(message, title=title, no=no)
+    return bool(forms.alert(message, title=title, ok=False, yes=True, no=True))
+
 from Autodesk.Revit.DB import (
     FilteredElementCollector, XYZ, Line, TextNote, TextNoteType,
     CurveElement, ViewFamilyType, ViewFamily, ViewDrafting,
@@ -54,6 +76,7 @@ def _load_layout():
             output.print_md("Warning: could not load assigned layout: {}".format(e))
     _script_dir = _p.get('script_dir') or os.path.dirname(os.path.abspath(__file__))
     _candidates = [
+        (_p.get('_layouts_dir') and os.path.join(_p['_layouts_dir'], 'Revit Drafting View.json')) or '',
         os.path.join(_script_dir, 'Layout', 'Layouts', 'Revit Drafting View.json'),
         os.path.join(_script_dir, 'Layouts', 'Revit Drafting View.json'),
         os.path.join(_script_dir, 'Revit Drafting View.json'),
@@ -194,20 +217,19 @@ def natural_sort_key(s):
     return [int(p) if p.isdigit() else p.lower() for p in parts]
 
 def parse_date_slash(raw):
-    if not raw: return ""
-    m = re.search(r'(\d{1,2})\D(\d{1,2})\D(\d{2,4})', str(raw).strip())
-    if not m: return str(raw)
-    d, mo, yr = int(m.group(1)), int(m.group(2)), int(m.group(3))
-    if yr < 100: yr += 2000
-    return "{:02d}/{:02d}/{}".format(d, mo, yr)
+    """Print the revision date exactly as it was typed in Revit.
+
+    These used to re-parse and re-format the date, and got it wrong for any
+    year-first date: (\\d{1,2})\\D(\\d{1,2})\\D(\\d{2,4}) cannot match a four
+    digit year in the first field, so on "2026/06/06" it skipped the leading
+    "20", read 26 / 06 / 06, then treated the "06" as a two digit year and
+    wrote "26/06/2006" - a different date from the one the user typed.
+    """
+    return "" if not raw else str(raw).strip()
 
 def parse_date_long(raw):
-    if not raw: return ""
-    m = re.search(r'(\d{1,2})\D(\d{1,2})\D(\d{2,4})', str(raw).strip())
-    if not m: return str(raw)
-    d, mo, yr = int(m.group(1)), int(m.group(2)), int(m.group(3))
-    if yr < 100: yr += 2000
-    return "{} {} {}".format(d, MONTHS[mo-1], yr) if 1 <= mo <= 12 else str(raw)
+    """As typed - see parse_date_slash() above."""
+    return "" if not raw else str(raw).strip()
 
 def get_param(el, name):
     try:
@@ -554,8 +576,11 @@ def _get_or_create_logo():
     if LOGO_PATH and os.path.isfile(LOGO_PATH):
         _logo_file = LOGO_PATH
     else:
+        # .user first (where the logo lives now), then the old beside-the-tool
+        # spots, so an install that has not migrated yet still finds one.
         _sdir = _p.get('script_dir') or os.path.dirname(os.path.abspath(__file__))
-        for _sd in (os.path.join(_sdir, 'Settings'), _sdir):
+        _cands = [d for d in (_p.get('_settings_dir'), _p.get('_user_dir')) if d]
+        for _sd in _cands + [os.path.join(_sdir, 'Settings'), _sdir]:
             for _ext in ('png', 'jpg', 'jpeg', 'PNG', 'JPG', 'JPEG'):
                 _cand = os.path.join(_sd, 'logo.{}'.format(_ext))
                 if os.path.isfile(_cand):
@@ -606,7 +631,7 @@ if not drafting_view:
         if vft.ViewFamily == ViewFamily.Drafting:
             _drafting_vft = vft; break
     if not _drafting_vft:
-        forms.alert("No Drafting ViewFamilyType found.", exitscript=True)
+        _alert("No Drafting ViewFamilyType found.", exitscript=True)
     with revit.Transaction("pyTransmit DV - Create view") as t:
         drafting_view = ViewDrafting.Create(doc, _drafting_vft.Id)
         drafting_view.Name = VIEW_NAME

@@ -1,22 +1,12 @@
-﻿title: "Find Type"
+title: "Find Type"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
-tooltip: |
-  𝐕𝐄𝐑𝐒𝐈𝐎𝐍 260521
-  _____________________________________________________________________
+tooltip: >
+  __________________________________________________________________
+
   Description:
-  Finds all selected Text Types across the project.
-  
-  - Scans the entire model for matching text notes
-  - Identifies all Views and Legends containing them
-  - Displays a count per location
-  - Allows quick navigation to any result
-  - Automatically selects matching text notes in the view
-  
-  Useful for:
-  - Checking and auditing text styles
-  - Cleaning inconsistent documentation
-  - Locating incorrect annotation usage
-  _____________________________________________________________________
-  Last update:
-  - Updated to use pyrevitlib
-  _____________________________________________________________________
+
+  Finds all instances of selected Text Types across the project, listing
+  every view and legend that contains them with a count per location and
+  quick navigation to any result.
+
+  __________________________________________________________________

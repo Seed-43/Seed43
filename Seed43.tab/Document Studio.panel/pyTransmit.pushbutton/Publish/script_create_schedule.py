@@ -1,10 +1,32 @@
 # -*- coding: utf-8 -*-
 # script_create_schedule.py
 
-# Must be first — reads the payload injected by pyTransmit via exec()
+# Must be first, reads the payload injected by pyTransmit via exec()
 _p = globals().get('PYTRANSMIT_PAYLOAD', {})
 
 from pyrevit import revit, script, DB, forms
+
+try:
+    from Snippets import _dialogs as sdlg
+except Exception:
+    sdlg = None
+
+def _alert(message, title='', exitscript=False):
+    """Themed popup via the shared Snippets dialog lib, falls back to
+    pyRevit's default forms.alert if the shared lib isn't available."""
+    if sdlg:
+        sdlg.message(message, title=title)
+    else:
+        forms.alert(message, title=title)
+    if exitscript:
+        script.exit()
+
+def _confirm(message, title='', no='No'):
+    """Themed yes/no popup, returns True on yes."""
+    if sdlg:
+        return sdlg.confirm(message, title=title, no=no)
+    return bool(forms.alert(message, title=title, ok=False, yes=True, no=True))
+
 from Autodesk.Revit.DB import (
     FilteredElementCollector, BuiltInCategory,
     ViewSchedule, ScheduleFilter, ScheduleFilterType,
@@ -50,6 +72,7 @@ def _load_schedule_layout():
         except Exception: pass
     _script_dir = (_p.get('script_dir') or _os.path.dirname(_os.path.abspath(__file__)))
     for _candidate in [
+        (_p.get('_layouts_dir') and _os.path.join(_p['_layouts_dir'], 'Revit Schedule.json')) or '',
         _os.path.join(_script_dir, 'Layout', 'Layouts', 'Revit Schedule.json'),
         _os.path.join(_os.path.dirname(_script_dir), 'Layout', 'Layouts', 'Revit Schedule.json'),
         _os.path.join(_script_dir, 'Revit Schedule.json'),
@@ -119,33 +142,26 @@ ROW_SPACER =  2 * MM
 SCHEDULE_NAME = "pyTransmit Schedule 01-01"  # updated below once total_pages known
 
 def parse_date_long(raw):
-    """Parse any DD?MM?YYYY or DD?MM?YY date string -> '19 December 2025'."""
-    if not raw:
-        return ""
-    m = re.search(r'(\d{1,2})\D(\d{1,2})\D(\d{2,4})', str(raw).strip())
-    if not m:
-        return str(raw)
-    day, month, year = int(m.group(1)), int(m.group(2)), int(m.group(3))
-    if year < 100:
-        year += 2000
-    if 1 <= month <= 12:
-        return "{} {} {}".format(day, MONTHS[month - 1], year)
-    return str(raw)
+    """Print the revision date exactly as it was typed in Revit.
+
+    This used to re-parse and re-format it, and got it wrong for any
+    year-first date: (\\d{1,2})\\D(\\d{1,2})\\D(\\d{2,4}) cannot match a four
+    digit year in the first field, so on "2026/06/06" it skipped the leading
+    "20", read 26 / 06 / 06, then treated the "06" as a two digit year and
+    produced "26/06/2006" - a different date from the one the user typed.
+    """
+    return "" if not raw else str(raw).strip()
 
 def parse_date_short(raw):
-    """Parse any date string -> 'DD/MM/YYYY' for the Issued footer.
-    Uses \\D+ (one-or-more non-digits) so it correctly handles the \\r\\n
-    separators produced by format_revit_date as well as plain / . - separators.
+    """As typed - see parse_date_long() above.
+
+    The one thing still normalised is the \\r\\n that format_revit_date puts
+    between the parts, which would otherwise break the footer across lines.
+    That rewrites the separator, never the order or the values.
     """
     if not raw:
         return ""
-    m = re.search(r'(\d{1,2})\D+(\d{1,2})\D+(\d{2,4})', str(raw).strip())
-    if not m:
-        return str(raw).replace('\r', '').replace('\n', '/')
-    day, month, year = int(m.group(1)), int(m.group(2)), int(m.group(3))
-    if year < 100:
-        year += 2000
-    return "{:02d}/{:02d}/{}".format(day, month, year)
+    return str(raw).strip().replace('\r\n', '/').replace('\r', '').replace('\n', '/')
 
 # Column/row sizes now derived from JSON above
 
@@ -158,14 +174,14 @@ RECIPIENTS = (
 )
 N_REC = max(1, len(RECIPIENTS))   # actual recipient row count (at least 1)
 
-# Whether to show reason/method legend section — from meta_rows payload
+# Whether to show reason/method legend section, from meta_rows payload
 _SHOW_REASON = any(lbl.lower() in ('reason for issue', 'reason')
                    for lbl, _ in (_p.get('meta_rows') or []))
 _SHOW_METHOD = any(lbl.lower() in ('method of issue', 'method')
                    for lbl, _ in (_p.get('meta_rows') or []))
 _SHOW_LEGEND = _SHOW_REASON or _SHOW_METHOD  # show legend block only if needed
 
-#  Determine which meta rows to show — must be done here so RI_ indices are correct 
+#  Determine which meta rows to show, must be done here so RI_ indices are correct 
 _LABEL_TO_KEY = {
     'issued by':        'initials',
     'initials':         'initials',
@@ -198,7 +214,7 @@ else:
             _enabled_keys.add(_k)
     _filtered = [(lbl, key) for lbl, key in _ALL_META if key in _enabled_keys]
 
-# Reason/Method legend text — from payload (built from live OptionsSettings data)
+# Reason/Method legend text, from payload (built from live OptionsSettings data)
 # If payload absent (standalone run), read directly from the Options JSON files.
 def _read_coded_json(path, one_line=False):
     """Read [{'code','separator','description'}] -> formatted legend text."""
@@ -492,7 +508,7 @@ all_revisions = list(revit.query.get_elements_by_class(DB.Revision, doc=doc))
 all_issued_revisions = sorted(
     [r for r in all_revisions if r.Issued], key=lambda r: r.SequenceNumber)
 if not all_issued_revisions:
-    forms.alert("No issued revisions found.", exitscript=True)
+    _alert("No issued revisions found.", exitscript=True)
 # Filter to selected numbering type if payload specifies one
 _rev_type_filter = _p.get('rev_numbering_type', '')
 if _rev_type_filter:
@@ -504,7 +520,7 @@ if _rev_type_filter:
     all_issued_revisions = [r for r in all_issued_revisions
                             if _get_num_type(r) == _rev_type_filter]
     if not all_issued_revisions:
-        forms.alert("No issued revisions found for type '{}'.".format(_rev_type_filter), exitscript=True)
+        _alert("No issued revisions found for type '{}'.".format(_rev_type_filter), exitscript=True)
 # all_issued_revisions = full history used for sheet collection
 # issued_revisions     = visible columns only (capped at MAX_REVS)
 issued_revisions = all_issued_revisions[-MAX_REVS:]
@@ -780,9 +796,9 @@ def _parse_copies_for_recipient(issued_to_str, recipient_label, recipient_index=
 
 # ── JSON-driven row plan ──────────────────────────────────────────────────────
 # Walk _ROWS from the layout JSON and build a flat list of "render items":
-#   ('fixed',  ri, blocks)         — one schedule row
-#   ('data',   ri, blocks, items)  — expands to len(items) rows
-#   ('sheets', ri, blocks)         — expands to sheet rows (page-split here)
+#   ('fixed',  ri, blocks), one schedule row
+#   ('data',   ri, blocks, items), expands to len(items) rows
+#   ('sheets', ri, blocks), expands to sheet rows (page-split here)
 
 def _block_just(b):
     j = b.get('just', 'left')
@@ -1485,11 +1501,18 @@ with revit.Transaction("pyTransmit footer") as tf:
             sec.SetCellStyle(r, c, _sty)
         except Exception: pass
 
+    # Bound BEFORE the guard, not inside it. The footer fix-up further down
+    # reads _sched_is_last / _sched_to_layout in the outer scope, so whenever
+    # the styling pass was skipped - no cell-style algorithm, or no styles to
+    # apply - that code raised "NameError: name '_sched_is_last' is not
+    # defined" and took the whole schedule export with it. Empty dicts make it
+    # skip harmlessly instead.
+    _sched_to_layout = {}
+    _sched_is_last   = {}
+    _sched_data_b    = {}
+
     if _style_algo and _sched_cell_styles:
         # Build map: sched_ri -> layout_ri, is_last, data_borders
-        _sched_to_layout = {}
-        _sched_is_last   = {}
-        _sched_data_b    = {}
         for _btask in _p1_border_tasks:
             _bkind = _btask[0]; _bri = _btask[1]; _bextra = _btask[5]
             _blri  = _btask[6] if len(_btask) >= 8 else 0

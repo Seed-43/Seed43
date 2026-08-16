@@ -80,9 +80,12 @@ def has_temp_overrides(view):
             DB.TemporaryViewPropertyType.RevealHiddenElements,
             DB.TemporaryViewPropertyType.WorksharingDisplay,
         ]
+        # getattr, because 'None' is a Python keyword and cannot be written as
+        # an attribute - same workaround as WindowStyle.None in _dialogs.py.
+        _NONE = getattr(DB.TemporaryViewPropertyType, 'None')
         for prop in TEMP_PROPS:
             try:
-                if tvm.GetTemporaryViewProperty(prop) != DB.TemporaryViewPropertyType.None:
+                if tvm.GetTemporaryViewProperty(prop) != _NONE:
                     return True
             except Exception:
                 pass

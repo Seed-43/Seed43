@@ -1,4 +1,15 @@
+title: "Revision"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
 
+  Description:
+
+  Tools for managing revision clouds - permanently link clouds to their
+  parent sheet, colour clouds and tags by issued status, and write
+  sheet/revision context into the cloud's Mark parameter.
+
+  __________________________________________________________________
 layout:
   - Persistent Revisions
   - Revision Status Colour

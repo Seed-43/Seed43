@@ -231,21 +231,26 @@ def clean_title(title):
 def sanitize_name(name):
     """Strip or replace characters prohibited in Revit view/sheet names.
 
+    Revit's actual restriction (per the in-app "Name cannot contain any of
+    the following characters" error) is: \\ : { } [ ] | ; < > ? ` ~
+    Forward slash ("/") is NOT on that list and is a legal, commonly used
+    character in sheet and view names - it must not be touched here.
+
     Rules:
-      \\ / : * | -> replaced with -
-      { } [ ] < > ? " ; -> removed entirely
+      \\ : | -> replaced with -
+      { } [ ] < > ? " ; ` ~ -> removed entirely
       Multiple consecutive - or spaces collapsed
       Leading/trailing whitespace stripped
     """
     import re
     if not name:
         return name
-    for ch in "\\/:*|":
+    for ch in "\\:|":
         name = name.replace(ch, "-")
-    for ch in "{}[]<>?\";\r\n":
+    for ch in "{}[]<>?\";`~\r\n":
         name = name.replace(ch, "")
-    name = re.sub(r"\s*-+\s*", " - ", name)
-    name = re.sub(r" {2,}", " ", name)
+    name = re.sub(r"-{2,}", "-", name)      # collapse repeated dashes, no spacing added
+    name = re.sub(r" {2,}", " ", name)      # collapse repeated spaces
     name = name.strip(" -")
     return name
 

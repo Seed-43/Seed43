@@ -5,6 +5,7 @@ layout:
   - pyLink
   - pyTable
   - pyFilter
+  - pyRename
   - ----
   - DocStack_1
   - DocStack_2

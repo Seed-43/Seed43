@@ -1,0 +1,19 @@
+title: "Rotate To Element"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Rotates a tag, text note or annotation until it runs parallel to another
+  element, so labels lie along the member they belong to instead of sitting
+  horizontal across it. Pick the annotation first, then pick the element it
+  should line up with, and repeat for the next pair - Escape at either pick
+  ends the tool. The annotation spins about its own head point, it does not
+  move, and the angle is measured as the element reads in the current view,
+  so plans, sections and drafting views all work. Text never comes out
+  upside down.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

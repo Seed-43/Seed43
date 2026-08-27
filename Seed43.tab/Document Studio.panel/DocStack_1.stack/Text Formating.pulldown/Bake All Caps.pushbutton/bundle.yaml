@@ -1,0 +1,15 @@
+title: "Bake All Caps"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Finds Text Notes that rely on the All Caps override (Ctrl+Shift+A) and
+  rewrites their stored text as typed capitals, then clears the override.
+  Notes read exactly the same on the sheet - the capitals simply become real
+  characters instead of a formatting flag. Where the override covers only
+  part of a note, only that part is uppercased. Runs on the current
+  selection, the active view, or the whole model.
+
+  __________________________________________________________________

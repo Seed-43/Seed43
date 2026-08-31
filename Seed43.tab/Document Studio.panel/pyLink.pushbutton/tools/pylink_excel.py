@@ -1149,6 +1149,10 @@ def apply_row(row):
         'merges':             fmt.get('merges', []),
         'row_heights':        fmt.get('row_heights', {}),
         'col_widths':         fmt.get('col_widths', {}),
+        # Which of those sizes the user actually chose, as opposed to
+        # Excel's defaults - the schedule builder autofits the rest.
+        'custom_rows':        fmt.get('custom_rows', []),
+        'custom_cols':        fmt.get('custom_cols', []),
         'default_row_height': fmt.get('default_row_height', 14.0),
         'line_ids':           line_ids,
         'fill_type_id':       fill_type_id,

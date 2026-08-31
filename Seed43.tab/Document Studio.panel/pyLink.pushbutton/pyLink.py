@@ -84,6 +84,7 @@ from pylink_shared import (
     format_applied_at,
     load_excel_font_settings, save_excel_font_settings,
     get_installed_font_names,
+    REFIT_RESET as _REFIT_RESET, REFIT_CURRENT as _REFIT_CURRENT,
 )
 from pylink_excel import (
     TableRow, get_named_ranges_from_workbook, apply_row, _hash_range,
@@ -1066,6 +1067,8 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             lambda s, ev: self._open_group_settings_editor()))
         panel.Children.Add(item(u'Word Text Size\u2026',
             lambda s, ev: self._open_word_text_settings_editor()))
+        panel.Children.Add(item(u'Schedule Text Size\u2026',
+            lambda s, ev: self._open_schedule_text_settings_editor()))
         panel.Children.Add(item(u'Default Font\u2026',
             lambda s, ev: self._open_default_font_editor()))
         panel.Children.Add(self._make_menu_separator())
@@ -1116,6 +1119,40 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             msg += '\n\n{} could not be deleted:\n{}'.format(
                 len(failed), '\n'.join(failed[:10]))
         _alert(msg, title='Purge Unused Text Types')
+
+    def _open_schedule_text_settings_editor(self):
+        """☰ → 'Schedule Text Size': show the text heights this project
+        has already been asked for, and offer to clear them.
+
+        The sizes are answered during a schedule build, once per kind of
+        row, and stored against the project - so this entry exists to
+        review them and to start over when a job wants different text.
+        """
+        from pylink_shared import (get_project_text_sizes,
+                                   reset_project_text_sizes,
+                                   describe_signature)
+        title = 'Schedule Text Size'
+        doc = revit.doc
+        sizes = get_project_text_sizes(doc)
+
+        if not sizes:
+            _alert('No schedule text sizes are stored for this project '
+                   'yet.\n\nThe next schedule you build will ask for '
+                   'them, once per kind of row.', title=title)
+            return
+
+        lines = []
+        for signature in sorted(sizes):
+            lines.append(u'    {0}  →  {1:g} mm'.format(
+                describe_signature(signature), sizes[signature]))
+
+        if _confirm(u'Text heights remembered for this project:\n\n{0}\n\n'
+                    u'Clear them so the next schedule build asks again?'
+                    .format(u'\n'.join(lines)),
+                    title=title, yes='Clear', no='Keep'):
+            reset_project_text_sizes(doc)
+            _alert('Cleared. The next schedule build will ask for text '
+                   'sizes again.', title=title)
 
     def _open_default_font_editor(self):
         """☰ → 'Default Font': pick the font pyLink falls back to
@@ -2251,6 +2288,14 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         popup_panel.Children.Add(item('Absolute/Relative Path',
             lambda s, ev: self._card_toggle_path_mode(path)))
         popup_panel.Children.Add(self._make_menu_separator())
+        # Two ways to size the schedule's cells: throw away what's there
+        # and start from the text, or keep what you dragged and fit the
+        # rest around it.
+        popup_panel.Children.Add(item('Reset Cell Sizes',
+            lambda s, ev: self._card_refit_views(path, _REFIT_RESET)))
+        popup_panel.Children.Add(item('Update Cells After Resizing',
+            lambda s, ev: self._card_refit_views(path, _REFIT_CURRENT)))
+        popup_panel.Children.Add(self._make_menu_separator())
         popup_panel.Children.Add(item('Open File',
             lambda s, ev: self._card_open_file(path)))
         popup_panel.Children.Add(item('Open Folder',
@@ -2264,6 +2309,52 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         popup_panel.Children.Add(item('Remove view',
             lambda s, ev: self._card_remove_views(path)))
         popup.IsOpen = True
+
+    def _card_refit_views(self, path, mode):
+        """Resize the cells of the schedules this card created.
+
+        mode REFIT_RESET   - size the cells from the text, ignoring
+                             whatever they are now.
+        mode REFIT_CURRENT - keep the sizes set in Revit and adjust the
+                             other dimension to suit them.
+        """
+        from pylink_shared import refit_schedule, REFIT_RESET
+        title = ('Reset Cell Sizes' if mode == REFIT_RESET
+                 else 'Update Cells After Resizing')
+        fd = self._file_data.get(path)
+        if fd is None:
+            return
+
+        names = set(r.ViewName.strip() for r in fd.get('rows', [])
+                    if r.ViewName.strip())
+        if not names:
+            _alert('No applied views in this card.', title=title)
+            return
+
+        from pyrevit.revit import query
+        targets = [v for v in query.get_elements_by_class(DB.ViewSchedule,
+                                                          doc=doc)
+                   if not v.IsTemplate and v.Name in names]
+        if not targets:
+            _alert('None of this card\'s views are schedules.', title=title)
+            return
+
+        done, failed = 0, []
+        with revit.Transaction('pyLink - {}'.format(title)):
+            for view in targets:
+                try:
+                    refit_schedule(doc, view, mode=mode)
+                    done += 1
+                except Exception as ex:
+                    failed.append((view.Name, str(ex)))
+
+        msg = 'Resized {} schedule(s).'.format(done)
+        if failed:
+            msg += '\n\n{} failed:\n{}'.format(
+                len(failed),
+                '\n'.join('  - {}: {}'.format(n, e) for n, e in failed[:8]))
+        _alert(msg, title=title)
+        self._set_status('{}: {} schedule(s)'.format(title, done))
 
     def _card_delete_selected(self, path):
         """Delete every checked row across every view in this card

@@ -255,7 +255,14 @@ def _find_sheet_file(z, wb_xml, sheet_name, XmlDocument):
         id_attr = rel_nodes[i].Attributes.GetNamedItem('Id')
         if id_attr and id_attr.Value == r_id:
             target = rel_nodes[i].Attributes.GetNamedItem('Target').Value
-            if not target.startswith('xl/'):
+            if target.startswith('/'):
+                # Package-absolute path (e.g. openpyxl writes
+                # "/xl/worksheets/sheet1.xml") - strip the leading
+                # slash so it matches the zip's own entry names.
+                target = target.lstrip('/')
+            elif not target.startswith('xl/'):
+                # Relative path from the workbook part's own folder
+                # (e.g. "worksheets/sheet1.xml")
                 target = 'xl/' + target
             return target
     return None
@@ -301,14 +308,25 @@ def read_xlsx_range_formatting(file_path, named_range, sheet_name):
         'merges': [(row_start, col_start, row_end, col_end), ...],
         'row_heights': {row_idx: float},  # in points
         'col_widths': {col_idx: float},   # in mm
+        'custom_rows': [row_idx, ...],    # heights the user set deliberately
+        'custom_cols': [col_idx, ...],    # widths the user set deliberately
     }
     Row/col indices are relative to the named range (0-based).
+
+    custom_rows/custom_cols come from OOXML's customHeight/customWidth
+    flags, which Excel sets when a size is chosen rather than computed.
+    They matter because col_widths is filled in for every column whether
+    or not anyone chose it, so the value alone can't say whether a size
+    was meant. A consumer that sizes cells itself can use these to tell
+    "the user wants exactly this" from "this is just Excel's default".
     """
     result = {
         'cell_styles': {},
         'merges':      [],
         'row_heights': {},
         'col_widths':  {},
+        'custom_rows': [],
+        'custom_cols': [],
     }
 
     try:
@@ -457,6 +475,9 @@ def read_xlsx_range_formatting(file_path, named_range, sheet_name):
                     result['row_heights'][rel_row] = float(ht_attr.Value)
                 except Exception:
                     pass
+            ch_attr = row_nodes[i].Attributes.GetNamedItem('customHeight')
+            if ch_attr and ch_attr.Value in ('1', 'true'):
+                result['custom_rows'].append(rel_row)
 
         # --- parse cell styles ---
         row_nodes2 = ws_xml.GetElementsByTagName('row')
@@ -574,8 +595,10 @@ def read_xlsx_range_formatting(file_path, named_range, sheet_name):
             mn_attr = col_nodes[i].Attributes.GetNamedItem('min')
             mx_attr = col_nodes[i].Attributes.GetNamedItem('max')
             w_attr  = col_nodes[i].Attributes.GetNamedItem('width')
+            cw_attr = col_nodes[i].Attributes.GetNamedItem('customWidth')
             if not mn_attr or not w_attr:
                 continue
+            is_custom = bool(cw_attr and cw_attr.Value in ('1', 'true'))
             try:
                 mn = int(mn_attr.Value) - 1  # 0-based
                 mx = int(mx_attr.Value) - 1 if mx_attr else mn
@@ -587,6 +610,8 @@ def read_xlsx_range_formatting(file_path, named_range, sheet_name):
                         # MDW=7.41 for Aptos Narrow, 7.0 for Calibri/Arial
                         _px = int((w_ch * _col_mdw + 5) / _col_mdw * 256) / 256.0 * _col_mdw
                         result['col_widths'][rel_ci] = _px * 25.4 / 96.0
+                        if is_custom and rel_ci not in result['custom_cols']:
+                            result['custom_cols'].append(rel_ci)
             except Exception:
                 pass
 
@@ -1129,6 +1154,32 @@ def _extract_rows(ws_xml, shared_strings,
                 continue
 
             t_attr = cell.Attributes.GetNamedItem('t')
+
+            # Inline strings (<is><t>text</t></is>) have no <v> child
+            # at all - openpyxl writes text cells this way rather than
+            # via a shared-strings table, so this must be checked
+            # before falling through to the <v>-only path below.
+            if t_attr and t_attr.Value == 'inlineStr':
+                is_nodes = cell.GetElementsByTagName('is')
+                if is_nodes.Count == 0:
+                    is_nodes = cell.GetElementsByTagName(
+                        'is',
+                        'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+                    )
+                if is_nodes.Count > 0:
+                    t_nodes = is_nodes[0].GetElementsByTagName('t')
+                    if t_nodes.Count == 0:
+                        t_nodes = is_nodes[0].GetElementsByTagName(
+                            't',
+                            'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+                        )
+                    col_vals[col_idx] = ''.join(
+                        t_nodes[j].InnerText for j in range(t_nodes.Count)
+                    )
+                else:
+                    col_vals[col_idx] = ''
+                continue
+
             v_nodes = cell.GetElementsByTagName('v')
             if v_nodes.Count == 0:
                 v_nodes = cell.GetElementsByTagName(

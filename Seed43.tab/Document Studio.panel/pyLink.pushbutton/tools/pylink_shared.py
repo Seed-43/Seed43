@@ -128,6 +128,724 @@ def save_excel_font_settings(data):
         logger.warning('excel_font_settings.json save failed: {}'.format(ex))
 
 
+# ── Per-project schedule text sizes ──────────────────────────────────────────
+# A schedule's text height can't come from the spreadsheet: Excel points
+# describe text on a screen, not text on a sheet at a plot scale, so
+# importing 10pt literally gives an unreadable schedule. pyLink asks
+# instead, once per project, and remembers the answer.
+#
+# The questions are per KIND of row, not per row. Rows are keyed by how
+# Excel formats them, so a 14pt bold title, the 10pt bold header rows and
+# the plain 10pt data rows are three questions - and the two header rows
+# of a grouped table share one answer because they're formatted alike.
+#
+# Stored in .user so a tool update can't overwrite it, matching
+# EXCEL_FONT_SETTINGS_PATH above.
+SCHEDULE_TEXT_SIZES_PATH = _userdata.user_path(
+    'pyLink', 'schedule_text_sizes.json')
+
+DEFAULT_SCHEDULE_TEXT_SIZE_MM = 2.5
+MIN_SCHEDULE_TEXT_SIZE_MM = 0.5
+MAX_SCHEDULE_TEXT_SIZE_MM = 20.0
+
+
+def load_schedule_text_sizes():
+    """The whole store: {'projects': {<key>: {'title':.., 'sizes':{..}}}}."""
+    try:
+        if os.path.exists(SCHEDULE_TEXT_SIZES_PATH):
+            with open(SCHEDULE_TEXT_SIZES_PATH, 'r') as f:
+                data = _json.load(f)
+            if isinstance(data, dict) and isinstance(data.get('projects'), dict):
+                return data
+    except Exception as ex:
+        logger.warning('schedule_text_sizes.json load failed: {}'.format(ex))
+    return {'projects': {}}
+
+
+def save_schedule_text_sizes(data):
+    try:
+        folder = os.path.dirname(SCHEDULE_TEXT_SIZES_PATH)
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+        with open(SCHEDULE_TEXT_SIZES_PATH, 'w') as f:
+            _json.dump(data, f, indent=2)
+    except Exception as ex:
+        logger.warning('schedule_text_sizes.json save failed: {}'.format(ex))
+
+
+def _safe_doc_title(doc):
+    try:
+        return unicode(doc.Title)
+    except Exception:
+        return u'unknown'
+
+
+def project_key(doc):
+    """A stable id for the open project.
+
+    ProjectInformation's UniqueId survives Save As and is the same in a
+    workshared local copy as in the central, so everyone on a job shares
+    one set of sizes. Title is only stored alongside to keep the JSON
+    readable by eye.
+    """
+    try:
+        uid = doc.ProjectInformation.UniqueId
+        if uid:
+            return unicode(uid)
+    except Exception:
+        pass
+    return _safe_doc_title(doc)
+
+
+def row_style_signature(cell_style):
+    """Key that groups rows Excel formats identically.
+
+    Two rows only need one question between them if they would look the
+    same, so bold, italic and the Excel point size make up the key. This
+    is why row 3 of a grouped table isn't asked about separately - it is
+    bold at the same size as row 2, so it reuses that answer.
+    """
+    if not cell_style:
+        return 'plain'
+    try:
+        size = round(float(cell_style.get('font_size', 11.0)), 1)
+    except (TypeError, ValueError):
+        size = 11.0
+    return 'b{0}|i{1}|s{2}'.format(
+        1 if cell_style.get('bold') else 0,
+        1 if cell_style.get('italic') else 0,
+        size)
+
+
+def get_project_text_sizes(doc):
+    """The sizes already answered for this project, {signature: mm}."""
+    store = load_schedule_text_sizes()
+    entry = store['projects'].get(project_key(doc), {})
+    sizes = entry.get('sizes', {})
+    return sizes if isinstance(sizes, dict) else {}
+
+
+def store_project_text_size(doc, signature, size_mm):
+    store = load_schedule_text_sizes()
+    key = project_key(doc)
+    entry = store['projects'].get(key)
+    if not isinstance(entry, dict):
+        entry = {}
+        store['projects'][key] = entry
+    entry['title'] = _safe_doc_title(doc)
+    if not isinstance(entry.get('sizes'), dict):
+        entry['sizes'] = {}
+    entry['sizes'][signature] = size_mm
+    save_schedule_text_sizes(store)
+
+
+def store_schedule_row_sizes(doc, view_name, row_size_mm):
+    """Record the text height actually used for each row of a schedule.
+
+    Refit needs to know how tall the text is to work out how much room
+    it takes. Reading TableCellStyle.TextSize back and converting it is
+    guesswork - the value isn't in millimetres and the conversion has
+    changed between Revit versions - so the build writes down what it
+    used and refit reads that instead.
+    """
+    store = load_schedule_text_sizes()
+    key = project_key(doc)
+    entry = store['projects'].get(key)
+    if not isinstance(entry, dict):
+        entry = {}
+        store['projects'][key] = entry
+    entry['title'] = _safe_doc_title(doc)
+    if not isinstance(entry.get('schedules'), dict):
+        entry['schedules'] = {}
+    entry['schedules'][unicode(view_name)] = dict(
+        (str(ri), mm) for ri, mm in row_size_mm.items())
+    save_schedule_text_sizes(store)
+
+
+def get_schedule_row_sizes(doc, view_name):
+    """The recorded per-row text heights for one schedule, {row: mm}."""
+    store = load_schedule_text_sizes()
+    entry = store['projects'].get(project_key(doc), {})
+    saved = (entry.get('schedules') or {}).get(unicode(view_name))
+    if not isinstance(saved, dict):
+        return {}
+    sizes = {}
+    for ri, mm in saved.items():
+        try:
+            sizes[int(ri)] = float(mm)
+        except (TypeError, ValueError):
+            continue
+    return sizes
+
+
+def reset_project_text_sizes(doc):
+    """Forget this project's answers so the next run asks again."""
+    store = load_schedule_text_sizes()
+    if store['projects'].pop(project_key(doc), None) is None:
+        return False
+    save_schedule_text_sizes(store)
+    return True
+
+
+def _row_sample(row, limit=64):
+    """The row's own text, for showing the user which row is being asked."""
+    parts = []
+    for cell in row:
+        if cell is None:
+            continue
+        try:
+            text = unicode(cell).strip()
+        except Exception:
+            continue
+        if text:
+            parts.append(text)
+    text = u' | '.join(parts)
+    if len(text) > limit:
+        text = text[:limit - 1] + u'…'
+    return text or u'(empty row)'
+
+
+def _ask_text_size(row_index, sample, default_mm):
+    """Ask for one row-kind's text height. None if the user cancels.
+
+    Uses the themed Seed43 input dialog when it's available, the same
+    way _alert and _confirm do, so this matches the rest of the tool.
+    """
+    default = '{0:g}'.format(default_mm)
+    prompt = (u'Row {0}:\n{1}\n\n'
+              u'Text height in mm for every row formatted like this one.'
+              .format(row_index + 1, sample))
+    title = 'pyLink - Schedule Text Size'
+    error = ''
+    while True:
+        if sdlg:
+            answer = sdlg.ask_string(prompt, title=title,
+                                     default=default, error=error)
+        else:
+            answer = forms.ask_for_string(default=default, prompt=prompt,
+                                          title=title)
+        text = unicode(answer).strip() if answer is not None else u''
+        if not text:
+            return None                      # cancelled or left blank
+        try:
+            value = float(text)
+        except (TypeError, ValueError):
+            error = 'Enter a number, e.g. 2.5'
+            continue
+        if MIN_SCHEDULE_TEXT_SIZE_MM <= value <= MAX_SCHEDULE_TEXT_SIZE_MM:
+            return value
+        error = 'Enter a size between {0:g} and {1:g} mm.'.format(
+            MIN_SCHEDULE_TEXT_SIZE_MM, MAX_SCHEDULE_TEXT_SIZE_MM)
+
+
+def describe_signature(signature):
+    """'b1|i0|s14.0' -> 'Bold 14pt rows', for the settings dialog."""
+    if signature == 'plain':
+        return u'Unformatted rows'
+    try:
+        parts = {}
+        for chunk in signature.split('|'):
+            if chunk:
+                parts[chunk[0]] = chunk[1:]
+        bits = []
+        if parts.get('b') == '1':
+            bits.append(u'Bold')
+        if parts.get('i') == '1':
+            bits.append(u'Italic')
+        size = parts.get('s', '?')
+        try:
+            size = u'{0:g}'.format(float(size))   # 14.0 -> 14
+        except (TypeError, ValueError):
+            pass
+        bits.append(u'{0}pt'.format(size))
+        return u' '.join(bits) + u' rows'
+    except Exception:
+        return signature
+
+
+def resolve_row_text_sizes(doc, all_rows, cell_styles, ask=True):
+    """Return {row_index: text height in mm} for every row in the table.
+
+    Asks the user once per distinct row style, in the order the styles
+    first appear, and remembers each answer against this project so the
+    next schedule in the same job runs without prompting. Cancelling a
+    prompt accepts the default for that style rather than aborting the
+    whole export.
+    """
+    sizes = dict(get_project_text_sizes(doc))
+    row_signature = {}
+    first_seen = []
+    seen = set()
+
+    for ri, row in enumerate(all_rows):
+        style = None
+        for ci in range(len(row)):
+            cell = row[ci]
+            if cell is None or not unicode(cell).strip():
+                continue
+            style = cell_styles.get((ri, ci))
+            if style:
+                break
+        signature = row_style_signature(style)
+        row_signature[ri] = signature
+        if signature not in seen:
+            seen.add(signature)
+            first_seen.append((signature, ri))
+
+    for signature, ri in first_seen:
+        if signature in sizes:
+            continue
+        if not ask:
+            sizes[signature] = DEFAULT_SCHEDULE_TEXT_SIZE_MM
+            continue
+        answer = _ask_text_size(ri, _row_sample(all_rows[ri]),
+                                DEFAULT_SCHEDULE_TEXT_SIZE_MM)
+        if answer is None:
+            answer = DEFAULT_SCHEDULE_TEXT_SIZE_MM
+        sizes[signature] = answer
+        store_project_text_size(doc, signature, answer)
+
+    resolved = {}
+    for ri in row_signature:
+        resolved[ri] = sizes.get(row_signature[ri],
+                                 DEFAULT_SCHEDULE_TEXT_SIZE_MM)
+    return resolved
+
+
+# ── Autofit: size cells to the text they actually hold ───────────────────────
+# Excel's own column widths and row heights are no use once the user has
+# chosen their own text height - a column sized for 10pt Arial is far too
+# wide for 2mm Revit text. So the cells are measured from the real text at
+# the real size instead, with WPF doing the measuring.
+#
+# Padding is deliberately a little generous: text that overflows a Revit
+# schedule cell is clipped, and a slightly loose column is much easier to
+# live with than a truncated one. Tighten these if the result is airy.
+AUTOFIT_PAD_W_MM = 2.0      # added to every column
+AUTOFIT_PAD_H_MM = 1.2      # added to every row
+AUTOFIT_MIN_COL_MM = 6.0
+AUTOFIT_MIN_ROW_MM = 4.0
+
+# Refit only. A rotated label needs a row as long as its text, which for
+# a header like "Number: Support (npsup) [No]" runs away to something
+# that swamps the sheet. Past this the row stops growing and the text is
+# allowed to clip - raise it if you'd rather have the height.
+REFIT_MAX_ROW_MM = 45.0
+REFIT_MAX_COL_MM = 60.0
+
+_MEASURE_CACHE = {}
+
+
+def _typeface(font_name, bold, italic):
+    from System.Windows.Media import Typeface, FontFamily
+    from System.Windows import FontStyles, FontWeights, FontStretches
+    return Typeface(
+        FontFamily(font_name or 'Arial'),
+        FontStyles.Italic if italic else FontStyles.Normal,
+        FontWeights.Bold if bold else FontWeights.Normal,
+        FontStretches.Normal)
+
+
+def measure_text_mm(text, font_name, size_mm, bold=False, italic=False):
+    """(width, line height) of one line of text, in mm.
+
+    Measured with WPF's FormattedText at an em size of size_mm, so the
+    numbers come back in the same units the caller is working in. Falls
+    back to a character-count estimate if the measurement isn't
+    available for any reason - a loose column beats a crash.
+    """
+    key = (text, font_name, round(float(size_mm), 3), bool(bold), bool(italic))
+    cached = _MEASURE_CACHE.get(key)
+    if cached:
+        return cached
+
+    result = None
+    try:
+        from System.Windows.Media import FormattedText, Brushes
+        from System.Windows import FlowDirection
+        from System.Globalization import CultureInfo
+        face = _typeface(font_name, bold, italic)
+        try:
+            # .NET 4.6+ overload; the older one has no pixelsPerDip.
+            ft = FormattedText(text, CultureInfo.InvariantCulture,
+                               FlowDirection.LeftToRight, face,
+                               float(size_mm), Brushes.Black, 1.0)
+        except TypeError:
+            ft = FormattedText(text, CultureInfo.InvariantCulture,
+                               FlowDirection.LeftToRight, face,
+                               float(size_mm), Brushes.Black)
+        result = (float(ft.Width), float(ft.Height))
+    except Exception as ex:
+        logger.debug('text measure failed, estimating instead: {}'.format(ex))
+
+    if result is None:
+        result = (len(text) * size_mm * 0.6, size_mm * 1.35)
+
+    _MEASURE_CACHE[key] = result
+    return result
+
+
+def longest_word_mm(text, font_name, size_mm, bold=False, italic=False):
+    """Width of the widest unbreakable run in the text.
+
+    Wrapping can only break at spaces, so a column narrower than this
+    clips the word instead of wrapping it - which is exactly how
+    "DESIGN CAPACITY" ends up rendered as "DESIGN CAPA...". Any width
+    worked out by dividing a string across N lines has to be floored by
+    this, or the arithmetic promises a wrap that can't happen.
+    """
+    widest = 0.0
+    for word in text.split():
+        width, _line_h = measure_text_mm(word, font_name, size_mm,
+                                         bold, italic)
+        if width > widest:
+            widest = width
+    return widest
+
+
+def autofit_table(all_rows, cell_styles, row_size_mm, n_cols, merges=(),
+                  default_font='Arial'):
+    """Column widths and row heights in mm, measured from the real text.
+
+    Three kinds of cell contribute differently:
+
+      * rotated  - the text runs up the cell, so its LENGTH drives the
+        row height and only its line height drives the column width.
+        This is what keeps a rotated header column narrow.
+      * wrapping - doesn't stretch its column to fit the whole string;
+        it wraps onto more lines instead, and those lines drive the row
+        height. It still can't go narrower than its longest WORD though,
+        since wrapping only breaks at spaces.
+      * merged   - spans several columns, so it can't stretch just one.
+        Any shortfall is shared out across the columns it covers.
+
+    Everything else drives its column's width and its row's height
+    directly.
+    """
+    col_mm, row_mm = {}, {}
+    merge_span, merge_need, wrap_cells = {}, {}, {}
+
+    spanned = set()
+    for r1, c1, r2, c2 in merges:
+        merge_span[(r1, c1)] = (r2, c2)
+        for rr in range(r1, r2 + 1):
+            for cc in range(c1, c2 + 1):
+                if (rr, cc) != (r1, c1):
+                    spanned.add((rr, cc))
+
+    for ri, row in enumerate(all_rows):
+        size = row_size_mm.get(ri, DEFAULT_SCHEDULE_TEXT_SIZE_MM)
+        for ci in range(min(len(row), n_cols)):
+            if (ri, ci) in spanned:
+                continue
+            cell = row[ci]
+            text = u'' if cell is None else unicode(cell).strip()
+            if not text:
+                continue
+
+            style = cell_styles.get((ri, ci), {})
+            width, line_h = measure_text_mm(
+                text, style.get('font_name', default_font), size,
+                style.get('bold'), style.get('italic'))
+
+            if style.get('rotation'):
+                need_w, need_h = line_h, width
+            else:
+                need_w, need_h = width, line_h
+
+            span_cols = None
+            if (ri, ci) in merge_span:
+                last = min(merge_span[(ri, ci)][1], n_cols - 1)
+                span_cols = list(range(ci, last + 1))
+
+            # Wrapping wins over merging: a wrapping title spread across
+            # every column should use more lines, not force the whole
+            # table wider to fit on one.
+            if style.get('wrap'):
+                cols = span_cols or [ci]
+                wrap_cells[(ri, ci)] = (width, line_h, cols)
+                # Wrapping still can't split a word, so the columns it
+                # covers have to total at least the longest one.
+                if not rotated:
+                    merge_need[('wrap', ri, ci)] = (
+                        longest_word_mm(text, style.get('font_name',
+                                                        default_font),
+                                        size, style.get('bold'),
+                                        style.get('italic')),
+                        cols)
+            elif span_cols:
+                merge_need[(ri, ci)] = (need_w, span_cols)
+            else:
+                col_mm[ci] = max(col_mm.get(ci, 0.0), need_w)
+
+            row_mm[ri] = max(row_mm.get(ri, 0.0), need_h)
+
+    for ci in range(n_cols):
+        col_mm[ci] = max(AUTOFIT_MIN_COL_MM,
+                         col_mm.get(ci, 0.0) + AUTOFIT_PAD_W_MM)
+
+    # A merged header still has to fit somewhere: if the columns it
+    # covers don't add up, widen them all a little rather than one a lot.
+    for need_w, span in merge_need.values():
+        shortfall = need_w + AUTOFIT_PAD_W_MM - sum(col_mm[c] for c in span)
+        if shortfall > 0:
+            share = shortfall / len(span)
+            for c in span:
+                col_mm[c] += share
+
+    # Now the columns are known, a wrapping cell's line count is too.
+    # A merged wrapping cell wraps across everything it spans.
+    for (ri, _ci), (width, line_h, span) in wrap_cells.items():
+        available = sum(col_mm.get(c, AUTOFIT_MIN_COL_MM)
+                        for c in span) - AUTOFIT_PAD_W_MM
+        if available <= 0:
+            lines = 1
+        else:
+            lines = int(width / available)
+            if width % available:
+                lines += 1
+        row_mm[ri] = max(row_mm.get(ri, 0.0), max(1, lines) * line_h)
+
+    for ri in range(len(all_rows)):
+        row_mm[ri] = max(AUTOFIT_MIN_ROW_MM,
+                         row_mm.get(ri, 0.0) + AUTOFIT_PAD_H_MM)
+
+    return col_mm, row_mm
+
+
+MM_PER_FT = 304.8
+
+# TableCellStyle.TextSize is NOT millimetres. create_schedule.py writes it
+# as  size_pt * 1.1812, and size_pt is size_mm * 72/25.4 - so what goes in
+# (and comes back out) is the text height in mm multiplied by this:
+REVIT_TEXT_SIZE_FACTOR = (72.0 / 25.4) * 1.1812      # ~3.348
+#
+# Reading it back as if it were mm makes every string measure ~3.3x too
+# wide, which blows every column out to the cap. Undo the factor on read.
+# Realistic schedule text is a few mm, so the result is sanity-checked
+# and the raw value used instead if dividing gives something absurd -
+# that way a Revit version whose getter already converts still works.
+PLAUSIBLE_TEXT_MM = (0.8, 12.0)
+
+
+def _resolve_text_size_mm(raw):
+    """Turn a TableCellStyle.TextSize reading into millimetres."""
+    try:
+        raw = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if raw <= 0:
+        return None
+    low, high = PLAUSIBLE_TEXT_MM
+    scaled = raw / REVIT_TEXT_SIZE_FACTOR
+    if low <= scaled <= high:
+        return scaled
+    if low <= raw <= high:
+        return raw
+    return None
+
+
+def _cell_style_info(sec, r, c, default_font='Arial'):
+    """Font, size (mm) and rotation of one Revit schedule cell.
+
+    Every read is guarded: a cell that has never been styled returns a
+    TableCellStyle with unset members, and asking for one of those
+    throws rather than returning a default.
+    """
+    info = {'font_name': default_font, 'bold': False, 'italic': False,
+            'size_mm': DEFAULT_SCHEDULE_TEXT_SIZE_MM, 'rotated': False}
+    try:
+        style = sec.GetTableCellStyle(r, c)
+    except Exception:
+        return info
+    try:
+        if style.FontName:
+            info['font_name'] = style.FontName
+    except Exception:
+        pass
+    try:
+        info['bold'] = bool(style.IsFontBold)
+    except Exception:
+        pass
+    try:
+        info['italic'] = bool(style.IsFontItalic)
+    except Exception:
+        pass
+    try:
+        size = _resolve_text_size_mm(style.TextSize)
+        if size:
+            info['size_mm'] = size
+    except Exception:
+        pass
+    try:
+        info['rotated'] = int(style.TextOrientation) in (90, 270)
+    except Exception:
+        pass
+    return info
+
+
+REFIT_RESET = 'reset'
+REFIT_CURRENT = 'current'
+
+
+def refit_schedule(doc, schedule, default_font='Arial', mode=REFIT_RESET,
+                   row_size_mm=None):
+    """Size a schedule's cells so nothing is truncated.
+
+    Two modes, because there are two things you might want protected:
+
+    REFIT_RESET ("Reset Cell Sizes") ignores whatever the cells are now
+    and sizes them from the text alone. Horizontal text WIDENS ITS
+    COLUMN to fit on one line, deliberately rather than wrapping down to
+    a sliver - a group header over one narrow column is what turns
+    "DESIGN CAPACITY" into "DESI GN CAP ACI...", and a wider column is
+    the fix. Use it to start again from a clean layout.
+
+    REFIT_CURRENT ("Update Cells After Resizing") keeps the sizes you set
+    in Revit and adjusts the other dimension to suit them. Each row's
+    height decides how many lines it can hold, so a row you made taller
+    lets its columns become narrower. Row heights are kept as you left
+    them and only grow if something still won't fit.
+
+    Rotated text can't wrap in either mode, so it always needs a column
+    one line wide and a row as long as the text - which runs away on a
+    long label, hence REFIT_MAX_ROW_MM.
+
+    Must be called inside a transaction. Returns (n_cols, n_rows).
+    """
+    section = schedule.GetTableData().GetSectionData(DB.SectionType.Header)
+    n_rows = section.NumberOfRows
+    n_cols = section.NumberOfColumns
+
+    # What the build wrote down beats anything read back off the cells.
+    if row_size_mm is None:
+        try:
+            row_size_mm = get_schedule_row_sizes(doc, schedule.Name)
+        except Exception:
+            row_size_mm = {}
+
+    current_row_mm = {}
+    for r in range(n_rows):
+        try:
+            current_row_mm[r] = section.GetRowHeight(r) * MM_PER_FT
+        except Exception:
+            current_row_mm[r] = AUTOFIT_MIN_ROW_MM
+
+    cells = []
+    sizes_seen = set()
+    for r in range(n_rows):
+        for c in range(n_cols):
+            try:
+                text = section.GetCellText(r, c)
+            except Exception:
+                continue
+            text = unicode(text).strip() if text else u''
+            if not text:
+                continue
+
+            span = 1
+            try:
+                merged = section.GetMergedCell(r, c)
+                if merged and merged.Right > merged.Left:
+                    if r != merged.Top or c != merged.Left:
+                        continue            # only the anchor carries the text
+                    span = merged.Right - merged.Left + 1
+            except Exception:
+                pass
+
+            info = _cell_style_info(section, r, c, default_font)
+            size_mm = row_size_mm.get(r) or info['size_mm']
+            width, line_h = measure_text_mm(
+                text, info['font_name'], size_mm,
+                info['bold'], info['italic'])
+            word_w = longest_word_mm(text, info['font_name'], size_mm,
+                                     info['bold'], info['italic'])
+            sizes_seen.add(round(size_mm, 2))
+            cells.append((r, c, span, width, line_h, info['rotated'], word_w))
+
+    # If these aren't a few millimetres, REVIT_TEXT_SIZE_FACTOR is wrong
+    # for this Revit version and every column will come out proportionally
+    # off - this line is the first thing to check when that happens.
+    logger.debug('refit "{}" mode={} recorded={} text sizes (mm): {}'.format(
+        schedule.Name, mode, bool(row_size_mm), sorted(sizes_seen)))
+
+    # ── Column widths ──
+    # RESET: wide enough for horizontal text on one line.
+    # CURRENT: only as wide as the text needs given the lines the row's
+    # existing height already allows, so a taller row buys a narrower
+    # column.
+    col_mm, merged_needs = {}, []
+    for r, c, span, width, line_h, rotated, word_w in cells:
+        if rotated:
+            need = line_h
+        elif mode == REFIT_CURRENT and line_h > 0:
+            lines = int(current_row_mm.get(r, 0.0) / line_h)
+            # Never narrower than the longest word, or the wrap this
+            # division assumes can't actually happen and Revit clips.
+            need = max(width / max(1, lines), word_w)
+        else:
+            need = width
+        if span > 1:
+            merged_needs.append((c, span, need))
+        else:
+            col_mm[c] = max(col_mm.get(c, 0.0), need)
+
+    for c in range(n_cols):
+        col_mm[c] = min(REFIT_MAX_COL_MM,
+                        max(AUTOFIT_MIN_COL_MM,
+                            col_mm.get(c, 0.0) + AUTOFIT_PAD_W_MM))
+
+    for c, span, need in merged_needs:
+        span_cols = list(range(c, min(c + span, n_cols)))
+        if not span_cols:
+            continue
+        shortfall = need + AUTOFIT_PAD_W_MM - sum(col_mm[x] for x in span_cols)
+        if shortfall > 0:
+            share = shortfall / len(span_cols)
+            for x in span_cols:
+                col_mm[x] += share
+
+    # ── Row heights at those widths ──
+    row_mm = {}
+    for r, c, span, width, line_h, rotated, _word_w in cells:
+        if rotated:
+            need = width
+        else:
+            span_cols = list(range(c, min(c + max(1, span), n_cols)))
+            available = sum(col_mm[x] for x in span_cols) - AUTOFIT_PAD_W_MM
+            if available <= 0:
+                lines = 1
+            else:
+                lines = int(width / available)
+                if width % available:
+                    lines += 1
+            need = max(1, lines) * line_h
+        row_mm[r] = max(row_mm.get(r, 0.0), need)
+
+    for r in range(n_rows):
+        fitted = min(REFIT_MAX_ROW_MM,
+                     max(AUTOFIT_MIN_ROW_MM,
+                         row_mm.get(r, 0.0) + AUTOFIT_PAD_H_MM))
+        if mode == REFIT_CURRENT:
+            # Your height is the input, not something to overrule - only
+            # grow past it when the text genuinely doesn't fit.
+            fitted = max(current_row_mm.get(r, 0.0), fitted)
+        row_mm[r] = fitted
+
+    for c in range(n_cols):
+        try:
+            section.SetColumnWidth(c, col_mm[c] / MM_PER_FT)
+        except Exception as ex:
+            logger.debug('refit SetColumnWidth({}): {}'.format(c, ex))
+    for r in range(n_rows):
+        try:
+            section.SetRowHeight(r, row_mm[r] / MM_PER_FT)
+        except Exception as ex:
+            logger.debug('refit SetRowHeight({}): {}'.format(r, ex))
+
+    return n_cols, n_rows
+
+
 def get_installed_font_names():
     """Every font family name Windows/WPF actually has installed,
     sorted - used both to validate a table's own font before using it,

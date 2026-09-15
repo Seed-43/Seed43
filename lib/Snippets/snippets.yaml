@@ -1,5 +1,27 @@
 snippets:
 
+  _connections.py:
+    description: >
+      Reading steel connection types, and moving them between documents with
+      CopyElements without letting it strip the names off the source.
+      CopyElements RENAMES THE TYPE IT COPIED FROM to "Ref" and clears its
+      Type Mark, silently, in the source document - transfer() repairs both
+      ends and is the only safe way to copy one. Used by Connections and
+      Connection Library.
+    functions:
+      eid:              Return the integer behind an ElementId on any supported Revit.
+      element_name:     Return an element's Name around IronPython's property binder.
+      family_name:      Return a type's FamilyName with the same guard as element_name.
+      param_text:       Return a named string parameter's value, or "" if absent or empty.
+      read_param:       Return a parameter's value ready to write elsewhere, or None to skip it.
+      is_connection:    Check whether a type is a real connection rather than a sub-connection or placeholder.
+      connection_types: Return every real connection type in a document, family then type order.
+      placed_counts:    Return how many connections are placed on each type id.
+      find_type:        Find the type in a document with a given family and name.
+      identity:         Return the (family, name, mark) that must survive a copy.
+      restore_identity: Put a type's name and Type Mark back after a copy.
+      transfer:         Copy connection types into another document with both ends' names intact.
+
   _dialogs.py:
     description: >
       Themed message/confirm/text-input popups: borderless rounded dark card
@@ -205,3 +227,77 @@ snippets:
       open_folder:         Show a folder in File Explorer, raising the window that already has it open instead of stacking up another one. Returns True if an existing window was reused.
       support_mailto:      Return a mailto URI for a support email, pre-filled with the app name, the installed Seed43 version and the Revit version.
       github_issue_url:    Return a GitHub 'new issue' URL for the Seed43 repo, pre-filled with the app name, Seed43 version and Revit version.
+
+  _dimoverrides.py:
+    description: >
+      Per-dimension override text recorded into the Revit file itself as an
+      Extensible Storage entity on each Dimension, so an override Revit
+      drops - when the measured element is adjusted or re-referenced - can
+      be identified afterwards and put back. Stored on the element rather
+      than in a project-wide index so a deleted dimension takes its record
+      with it and no stale entry can outlive it. The record is a list, one
+      entry per segment, because a string of dims is one ElementId carrying
+      several independent texts. Used by Dim Override and Dim Restore.
+    functions:
+      is_target:           Return True for a dimension whose text can be read and written.
+      text_carriers:       Return the objects holding a dimension's text fields, in index order.
+      read_current:        Return a dimension's text fields as they stand now, one dict per carrier.
+      write_uniform:       Write one set of fields onto every carrier of a dimension.
+      write_segments:      Write a per-carrier list of field dicts back onto a dimension.
+      has_text:            Return True if any field of any segment carries text.
+      summarise:           Render a segment list as one short line for a report column.
+      load_record:         Return the stored record for a dimension, or None if it has none.
+      store_record:        Stamp a dimension with a record, defaulting to its current text.
+      forget_record:       Drop a dimension's record.
+      tracked_dimensions:  Return every dimension in the document carrying a record.
+      compare:             Classify a dimension against its record as in sync, dropped, changed, resegmented or untracked.
+
+  _viewfilters.py:
+    description: >
+      Blanket on/off overrides of a view's Enable Filter and Visibility
+      checkboxes, with every filter's previous value recorded into an
+      Extensible Storage entity on the view - so the reset restores exactly
+      what was there and leaves the ones the user had already unticked
+      alone. Always writes to the active view alone, even where a view
+      template controls the Filters setting: Revit greys that tab out in the
+      UI, but the API write lands on the view and sticks, leaving the
+      template and every other view using it untouched. Marks an overridden
+      view with an amber frame, which means Temporary View Properties mode
+      with a custom title and colour - the only frame the API can draw - so
+      filter writes have to happen with the frame down, because Revit
+      discards anything changed while that mode is active. The frame is
+      session state and the record is not, so restore_notices() redraws it
+      on open while reset_document(), which the Close hook offers, is the
+      only thing that clears an override. The wording the tools show
+      explains the round trip rather than reporting status, so report()
+      shows it once per column per direction and then keeps quiet, recording
+      what has been shown in .user/ViewFilters/guide_shown.json; anything
+      that went wrong is shown every time. Used by Filters Off and Filters
+      Show.
+    functions:
+      supports_filters:  Return True for a view whose filter checkboxes can be read.
+      applied_filters:   Return the ElementIds of the filters applied to a view.
+      filter_name:       Return a filter's name, or its id as text if the element has gone.
+      read_flag:         Read one filter's checkbox for the given column.
+      write_flag:        Write one filter's checkbox for the given column.
+      load_record:       Return the stored override record for a view, or an empty dict.
+      store_record:      Stamp a view with an override record, or clear it when empty.
+      forget_record:     Drop a view's override record.
+      active_kinds:      Return which columns currently have an override recorded on a view.
+      apply_override:    Force every applied filter's checkbox to the override value.
+      restore_override:  Put each recorded filter's checkbox back to what it was.
+      notice_state:      Return whether the view frame is ours, someone else's, or absent.
+      notice_on:         Raise the amber override frame, captioned for the active columns.
+      notice_off:        Take our own frame down, leaving anyone else's alone.
+      controlling_template: Return the view template that owns a view's Filters setting, or None.
+      overridden_views:  Return every view in a document carrying an override record.
+      restore_notices:   Put the amber frame back on every view still carrying an override.
+      overridden_names:  Return the names of views still carrying an override, for a dialog.
+      reset_document:    Put every overridden view in a document back, and drop its record.
+      toggle:            Apply a column's override to a view, or reset it if it is already on.
+      summarise:         Render a toggle result as the wording shown to the user.
+      needs_attention:   Return True when a run has something the user has to be told about.
+      report_due:        Return True if the guide for a column and direction has not been shown.
+      mark_reported:     Record that the guide for a column and direction has been shown.
+      forget_reports:    Drop the record of which guides have been shown, so they show again.
+      report:            Return the message to put in front of the user, or None to stay quiet.

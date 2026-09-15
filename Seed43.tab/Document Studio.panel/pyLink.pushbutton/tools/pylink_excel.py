@@ -56,6 +56,7 @@ from pylink_shared import (
     hb, Row, VIEW_TYPES, SRC_COLOURS, STATUS_COLOURS,
     _run_export_script, _confirm, _alert, set_view_pylink_data,
     load_excel_font_settings, _is_font_installed,
+    resolve_row_text_sizes,
 )
 
 _sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'format'))
@@ -108,6 +109,11 @@ class TableRow(object):
         # proof, since it survives the view being renamed outside
         # pyLink (unlike applied_view_name, which goes stale on rename).
         self.applied_view_id = None
+        # Position in a run of rows that share one legend/drafting view.
+        # 0 clears the view and draws at the top; anything higher draws
+        # below what is already there. Schedules ignore it - a schedule
+        # is one table by construction.
+        self.stack_index = 0
 
 
 # ── Read spreadsheet metadata + cell data (format dispatch) ──
@@ -421,7 +427,17 @@ def purge_unused_pylink_text_types():
     piled up before that change, or from a range that's since been
     resized/reformatted so its old size is no longer used anywhere.
 
-    Returns (purged_count, kept_count, failed_names).
+    A kept type is one that TextNotes still point at. "Still in use" on
+    its own was no help when the project looked empty of text, so which
+    views hold those notes comes back too - the answer is nearly always
+    a legend or drafting view that is still there.
+
+    Schedules are NOT a user: a schedule cell copies a text type's font
+    NAME into its TableCellStyle and keeps no reference to the type, so
+    a type held only by a schedule is genuinely unused and safe to go.
+
+    Returns (purged_count, kept_count, failed_names, usage), where usage
+    is [(type_name, n_notes, [view name, ...])].
     """
     all_tt = list(
         DB.FilteredElementCollector(doc)
@@ -440,18 +456,31 @@ def purge_unused_pylink_text_types():
             pylink_tt[_eid_int(tt.Id)] = (name, tt)
 
     if not pylink_tt:
-        return (0, 0, [])
+        return (0, 0, [], [])
 
-    used_ids = set()
+    # What is using each type, and which view it sits in. The view name
+    # is the whole point: "2 still in use" against a project that looks
+    # empty tells you nothing, "used by 14 notes in Legend AC1-1" tells
+    # you where to go and delete them.
+    note_use = {}                       # {type_id: [view name, ...]}
     try:
         for tn in DB.FilteredElementCollector(doc).OfClass(DB.TextNote):
             try:
-                used_ids.add(_eid_int(tn.GetTypeId()))
+                tid = _eid_int(tn.GetTypeId())
             except Exception:
                 continue
+            where = ''
+            try:
+                owner = doc.GetElement(tn.OwnerViewId)
+                where = owner.Name if owner is not None else ''
+            except Exception:
+                pass
+            note_use.setdefault(tid, []).append(where)
     except Exception as ex:
         logger.warning('Purge: TextNote scan failed: {}'.format(ex))
-        return (0, len(pylink_tt), [])
+        return (0, len(pylink_tt), [], [])
+
+    used_ids = set(note_use)
 
     unused = [
         (name, tt) for tid, (name, tt) in pylink_tt.items()
@@ -473,7 +502,26 @@ def purge_unused_pylink_text_types():
                     failed.append(name)
 
     kept = len(pylink_tt) - purged
-    return (purged, kept, failed)
+    purged_ids = set()
+    for name, tt in unused:
+        if name not in failed:
+            try:
+                purged_ids.add(_eid_int(tt.Id))
+            except Exception:
+                pass
+
+    usage = []
+    for tid, (name, _tt) in pylink_tt.items():
+        if tid in purged_ids:
+            continue
+        notes = note_use.get(tid, [])
+        where = []
+        for w in notes:
+            if w and w not in where:
+                where.append(w)
+        usage.append((name, len(notes), where))
+    usage.sort()
+    return (purged, kept, failed, usage)
 
 def _clear_header(hdr):
     """Strip header back to a single 1x1 cell."""
@@ -1030,9 +1078,15 @@ def apply_row(row):
     # view being renamed outside pyLink); the old name-match proof is
     # only a fallback for a row that hasn't recorded an id yet (first
     # apply under this version, or state saved before this existed).
+    # A row stacking onto a shared legend/drafting view is drawing on a
+    # view the FIRST row of its run owns, by design, and it appends
+    # rather than clearing - so there is nothing here to protect. The
+    # guard still runs for that first row, which is the one that clears.
+    _stacking = getattr(row, 'stack_index', 0) > 0
     try:
         existing_view = None
-        for v in DB.FilteredElementCollector(revit.doc).OfClass(DB.View):
+        for v in ([] if _stacking else
+                  DB.FilteredElementCollector(revit.doc).OfClass(DB.View)):
             try:
                 if v.IsValidObject and v.Name == row.view_name:
                     existing_view = v
@@ -1088,6 +1142,30 @@ def apply_row(row):
     size_hdr_mm = (hdr_pt * PT_MM) if hdr_pt else row.size_hdr_mm
     size_dat_mm = (dat_pt * PT_MM) if dat_pt else row.size_dat_mm
 
+    # The project's own answers beat Excel's point size, for EVERY view
+    # type. They were only ever read by the schedule builder, so a
+    # drafting view or legend went out at whatever Excel's font happened
+    # to be - 10pt landing as 3.5mm text next to a schedule the same
+    # settings had put at 2mm. The menu calls them "Schedule Text Size"
+    # because that is where they started; they are really this tool's
+    # Excel-to-Revit text heights and now apply as such.
+    #
+    # Resolved here rather than inside each export script so the user is
+    # asked once per row kind per project, whichever view type they
+    # build first, and every later build finds the answer already given.
+    all_rows_for_size = [fields] + list(records)
+    try:
+        row_size_mm = resolve_row_text_sizes(doc, all_rows_for_size, cell_styles)
+    except Exception as ex:
+        logger.warning('text size resolve failed, using Excel sizes: {}'.format(ex))
+        row_size_mm = {}
+    if row_size_mm:
+        # A drafting view and a legend carry two text types, header and
+        # data, so they take the answer for row 0 and the answer for the
+        # first data row. A schedule uses the full per-row map.
+        size_hdr_mm = row_size_mm.get(0, size_hdr_mm)
+        size_dat_mm = row_size_mm.get(1, size_dat_mm)
+
     # Same idea for font NAME - use Excel's own font (e.g. 'Aptos
     # Narrow') if it's actually installed on this machine, otherwise
     # fall back to the user-configured default (hamburger menu ->
@@ -1142,6 +1220,8 @@ def apply_row(row):
         'font':               font_name,
         'size_hdr_mm':        size_hdr_mm,
         'size_dat_mm':        size_dat_mm,
+        # Already resolved, so create_schedule.py does not ask again.
+        'row_size_mm':        row_size_mm,
         'hdr_tt_id':          hdr_tt_id,
         'dat_tt_id':          dat_tt_id,
         'view_scale':         row.view_scale,
@@ -1149,6 +1229,11 @@ def apply_row(row):
         'merges':             fmt.get('merges', []),
         'row_heights':        fmt.get('row_heights', {}),
         'col_widths':         fmt.get('col_widths', {}),
+        # Excel's own column geometry, used only to work out where the
+        # spreadsheet wrapped its text. Absent for .ods, which falls
+        # back to col_widths.
+        'col_widths_excel':   fmt.get('col_widths_excel', {}),
+        'stack_index':        getattr(row, 'stack_index', 0),
         # Which of those sizes the user actually chose, as opposed to
         # Excel's defaults - the schedule builder autofits the rest.
         'custom_rows':        fmt.get('custom_rows', []),
@@ -1301,6 +1386,10 @@ class ExcelCardMixin(object):
         collapse_btn.Tag     = path
         collapse_btn.ToolTip = 'Collapse'
         collapse_btn.Click  += self._toggle_card_collapse
+        # Kept so the card can be collapsed from code as well as by
+        # clicking - restoring a saved collapsed state needs the button
+        # driven too, or its chevron points the wrong way.
+        self._file_data.setdefault(path, {})['collapse_btn'] = collapse_btn
         self._set_collapse_icon(collapse_btn, False)
         header_left.Children.Add(collapse_btn)
 
@@ -1506,6 +1595,9 @@ class ExcelCardMixin(object):
         if not row:
             return
         row.ViewName = sender.Text.strip()
+        # Typed by hand, so it stops following the named range. Clearing
+        # the box hands it back: an empty name is not a chosen one.
+        row._name_auto = not row.ViewName
         sender.Text  = row.ViewName
         if not row.ViewName:
             # Blank = neutral, just reset border — dot stays as-is
@@ -1542,11 +1634,45 @@ class ExcelCardMixin(object):
         if rc.Items.Count > 0:
             rc.SelectedIndex = 0
             row.NamedRange = rc.Items[0]
-            if not row.ViewName:
-                row.ViewName = row.NamedRange
-                if row._vn_textbox is not None:
-                    row._vn_textbox.Text = row.ViewName
+            if self._should_follow_range(row):
+                self._apply_auto_view_name(row)
         self._auto_check_row(row)
+
+    def _should_follow_range(self, row):
+        """Whether this row's view name should track its named range.
+
+        Three cases, and only the middle one is new:
+
+          * blank - nothing to lose;
+          * never typed by hand - the name was filled in from the last
+            range, so it belongs to the range and should move with it.
+            Before, it stuck to whatever the FIRST range happened to be
+            and the row then had to be cleared by hand before it would
+            take a new one;
+          * in conflict - a duplicate name blocks the row, and pointing
+            it at a different range is exactly how you would expect to
+            resolve that. Holding the clashing name would leave the row
+            stuck on an error the user has just acted to fix.
+        """
+        if not row.ViewName:
+            return True
+        if getattr(row, '_name_auto', True):
+            return True
+        try:
+            return self._view_name_taken(row.ViewName, exclude_row=row)
+        except Exception:
+            return False
+
+    def _apply_auto_view_name(self, row):
+        """Put the named range in the view name box and mark it ours."""
+        row.ViewName = row.NamedRange
+        row._name_auto = True
+        if row._vn_textbox is not None:
+            row._vn_textbox.Text = row.ViewName
+        try:
+            self._revalidate_all_view_name_boxes()
+        except Exception:
+            pass
 
     def _rc_changed(self, sender, e):
         if sender.SelectedItem is None:
@@ -1554,10 +1680,8 @@ class ExcelCardMixin(object):
         row = sender.Tag
         if row:
             row.NamedRange = sender.SelectedItem
-            if not row.ViewName:
-                row.ViewName = row.NamedRange
-                if row._vn_textbox is not None:
-                    row._vn_textbox.Text = row.ViewName
+            if self._should_follow_range(row):
+                self._apply_auto_view_name(row)
             self._auto_check_row(row)
 
     def _vt_changed(self, sender, e):

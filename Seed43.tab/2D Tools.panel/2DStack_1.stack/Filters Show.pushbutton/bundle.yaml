@@ -1,0 +1,19 @@
+title: "Filters Show"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Ticks Visibility on for every filter in the active view, bringing back
+  whatever the filters were hiding, and reruns as the reset that hides them
+  again. Every filter's setting is recorded into the model before anything
+  changes, so only the filters this tool switched on are switched back off.
+  Only the current view is touched, even where a view template controls the
+  filters, although reapplying that template clears the override. An amber
+  frame marks the view while it is overridden and is redrawn every time the
+  model is reopened, and closing the model offers to clear anything still on.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

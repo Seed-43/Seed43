@@ -1,0 +1,19 @@
+title: "Filters Off"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Unticks Enable Filter for every filter in the active view, and reruns as
+  the reset that ticks them back on. Every filter's setting is recorded into
+  the model before anything changes, so the ones you had already unticked
+  stay unticked when the override is lifted. Only the current view is
+  touched, even where a view template controls the filters, although
+  reapplying that template clears the override. An amber frame marks the
+  view while it is overridden and is redrawn every time the model is
+  reopened, and closing the model offers to clear anything still on.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

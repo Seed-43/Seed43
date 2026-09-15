@@ -1,0 +1,49 @@
+title: "Param Map"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Carries parameter values across when an updated family renamed them.
+  Pick the old family and its replacement from the two searchable
+  dropdowns, pair each type, then pair the parameters left to right;
+  Auto-match does most of it, reading a trailing dot as One Side and two
+  dots as Other Side.
+
+  Preview reports what would happen without touching the model and Swap
+  does it, in one transaction, so a single undo puts it all back. A
+  parameter left unpaired is skipped and comes out at the new family's
+  default: a type change across families keeps nothing of its own, not
+  even a name that did not change.
+
+  Instance values are carried per instance. A mapped type parameter is
+  written once onto the target type instead, which lands on every
+  instance of it, including any already placed.
+
+  Skip formulas is on by default and leaves any parameter a formula drives
+  out of the mapping on both sides, since the new family works those out
+  for itself.
+
+  Dimensions are guarded rather than rebuilt. A swap can leave dimension
+  references invalid, remove segments and drop override text, and none of
+  that is visible until Revit commits, so the commit itself is the gate.
+  Which new reference replaces one the update removed is not a question
+  the tool can answer without guessing, so it does not try.
+
+  Swap therefore goes element by element. Each one is tried on its own;
+  the ones Revit has no objection to are swapped and kept, and the rest
+  are walked in a window that stays open beside Revit. Each step opens the
+  view holding the dimensions and tags at risk, frames the element and
+  lists what taking it would cost, so you can take it and redraw them
+  there and then before moving on. Stop at any point and everything
+  already swapped stays.
+
+  Tick Accept fixes to take the whole lot in one commit instead, letting
+  Revit apply its own fix to every failure, which usually means deleting
+  the dimension or dropping the constraint. That is one undo and leaves
+  all the redrawing until afterwards.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

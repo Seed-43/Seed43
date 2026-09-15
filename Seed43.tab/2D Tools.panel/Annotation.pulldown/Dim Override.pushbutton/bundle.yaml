@@ -1,0 +1,23 @@
+title: "Dim Override"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Writes the same override text to a whole batch of dimensions in one pass,
+  so a run of laps or not-to-scale calls does not have to be typed into each
+  dimension in turn. Click dimensions to build the selection, each one going
+  halftone as it is picked and back to normal if it is picked again, then
+  press Escape to open the text dialog. Above, prefix, value, suffix and
+  below are all editable, and the value field predicts from the overrides
+  already used on this machine, ranked by how often each has been used - type
+  the first letter or two and press Tab to accept, or click one from the list.
+  Anything typed by hand is added to that list. Multi-segment dimensions get
+  the text on every segment. What it writes is recorded inside the file on
+  the dimension itself, so Dim Restore can put an override back if Revit
+  later drops it.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

@@ -325,6 +325,9 @@ def read_xlsx_range_formatting(file_path, named_range, sheet_name):
         'merges':      [],
         'row_heights': {},
         'col_widths':  {},
+        # The same columns in Excel's own geometry, for deciding where
+        # text wrapped in the sheet - see the MDW comment below.
+        'col_widths_excel': {},
         'custom_rows': [],
         'custom_cols': [],
     }
@@ -589,6 +592,22 @@ def read_xlsx_range_formatting(file_path, named_range, sheet_name):
         else:
             _col_mdw = 7.6   # Calibri, Arial and others (approx)
 
+        # Excel's REAL max digit width, uncalibrated - the values at the
+        # top of this comment rather than the ones nudged for Revit.
+        # Both are needed and they are not interchangeable: the
+        # calibrated width says how wide to draw the column in Revit,
+        # this one says how much room the text had in the SPREADSHEET,
+        # which is what decides where a wrapped heading breaks. Using
+        # the calibrated width for that made every column read ~9% wider
+        # than it really was, and a title that wraps in Excel came
+        # through on one line.
+        if 'aptos' in _default_font_name:
+            _col_mdw_excel = 7.41
+        elif 'calibri light' in _default_font_name:
+            _col_mdw_excel = 6.8
+        else:
+            _col_mdw_excel = 7.0
+
         # Read explicit column widths for cols in range
         col_nodes = ws_xml.GetElementsByTagName('col')
         for i in range(col_nodes.Count):
@@ -610,6 +629,9 @@ def read_xlsx_range_formatting(file_path, named_range, sheet_name):
                         # MDW=7.41 for Aptos Narrow, 7.0 for Calibri/Arial
                         _px = int((w_ch * _col_mdw + 5) / _col_mdw * 256) / 256.0 * _col_mdw
                         result['col_widths'][rel_ci] = _px * 25.4 / 96.0
+                        _pxe = (int((w_ch * _col_mdw_excel + 5) / _col_mdw_excel * 256)
+                                / 256.0 * _col_mdw_excel)
+                        result['col_widths_excel'][rel_ci] = _pxe * 25.4 / 96.0
                         if is_custom and rel_ci not in result['custom_cols']:
                             result['custom_cols'].append(rel_ci)
             except Exception:
@@ -621,6 +643,10 @@ def read_xlsx_range_formatting(file_path, named_range, sheet_name):
             if ci not in result['col_widths']:
                 _px = int((default_col_w_ch * _col_mdw + 5) / _col_mdw * 256) / 256.0 * _col_mdw
                 result['col_widths'][ci] = _px * 25.4 / 96.0
+            if ci not in result['col_widths_excel']:
+                _pxe = (int((default_col_w_ch * _col_mdw_excel + 5) / _col_mdw_excel * 256)
+                        / 256.0 * _col_mdw_excel)
+                result['col_widths_excel'][ci] = _pxe * 25.4 / 96.0
 
     except Exception as e:
         logger.error('read_xlsx_range_formatting failed: {}'.format(e))

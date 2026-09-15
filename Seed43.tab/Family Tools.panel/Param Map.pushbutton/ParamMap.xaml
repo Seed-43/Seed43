@@ -1,0 +1,529 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:sys="clr-namespace:System;assembly=mscorlib"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        ResizeMode="CanResize"
+        Width="1240"
+        Height="820"
+        MinWidth="1040"
+        MinHeight="620"
+        Title="Param Map"
+        Background="{DynamicResource BrushWindowBg}">
+
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="64"
+                            CornerRadius="10"
+                            GlassFrameThickness="0"
+                            ResizeBorderThickness="8"
+                            UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <!-- Fallbacks only; seed43_theme injects the live palette after the
+             XAML has parsed, which is what makes DynamicResource the only
+             usable binding here. Values match the dark profile so an
+             unreadable palette file still looks whole. -->
+        <SolidColorBrush x:Key="BrushWindowBg"            Color="#3B4553"/>
+        <SolidColorBrush x:Key="BrushCardBg"              Color="#2B3340"/>
+        <SolidColorBrush x:Key="BrushHeaderBg"            Color="#232933"/>
+        <SolidColorBrush x:Key="BrushPrimaryGreen"        Color="#208A3C"/>
+        <SolidColorBrush x:Key="BrushPrimaryGreenHover"   Color="#32934C"/>
+        <SolidColorBrush x:Key="BrushTextPrimary"         Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="BrushTextMuted"           Color="#9CA3AF"/>
+        <SolidColorBrush x:Key="BrushInputBg"             Color="#1D1D20"/>
+        <SolidColorBrush x:Key="BrushBorderDefault"       Color="#208A3C"/>
+        <SolidColorBrush x:Key="BrushSecondaryBg"         Color="#48484B"/>
+        <SolidColorBrush x:Key="BrushSecondaryHover"      Color="#515155"/>
+        <SolidColorBrush x:Key="BrushSecondaryDisabledBg" Color="#2E2E32"/>
+        <SolidColorBrush x:Key="BrushSecondaryDisabledFg" Color="#77767B"/>
+        <SolidColorBrush x:Key="BrushDropdownItemHover"   Color="#3F3F41"/>
+        <SolidColorBrush x:Key="BrushSelectedRowBg"       Color="#08230F"/>
+        <SolidColorBrush x:Key="BrushDanger"              Color="#E01B24"/>
+        <SolidColorBrush x:Key="BrushSuccess"             Color="#27AE60"/>
+        <SolidColorBrush x:Key="BrushWarning"             Color="#E5A50A"/>
+
+        <CornerRadius x:Key="CornerRadiusCard"     >8</CornerRadius>
+        <CornerRadius x:Key="CornerRadiusInput"    >6</CornerRadius>
+        <CornerRadius x:Key="CornerRadiusButton"   >10</CornerRadius>
+        <Thickness    x:Key="PaddingCard"          >16</Thickness>
+        <Thickness    x:Key="PaddingButtonPrimary" >15,7,15,7</Thickness>
+        <sys:Double   x:Key="FontSizeInput"        >12</sys:Double>
+        <sys:Double   x:Key="FontSizeFieldLabel"   >12</sys:Double>
+        <sys:Double   x:Key="FontSizeSectionLabel" >14</sys:Double>
+        <sys:Double   x:Key="FontSizeButton"       >12</sys:Double>
+
+        <!-- ── TEXT ──────────────────────────────────────────────────── -->
+        <Style x:Key="Section" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource BrushPrimaryGreen}"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize"   Value="{DynamicResource FontSizeSectionLabel}"/>
+        </Style>
+        <Style x:Key="Hint" TargetType="TextBlock">
+            <Setter Property="Foreground"   Value="{DynamicResource BrushTextMuted}"/>
+            <Setter Property="FontSize"     Value="11"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextMuted}"/>
+            <Setter Property="FontSize"   Value="{DynamicResource FontSizeFieldLabel}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin"     Value="0,0,0,4"/>
+        </Style>
+        <Style x:Key="ColHead" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextMuted}"/>
+            <Setter Property="FontSize"   Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin"     Value="0,0,10,0"/>
+        </Style>
+
+        <!-- ── INPUTS ────────────────────────────────────────────────── -->
+        <Style x:Key="Field" TargetType="TextBox">
+            <Setter Property="Background"      Value="{DynamicResource BrushInputBg}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="CaretBrush"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderBrush"     Value="{DynamicResource BrushBorderDefault}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontSize"        Value="{DynamicResource FontSizeInput}"/>
+            <Setter Property="Padding"         Value="7,5"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="Combo" TargetType="ComboBox">
+            <Setter Property="Background"      Value="{DynamicResource BrushInputBg}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderBrush"     Value="{DynamicResource BrushBorderDefault}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontSize"        Value="{DynamicResource FontSizeInput}"/>
+            <Setter Property="Height"          Value="28"/>
+            <Setter Property="Padding"         Value="8,0"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+                        <Setter Property="Padding"    Value="8,5"/>
+                        <Setter Property="Cursor"     Value="Hand"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ComboBoxItem">
+                                    <Border x:Name="Bd" Background="Transparent"
+                                            CornerRadius="4"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsHighlighted" Value="True">
+                                            <Setter TargetName="Bd" Property="Background"
+                                                    Value="{DynamicResource BrushDropdownItemHover}"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="Toggle" Focusable="False"
+                                          ClickMode="Press"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border Background="{DynamicResource BrushInputBg}"
+                                                BorderBrush="{DynamicResource BrushBorderDefault}"
+                                                BorderThickness="1"
+                                                CornerRadius="{DynamicResource CornerRadiusInput}">
+                                            <Path x:Name="Arrow"
+                                                  HorizontalAlignment="Right"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,10,0"
+                                                  Data="M 0 0 L 4 4 L 8 0 Z"
+                                                  Fill="{DynamicResource BrushPrimaryGreen}"/>
+                                        </Border>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter Margin="10,0,26,0"
+                                              VerticalAlignment="Center"
+                                              IsHitTestVisible="False"
+                                              Content="{TemplateBinding SelectionBoxItem}"/>
+                            <Popup x:Name="Popup" Placement="Bottom"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   PopupAnimation="Slide"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}">
+                                <Border Background="{DynamicResource BrushInputBg}"
+                                        BorderBrush="{DynamicResource BrushBorderDefault}"
+                                        BorderThickness="1"
+                                        CornerRadius="{DynamicResource CornerRadiusInput}"
+                                        MinWidth="{TemplateBinding ActualWidth}"
+                                        MaxHeight="320"
+                                        Padding="4">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <ItemsPresenter/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource BrushSecondaryDisabledFg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="Check" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextMuted}"/>
+            <Setter Property="FontSize"   Value="{DynamicResource FontSizeInput}"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+        </Style>
+
+        <!-- ── LIST ──────────────────────────────────────────────────── -->
+        <Style x:Key="ListRow" TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="FontSize"   Value="{DynamicResource FontSizeInput}"/>
+            <Setter Property="Padding"    Value="6,4"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd" Background="Transparent"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Stretch"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource BrushDropdownItemHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource BrushSelectedRowBg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ResultList" TargetType="ListBox">
+            <Setter Property="Background"      Value="{DynamicResource BrushInputBg}"/>
+            <Setter Property="BorderBrush"     Value="{DynamicResource BrushBorderDefault}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding"         Value="4"/>
+            <Setter Property="SelectionMode"   Value="Single"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+            <Setter Property="ItemContainerStyle" Value="{StaticResource ListRow}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBox">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{DynamicResource CornerRadiusInput}">
+                            <ScrollViewer Padding="{TemplateBinding Padding}"
+                                          VerticalScrollBarVisibility="Auto">
+                                <ItemsPresenter/>
+                            </ScrollViewer>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── BUTTONS ───────────────────────────────────────────────── -->
+        <Style x:Key="GreenBtn" TargetType="Button">
+            <Setter Property="Background"      Value="{DynamicResource BrushPrimaryGreen}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
+            <Setter Property="FontSize"        Value="{DynamicResource FontSizeButton}"/>
+            <Setter Property="Padding"         Value="{DynamicResource PaddingButtonPrimary}"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                CornerRadius="{DynamicResource CornerRadiusButton}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource BrushSecondaryDisabledBg}"/>
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource BrushSecondaryDisabledFg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="GreyBtn" TargetType="Button" BasedOn="{StaticResource GreenBtn}">
+            <Setter Property="Background" Value="{DynamicResource BrushSecondaryBg}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                CornerRadius="{DynamicResource CornerRadiusButton}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource BrushSecondaryHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource BrushSecondaryDisabledBg}"/>
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource BrushSecondaryDisabledFg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="WinCtrlCloseBtn" TargetType="Button">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width"           Value="30"/>
+            <Setter Property="Height"          Value="30"/>
+            <Setter Property="FontSize"        Value="13"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                CornerRadius="15">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource BrushDanger}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel>
+        <!-- ── HEADER ────────────────────────────────────────────────── -->
+        <Border Background="{DynamicResource BrushHeaderBg}"
+                Height="64"
+                DockPanel.Dock="Top"
+                CornerRadius="0,0,12,12">
+            <Border.Effect>
+                <DropShadowEffect Color="Black" Opacity="0.3"
+                                  ShadowDepth="2" BlurRadius="6"/>
+            </Border.Effect>
+            <Grid Margin="20,0,16,0">
+                <StackPanel Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            HorizontalAlignment="Left">
+                    <TextBlock Text="Param" FontWeight="Bold" FontSize="26"
+                               Foreground="{DynamicResource BrushPrimaryGreen}"/>
+                    <TextBlock Text="Map" FontWeight="Bold" FontSize="26"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <TextBlock x:Name="subtitle_tb" FontSize="16"
+                               Foreground="{DynamicResource BrushTextPrimary}"
+                               Opacity="0.6"
+                               VerticalAlignment="Bottom" Margin="10,0,0,4"/>
+                </StackPanel>
+                <Button x:Name="win_close_btn"
+                        Content="&#10005;"
+                        Style="{StaticResource WinCtrlCloseBtn}"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        ToolTip="Close"
+                        Click="close_clicked"
+                        shell:WindowChrome.IsHitTestVisibleInChrome="True"/>
+            </Grid>
+        </Border>
+
+        <!-- ── FOOTER ────────────────────────────────────────────────── -->
+        <Grid DockPanel.Dock="Bottom" Margin="20,0,20,20">
+            <TextBlock x:Name="status_tb" Style="{StaticResource Hint}"
+                       VerticalAlignment="Center" HorizontalAlignment="Left"
+                       MaxWidth="760"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="preview_btn" Content="Preview" Width="110"
+                        Style="{StaticResource GreyBtn}" Margin="0,0,8,0"
+                        ToolTip="Report what the swap would do, without touching the model"
+                        Click="preview_clicked"/>
+                <Button x:Name="swap_btn" Content="Swap" Width="130"
+                        Style="{StaticResource GreenBtn}" Margin="0,0,8,0"
+                        ToolTip="Try each element on its own. The ones Revit has no objection to are swapped and kept; the rest are walked one at a time with their view open, so you can redraw the dimensions and tags that go. Tick Accept fixes to take the whole lot in one commit instead."
+                        Click="swap_clicked"/>
+                <Button x:Name="close_btn" Content="Close" Width="110"
+                        Style="{StaticResource GreyBtn}"
+                        Click="close_clicked"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- ── BODY ──────────────────────────────────────────────────── -->
+        <Border Background="{DynamicResource BrushCardBg}"
+                CornerRadius="{DynamicResource CornerRadiusCard}"
+                Padding="{DynamicResource PaddingCard}"
+                Margin="20,16,20,16">
+            <DockPanel>
+
+                <!-- ── THE TWO FAMILIES ──────────────────────────────── -->
+                <Grid DockPanel.Dock="Top" Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="SOURCE FAMILY  (the one being replaced)"
+                                   Style="{StaticResource FieldLabel}"/>
+                        <TextBox x:Name="src_search_tb" Style="{StaticResource Field}"
+                                 Margin="0,0,0,6"
+                                 ToolTip="Type to narrow the list below"
+                                 TextChanged="src_search_changed"/>
+                        <ComboBox x:Name="src_family_cb" Style="{StaticResource Combo}"
+                                  ToolTip="Every family in this model that has placed instances"
+                                  SelectionChanged="src_family_changed"/>
+                    </StackPanel>
+
+                    <TextBlock Grid.Column="1" Text="&#8594;"
+                               FontSize="22" FontWeight="Bold"
+                               Margin="18,20,18,0"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource BrushPrimaryGreen}"/>
+
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="TARGET FAMILY  (the updated one)"
+                                   Style="{StaticResource FieldLabel}"/>
+                        <TextBox x:Name="tgt_search_tb" Style="{StaticResource Field}"
+                                 Margin="0,0,0,6"
+                                 ToolTip="Type to narrow the list below"
+                                 TextChanged="tgt_search_changed"/>
+                        <ComboBox x:Name="tgt_family_cb" Style="{StaticResource Combo}"
+                                  ToolTip="The family the instances will become"
+                                  SelectionChanged="tgt_family_changed"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- ── TYPES ─────────────────────────────────────────── -->
+                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                    <TextBlock Text="TYPES" Style="{StaticResource FieldLabel}"/>
+                    <Border Background="{DynamicResource BrushInputBg}"
+                            BorderBrush="{DynamicResource BrushBorderDefault}"
+                            BorderThickness="1"
+                            CornerRadius="{DynamicResource CornerRadiusInput}"
+                            Padding="8,6"
+                            MaxHeight="120">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel x:Name="type_rows_sp"/>
+                        </ScrollViewer>
+                    </Border>
+                </StackPanel>
+
+                <!-- ── THE MAPPING ───────────────────────────────────── -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <DockPanel Grid.Column="0">
+                        <TextBlock x:Name="src_head_tb" DockPanel.Dock="Top"
+                                   Style="{StaticResource Section}"
+                                   Margin="2,0,0,6"/>
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
+                                    Margin="10,0,0,6">
+                            <TextBlock Style="{StaticResource ColHead}" Width="42"  Text="ON"/>
+                            <TextBlock Style="{StaticResource ColHead}" Width="200" Text="PARAMETER"/>
+                            <TextBlock Style="{StaticResource ColHead}"             Text="MAPPED TO"/>
+                        </StackPanel>
+                        <ListBox x:Name="src_lb"
+                                 Style="{StaticResource ResultList}"
+                                 SelectionChanged="selection_changed"/>
+                    </DockPanel>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center"
+                                Margin="14,0,14,0" Width="132">
+                        <Button x:Name="map_btn" Content="Map  &#187;&#187;"
+                                Style="{StaticResource GreenBtn}" Margin="0,0,0,8"
+                                ToolTip="Pair the highlighted source parameter with the highlighted target parameter"
+                                Click="map_clicked"/>
+                        <Button x:Name="skip_btn" Content="Skip"
+                                Style="{StaticResource GreyBtn}" Margin="0,0,0,24"
+                                ToolTip="Drop the highlighted source parameter's pairing. A skipped parameter is not carried across."
+                                Click="skip_clicked"/>
+                        <Button x:Name="auto_btn" Content="Auto-match"
+                                Style="{StaticResource GreyBtn}" Margin="0,0,0,8"
+                                ToolTip="Pair by name, reading a trailing dot as One Side and two dots as Other Side"
+                                Click="auto_clicked"/>
+                        <Button x:Name="clear_btn" Content="Clear all"
+                                Style="{StaticResource GreyBtn}"
+                                ToolTip="Skip every parameter"
+                                Click="clear_clicked"/>
+                        <CheckBox x:Name="sel_only_cb" Content="Selection only"
+                                  Style="{StaticResource Check}" Margin="0,24,0,0"
+                                  ToolTip="Swap only the source instances that are selected in Revit, instead of all of them"
+                                  Click="scope_changed"/>
+                        <CheckBox x:Name="hide_matched_cb" Content="Hide identical"
+                                  Style="{StaticResource Check}" Margin="0,8,0,0"
+                                  ToolTip="Take the parameters whose name did not change off the screen, leaving only the renames. They stay mapped - Revit does not carry them by itself."
+                                  Click="filter_changed"/>
+                        <CheckBox x:Name="skip_formula_cb" Content="Skip formulas"
+                                  Style="{StaticResource Check}" Margin="0,8,0,0"
+                                  IsChecked="True"
+                                  ToolTip="Leave parameters a formula drives out of the mapping, on both sides. As a target one cannot be written at all; as a source its value was computed rather than authored, so carrying it either duplicates what the new family works out for itself or freezes a stale number on top of a live formula."
+                                  Click="formula_changed"/>
+                        <CheckBox x:Name="accept_fixes_cb" Content="Accept fixes"
+                                  Style="{StaticResource Check}" Margin="0,8,0,0"
+                                  ToolTip="Take the whole swap in one commit, letting Revit apply its own fix to every failure it raises - which usually means deleting the dimension or dropping the constraint. One undo, and the redrawing is left until afterwards. Off, Swap goes element by element instead and stops on each one that would cost something."/>
+                    </StackPanel>
+
+                    <DockPanel Grid.Column="2">
+                        <TextBlock x:Name="tgt_head_tb" DockPanel.Dock="Top"
+                                   Style="{StaticResource Section}"
+                                   Margin="2,0,0,6"/>
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
+                                    Margin="10,0,0,6">
+                            <TextBlock Style="{StaticResource ColHead}" Width="42"  Text="ON"/>
+                            <TextBlock Style="{StaticResource ColHead}" Width="200" Text="PARAMETER"/>
+                            <TextBlock Style="{StaticResource ColHead}"             Text="TAKES FROM"/>
+                        </StackPanel>
+                        <ListBox x:Name="tgt_lb"
+                                 Style="{StaticResource ResultList}"
+                                 SelectionChanged="selection_changed"/>
+                    </DockPanel>
+                </Grid>
+            </DockPanel>
+        </Border>
+    </DockPanel>
+</Window>

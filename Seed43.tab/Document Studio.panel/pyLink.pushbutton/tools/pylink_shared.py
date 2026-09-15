@@ -239,7 +239,8 @@ def store_project_text_size(doc, signature, size_mm):
     save_schedule_text_sizes(store)
 
 
-def store_schedule_row_sizes(doc, view_name, row_size_mm):
+def store_schedule_row_sizes(doc, view_name, row_size_mm, row_overrides_mm=None,
+                             wrap_cells=None):
     """Record the text height actually used for each row of a schedule.
 
     Refit needs to know how tall the text is to work out how much room
@@ -247,6 +248,11 @@ def store_schedule_row_sizes(doc, view_name, row_size_mm):
     guesswork - the value isn't in millimetres and the conversion has
     changed between Revit versions - so the build writes down what it
     used and refit reads that instead.
+
+    Which cells WRAP is written down for the same reason: Revit's
+    TableCellStyle doesn't carry the flag, so without this a later
+    "Reset Cell Sizes" would size every heading for one line and undo
+    the layout the import produced.
     """
     store = load_schedule_text_sizes()
     key = project_key(doc)
@@ -257,25 +263,68 @@ def store_schedule_row_sizes(doc, view_name, row_size_mm):
     entry['title'] = _safe_doc_title(doc)
     if not isinstance(entry.get('schedules'), dict):
         entry['schedules'] = {}
-    entry['schedules'][unicode(view_name)] = dict(
-        (str(ri), mm) for ri, mm in row_size_mm.items())
+    entry['schedules'][unicode(view_name)] = {
+        'text': dict((str(ri), mm) for ri, mm in row_size_mm.items()),
+        # Row heights the spreadsheet asked for. Recorded so that
+        # "Reset Cell Sizes" puts the schedule back to how the import
+        # left it, rather than to something the import never produced.
+        'rows': dict((str(ri), mm)
+                     for ri, mm in (row_overrides_mm or {}).items()),
+        # Cells the spreadsheet wrapped, as "row,col".
+        'wrap': ['%d,%d' % (r, c) for r, c in sorted(wrap_cells or ())],
+    }
     save_schedule_text_sizes(store)
 
 
-def get_schedule_row_sizes(doc, view_name):
-    """The recorded per-row text heights for one schedule, {row: mm}."""
+def _schedule_record(doc, view_name, part):
     store = load_schedule_text_sizes()
     entry = store['projects'].get(project_key(doc), {})
     saved = (entry.get('schedules') or {}).get(unicode(view_name))
     if not isinstance(saved, dict):
         return {}
-    sizes = {}
-    for ri, mm in saved.items():
+    # Records written before this held the text sizes directly.
+    block = saved.get(part) if 'text' in saved or 'rows' in saved else (
+        saved if part == 'text' else {})
+    if not isinstance(block, dict):
+        return {}
+    out = {}
+    for ri, mm in block.items():
         try:
-            sizes[int(ri)] = float(mm)
+            out[int(ri)] = float(mm)
         except (TypeError, ValueError):
             continue
-    return sizes
+    return out
+
+
+def get_schedule_row_sizes(doc, view_name):
+    """The recorded per-row text heights for one schedule, {row: mm}."""
+    return _schedule_record(doc, view_name, 'text')
+
+
+def get_schedule_row_overrides(doc, view_name):
+    """The row heights the spreadsheet asked for, {row: mm}."""
+    return _schedule_record(doc, view_name, 'rows')
+
+
+def get_schedule_wrap_cells(doc, view_name):
+    """The cells the spreadsheet wrapped, as a set of (row, col).
+
+    Empty for a schedule imported before this was recorded, which just
+    means refit falls back to its old one-line-per-heading sizing.
+    """
+    store = load_schedule_text_sizes()
+    entry = store['projects'].get(project_key(doc), {})
+    saved = (entry.get('schedules') or {}).get(unicode(view_name))
+    if not isinstance(saved, dict):
+        return set()
+    out = set()
+    for item in saved.get('wrap') or ():
+        try:
+            r, c = str(item).split(',')
+            out.add((int(r), int(c)))
+        except (TypeError, ValueError):
+            continue
+    return out
 
 
 def reset_project_text_sizes(doc):
@@ -306,16 +355,26 @@ def _row_sample(row, limit=64):
 
 
 def _ask_text_size(row_index, sample, default_mm):
-    """Ask for one row-kind's text height. None if the user cancels.
+    """Ask for one row-kind's text height, during a build.
 
-    Uses the themed Seed43 input dialog when it's available, the same
-    way _alert and _confirm do, so this matches the rest of the tool.
+    None if the user cancels.
     """
-    default = '{0:g}'.format(default_mm)
     prompt = (u'Row {0}:\n{1}\n\n'
               u'Text height in mm for every row formatted like this one.'
               .format(row_index + 1, sample))
-    title = 'pyLink - Schedule Text Size'
+    return ask_size_mm(prompt, default_mm)
+
+
+def ask_size_mm(prompt, default_mm):
+    """Ask for a text height in mm, validated. None if cancelled.
+
+    Uses the themed Seed43 input dialog when it's available, the same
+    way _alert and _confirm do, so this matches the rest of the tool.
+    Split out of _ask_text_size so the settings editor can reuse the
+    same prompt and the same bounds instead of growing its own.
+    """
+    default = '{0:g}'.format(default_mm)
+    title = 'pyLink - Excel Text Size'
     error = ''
     while True:
         if sdlg:
@@ -433,6 +492,57 @@ AUTOFIT_MIN_ROW_MM = 4.0
 REFIT_MAX_ROW_MM = 45.0
 REFIT_MAX_COL_MM = 60.0
 
+# What a line break inside a schedule cell looks like. Revit accepts one -
+# Shift+Enter puts it there by hand - and that is the only way to get two
+# lines out of a cell, because a schedule does NOT reflow text to fit the
+# column the way a spreadsheet does: it draws one line and ellipsises the
+# rest, however tall the row is. So anything that has to wrap is broken
+# here, before it is written, at the point the spreadsheet broke it.
+CELL_LINE_BREAK = u'\n'
+
+
+def split_cell_lines(text):
+    """The lines of a cell, however its breaks were written."""
+    if text is None:
+        return [u'']
+    return unicode(text).replace(u'\r\n', u'\n').replace(u'\r', u'\n').split(u'\n')
+
+
+def cell_line_count(text):
+    """How many lines a cell's text already carries."""
+    return len(split_cell_lines(text))
+
+
+def wrap_text_to_lines(text, font_name, size_mm, available_mm,
+                       bold=False, italic=False):
+    """Break text into lines that each fit available_mm.
+
+    Greedy and space-only, which is how a spreadsheet wraps: words fill a
+    line until the next will not fit. A word wider than the space still
+    gets a line to itself rather than being split, because breaking
+    inside a word is what turns "DESIGN CAPACITY" into "DESI GN CAP".
+
+    Any break already in the text is honoured and wrapped within.
+    """
+    out = []
+    for para in split_cell_lines(text):
+        words = para.split()
+        if not words:
+            out.append(u'')
+            continue
+        line = u''
+        for word in words:
+            trial = word if not line else line + u' ' + word
+            width, _h = measure_text_mm(trial, font_name, size_mm, bold, italic)
+            if line and width > available_mm:
+                out.append(line)
+                line = word
+            else:
+                line = trial
+        out.append(line)
+    return out
+
+
 _MEASURE_CACHE = {}
 
 
@@ -458,6 +568,21 @@ def measure_text_mm(text, font_name, size_mm, bold=False, italic=False):
     cached = _MEASURE_CACHE.get(key)
     if cached:
         return cached
+
+    # A cell that carries its own breaks is as wide as its WIDEST LINE,
+    # not as wide as the whole string run together. Height stays one
+    # line's worth - callers multiply by the line count themselves, so
+    # that a cell measured here and a cell counted with cell_line_count
+    # agree.
+    if text and (u'\n' in text or u'\r' in text):
+        widest, line_h = 0.0, 0.0
+        for line in split_cell_lines(text):
+            w, h = measure_text_mm(line, font_name, size_mm, bold, italic)
+            widest = max(widest, w)
+            line_h = max(line_h, h)
+        result = (widest, line_h)
+        _MEASURE_CACHE[key] = result
+        return result
 
     result = None
     try:
@@ -548,10 +673,12 @@ def autofit_table(all_rows, cell_styles, row_size_mm, n_cols, merges=(),
                 text, style.get('font_name', default_font), size,
                 style.get('bold'), style.get('italic'))
 
-            if style.get('rotation'):
-                need_w, need_h = line_h, width
+            rotated = bool(style.get('rotation'))
+            n_lines = cell_line_count(text)
+            if rotated:
+                need_w, need_h = line_h * n_lines, width
             else:
-                need_w, need_h = width, line_h
+                need_w, need_h = width, line_h * n_lines
 
             span_cols = None
             if (ri, ci) in merge_span:
@@ -561,18 +688,23 @@ def autofit_table(all_rows, cell_styles, row_size_mm, n_cols, merges=(),
             # Wrapping wins over merging: a wrapping title spread across
             # every column should use more lines, not force the whole
             # table wider to fit on one.
-            if style.get('wrap'):
+            #
+            # Rotated text is excluded because it can't wrap in a Revit
+            # schedule (see refit_schedule): its length has already set
+            # the row height above, and sending it down this path would
+            # divide that length by the column WIDTH and ask for a row
+            # of that many lines.
+            if style.get('wrap') and not rotated and n_lines == 1:
                 cols = span_cols or [ci]
                 wrap_cells[(ri, ci)] = (width, line_h, cols)
                 # Wrapping still can't split a word, so the columns it
                 # covers have to total at least the longest one.
-                if not rotated:
-                    merge_need[('wrap', ri, ci)] = (
-                        longest_word_mm(text, style.get('font_name',
-                                                        default_font),
-                                        size, style.get('bold'),
-                                        style.get('italic')),
-                        cols)
+                merge_need[('wrap', ri, ci)] = (
+                    longest_word_mm(text, style.get('font_name',
+                                                    default_font),
+                                    size, style.get('bold'),
+                                    style.get('italic')),
+                    cols)
             elif span_cols:
                 merge_need[(ri, ci)] = (need_w, span_cols)
             else:
@@ -689,7 +821,7 @@ REFIT_CURRENT = 'current'
 
 
 def refit_schedule(doc, schedule, default_font='Arial', mode=REFIT_RESET,
-                   row_size_mm=None):
+                   row_size_mm=None, wrap_cells=None):
     """Size a schedule's cells so nothing is truncated.
 
     Two modes, because there are two things you might want protected:
@@ -711,6 +843,15 @@ def refit_schedule(doc, schedule, default_font='Arial', mode=REFIT_RESET,
     one line wide and a row as long as the text - which runs away on a
     long label, hence REFIT_MAX_ROW_MM.
 
+    A cell the SPREADSHEET wrapped is the exception to RESET's widening:
+    it only has to fit its longest word, and takes as many lines as that
+    leaves it needing. Without it a merged "DETAILING CONSTANTS", or the
+    title across the whole table, held every column it spanned open at
+    its full one-line width, and the schedule came out much wider than
+    the sheet it was imported from. Revit's TableCellStyle doesn't carry
+    a wrap flag, so the set comes from the caller or, failing that, from
+    what the import wrote down.
+
     Must be called inside a transaction. Returns (n_cols, n_rows).
     """
     section = schedule.GetTableData().GetSectionData(DB.SectionType.Header)
@@ -723,6 +864,11 @@ def refit_schedule(doc, schedule, default_font='Arial', mode=REFIT_RESET,
             row_size_mm = get_schedule_row_sizes(doc, schedule.Name)
         except Exception:
             row_size_mm = {}
+    if wrap_cells is None:
+        try:
+            wrap_cells = get_schedule_wrap_cells(doc, schedule.Name)
+        except Exception:
+            wrap_cells = set()
 
     current_row_mm = {}
     for r in range(n_rows):
@@ -761,7 +907,8 @@ def refit_schedule(doc, schedule, default_font='Arial', mode=REFIT_RESET,
             word_w = longest_word_mm(text, info['font_name'], size_mm,
                                      info['bold'], info['italic'])
             sizes_seen.add(round(size_mm, 2))
-            cells.append((r, c, span, width, line_h, info['rotated'], word_w))
+            cells.append((r, c, span, width, line_h, info['rotated'], word_w,
+                          cell_line_count(text)))
 
     # If these aren't a few millimetres, REVIT_TEXT_SIZE_FACTOR is wrong
     # for this Revit version and every column will come out proportionally
@@ -775,9 +922,18 @@ def refit_schedule(doc, schedule, default_font='Arial', mode=REFIT_RESET,
     # existing height already allows, so a taller row buys a narrower
     # column.
     col_mm, merged_needs = {}, []
-    for r, c, span, width, line_h, rotated, word_w in cells:
+    for r, c, span, width, line_h, rotated, word_w, n_lines in cells:
         if rotated:
-            need = line_h
+            need = line_h * n_lines
+        elif n_lines > 1:
+            # Already broken into lines, so `width` is the widest of
+            # them: fit that and the cell is whole. Nothing here has to
+            # hope Revit will reflow it, because it will not.
+            need = width
+        elif (r, c) in wrap_cells:
+            # The spreadsheet wrapped it but it arrived on one line, so
+            # the longest word is the floor - anything narrower clips.
+            need = word_w
         elif mode == REFIT_CURRENT and line_h > 0:
             lines = int(current_row_mm.get(r, 0.0) / line_h)
             # Never narrower than the longest word, or the wrap this
@@ -807,9 +963,16 @@ def refit_schedule(doc, schedule, default_font='Arial', mode=REFIT_RESET,
 
     # ── Row heights at those widths ──
     row_mm = {}
-    for r, c, span, width, line_h, rotated, _word_w in cells:
+    for r, c, span, width, line_h, rotated, _word_w, n_lines in cells:
         if rotated:
+            # Rotated text runs up the cell, so its LENGTH is the height
+            # it needs - per line, since the lines sit side by side.
             need = width
+        elif n_lines > 1:
+            # Broken text takes exactly the lines it was broken into.
+            # No division, no guessing: the height is the line count
+            # times the height of one line at this row's text size.
+            need = n_lines * line_h
         else:
             span_cols = list(range(c, min(c + max(1, span), n_cols)))
             available = sum(col_mm[x] for x in span_cols) - AUTOFIT_PAD_W_MM
@@ -822,6 +985,17 @@ def refit_schedule(doc, schedule, default_font='Arial', mode=REFIT_RESET,
             need = max(1, lines) * line_h
         row_mm[r] = max(row_mm.get(r, 0.0), need)
 
+    if mode == REFIT_RESET:
+        # "Reset" means back to how the import left it, so a row height
+        # the spreadsheet asked for is part of the target, not something
+        # to recompute away.
+        try:
+            overrides = get_schedule_row_overrides(doc, schedule.Name)
+        except Exception:
+            overrides = {}
+    else:
+        overrides = {}
+
     for r in range(n_rows):
         fitted = min(REFIT_MAX_ROW_MM,
                      max(AUTOFIT_MIN_ROW_MM,
@@ -830,6 +1004,16 @@ def refit_schedule(doc, schedule, default_font='Arial', mode=REFIT_RESET,
             # Your height is the input, not something to overrule - only
             # grow past it when the text genuinely doesn't fit.
             fitted = max(current_row_mm.get(r, 0.0), fitted)
+        elif r in overrides:
+            # The spreadsheet's height is a target, never a ceiling. It
+            # was measured around 10pt Excel text and scaled down for
+            # the smaller Revit text, so it lands close but not exact -
+            # and a row pinned a fraction under what the text needs is a
+            # row Revit truncates: "DESIGN CAPACITY" came back as
+            # "DESIGN...". Floor it at the fit, which is the same rule
+            # create_schedule.py applies when it writes the height in
+            # the first place.
+            fitted = max(fitted, overrides[r])
         row_mm[r] = fitted
 
     for c in range(n_cols):
@@ -1193,25 +1377,86 @@ def save_pylink_state(file_data):
                 card_at = str(int(fd['_applied_at']))
         except Exception:
             pass
+        cl = '1' if fd.get('collapsed') else '0'
+        cv = '1' if fd.get('combine_views') else '0'
         if ss:
-            lines.append('CARD_SS-{}|CC-{}|VN-{}|VT-{}|RP-{}|UL-{}|PM-{}|LM-{}|AVN-{}|CAT-{}'.format(
-                ss, cc, vn, vt, rp_stored, ul, pm, lm, avn, card_at))
-        elif rp != path or fd.get('unlinked') or pm != 'absolute' or lm != 'manual' or avn:
+            lines.append('CARD_SS-{}|CC-{}|VN-{}|VT-{}|RP-{}|UL-{}|PM-{}|LM-{}|AVN-{}|CAT-{}|CL-{}|CV-{}'.format(
+                ss, cc, vn, vt, rp_stored, ul, pm, lm, avn, card_at, cl, cv))
+        elif (rp != path or fd.get('unlinked') or pm != 'absolute'
+                or lm != 'manual' or avn or fd.get('collapsed')
+                or fd.get('combine_views')):
             # Excel duplicate/unlinked cards have no sheet_size line,
             # still need real_path (and now unlink/path-mode/layout
             # mode/applied view name) recorded so they round-trip on
             # reload.
-            lines.append('CARD_RP-{}|UL-{}|PM-{}|LM-{}|AVN-{}|CAT-{}'.format(
-                rp_stored, ul, pm, lm, avn, card_at))
+            lines.append('CARD_RP-{}|UL-{}|PM-{}|LM-{}|AVN-{}|CAT-{}|CL-{}|CV-{}'.format(
+                rp_stored, ul, pm, lm, avn, card_at, cl, cv))
     text = '\n'.join(lines)
     try:
         p = _get_pylink_param()
         if p is not None:
             with revit.Transaction('pyLink - save state'):
                 p.Set(text)
-            logger.debug('pyLink state saved ({} chars)'.format(len(text)))
+            # Nothing linked means nothing stored: an empty list writes
+            # an empty parameter rather than leaving the last list that
+            # happened to be saved sitting in the project.
+            logger.debug('pyLink state {} ({} chars)'.format(
+                'cleared' if not text else 'saved', len(text)))
     except Exception as ex:
         logger.warning('pyLink save failed: {}'.format(ex))
+
+def clear_pylink_state():
+    """Blank pyLink's stored link list on Project Information.
+
+    ONLY the record is cleared. Nothing made from it is touched: the
+    schedules, legends and drafting views pyLink generated stay exactly
+    as they are, their own per-view records stay with them (see
+    get_view_pylink_data), and whatever is open in the pyLink window is
+    left alone. This is the punch list, not the work.
+
+    Worth knowing: the window writes its state back whenever it changes,
+    so clearing while cards are still open only empties the parameter
+    until the next edit. It is meant for a project whose links are gone
+    or finished with.
+
+    Returns True if there was something stored to clear.
+    """
+    try:
+        p = _get_pylink_param()
+        if p is None:
+            return False
+        had = bool(p.AsString())
+        if had:
+            with revit.Transaction('pyLink - clear stored links'):
+                p.Set('')
+            logger.debug('pyLink state cleared')
+        return had
+    except Exception as ex:
+        logger.warning('pyLink clear failed: {}'.format(ex))
+        return False
+
+
+def pylink_state_summary():
+    """What the project has stored, without rebuilding any of it.
+
+    Returns {'cards': n, 'rows': n, 'missing': [path, ...]} - missing
+    being the stored files that are no longer where they were, which is
+    what fills the log with "restore: file not found" on open.
+    """
+    summary = {'cards': 0, 'rows': 0, 'missing': []}
+    try:
+        cards = load_pylink_state()
+    except Exception as ex:
+        logger.warning('pyLink summary failed: {}'.format(ex))
+        return summary
+    for card in cards:
+        summary['cards'] += 1
+        summary['rows'] += len(card.get('rows') or ())
+        path = card.get('real_path') or card.get('path') or ''
+        if not path or not os.path.exists(path):
+            summary['missing'].append(path)
+    return summary
+
 
 def load_pylink_state():
     """
@@ -1271,6 +1516,8 @@ def load_pylink_state():
                         parts.get('AVN') or current['view_name'])
                     cat = parts.get('CAT', '')
                     current['applied_at'] = float(cat) if cat else None
+                    current['collapsed'] = parts.get('CL') == '1'
+                    current['combine_views'] = parts.get('CV') == '1'
                     continue
                 if 'CARD_RP' in parts:
                     # Excel duplicate card, no sheet_size line, just the
@@ -1282,6 +1529,8 @@ def load_pylink_state():
                     current['applied_view_name'] = parts.get('AVN', '')
                     cat = parts.get('CAT', '')
                     current['applied_at'] = float(cat) if cat else None
+                    current['collapsed'] = parts.get('CL') == '1'
+                    current['combine_views'] = parts.get('CV') == '1'
                     continue
                 mt = parts.get('MT', '')
                 at = parts.get('AT', '')

@@ -1,0 +1,319 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:sys="clr-namespace:System;assembly=mscorlib"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        ResizeMode="CanResize"
+        Width="960"
+        Height="660"
+        MinWidth="820"
+        MinHeight="460"
+        Title="View Refs"
+        Background="{DynamicResource BrushWindowBg}">
+
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="64"
+                            CornerRadius="10"
+                            GlassFrameThickness="0"
+                            ResizeBorderThickness="8"
+                            UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <!-- Fallbacks only; seed43_theme injects the live palette after the
+             XAML has parsed, which is what makes DynamicResource the only
+             usable binding here. Values match the dark profile so an
+             unreadable palette file still looks whole. -->
+        <SolidColorBrush x:Key="BrushWindowBg"           Color="#3B4553"/>
+        <SolidColorBrush x:Key="BrushCardBg"             Color="#2B3340"/>
+        <SolidColorBrush x:Key="BrushHeaderBg"           Color="#232933"/>
+        <SolidColorBrush x:Key="BrushPrimaryGreen"       Color="#208A3C"/>
+        <SolidColorBrush x:Key="BrushPrimaryGreenHover"  Color="#32934C"/>
+        <SolidColorBrush x:Key="BrushTextPrimary"        Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="BrushTextMuted"          Color="#9CA3AF"/>
+        <SolidColorBrush x:Key="BrushInputBg"            Color="#1D1D20"/>
+        <SolidColorBrush x:Key="BrushBorderDefault"      Color="#208A3C"/>
+        <SolidColorBrush x:Key="BrushSecondaryBg"        Color="#48484B"/>
+        <SolidColorBrush x:Key="BrushSecondaryHover"     Color="#515155"/>
+        <SolidColorBrush x:Key="BrushSecondaryDisabledBg" Color="#2E2E32"/>
+        <SolidColorBrush x:Key="BrushSecondaryDisabledFg" Color="#77767B"/>
+        <SolidColorBrush x:Key="BrushDropdownItemHover"  Color="#3F3F41"/>
+        <SolidColorBrush x:Key="BrushSelectedRowBg"      Color="#08230F"/>
+        <SolidColorBrush x:Key="BrushDanger"             Color="#E01B24"/>
+        <SolidColorBrush x:Key="BrushSuccess"            Color="#27AE60"/>
+
+        <CornerRadius x:Key="CornerRadiusCard"     >8</CornerRadius>
+        <CornerRadius x:Key="CornerRadiusInput"    >6</CornerRadius>
+        <CornerRadius x:Key="CornerRadiusButton"   >10</CornerRadius>
+        <Thickness    x:Key="PaddingCard"          >16</Thickness>
+        <Thickness    x:Key="PaddingButtonPrimary" >15,7,15,7</Thickness>
+        <sys:Double   x:Key="FontSizeInput"        >12</sys:Double>
+        <sys:Double   x:Key="FontSizeFieldLabel"   >12</sys:Double>
+        <sys:Double   x:Key="FontSizeSectionLabel" >14</sys:Double>
+        <sys:Double   x:Key="FontSizeButton"       >12</sys:Double>
+
+        <!-- ── TEXT ──────────────────────────────────────────────────── -->
+        <Style x:Key="Section" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource BrushPrimaryGreen}"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize"   Value="{DynamicResource FontSizeSectionLabel}"/>
+        </Style>
+        <Style x:Key="Hint" TargetType="TextBlock">
+            <Setter Property="Foreground"   Value="{DynamicResource BrushTextMuted}"/>
+            <Setter Property="FontSize"     Value="11"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style x:Key="ColHead" TargetType="TextBlock">
+            <Setter Property="Foreground"  Value="{DynamicResource BrushTextMuted}"/>
+            <Setter Property="FontSize"    Value="11"/>
+            <Setter Property="FontWeight"  Value="SemiBold"/>
+            <Setter Property="Margin"      Value="0,0,10,0"/>
+        </Style>
+
+        <!-- ── LIST ──────────────────────────────────────────────────── -->
+        <Style x:Key="ListRow" TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="FontSize"   Value="{DynamicResource FontSizeInput}"/>
+            <Setter Property="Padding"    Value="6,4"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd" Background="Transparent"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Stretch"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource BrushDropdownItemHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource BrushSelectedRowBg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ResultList" TargetType="ListBox">
+            <Setter Property="Background"      Value="{DynamicResource BrushInputBg}"/>
+            <Setter Property="BorderBrush"     Value="{DynamicResource BrushBorderDefault}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding"         Value="4"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+            <Setter Property="ItemContainerStyle" Value="{StaticResource ListRow}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBox">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{DynamicResource CornerRadiusInput}">
+                            <ScrollViewer Padding="{TemplateBinding Padding}"
+                                          VerticalScrollBarVisibility="Auto">
+                                <ItemsPresenter/>
+                            </ScrollViewer>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── BUTTONS ───────────────────────────────────────────────── -->
+        <Style x:Key="GreenBtn" TargetType="Button">
+            <Setter Property="Background"      Value="{DynamicResource BrushPrimaryGreen}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
+            <Setter Property="FontSize"        Value="{DynamicResource FontSizeButton}"/>
+            <Setter Property="Padding"         Value="{DynamicResource PaddingButtonPrimary}"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                CornerRadius="{DynamicResource CornerRadiusButton}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource BrushSecondaryDisabledBg}"/>
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource BrushSecondaryDisabledFg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="GreyBtn" TargetType="Button" BasedOn="{StaticResource GreenBtn}">
+            <Setter Property="Background" Value="{DynamicResource BrushSecondaryBg}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                CornerRadius="{DynamicResource CornerRadiusButton}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource BrushSecondaryHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource BrushSecondaryDisabledBg}"/>
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource BrushSecondaryDisabledFg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="WinCtrlCloseBtn" TargetType="Button">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width"           Value="30"/>
+            <Setter Property="Height"          Value="30"/>
+            <Setter Property="FontSize"        Value="13"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                CornerRadius="15">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource BrushDanger}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel>
+        <!-- ── HEADER ────────────────────────────────────────────────── -->
+        <Border Background="{DynamicResource BrushHeaderBg}"
+                Height="64"
+                DockPanel.Dock="Top"
+                CornerRadius="0,0,12,12">
+            <Border.Effect>
+                <DropShadowEffect Color="Black" Opacity="0.3"
+                                  ShadowDepth="2" BlurRadius="6"/>
+            </Border.Effect>
+            <Grid Margin="20,0,16,0">
+                <StackPanel Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            HorizontalAlignment="Left">
+                    <TextBlock Text="View" FontWeight="Bold" FontSize="26"
+                               Foreground="{DynamicResource BrushPrimaryGreen}"/>
+                    <TextBlock Text="Refs" FontWeight="Bold" FontSize="26"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <TextBlock x:Name="subtitle_tb" FontSize="16"
+                               Foreground="{DynamicResource BrushTextPrimary}"
+                               Opacity="0.6"
+                               VerticalAlignment="Bottom" Margin="10,0,0,4"/>
+                </StackPanel>
+                <Button x:Name="win_close_btn"
+                        Content="&#10005;"
+                        Style="{StaticResource WinCtrlCloseBtn}"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        ToolTip="Close"
+                        Click="close_clicked"
+                        shell:WindowChrome.IsHitTestVisibleInChrome="True"/>
+            </Grid>
+        </Border>
+
+        <!-- ── FOOTER ────────────────────────────────────────────────── -->
+        <Grid DockPanel.Dock="Bottom" Margin="20,0,20,20">
+            <TextBlock x:Name="status_tb" Style="{StaticResource Hint}"
+                       VerticalAlignment="Center" HorizontalAlignment="Left"
+                       MaxWidth="480"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="close_btn" Content="Close" Width="90"
+                        Style="{StaticResource GreyBtn}" Margin="0,0,8,0"
+                        Click="close_clicked"/>
+                <Button x:Name="show_btn" Content="Show" Width="110"
+                        Style="{StaticResource GreyBtn}" Margin="0,0,8,0"
+                        ToolTip="Open the view that draws this mark and zoom to it"
+                        Click="show_clicked"/>
+                <!-- Green is the tool's one committing action. It nudges the
+                     far clip offset of every RE-CUT row and puts it straight
+                     back, which leaves the views identical and rebuilds the
+                     reference on the commit in between. Show is grey now:
+                     navigation, not the thing you came to press. -->
+                <Button x:Name="fix_btn" Content="Fix" Width="140"
+                        Style="{StaticResource GreenBtn}"
+                        ToolTip="Rebuild the reference on every RE-CUT row, leaving each view on the settings it started with"
+                        Click="fix_clicked"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- ── BODY ──────────────────────────────────────────────────── -->
+        <Border Background="{DynamicResource BrushCardBg}"
+                CornerRadius="{DynamicResource CornerRadiusCard}"
+                Padding="{DynamicResource PaddingCard}"
+                Margin="20,16,20,16">
+            <DockPanel>
+                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                    <StackPanel Orientation="Horizontal"
+                                DockPanel.Dock="Right">
+                        <Button x:Name="recheck_btn" Content="Recheck"
+                                Style="{StaticResource GreyBtn}" Width="110"
+                                ToolTip="Re-read every reference from the model as it stands now"
+                                Click="recheck_clicked"/>
+                    </StackPanel>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock x:Name="summary_tb"
+                                   Style="{StaticResource Section}"/>
+                        <TextBlock x:Name="explain_tb"
+                                   Style="{StaticResource Hint}"
+                                   Margin="0,3,12,0"/>
+                    </StackPanel>
+                </DockPanel>
+
+                <!-- Column header. Widths are mirrored in _row() and the two
+                     must move together or the headings drift off the data. -->
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
+                            Margin="10,0,0,6">
+                    <TextBlock Style="{StaticResource ColHead}" Width="92"  Text="STATUS"/>
+                    <TextBlock Style="{StaticResource ColHead}" Width="240" Text="VIEW"/>
+                    <TextBlock Style="{StaticResource ColHead}" Width="74"  Text="ID"/>
+                    <TextBlock Style="{StaticResource ColHead}" Width="62"  Text="SHEET"/>
+                    <TextBlock Style="{StaticResource ColHead}"             Text="MARK DRAWN IN"/>
+                </StackPanel>
+
+                <ListBox x:Name="rows_lb"
+                         Style="{StaticResource ResultList}"
+                         MouseDoubleClick="show_clicked"/>
+            </DockPanel>
+        </Border>
+    </DockPanel>
+</Window>

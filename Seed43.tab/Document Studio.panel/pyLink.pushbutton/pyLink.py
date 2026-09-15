@@ -77,9 +77,11 @@ def _github_menu_label():
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools'))
 from pylink_shared import (
     hb, Row, VIEW_TYPES, WORD_VIEW_TYPES, SHEET_SIZES, SRC_COLOURS,
+    VIEW_TYPE_SCHEDULE,
     STATUS_COLOURS, _alert, _confirm,
     _get_pylink_param, _doc_base_dir, _to_relative, _to_absolute,
     save_pylink_state, load_pylink_state, _run_export_script,
+    clear_pylink_state, pylink_state_summary,
     PYLINK_PARAM_GUID, PYLINK_PARAM_NAME, PYLINK_PARAM_FILE,
     format_applied_at,
     load_excel_font_settings, save_excel_font_settings,
@@ -703,6 +705,77 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                     taken = self._view_name_taken(row.ViewName, exclude_row=row)
                     self._style_view_name_conflict(box, taken)
 
+    def _stack_indices(self, rows):
+        """{id(row): position} for rows that share a legend/drafting view.
+
+        Naming two legend or drafting rows the same view is how you say
+        "put these on one view": the first clears it and lands at the
+        top, the rest stack underneath in the order they appear. Give
+        them different names and they get a view each, exactly as
+        before.
+
+        Schedules are excluded. A schedule IS its view - there is no
+        second table to put below the first - so two schedule rows
+        sharing a name is still the collision it always was.
+        """
+        seen = {}
+        out = {}
+        for row in rows:
+            if row.ViewType == VIEW_TYPE_SCHEDULE:
+                continue
+            card = self._card_of(row)
+            if not (card and self._file_data.get(card, {}).get('combine_views')):
+                continue
+            key = (card, row.ViewType)
+            n = seen.get(key, 0)
+            out[id(row)] = n
+            seen[key] = n + 1
+        return out
+
+    def _card_of(self, row):
+        """The card key a row belongs to, or None."""
+        for path, fd in self._file_data.items():
+            if row in fd.get('rows', []):
+                return path
+        return None
+
+    def _combine_target(self, row):
+        """The view a combined row actually draws on: the first row of
+        its run. Rows keep their own View Name in the list - that name
+        is their identity and still has to be unique - so the shared
+        destination is named once, by whichever row leads the run."""
+        card = self._card_of(row)
+        fd = self._file_data.get(card, {}) if card else {}
+        if not fd.get('combine_views'):
+            return row.ViewName
+        for r in fd.get('rows', []):
+            if r.ViewType == row.ViewType and r.ViewType != VIEW_TYPE_SCHEDULE:
+                return r.ViewName
+        return row.ViewName
+
+    def _run_siblings(self, row):
+        """Every row drawing onto the same view as this one, in order.
+
+        Just the row itself for a schedule, or for a legend/drafting row
+        whose view name nobody else uses. Where a name IS shared, the
+        whole run comes back, because those rows are one view between
+        them and it can only be rebuilt as a unit: re-applying the first
+        alone would clear the others away, re-applying a later one alone
+        would stack a second copy under them.
+        """
+        if row.ViewType == VIEW_TYPE_SCHEDULE:
+            return [row]
+        card = self._card_of(row)
+        fd = self._file_data.get(card, {}) if card else {}
+        if not fd.get('combine_views'):
+            return [row]
+        # Same card, same view type: a legend run and a drafting run in
+        # one card are two separate views and rebuild independently.
+        run = [r for r in fd.get('rows', [])
+               if r.ViewType == row.ViewType
+               and r.ViewType != VIEW_TYPE_SCHEDULE]
+        return run or [row]
+
     def _view_name_taken(self, name, exclude_word_path=None, exclude_row=None):
         """True if `name` is already used by another view pyLink
         would create — another Word card's View Name, another Excel
@@ -1067,13 +1140,15 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             lambda s, ev: self._open_group_settings_editor()))
         panel.Children.Add(item(u'Word Text Size\u2026',
             lambda s, ev: self._open_word_text_settings_editor()))
-        panel.Children.Add(item(u'Schedule Text Size\u2026',
+        panel.Children.Add(item(u'Excel Text Size\u2026',
             lambda s, ev: self._open_schedule_text_settings_editor()))
         panel.Children.Add(item(u'Default Font\u2026',
             lambda s, ev: self._open_default_font_editor()))
         panel.Children.Add(self._make_menu_separator())
         panel.Children.Add(item(u'\U0001F9F9  Purge Unused Text Types',
             self._menu_purge_text_types_click))
+        panel.Children.Add(item(u'\U0001F9F9  Purge Stored Link Data',
+            self._menu_purge_state_click))
         panel.Children.Add(self._make_menu_separator())
         panel.Children.Add(item(u'\u2709  Email support', self._menu_support_click))
         # Vector GitHub mark rather than a glyph. make_icon bakes its colour in
@@ -1108,30 +1183,116 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         TextNoteType with no TextNote instances left using it. Scoped
         to pyLink's own types only - never touches anything else in
         the project."""
+        title = 'Purge Unused Text Types'
         try:
-            purged, kept, failed = purge_unused_pylink_text_types()
+            purged, kept, failed, usage = purge_unused_pylink_text_types()
         except Exception as ex:
-            _alert('Purge failed:\n{}'.format(str(ex)), title='Purge Unused Text Types')
+            _alert('Purge failed:\n{}'.format(str(ex)), title=title)
             return
-        msg = '{} unused pyLink text type{} removed.\n{} still in use, kept.'.format(
-            purged, '' if purged == 1 else 's', kept)
+        msg = '{} unused pyLink text type{} removed.'.format(
+            purged, '' if purged == 1 else 's')
+        if kept:
+            # Saying only "still in use" was no use when the project
+            # looked empty of text. Name the views whose notes are
+            # holding each type, so there is somewhere to go and look.
+            lines = []
+            for name, n_notes, where in usage:
+                line = '    {}  -  {} note{}'.format(
+                    name, n_notes, '' if n_notes == 1 else 's')
+                if where:
+                    line += '\n        in: {}'.format(', '.join(where[:4]))
+                    if len(where) > 4:
+                        line += ' and {} more'.format(len(where) - 4)
+                lines.append(line)
+            msg += '\n\n{} kept, still referenced:\n{}'.format(
+                kept, '\n'.join(lines))
         if failed:
             msg += '\n\n{} could not be deleted:\n{}'.format(
                 len(failed), '\n'.join(failed[:10]))
-        _alert(msg, title='Purge Unused Text Types')
+        _alert(msg, title=title)
+
+    def _menu_purge_state_click(self, sender, e):
+        """Menu -> Purge Stored Link Data: empty pyLink's record of what
+        is linked, which lives in a shared parameter on Project
+        Information.
+
+        Only the record goes. Every schedule, legend and drafting view
+        pyLink built stays exactly as it is - this is the punch list,
+        not the work - and so does anything open in this window.
+
+        Two situations, because a purge means different things in each:
+
+          * nothing open here: the whole list is cleared. This is the
+            one for a project whose links are finished with, or whose
+            source files have moved and left the log full of
+            "restore: file not found".
+          * cards open: clearing outright would last only until the next
+            edit wrote them straight back, so the list is rewritten from
+            what IS open instead. Entries whose files have gone were
+            already dropped when the window loaded, so rewriting is what
+            removes them.
+        """
+        title = 'Purge Stored Link Data'
+        stored = pylink_state_summary()
+        loaded = len(self._file_data)
+
+        if not stored['cards'] and not loaded:
+            _alert('This project has no stored pyLink data.', title=title)
+            return
+
+        missing = stored['missing']
+        detail = '{} link{} stored ({} row{}).'.format(
+            stored['cards'], '' if stored['cards'] == 1 else 's',
+            stored['rows'], '' if stored['rows'] == 1 else 's')
+        if missing:
+            shown = '\n'.join('    ' + (m or '(no path)') for m in missing[:8])
+            if len(missing) > 8:
+                shown += '\n    ...and {} more'.format(len(missing) - 8)
+            detail += '\n\n{} of them no longer exist:\n{}'.format(
+                len(missing), shown)
+
+        if loaded:
+            if not _confirm(
+                    '{}\n\n{} card(s) are open in pyLink.\n\nRewrite the '
+                    'stored list from those, dropping anything no longer on '
+                    'disk?\n\nNothing already built in the model is '
+                    'touched.'.format(detail, loaded),
+                    title=title, yes='Rewrite', no='Cancel'):
+                return
+            self._save_persisted_state()
+            gone = stored['cards'] - pylink_state_summary()['cards']
+            _alert('Stored list rewritten from the {} open card(s).\n\n'
+                   '{} entr{} removed.'.format(
+                       loaded, gone, 'y' if gone == 1 else 'ies'),
+                   title=title)
+            return
+
+        if not _confirm(
+                '{}\n\nNothing is open in pyLink, so clearing empties the '
+                'record completely.\n\nEvery view pyLink built stays as it '
+                'is - only the stored list goes.'.format(detail),
+                title=title, yes='Clear', no='Cancel'):
+            return
+        if clear_pylink_state():
+            _alert('Stored pyLink data cleared from this project.', title=title)
+        else:
+            _alert('There was nothing stored to clear.', title=title)
 
     def _open_schedule_text_settings_editor(self):
-        """☰ → 'Schedule Text Size': show the text heights this project
-        has already been asked for, and offer to clear them.
+        """☰ → 'Excel Text Size': review and change the text heights
+        this project has already been asked for.
 
-        The sizes are answered during a schedule build, once per kind of
-        row, and stored against the project - so this entry exists to
-        review them and to start over when a job wants different text.
+        The sizes are answered during a build, once per kind of row, and
+        stored against the project. They apply to every view type built
+        from a spreadsheet, schedule and drafting view and legend alike,
+        which is why this is no longer called a schedule setting: only
+        the schedule builder ever used to read it.
         """
         from pylink_shared import (get_project_text_sizes,
                                    reset_project_text_sizes,
-                                   describe_signature)
-        title = 'Schedule Text Size'
+                                   store_project_text_size,
+                                   describe_signature, ask_size_mm)
+        title = 'Excel Text Size'
         doc = revit.doc
         sizes = get_project_text_sizes(doc)
 
@@ -1146,13 +1307,46 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             lines.append(u'    {0}  →  {1:g} mm'.format(
                 describe_signature(signature), sizes[signature]))
 
-        if _confirm(u'Text heights remembered for this project:\n\n{0}\n\n'
-                    u'Clear them so the next schedule build asks again?'
-                    .format(u'\n'.join(lines)),
-                    title=title, yes='Clear', no='Keep'):
-            reset_project_text_sizes(doc)
-            _alert('Cleared. The next schedule build will ask for text '
-                   'sizes again.', title=title)
+        # Editing beats clearing: clearing only gets you a new answer by
+        # making the next build stop and ask for every size again, which
+        # is a long way round for changing one number. Clear is still
+        # here for starting over.
+        if not _confirm(u'Text heights remembered for this project:\n\n{0}\n\n'
+                        u'Edit them, or clear them so the next schedule '
+                        u'build asks again?'
+                        .format(u'\n'.join(lines)),
+                        title=title, yes='Edit', no='Clear'):
+            if _confirm(u'Clear all {0} remembered text height(s)?\n\n'
+                        u'The next schedule build will ask for each one '
+                        u'again. Nothing already built changes.'
+                        .format(len(sizes)),
+                        title=title, yes='Clear', no='Cancel'):
+                reset_project_text_sizes(doc)
+                _alert('Text heights cleared for this project.', title=title)
+            return
+
+        # One prompt per remembered size, pre-filled with what it is now.
+        # Leaving one blank keeps it, so stepping through to change a
+        # single size costs nothing.
+        changed = []
+        for signature in sorted(sizes):
+            current = sizes[signature]
+            answer = ask_size_mm(
+                u'{0}\n\nText height in mm for every row formatted like '
+                u'this one.'.format(describe_signature(signature)), current)
+            if answer is None or abs(answer - current) < 1e-9:
+                continue
+            store_project_text_size(doc, signature, answer)
+            changed.append(u'    {0}  {1:g} -> {2:g} mm'.format(
+                describe_signature(signature), current, answer))
+
+        if not changed:
+            _alert('No text heights changed.', title=title)
+            return
+        _alert(u'{0} text height(s) updated:\n\n{1}\n\nRebuild a schedule, '
+               u'or use Reset Cell Sizes on one already built, to see the '
+               u'new size.'.format(len(changed), u'\n'.join(changed)),
+               title=title)
 
     def _open_default_font_editor(self):
         """☰ → 'Default Font': pick the font pyLink falls back to
@@ -1423,6 +1617,10 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                         wr._error_label.Visibility = Visibility.Collapsed
             self._refresh_status_card()
 
+        # Worked out up front, because a row's position in its run
+        # decides whether it clears the view or stacks below.
+        _stack = self._stack_indices(_xl_rows)
+
         for i, row in enumerate(_xl_rows):
             self._set_status('Processing {} of {}...'.format(
                 i + 1, len(_xl_rows)))
@@ -1437,6 +1635,9 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             tr.view_scale  = getattr(row, 'ViewScale', 1)
             tr.file_path   = row.FilePath
             tr.auto_sync   = False
+            tr.stack_index = _stack.get(id(row), 0)
+            if tr.stack_index or self._combine_target(row) != row.ViewName:
+                tr.view_name = self._combine_target(row)
             # A row already known to be 'pending' (checked above, before the
             # blanket dot-reset) owns no live view, so never feed its old
             # ElementId/name to the ownership guard. Otherwise a view deleted
@@ -1864,11 +2065,31 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                 self._set_sync_btn_state(row._refresh_btn, row.Status == 'sync')
                 fd['card_panel'].Children.Add(row_ui)
 
+        # Put back the cards that were left collapsed.
+        for card in cards:
+            if card.get('collapsed') and card.get('path') in self._file_data:
+                self._set_card_collapsed(card['path'], True)
+
         self._update_file_combo()
         self._update_footer()
         self._refresh_status_card()
         self._revalidate_all_view_name_boxes()
         logger.debug('pyLink: restored {} card(s)'.format(len(cards)))
+
+        # Entries whose files have gone were skipped above but are still
+        # in the project, so they warn again on every open. Write the
+        # list back without them.
+        #
+        # Only when something else DID load: if every single card is
+        # missing the source folder is probably just offline - a network
+        # path, an unplugged drive - and forgetting the lot would be the
+        # wrong answer to a problem that fixes itself. Purge Stored Link
+        # Data in the menu is there for when it really is all gone.
+        missing = len(cards) - len(self._file_data)
+        if missing > 0 and self._file_data:
+            logger.debug('pyLink: dropping {} stored link(s) whose files '
+                         'are gone'.format(missing))
+            self._save_persisted_state()
 
     def _check_row_status(self, row, card_key):
         """
@@ -2034,30 +2255,48 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                     except Exception:
                         pass
             else:
-                tr             = TableRow()
-                tr.view_name   = row.ViewName
-                tr.named_range = row.NamedRange
-                tr.sheet_name  = row.Sheet
-                tr.view_type   = row.ViewType
-                tr.view_scale  = getattr(row, 'ViewScale', 1)
-                tr.file_path   = row.FilePath
-                tr.auto_sync   = False
-                tr.applied_view_name = row._applied_view_name
-                tr.applied_view_id   = getattr(row, '_applied_view_id', None)
-                result = apply_row(tr)
-                row.Status = result.get('status', 'error')
-                if row.Status == 'success':
-                    try:
-                        row._applied_mtime = os.path.getmtime(row.FilePath)
-                        row._applied_hash  = _hash_range(
-                            row.FilePath, row.NamedRange, row.Sheet)
-                        row._applied_at = _time.time()
-                        row._applied_view_name = row.ViewName
-                        row._applied_view_id   = result.get('view_id')
-                        if row._modified_label is not None:
-                            row._modified_label.Text = format_applied_at(row._applied_at)
-                    except Exception:
-                        pass
+                # A legend or drafting view shared by several rows is
+                # rebuilt as a unit - see _run_siblings. For everything
+                # else this is a run of one and behaves as it always did.
+                _run = self._run_siblings(row)
+                _stack2 = self._stack_indices(_run)
+                result = None
+                for _r in _run:
+                    tr             = TableRow()
+                    tr.view_name   = _r.ViewName
+                    tr.named_range = _r.NamedRange
+                    tr.sheet_name  = _r.Sheet
+                    tr.view_type   = _r.ViewType
+                    tr.view_scale  = getattr(_r, 'ViewScale', 1)
+                    tr.file_path   = _r.FilePath
+                    tr.auto_sync   = False
+                    tr.stack_index = _stack2.get(id(_r), 0)
+                    if tr.stack_index or self._combine_target(_r) != _r.ViewName:
+                        tr.view_name = self._combine_target(_r)
+                    tr.applied_view_name = _r._applied_view_name
+                    tr.applied_view_id   = getattr(_r, '_applied_view_id', None)
+                    _res = apply_row(tr)
+                    if _r is row:
+                        result = _res
+                    _r.Status = _res.get('status', 'error')
+                    if _r.Status == 'success':
+                        try:
+                            _r._applied_mtime = os.path.getmtime(_r.FilePath)
+                            _r._applied_hash  = _hash_range(
+                                _r.FilePath, _r.NamedRange, _r.Sheet)
+                            _r._applied_at = _time.time()
+                            _r._applied_view_name = _r.ViewName
+                            _r._applied_view_id   = _res.get('view_id')
+                            if _r._modified_label is not None:
+                                _r._modified_label.Text = format_applied_at(
+                                    _r._applied_at)
+                        except Exception:
+                            pass
+                    if _r is not row and _r._dot is not None:
+                        _r._dot.Fill = hb(STATUS_COLOURS.get(
+                            _r.Status, '#3A4A3A'))
+                if result is None:
+                    result = {'status': row.Status, 'message': ''}
             if row._dot is not None:
                 row._dot.Fill = hb(STATUS_COLOURS.get(
                     row.Status, '#3A4A3A'))
@@ -2192,15 +2431,24 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         WPF flips IsChecked natively before Click fires, so IsChecked
         already reflects the new state: True = now expanded, False =
         now collapsed."""
-        path = sender.Tag
+        self._set_card_collapsed(sender.Tag, not bool(sender.IsChecked))
+        self._save_persisted_state()
+
+    def _set_card_collapsed(self, path, collapsed):
+        """Collapse or expand one card, and remember which it is.
+
+        Split out of the click handler so restoring a card can put it
+        back the way it was left - a card collapsed on purpose stays
+        collapsed across a reopen instead of springing back open, which
+        matters once a project carries more cards than fit on screen.
+        """
         fd = self._file_data.get(path)
         if fd is None or fd.get('card_inner') is None:
             return
-        inner = fd['card_inner']
-        children = list(inner.Children)
+        children = list(fd['card_inner'].Children)
         if not children:
             return
-        expanded = bool(sender.IsChecked)
+        expanded = not collapsed
         for child in children[1:]:
             child.Visibility = Visibility.Visible if expanded else Visibility.Collapsed
         # header_row (children[0]) carries its own bottom margin to
@@ -2208,9 +2456,12 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         # hidden, that margin is left stacking on top of the card's
         # own bottom padding, making the collapsed card look bottom-
         # heavy — zero it out while collapsed, restore on expand.
-        header_row = children[0]
-        header_row.Margin = Thickness(0, 0, 0, 8 if expanded else 0)
-        self._set_collapse_icon(sender, not expanded)
+        children[0].Margin = Thickness(0, 0, 0, 8 if expanded else 0)
+        fd['collapsed'] = bool(collapsed)
+        btn = fd.get('collapse_btn')
+        if btn is not None:
+            btn.IsChecked = expanded
+            self._set_collapse_icon(btn, collapsed)
 
     def _set_collapse_icon(self, btn, collapsed):
         """Set the collapse toggle's chevron glyph + tooltip to match
@@ -2291,6 +2542,10 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         # Two ways to size the schedule's cells: throw away what's there
         # and start from the text, or keep what you dragged and fit the
         # rest around it.
+        _combined = bool(self._file_data.get(path, {}).get('combine_views'))
+        popup_panel.Children.Add(item(
+            ('\u2713  ' if _combined else '') + 'Combine onto one view',
+            lambda s, ev: self._toggle_combine_views(path)))
         popup_panel.Children.Add(item('Reset Cell Sizes',
             lambda s, ev: self._card_refit_views(path, _REFIT_RESET)))
         popup_panel.Children.Add(item('Update Cells After Resizing',
@@ -2309,6 +2564,34 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         popup_panel.Children.Add(item('Remove view',
             lambda s, ev: self._card_remove_views(path)))
         popup.IsOpen = True
+
+    def _toggle_combine_views(self, path):
+        """Card menu -> Combine onto one view.
+
+        On: every legend row in this card draws onto one legend, and
+        every drafting row onto one drafting view, stacked in list order
+        under the first row's View Name. Off: a view each, as before.
+
+        Deliberately NOT driven by giving two rows the same View Name.
+        A duplicate name is an error worth flagging and has to stay one -
+        this says "stack these", which is a different instruction.
+        """
+        fd = self._file_data.get(path)
+        if fd is None:
+            return
+        fd['combine_views'] = not fd.get('combine_views')
+        rows = [r for r in fd.get('rows', [])
+                if r.ViewType != VIEW_TYPE_SCHEDULE]
+        if fd['combine_views'] and rows:
+            self._set_status('{}: {} row(s) will stack onto "{}".'.format(
+                os.path.basename(path), len(rows), rows[0].ViewName))
+        elif fd['combine_views']:
+            self._set_status('Combine is on, but this card has no legend '
+                             'or drafting rows.')
+        else:
+            self._set_status('{}: each row gets its own view again.'.format(
+                os.path.basename(path)))
+        self._save_persisted_state()
 
     def _card_refit_views(self, path, mode):
         """Resize the cells of the schedules this card created.

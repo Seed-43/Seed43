@@ -1,0 +1,22 @@
+title: "Dim Restore"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Finds dimensions that have lost their override text and puts it back.
+  Adjusting an element, or changing what a dimension is attached to, makes
+  Revit reset the text while the dimension itself survives, and nothing in
+  the model afterwards says what it used to read. Dim Override records what
+  it writes, and Scan Model picks up anything typed into Revit's own dialog
+  as well, storing it inside the file on the dimension itself so it travels
+  with the model. The report lists what each tracked dimension held against
+  what it holds now, ticking the dropped ones ready to restore and leaving
+  deliberate edits alone. Nothing scans or restores on its own, only when a
+  button is pressed. A deleted dimension takes its record with it, so the
+  history never fills up with entries for things that no longer exist.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

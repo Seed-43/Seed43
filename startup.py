@@ -569,9 +569,20 @@ def download_and_apply_update(status_lbl, progress_bar):
         if os.path.isdir(new_lib):
             sync_tree(new_lib, os.path.join(EXTENSION_DIR, "lib"), keep_json=False)
 
+        # ── Sync hooks/ (pyRevit event hooks) ─────────────────────────────────
+        # Needs its own line for the same reason lib does, plus one more: the
+        # root loop below only copies FILES, so a folder added to the root
+        # after someone installed would never reach them at all. sync_tree
+        # creates the folder if it is missing, which is the case for anyone
+        # updating from a version that shipped no hooks.
+        new_hooks = os.path.join(extracted_root, "hooks")
+        if os.path.isdir(new_hooks):
+            sync_tree(new_hooks, os.path.join(EXTENSION_DIR, "hooks"),
+                      keep_json=False)
+
         # ── Sync root files (startup.py, extension.json, etc.) ────────────────
         ROOT_SKIP = {
-            "Seed43.tab", "lib", "UI",
+            "Seed43.tab", "lib", "UI", "hooks",
             ".git", ".gitignore", "README.md", "LICENSE",
             "install.bat", "sync-start.bat", "sync-end.bat",
         }

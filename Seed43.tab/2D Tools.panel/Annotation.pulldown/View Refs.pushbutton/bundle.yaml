@@ -1,0 +1,29 @@
+title: "View Refs"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Finds views on sheets whose section, detail or elevation mark no longer
+  reports a Referencing Sheet, so the bubble on the sheet reads blank where
+  it should name the sheet the mark was cut from, and rebuilds it.
+
+  Revit takes Referencing Sheet from the one view the mark was created in,
+  not from every view the mark happens to appear in. Lose the hold on that
+  view and the reference goes blank even though the mark is still drawn
+  elsewhere, with nothing in the model afterwards saying where it pointed.
+
+  Fix nudges the far clip offset of each re-cuttable row and writes it
+  straight back. Every view ends on the exact value it started with, so no
+  drawing changes; the commit in between is what makes Revit re-derive the
+  mark's parent and fill the bubble back in.
+
+  Rows marked OFF SHEET or NO MARK are beyond a refresh: their mark draws
+  only on unsheeted views, or no longer exists, so there is no sheet for a
+  reference to name. Those want a view placing or a section re-cutting, and
+  Show opens the view the mark is drawn in and zooms to it.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

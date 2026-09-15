@@ -2,4 +2,6 @@
 layout:
   - 3DStack_1
   - Rebar
+  - Connections
+  - Connection Library
   - Studio

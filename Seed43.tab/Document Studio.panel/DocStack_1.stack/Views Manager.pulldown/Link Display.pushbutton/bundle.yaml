@@ -1,0 +1,17 @@
+title: "Link Display"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Changes the RVT Link Display Settings of every link you pick in one pass,
+  rather than one at a time through Visibility/Graphics. Select the links in
+  the model or tick them from a list, choose whether to set Basics to Custom,
+  copy one link's settings onto all the others, or reset them, then pick the
+  views to apply it to. Revit's API cannot reach the Annotation Categories
+  tab, so untick that on one link by hand and copy that link across.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

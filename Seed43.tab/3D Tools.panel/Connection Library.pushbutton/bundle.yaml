@@ -1,0 +1,31 @@
+title: "Connection Library"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  A shelf of steel connections kept in a Revit file, so a connection set up
+  once can be used on every job after it.
+
+  This model on the left, the library on the right. Highlight connections
+  and Save copies them out, Load copies them in, Delete removes them from
+  the library. Both lists take multiple selections. A model connection the
+  library already holds is shown in green.
+
+  Copying is the only thing that carries the Modify Parameters values, the
+  plate sizes and bolts that are the reason for saving a connection at all,
+  and it needs a real document at both ends. That is why the library is an
+  ordinary .rvt holding nothing but connection types rather than a file of
+  this tool's own.
+
+  Versions run forward only. A library saved by a newer Revit cannot be
+  opened by an older one, and writing into an older library upgrades it for
+  good, so keep the library on the oldest Revit still in use. The tool
+  reports a library it cannot open and asks before it upgrades one.
+
+  Note: copying a connection type renames the ORIGINAL to "Ref" and clears
+  its Type Mark, in the model it was copied from. The tool puts both back on
+  every pass, and says so loudly if it ever cannot.
+
+  __________________________________________________________________

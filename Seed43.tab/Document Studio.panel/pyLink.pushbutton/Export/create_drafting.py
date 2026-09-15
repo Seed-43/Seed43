@@ -74,6 +74,9 @@ cell_styles   = _p.get('cell_styles',   {})
 merges        = _p.get('merges',        [])
 row_heights   = _p.get('row_heights',   {})
 col_widths    = _p.get('col_widths',    {})
+# Which table this is in a run sharing one view: 0 draws at the top and
+# clears whatever was there, higher numbers stack below.
+stack_index   = int(_p.get('stack_index', 0) or 0)
 default_row_height = float(_p.get('default_row_height', 14.0))
 fill_type_id  = _p.get('fill_type_id', ElementId.InvalidElementId)
 # Legend mode: if set, use this name for the temp view
@@ -688,12 +691,96 @@ if n_cols == 0:
 
 n_total_rows = 1 + n_rows  # header row + data rows
 
-# ── Column x positions/widths, from Excel's own column widths ──────────
+# ── Column x positions/widths ──────────────────────────────────────────
+# Excel's own widths are the starting point, but they cannot be the last
+# word. A sheet autofitted around ROTATED headers has columns barely
+# wider than a three-digit number, and this view draws those same
+# headers flat - so "Thickness (ti)" was handed 5mm of column and Revit
+# broke it wherever it ran out, mid-word, into the row below. Hence the
+# floor: every column ends up at least as wide as the widest unbreakable
+# word it has to show, at the text size this view is actually using.
+#
+# Same rule the schedule builder follows, and for the same reason:
+# wrapping can only break at a space, so a column narrower than the
+# longest word is a column that clips or splits it.
 default_col_w_mm = max(25.0, 180.0 / n_cols)
 col_w_mm = [col_widths.get(c, default_col_w_mm) for c in range(n_cols)]
+
+_all_rows = [fields] + list(records)
+_merge_span = {}
+for _r1, _c1, _r2, _c2 in merges:
+    _merge_span[(_r1, _c1)] = (_r2, _c2)
+
+try:
+    from pylink_shared import (measure_text_mm, longest_word_mm,
+                               wrap_text_to_lines, CELL_LINE_BREAK)
+
+    _word_need = {}          # {col: mm} single-column cells
+    _span_need = []          # [(mm, [cols])] merged cells
+    for _ri, _row in enumerate(_all_rows):
+        _size = size_hdr_mm if _ri == 0 else size_dat_mm
+        for _ci in range(min(len(_row), n_cols)):
+            _cell = _row[_ci]
+            _text = u'' if _cell is None else unicode(_cell).strip()
+            if not _text:
+                continue
+            _st = cell_styles.get((_ri, _ci), {})
+            _need = longest_word_mm(_text, _st.get('font_name', font),
+                                    _size, _st.get('bold'), _st.get('italic'))
+            if (_ri, _ci) in _merge_span:
+                _last = min(_merge_span[(_ri, _ci)][1], n_cols - 1)
+                _span_need.append((_need, list(range(_ci, _last + 1))))
+            else:
+                _word_need[_ci] = max(_word_need.get(_ci, 0.0), _need)
+
+    _pad = 1.5
+    for _c in range(n_cols):
+        if _c in _word_need:
+            col_w_mm[_c] = max(col_w_mm[_c], _word_need[_c] + _pad)
+
+    # A merged heading cannot stretch one column, so any shortfall is
+    # shared across the ones it covers.
+    for _need, _cols in _span_need:
+        _short = _need + _pad - sum(col_w_mm[c] for c in _cols)
+        if _short > 0:
+            for _c in _cols:
+                col_w_mm[_c] += _short / len(_cols)
+
+    logger.debug('drafting col widths mm after word floor: {}'.format(
+        ['%.1f' % w for w in col_w_mm]))
+except Exception as _ex:
+    logger.warning('drafting column floor failed, using Excel widths: '
+                   '{}'.format(_ex))
+
 col_x_mm = [0.0] * (n_cols + 1)
 for c in range(n_cols):
     col_x_mm[c + 1] = col_x_mm[c] + col_w_mm[c]
+
+
+def _dv_prewrapped(ri, ci, text, available_mm):
+    """Cell text broken at spaces to fit the space it has.
+
+    Revit wraps a TextNote by itself, but it will break inside a word to
+    do it - which is how "Thickness (ti)" arrived as "Thickn / ess (ti)".
+    Breaking here first puts every break on a space, and the column floor
+    computed above guarantees each resulting line actually fits.
+
+    available_mm is the cell's own extent along the direction the text
+    runs, IN MILLIMETRES: its width normally, its height for a rotated
+    header. Callers hold those in feet, so they divide by MM first.
+    """
+    text = u'' if text is None else unicode(text)
+    if not text.strip() or available_mm <= 0:
+        return text
+    st = cell_styles.get((ri, ci), {})
+    try:
+        lines = wrap_text_to_lines(
+            text, st.get('font_name', font),
+            size_hdr_mm if ri == 0 else size_dat_mm,
+            available_mm - 1.0, st.get('bold'), st.get('italic'))
+    except Exception:
+        return text
+    return CELL_LINE_BREAK.join(lines) if len(lines) > 1 else text
 
 # ── Row y positions/heights, from Excel's own row heights ──────────────
 # Still floored to a minimum so the chosen font size never gets clipped,
@@ -726,20 +813,48 @@ for (r1, c1, r2, c2) in merges:
 
 # ── Get or create drafting view ─────────────────────────────────────────
 
+# Where this table starts, in feet. Zero unless it is stacking below
+# another table already drawn on this view - see stack_index.
+_stack_y0_ft = 0.0
+
+# Gap between stacked tables, in mm. Roughly two data rows, which reads
+# as a deliberate break rather than a mis-set row height.
+STACK_GAP_MM = 8.0
+
 view = None
 for v in FilteredElementCollector(doc)\
         .OfClass(ViewDrafting)\
         .WhereElementIsNotElementType():
     if v.Name == _final_name:
         view = v
-        # Clear existing elements
-        for cls in (CurveElement, TextNote, FilledRegion, ImageInstance):
-            for el in list(FilteredElementCollector(doc, view.Id)
-                           .OfClass(cls).ToElements()):
+        if stack_index > 0:
+            # Sharing this view with a table already on it: keep what is
+            # there and start below its lowest point. Only the FIRST row
+            # of a run clears, which is what makes re-applying the run
+            # replace it rather than pile another copy on top.
+            _lowest = None
+            for el in FilteredElementCollector(doc, view.Id).ToElements():
                 try:
-                    doc.Delete(el.Id)
+                    bb = el.get_BoundingBox(view)
                 except Exception:
-                    pass
+                    bb = None
+                if bb is None:
+                    continue
+                if _lowest is None or bb.Min.Y < _lowest:
+                    _lowest = bb.Min.Y
+            if _lowest is not None:
+                _stack_y0_ft = _lowest - STACK_GAP_MM * MM
+            logger.debug('stacking table {} at y={:.1f}mm'.format(
+                stack_index, _stack_y0_ft / MM))
+        else:
+            # Clear existing elements
+            for cls in (CurveElement, TextNote, FilledRegion, ImageInstance):
+                for el in list(FilteredElementCollector(doc, view.Id)
+                               .OfClass(cls).ToElements()):
+                    try:
+                        doc.Delete(el.Id)
+                    except Exception:
+                        pass
         break
 
 if view is None:
@@ -795,7 +910,7 @@ for r in range(n_total_rows):
 
         r_end, c_end = merge_anchor.get((r, c), (r, c))
         x = col_x_mm[c] * MM
-        y = -row_y_mm[r] * MM
+        y = _stack_y0_ft - row_y_mm[r] * MM
         w = (col_x_mm[c_end + 1] - col_x_mm[c]) * MM
         h = (row_y_mm[r_end + 1] - row_y_mm[r]) * MM
 
@@ -839,12 +954,20 @@ for r in range(n_total_rows):
             record = records[r - 1] if (r - 1) < len(records) else []
             text = record[c] if c < len(record) else ''
         color_rgb = style.get('color_rgb')
+        _rot_rad = (_excel_rotation_to_radians(style.get('rotation', 0))
+                    if is_header else 0.0)
+        # Rotated text runs down the cell, so the height is what it has
+        # to fit inside; everything else runs across the width. x/y/w/h
+        # are Revit internal units (feet) by this point, and the wrap
+        # measures in millimetres - without the conversion every word
+        # was wider than the cell and each one took its own line.
+        text = _dv_prewrapped(r, c, text, (h if _rot_rad else w) / MM)
         cell_specs.append({
             'x': x, 'y': y, 'w': w, 'h': h,
             'text':  text,
             'tt_id': hdr_txt_id if is_header else dat_txt_id,
             'color_rgb': tuple(color_rgb) if color_rgb else None,
-            'rotation_rad': _excel_rotation_to_radians(style.get('rotation', 0)) if is_header else 0.0,
+            'rotation_rad': _rot_rad,
             'halign': style.get('halign', 'Center'),
             'valign': style.get('valign', 'Center' if not is_header else 'Bottom'),
             'bold':      bool(style.get('bold', False)),

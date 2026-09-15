@@ -410,7 +410,8 @@ if n_cols == 0:
 # geometry - a column sized for 10pt Arial is far too wide for 2mm Revit
 # text. Clearing the answers is the hamburger menu's "Schedule Text Size".
 from pylink_shared import (resolve_row_text_sizes, autofit_table,
-                           store_schedule_row_sizes)
+                           store_schedule_row_sizes, wrap_text_to_lines,
+                           CELL_LINE_BREAK)
 
 
 def _excel_row_font_pt(ri):
@@ -425,18 +426,20 @@ def _excel_row_font_pt(ri):
 
 
 all_rows = [fields] + list(records)
-row_size_mm = resolve_row_text_sizes(doc, all_rows, cell_styles)
+# Normally already resolved by the caller, which asks once per row kind
+# for every view type rather than only when a schedule is built. Falling
+# back keeps this script runnable on its own.
+row_size_mm = _p.get('row_size_mm') or {}
+row_size_mm = dict((int(k), float(v)) for k, v in row_size_mm.items())
+if not row_size_mm:
+    row_size_mm = resolve_row_text_sizes(doc, all_rows, cell_styles)
 logger.debug('row text sizes (mm): {}'.format(row_size_mm))
-# Written down so Refit can size cells against the real text height
-# rather than trying to read it back off the finished schedule.
-try:
-    store_schedule_row_sizes(doc, view_name, row_size_mm)
-except Exception as ex:
-    logger.debug('store_schedule_row_sizes: {}'.format(ex))
+# (the record is written once the row overrides below are known)
 
 default_col_w_ft = max(20.0, 190.0 / n_cols) / 304.8
 col_w_ft = {}
 row_h_ft = {}
+row_overrides_mm = {}   # row heights the spreadsheet asked for, kept for Reset
 try:
     fit_cols, fit_rows = autofit_table(
         all_rows, cell_styles, row_size_mm, n_cols,
@@ -470,6 +473,7 @@ try:
                 scale = chosen_mm / excel_mm
         scaled_ft = row_heights[ri] * PT_TO_FT * ROW_H_FACTOR * scale
         row_h_ft[ri] = max(scaled_ft, fit_rows.get(ri, 0.0) / 304.8)
+        row_overrides_mm[ri] = row_h_ft[ri] * 304.8
 
     logger.debug('autofit mm - cols: {} rows: {}'.format(fit_cols, fit_rows))
     logger.debug('Excel overrides - cols: {} rows: {}'.format(
@@ -481,6 +485,87 @@ except Exception as ex:
         w_mm = col_widths.get(ci)
         col_w_ft[ci] = (w_mm / 304.8) if w_mm else default_col_w_ft
 
+# Cells the spreadsheet wrapped. Refit needs them because a Revit
+# TableCellStyle has no wrap flag to read back, and without them RESET
+# widens every merged heading until it fits on one line - which is what
+# made the schedule come out wider than the sheet, with the title and
+# "DETAILING CONSTANTS" each holding their columns open. Rotated labels
+# are left out: they can't wrap in a schedule at all.
+wrap_cells = set(rc for rc, st in cell_styles.items()
+                 if st.get('wrap') and not st.get('rotation'))
+
+# Rotated labels are wrapped too, but against the ROW HEIGHT rather than
+# the column width, because that is the direction they run in - which is
+# also how the spreadsheet decided to put "Thickness (ti)" on two lines
+# and "Depth (d)" on one.
+rot_wrap_cells = set(rc for rc, st in cell_styles.items()
+                     if st.get('wrap') and st.get('rotation'))
+
+# A Revit schedule cell does not reflow text to fit its column: it draws
+# one line and ellipsises whatever will not fit, no matter how tall the
+# row is - which is why "DESIGN CAPACITY" kept arriving as "DESIGN...".
+# The only line break it honours is one written into the text (the same
+# one Shift+Enter puts there by hand), so any cell the SPREADSHEET wrapped
+# is broken here before it is written, at the points the spreadsheet broke
+# it. The wrap is measured in Excel's own geometry - Excel's font size
+# across the Excel width of the columns the cell spans - so the schedule
+# reproduces the sheet line for line rather than approximating it.
+_span_of = {}
+for _r1, _c1, _r2, _c2 in merges:
+    _span_of[(_r1, _c1)] = list(range(_c1, _c2 + 1))
+
+_default_col_mm = 190.0 / max(1, n_cols)
+
+# Where the SPREADSHEET wrapped depends on the width the spreadsheet
+# had, not the width Revit will draw. col_widths is calibrated for
+# Revit and runs about 9% wide; using it here let the title slip in
+# under the limit on one line when Excel had already broken it in two.
+_wrap_col_mm = _p.get('col_widths_excel') or col_widths
+
+
+def _prewrapped(ri, ci, text):
+    """Cell text with the spreadsheet's own line breaks written in."""
+    rotated = (ri, ci) in rot_wrap_cells
+    if not rotated and (ri, ci) not in wrap_cells:
+        return text
+    text = u'' if text is None else unicode(text)
+    if not text.strip():
+        return text
+    st = cell_styles.get((ri, ci), {})
+    span = _span_of.get((ri, ci), [ci])
+    if rotated:
+        # Down the row, not across the columns. Excel states the height
+        # in points; a row it never sized is one line tall and cannot
+        # wrap, so leave it alone.
+        pts = row_heights.get(ri)
+        if not pts:
+            return text
+        available = pts * 25.4 / 72.0
+    else:
+        available = sum(_wrap_col_mm.get(c, _default_col_mm) for c in span)
+    # The same slack the sheet leaves inside a cell; without it a heading
+    # that exactly filled its columns in Excel gains a spurious line.
+    available -= 1.5
+    if available <= 0:
+        return text
+    size_mm = float(st.get('font_size', 10.0)) * 25.4 / 72.0
+    lines = wrap_text_to_lines(text, st.get('font_name', font), size_mm,
+                               available, st.get('bold'), st.get('italic'))
+    if len(lines) < 2:
+        return text
+    logger.debug('pre-wrapped ({},{}) into {} lines: {}'.format(
+        ri, ci, len(lines), ' | '.join(lines)))
+    return CELL_LINE_BREAK.join(lines)
+
+# Written down so Refit can size cells against the real text height
+# rather than reading it back off the finished schedule, and so "Reset
+# Cell Sizes" returns the schedule to exactly how this import left it.
+try:
+    store_schedule_row_sizes(doc, view_name, row_size_mm, row_overrides_mm,
+                             wrap_cells=wrap_cells)
+except Exception as ex:
+    logger.debug('store_schedule_row_sizes: {}'.format(ex))
+
 # ── Delete existing schedule with the same name ───────────────────────────────
 # Always recreate to avoid stale SectionData handle errors on update.
 # Before deleting, record any sheet placement(s) so the new schedule can be
@@ -491,7 +576,65 @@ except Exception as ex:
 # ScheduleSheetInstance.Create signature and OwnerViewId/Point property
 # names below match the documented API but this needs a real Revit test,
 # same as other API-behaviour-dependent changes in this file.
+def _eid_value(eid):
+    """ElementId's integer, across the 2024 64-bit API change."""
+    try:
+        return eid.Value
+    except AttributeError:
+        return eid.IntegerValue
+
+
+def _capture_view_params(view):
+    """Project/shared parameter values set on the view, to survive the
+    delete-and-recreate below.
+
+    Only user-added parameters are captured: a built-in parameter has a
+    negative id, and re-applying those would fight Revit (the name, the
+    view template, the sheet it sits on). A project parameter the user
+    filled in - a drawing reference, a status, a revision code - is
+    theirs, and recreating the view silently emptied it every reload.
+    """
+    saved = []
+    for p in view.Parameters:
+        try:
+            if p.IsReadOnly or _eid_value(p.Id) < 0:
+                continue
+            storage = p.StorageType
+            if storage == DB.StorageType.String:
+                value = p.AsString()
+            elif storage == DB.StorageType.Integer:
+                value = p.AsInteger()
+            elif storage == DB.StorageType.Double:
+                value = p.AsDouble()
+            elif storage == DB.StorageType.ElementId:
+                value = p.AsElementId()
+            else:
+                continue
+            if value is None:
+                continue
+            saved.append((p.Definition.Name, value))
+        except Exception as _pex:
+            logger.debug('Could not read view parameter: {}'.format(_pex))
+    return saved
+
+
+def _restore_view_params(view, saved):
+    restored = 0
+    for name, value in saved:
+        try:
+            p = view.LookupParameter(name)
+            if p is None or p.IsReadOnly:
+                logger.debug('Parameter "{}" not on the new view'.format(name))
+                continue
+            p.Set(value)
+            restored += 1
+        except Exception as _pex:
+            logger.debug('Could not restore "{}": {}'.format(name, _pex))
+    return restored
+
+
 _saved_placements = []
+_saved_params = []
 for v in revit.query.get_elements_by_class(ViewSchedule, doc=doc):
     if v.Name == view_name:
         for _inst in FilteredElementCollector(doc).OfClass(DB.ScheduleSheetInstance).ToElements():
@@ -500,6 +643,9 @@ for v in revit.query.get_elements_by_class(ViewSchedule, doc=doc):
                     _saved_placements.append((_inst.OwnerViewId, _inst.Point))
             except Exception as _pe:
                 logger.debug('Could not read schedule placement: {}'.format(_pe))
+        _saved_params = _capture_view_params(v)
+        logger.debug('Captured {} view parameter(s) to restore'.format(
+            len(_saved_params)))
         try:
             doc.Delete(v.Id)
         except Exception as _de:
@@ -510,6 +656,11 @@ for v in revit.query.get_elements_by_class(ViewSchedule, doc=doc):
 sched     = ViewSchedule.CreateSchedule(doc, ElementId.InvalidElementId)
 sched.Name = view_name
 sched_def  = sched.Definition
+
+# Put the user's own parameter values back on the recreated view.
+if _saved_params:
+    logger.debug('Restored {}/{} view parameter(s)'.format(
+        _restore_view_params(sched, _saved_params), len(_saved_params)))
 
 # ── Restore sheet placement(s) recorded above ─────────────────────────────────
 for _sheet_id, _point in _saved_placements:
@@ -713,7 +864,7 @@ for ri, row_data in enumerate(all_rows):
         fg_rgb   = cs.get('color_rgb', None) or DEFAULT_TEXT_RGB
         rotation = _excel_rotation_to_revit(cs.get('rotation', 0))
 
-        _safe_text(hdr, ri, ci, cell)
+        _safe_text(hdr, ri, ci, _prewrapped(ri, ci, cell))
         # Borders and rotation are read from Excel on EVERY row, not just
         # the first. A spreadsheet with a two-level header (a merged group
         # row above the column labels) carries formatting on rows the old
@@ -764,6 +915,30 @@ for r1, c1, r2, c2 in merges:
                 _force_bg(hdr, mr, mc, anchor_bg)
             if anchor_fg:
                 _force_fg(hdr, mr, mc, anchor_fg)
+
+# ── Final sizing: the same pass "Reset Cell Sizes" runs ──────────────────────
+# The cells are populated and styled by this point, so the schedule can be
+# sized by the very code the Batch menu's Reset uses. Running it here is
+# what makes an import and a Reset agree: they are the same pass, not two
+# implementations that have to be kept in step. The recorded text heights
+# are handed over so it doesn't have to infer them from the cells.
+try:
+    from pylink_shared import refit_schedule, REFIT_RESET
+    refit_schedule(doc, sched, mode=REFIT_RESET, row_size_mm=row_size_mm,
+                   wrap_cells=wrap_cells)
+
+    # The body section's single empty column was sized from the total
+    # width worked out BEFORE this refit. Left alone it holds the whole
+    # schedule open at the old width - the table looks correct but sits
+    # in a much wider frame with dead space to the right. Match it to
+    # what the header actually came out as.
+    _fitted_ft = sum(hdr.GetColumnWidth(_c)
+                     for _c in range(hdr.NumberOfColumns))
+    body.SetColumnWidth(0, _fitted_ft)
+    logger.debug('body column matched to header: {:.1f} mm'.format(
+        _fitted_ft * 304.8))
+except Exception as ex:
+    logger.warning('final refit failed, keeping autofit sizes: {}'.format(ex))
 
 logger.debug('create_schedule complete: "{}" {}r x {}c'.format(
     view_name, hdr.NumberOfRows, hdr.NumberOfColumns

@@ -39,6 +39,7 @@ from Autodesk.Revit.DB import BasicFileInfo, SaveAsOptions, Transaction
 from pyrevit import forms, revit
 from pyrevit.framework import Windows
 
+from Snippets import _userdata
 from Snippets._connections import (connection_types, eid, element_name,
                                    family_name, placed_counts, transfer)
 from Snippets.seed43_theme import (apply_seed43_dimensions,
@@ -52,8 +53,12 @@ app = doc.Application
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 TOOL_NAME = "Connection Library"
 
-SETTINGS_DIR = os.path.join(SCRIPT_DIR, "Settings")
-SETTINGS_FILE = os.path.join(SETTINGS_DIR, "library.json")
+# The library path is one user's own, not a shipped default: it lives in
+# .user so an update cannot overwrite it. migrate() carries across a copy
+# left beside the script by an earlier version.
+SETTINGS_FILE = _userdata.migrate(
+    os.path.join(SCRIPT_DIR, "Settings", "library.json"),
+    _userdata.user_path(TOOL_NAME, "library.json"))
 
 DEFAULT_LIBRARY = os.path.join(
     os.path.expanduser("~"), "Documents", "Seed43 Connection Library.rvt")
@@ -82,8 +87,9 @@ def load_path():
 def save_path(path):
     """Remember the library path. Never raises: this is a convenience."""
     try:
-        if not os.path.isdir(SETTINGS_DIR):
-            os.makedirs(SETTINGS_DIR)
+        settings_dir = os.path.dirname(SETTINGS_FILE)
+        if not os.path.isdir(settings_dir):
+            os.makedirs(settings_dir)
         with open(SETTINGS_FILE, "w") as handle:
             json.dump({"path": path}, handle, indent=2)
     except Exception:

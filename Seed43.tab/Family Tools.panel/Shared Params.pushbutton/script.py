@@ -54,9 +54,10 @@ from pyrevit import HOST_APP, forms
 
 from System import Action
 from System.Collections.Generic import List
-from System.ComponentModel import (INotifyPropertyChanged,
+from System.ComponentModel import (GroupDescription, INotifyPropertyChanged,
                                    PropertyChangedEventArgs)
-from System.Windows.Controls import TextBox
+from System.Windows.Controls import ComboBox, GroupStyle, TextBox
+from System.Windows.Data import ListCollectionView
 from System.Windows.Input import Key, Keyboard, ModifierKeys
 from System.Windows.Threading import DispatcherPriority
 
@@ -92,11 +93,10 @@ COL_NAME = 0
 COL_TYPE = 1
 COL_GROUP = 2
 COL_DESC = 3
-COL_VISIBLE = 4
-COL_USERMOD = 5
-COL_HIDE = 6
-COL_GUID = 7
-COL_CATEGORY = 8
+COL_USERMOD = 4
+COL_VISIBLE = 5
+COL_GUID = 6
+COL_HIDE = 7
 
 YES = u"Yes"
 NO = u"No"
@@ -129,6 +129,101 @@ GUIDE = (
     u"Clicking a column header sorts what is on screen. Sort reorders the "
     u"rows in the file itself."
 )
+
+
+# ── DATA TYPE PICKER ────────────────────────────────────────────────────────
+# The file stores tokens (LINEAR_FORCE, HVAC_DUCTSIZE). The picker shows them
+# the way Revit's own dialog does: readable names under discipline headings.
+
+# Group prefixes to drop from the label, since the heading already says it.
+_TYPE_PREFIXES = ("HVAC_", "ELECTRICAL_", "PIPING_")
+
+# Tokens the word rule below cannot split or case correctly.
+_TYPE_LABELS = {
+    "YESNO": u"Yes/No",
+    "MULTILINETEXT": u"Multiline Text",
+    "FAMILYTYPE": u"Family Type",
+    "URL": u"URL",
+    "HVAC_DUCTSIZE": u"Duct Size",
+    "HVAC_CROSSSECTION": u"Cross Section",
+    "HVAC_HEATGAIN": u"Heat Gain",
+    "ELECTRICAL_CABLETRAYSIZE": u"Cable Tray Size",
+    "ELECTRICAL_CONDUITSIZE": u"Conduit Size",
+    "CROSSSECTIONALAREA": u"Cross Sectional Area",
+    "MASSPERUNITAREA": u"Mass per Unit Area",
+    "NUMBEROFPOLES": u"Number of Poles",
+}
+
+FILE_ONLY_GROUP = u"In this file"
+
+
+def type_label(token):
+    """LINEAR_FORCE -> Linear Force. Unknown tokens come out readable too."""
+    if token in _TYPE_LABELS:
+        return _TYPE_LABELS[token]
+    text = token
+    for prefix in _TYPE_PREFIXES:
+        if text.startswith(prefix):
+            text = text[len(prefix):]
+            break
+    words = [w.capitalize() for w in text.split(u"_") if w]
+    words = [w.lower() if w in (u"Per", u"Of") and i else w
+             for i, w in enumerate(words)]
+    return u" ".join(words) or token
+
+
+class TypeOption(object):
+    """One entry in the data type dropdown. Token is what gets written."""
+
+    def __init__(self, token, group):
+        self._token = token
+        self._group = group
+        self._label = type_label(token)
+
+    @property
+    def Token(self):
+        return self._token
+
+    @property
+    def Label(self):
+        return self._label
+
+    @property
+    def Group(self):
+        return self._group
+
+    def __str__(self):
+        return self._label
+
+
+class _ByTypeGroup(GroupDescription):
+    """Groups TypeOptions under their discipline heading.
+
+    A GroupDescription subclass rather than PropertyGroupDescription("Group"):
+    it reads the attribute directly, so it does not depend on WPF reflecting
+    over an IronPython object.
+    """
+
+    def GroupNameFromItem(self, item, level, culture):
+        return getattr(item, "Group", FILE_ONLY_GROUP)
+
+
+def build_type_options(params):
+    """Curated types by discipline, then any token only the file uses."""
+    options = []
+    known = set()
+    for group, tokens in sp_file.DATA_TYPE_GROUPS:
+        for token in sorted(tokens, key=type_label):
+            options.append(TypeOption(token, group))
+            known.add(token)
+    extra = set()
+    for p in params:
+        t = p.get("DATATYPE", u"").strip()
+        if t and t not in known:
+            extra.add(t)
+    for token in sorted(extra, key=type_label):
+        options.append(TypeOption(token, FILE_ONLY_GROUP))
+    return options
 
 
 # ── REMEMBERING THE LAST FILE ───────────────────────────────────────────────
@@ -553,13 +648,12 @@ class SharedParamsWindow(forms.WPFWindow):
 
         # The type list is the curated one plus whatever the file already
         # uses, so a token this tool has never heard of still shows in its
-        # own rows and can be picked for others.
-        types = list(sp_file.DATA_TYPES)
-        for p in self.spf.params:
-            t = p.get("DATATYPE", u"").strip()
-            if t and t not in types:
-                types.append(t)
-        self.grid.Columns[COL_TYPE].ItemsSource = List[str](sorted(types))
+        # own rows and can be picked for others. Grouped by discipline; the
+        # column's SelectedValuePath maps each option back to its token.
+        self._type_options = build_type_options(self.spf.params)
+        view = ListCollectionView(List[object](self._type_options))
+        view.GroupDescriptions.Add(_ByTypeGroup())
+        self.grid.Columns[COL_TYPE].ItemsSource = view
 
         names = sorted(self._group_ids.keys())
         self.grid.Columns[COL_GROUP].ItemsSource = List[str](names)
@@ -894,15 +988,24 @@ class SharedParamsWindow(forms.WPFWindow):
         rows = self.need_selection()
         if not rows:
             return
-        options = list(self.grid.Columns[COL_TYPE].ItemsSource)
+        # Keyed on discipline and name together: Power, Temperature, Slope
+        # and others exist in more than one discipline with different
+        # tokens, so the name alone would write the wrong one.
+        by_label = {}
+        order = []
+        for opt in self._type_options:
+            key = u"{0}: {1}".format(opt.Group, opt.Label)
+            if key not in by_label:
+                by_label[key] = opt.Token
+                order.append(key)
         picked = forms.SelectFromList.show(
-            options, title="Set data type", button_name="Apply",
-            multiselect=False)
+            order, title="Set data type",
+            button_name="Apply", multiselect=False)
         if not picked:
             return
         self.snapshot()
         for row in rows:
-            row.data["DATATYPE"] = picked
+            row.data["DATATYPE"] = by_label[picked]
         self.mark_dirty()
         self.refresh_rows()
         self.set_status(u"{0} row{1} set to {2}.".format(
@@ -1038,6 +1141,22 @@ class SharedParamsWindow(forms.WPFWindow):
         except Exception:
             # A guard that throws must not take the edit down with it.
             pass
+
+    def preparing_cell_for_edit(self, sender, args):
+        """Give the data type dropdown its discipline headings.
+
+        GroupStyle is a plain collection on ComboBox, not a dependency
+        property, so no Style can set it. The column builds a fresh editing
+        ComboBox for each edit; it gets the heading style from the window's
+        resources here.
+        """
+        editor = args.EditingElement
+        if (args.Column is self.grid.Columns[COL_TYPE]
+                and isinstance(editor, ComboBox)
+                and editor.GroupStyle.Count == 0):
+            style = self.TryFindResource("TypeGroupStyle")
+            if isinstance(style, GroupStyle):
+                editor.GroupStyle.Add(style)
 
     def grid_key_down(self, sender, args):
         if args.Key == Key.Delete:

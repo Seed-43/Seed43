@@ -179,16 +179,6 @@
             </Setter>
         </Style>
 
-        <!-- A cell dropdown sits flush inside the row: no border, no fixed
-             height, or every row grows to 28 plus padding and the grid
-             stops looking like a table. -->
-        <Style x:Key="CellCombo" TargetType="ComboBox" BasedOn="{StaticResource Combo}">
-            <Setter Property="Height"          Value="Auto"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Padding"         Value="6,2"/>
-        </Style>
-
         <Style x:Key="Check" TargetType="CheckBox">
             <Setter Property="Foreground" Value="{DynamicResource BrushTextMuted}"/>
             <Setter Property="FontSize"   Value="{DynamicResource FontSizeInput}"/>
@@ -317,17 +307,108 @@
             </Setter>
         </Style>
 
+        <!-- macOS-style slim green scrollbar — applies everywhere -->
+        <Style x:Key="MacScrollBarThumb" TargetType="Thumb">
+            <Setter Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border x:Name="thumb"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="3"
+                                Margin="2"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="ScrollBar">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Width"    Value="8"/>
+            <Setter Property="MinWidth" Value="8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid x:Name="GridRoot" Width="8" Background="Transparent">
+                            <Track x:Name="PART_Track"
+                                   Orientation="Vertical"
+                                   IsDirectionReversed="True">
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource MacScrollBarThumb}"/>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="GridRoot" Property="Width" Value="10"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="Orientation" Value="Horizontal">
+                    <Setter Property="Width"     Value="Auto"/>
+                    <Setter Property="MinWidth"  Value="0"/>
+                    <Setter Property="Height"    Value="8"/>
+                    <Setter Property="MinHeight" Value="8"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ScrollBar">
+                                <Grid x:Name="GridRoot" Height="8" Background="Transparent">
+                                    <Track x:Name="PART_Track" Orientation="Horizontal">
+                                        <Track.Thumb>
+                                            <Thumb Style="{StaticResource MacScrollBarThumb}"/>
+                                        </Track.Thumb>
+                                    </Track>
+                                </Grid>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="GridRoot" Property="Height" Value="10"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
         <!-- ── THE TABLE ─────────────────────────────────────────────── -->
+        <!-- Deliberately outside the Seed43 palette: colours are fixed here
+             to match the pySheets sheet list, with Revit style dropdowns in
+             the cells. Tweak the Tbl* brushes to retune the whole table. -->
+        <SolidColorBrush x:Key="TblBg"          Color="#1E2530"/>
+        <SolidColorBrush x:Key="TblLine"        Color="#2A3240"/>
+        <SolidColorBrush x:Key="TblHover"       Color="#243041"/>
+        <SolidColorBrush x:Key="TblSelected"    Color="#14401F"/>
+        <SolidColorBrush x:Key="TblHeaderText"  Color="#B4BCC8"/>
+        <SolidColorBrush x:Key="TblText"        Color="#F2F4F7"/>
+        <SolidColorBrush x:Key="TblField"       Color="#2A3342"/>
+        <SolidColorBrush x:Key="TblFieldHover"  Color="#323D4F"/>
+        <SolidColorBrush x:Key="TblPopup"       Color="#262E3B"/>
+        <SolidColorBrush x:Key="TblPopupBorder" Color="#3A4556"/>
+        <SolidColorBrush x:Key="TblChevron"     Color="#C8D0DA"/>
+        <SolidColorBrush x:Key="TblGroupText"   Color="#FFFFFF"/>
+
         <!-- Virtualisation is what keeps a several thousand row file
              usable: WPF then realises only the rows on screen instead of
              building a control tree for every parameter in the file. -->
         <Style TargetType="DataGrid">
-            <Setter Property="Background"               Value="{DynamicResource BrushCardBg}"/>
-            <Setter Property="Foreground"               Value="{DynamicResource BrushTextPrimary}"/>
-            <Setter Property="RowBackground"            Value="{DynamicResource BrushCardBg}"/>
-            <Setter Property="AlternatingRowBackground" Value="{DynamicResource BrushInputBg}"/>
+            <Setter Property="Background"               Value="{StaticResource TblBg}"/>
+            <Setter Property="Foreground"               Value="{StaticResource TblText}"/>
+            <Setter Property="FontSize"                 Value="12"/>
             <Setter Property="BorderThickness"          Value="0"/>
-            <Setter Property="GridLinesVisibility"      Value="None"/>
+            <Setter Property="GridLinesVisibility"      Value="Horizontal"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource TblLine}"/>
+            <Setter Property="MinRowHeight"             Value="26"/>
             <Setter Property="HeadersVisibility"        Value="Column"/>
             <Setter Property="AutoGenerateColumns"      Value="False"/>
             <Setter Property="CanUserAddRows"           Value="False"/>
@@ -345,12 +426,13 @@
         </Style>
 
         <Style TargetType="DataGridColumnHeader">
-            <Setter Property="Background"      Value="{DynamicResource BrushHeaderBg}"/>
-            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="Background"      Value="{StaticResource TblBg}"/>
+            <Setter Property="Foreground"      Value="{StaticResource TblHeaderText}"/>
             <Setter Property="FontWeight"      Value="SemiBold"/>
-            <Setter Property="FontSize"        Value="{DynamicResource FontSizeBody}"/>
-            <Setter Property="Padding"         Value="10,8"/>
-            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="Padding"         Value="8,7"/>
+            <Setter Property="BorderBrush"     Value="{StaticResource TblLine}"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
             <Setter Property="HorizontalContentAlignment" Value="Left"/>
         </Style>
 
@@ -359,10 +441,11 @@
              from the row, so row level triggers would never show.
              Bindings still resolve against the row item the cells share. -->
         <Style TargetType="DataGridCell">
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding"         Value="8,5"/>
-            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
-            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="BorderThickness"  Value="0"/>
+            <Setter Property="Padding"          Value="8,2"/>
+            <Setter Property="Foreground"       Value="{StaticResource TblText}"/>
+            <Setter Property="Background"       Value="Transparent"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="DataGridCell">
@@ -382,32 +465,152 @@
                 <DataTrigger Binding="{Binding RowState}" Value="new">
                     <Setter Property="Foreground" Value="{DynamicResource BrushSuccess}"/>
                 </DataTrigger>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background"
-                            Value="{DynamicResource BrushHighlightedRowBg}"/>
-                </Trigger>
             </Style.Triggers>
         </Style>
 
         <Style TargetType="DataGridRow">
-            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Background" Value="{StaticResource TblBg}"/>
             <Setter Property="ToolTip"    Value="{Binding Problem}"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource TblHover}"/>
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{StaticResource TblSelected}"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
+        <!-- Read only: one line, trimmed, so the list stays compact. -->
         <Style x:Key="CellText" TargetType="TextBlock">
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="TextTrimming"      Value="CharacterEllipsis"/>
         </Style>
 
+        <!-- Editing: the box wraps, so clicking into a cell expands the row
+             to show the whole value instead of a trimmed single line. -->
         <Style x:Key="CellEdit" TargetType="TextBox">
-            <Setter Property="Background"      Value="{DynamicResource BrushInputBg}"/>
-            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
-            <Setter Property="CaretBrush"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="Background"      Value="{StaticResource TblField}"/>
+            <Setter Property="Foreground"      Value="{StaticResource TblText}"/>
+            <Setter Property="CaretBrush"      Value="{StaticResource TblText}"/>
             <Setter Property="BorderBrush"     Value="{DynamicResource BrushPrimaryGreen}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding"         Value="4,2"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Padding"         Value="3,2"/>
+            <Setter Property="TextWrapping"    Value="Wrap"/>
+            <Setter Property="AcceptsReturn"   Value="False"/>
+            <Setter Property="VerticalContentAlignment" Value="Top"/>
         </Style>
+
+        <!-- Description is the long one: open it at three lines minimum. -->
+        <Style x:Key="CellEditLong" TargetType="TextBox" BasedOn="{StaticResource CellEdit}">
+            <Setter Property="MinLines" Value="3"/>
+        </Style>
+
+        <!-- Dropdown in a cell, Revit style: a flat filled box that spans
+             the cell, a thin chevron at the right, and a plain list. -->
+        <Style x:Key="CellCombo" TargetType="ComboBox">
+            <Setter Property="Foreground"      Value="{StaticResource TblText}"/>
+            <Setter Property="FontSize"        Value="12"/>
+            <Setter Property="Height"          Value="22"/>
+            <Setter Property="Margin"          Value="-5,0,-5,0"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <!-- Every type cell shares one grouped CollectionView. Without
+                 this each combo follows the view's current item, and every
+                 row shows whatever the last one picked. -->
+            <Setter Property="IsSynchronizedWithCurrentItem" Value="False"/>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="Foreground" Value="{StaticResource TblText}"/>
+                        <Setter Property="Padding"    Value="16,3,8,3"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ComboBoxItem">
+                                    <Border x:Name="Bd" Background="Transparent"
+                                            BorderBrush="Transparent" BorderThickness="1"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsHighlighted" Value="True">
+                                            <Setter TargetName="Bd" Property="Background"
+                                                    Value="{StaticResource TblFieldHover}"/>
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="Bd" Property="Background"
+                                                    Value="{StaticResource TblSelected}"/>
+                                            <Setter TargetName="Bd" Property="BorderBrush"
+                                                    Value="{DynamicResource BrushPrimaryGreen}"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton Focusable="False" ClickMode="Press"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="Box" Background="{StaticResource TblField}"
+                                                CornerRadius="3">
+                                            <Path Data="M 0 0 L 3.5 3.5 L 7 0"
+                                                  Stroke="{StaticResource TblChevron}"
+                                                  StrokeThickness="1.5"
+                                                  HorizontalAlignment="Right"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,1,8,0"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Box" Property="Background"
+                                                        Value="{StaticResource TblFieldHover}"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter Margin="7,0,22,0"
+                                              VerticalAlignment="Center"
+                                              IsHitTestVisible="False"
+                                              Content="{TemplateBinding SelectionBoxItem}"
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"/>
+                            <Popup Placement="Bottom" AllowsTransparency="True"
+                                   Focusable="False" PopupAnimation="Fade"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}">
+                                <Border Background="{StaticResource TblPopup}"
+                                        BorderBrush="{StaticResource TblPopupBorder}"
+                                        BorderThickness="1"
+                                        MinWidth="{TemplateBinding ActualWidth}"
+                                        MaxHeight="360" Padding="0,3">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <ItemsPresenter/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Discipline headings in the data type list (added to the editing
+             combo from the script; GroupStyle cannot be set by a Style). -->
+        <GroupStyle x:Key="TypeGroupStyle">
+            <GroupStyle.HeaderTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="12"
+                               Foreground="{StaticResource TblGroupText}"
+                               Margin="6,5,6,1"/>
+                </DataTemplate>
+            </GroupStyle.HeaderTemplate>
+        </GroupStyle>
     </Window.Resources>
 
     <DockPanel>
@@ -566,10 +769,11 @@
                 </Grid>
 
                 <!-- ── GRID ──────────────────────────────────────────── -->
-                <Border BorderBrush="{DynamicResource BrushSecondaryBg}"
-                        BorderThickness="1" CornerRadius="6">
+                <Border Background="{StaticResource TblBg}"
+                        CornerRadius="6" ClipToBounds="True">
                     <DataGrid x:Name="grid"
                               CellEditEnding="cell_edit_ending"
+                              PreparingCellForEdit="preparing_cell_for_edit"
                               PreviewKeyDown="grid_key_down">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Parameter name" Width="2*"
@@ -577,42 +781,40 @@
                                                 ElementStyle="{StaticResource CellText}"
                                                 EditingElementStyle="{StaticResource CellEdit}"/>
                             <DataGridComboBoxColumn x:Name="type_col"
-                                                    Header="Type of parameter" Width="168"
-                                                    SelectedItemBinding="{Binding DataType}"
+                                                    Header="Type of parameter" Width="160"
+                                                    SelectedValuePath="Token"
+                                                    DisplayMemberPath="Label"
+                                                    SelectedValueBinding="{Binding DataType}"
                                                     ElementStyle="{StaticResource CellCombo}"
                                                     EditingElementStyle="{StaticResource CellCombo}"/>
                             <DataGridComboBoxColumn x:Name="group_col"
-                                                    Header="Group" Width="132"
+                                                    Header="Group" Width="128"
                                                     SelectedItemBinding="{Binding GroupName}"
                                                     ElementStyle="{StaticResource CellCombo}"
                                                     EditingElementStyle="{StaticResource CellCombo}"/>
                             <DataGridTextColumn Header="Description" Width="2*"
                                                 Binding="{Binding Description}"
                                                 ElementStyle="{StaticResource CellText}"
-                                                EditingElementStyle="{StaticResource CellEdit}"/>
-                            <DataGridComboBoxColumn x:Name="vis_col"
-                                                    Header="Visible" Width="78"
-                                                    SelectedItemBinding="{Binding Visible}"
-                                                    ElementStyle="{StaticResource CellCombo}"
-                                                    EditingElementStyle="{StaticResource CellCombo}"/>
+                                                EditingElementStyle="{StaticResource CellEditLong}"/>
                             <DataGridComboBoxColumn x:Name="mod_col"
-                                                    Header="User modifiable" Width="112"
+                                                    Header="User modifiable" Width="104"
                                                     SelectedItemBinding="{Binding UserModifiable}"
                                                     ElementStyle="{StaticResource CellCombo}"
                                                     EditingElementStyle="{StaticResource CellCombo}"/>
-                            <DataGridComboBoxColumn x:Name="hide_col"
-                                                    Header="Hide when no value" Width="128"
-                                                    SelectedItemBinding="{Binding HideWhenNoValue}"
+                            <DataGridComboBoxColumn x:Name="vis_col"
+                                                    Header="Visibility" Width="80"
+                                                    SelectedItemBinding="{Binding Visible}"
                                                     ElementStyle="{StaticResource CellCombo}"
                                                     EditingElementStyle="{StaticResource CellCombo}"/>
                             <DataGridTextColumn Header="GUID" Width="250"
                                                 Binding="{Binding Guid}"
                                                 ElementStyle="{StaticResource CellText}"
                                                 EditingElementStyle="{StaticResource CellEdit}"/>
-                            <DataGridTextColumn Header="Family category" Width="110"
-                                                Binding="{Binding DataCategory}"
-                                                ElementStyle="{StaticResource CellText}"
-                                                EditingElementStyle="{StaticResource CellEdit}"/>
+                            <DataGridComboBoxColumn x:Name="hide_col"
+                                                    Header="Hide when no value" Width="124"
+                                                    SelectedItemBinding="{Binding HideWhenNoValue}"
+                                                    ElementStyle="{StaticResource CellCombo}"
+                                                    EditingElementStyle="{StaticResource CellCombo}"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Border>

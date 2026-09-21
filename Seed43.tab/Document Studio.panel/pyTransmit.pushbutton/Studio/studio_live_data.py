@@ -36,11 +36,18 @@ def _load_json(path, default):
         return default
 
 
-def _parse_copies(issued_to_str, recipient_label, recipient_index=0):
-    """Copies-per-recipient encoded in a Revision's IssuedTo string.
+def _parse_recipient(issued_to_str, recipient_label, recipient_index=0):
+    """(attention_to, copies) for one recipient, out of a Revision's IssuedTo.
 
     Ported from Publish/script_create_excel.py so the builder preview and
     the real published document agree on how the tags are read.
+
+    Both values come out of the SAME tag - the distribution block is written
+    as "DL: 1A.[BECA]1 2O.[] 3C.[Structa]1", where the bracket is the contact
+    and the digits after it are the copy count. This used to return only the
+    count and throw the contact away, which is why Attention To printed blank
+    on transmittals whose copies printed fine: the name was in the model the
+    whole time, just never read out.
     """
     block = ''
     for part in (issued_to_str or '').split(' | '):
@@ -50,19 +57,27 @@ def _parse_copies(issued_to_str, recipient_label, recipient_index=0):
             break
     if not block and ' | ' in (issued_to_str or ''):
         block = issued_to_str.split(' | ', 1)[1].strip()
+    # Distribution mode, new format: position-numbered, e.g. "3C.[Structa]1".
     m = re.search(r'{}[A-Za-z]\.\[([^\]]*)\](\d*)'.format(recipient_index + 1), block)
     if m:
-        return m.group(2)
+        return m.group(1).strip(), m.group(2)
+    # Distribution mode, old format: keyed by the role's initial only.
     first = recipient_label[0].upper() if recipient_label else ''
     if first:
         m2 = re.search(r'(?:^| )' + first + r'\.\[([^\]]*)\](\d*)', block)
         if m2:
-            return m2.group(2)
+            return m2.group(1).strip(), m2.group(2)
+    # Client mode: the bracket holds "Company — Contact" rather than a
+    # bare contact, so the contact is the half after the em dash - the same
+    # split pyTransmit.py makes when it rebuilds recipients from IssuedTo.
     if recipient_label:
-        m3 = re.search(r'\[' + re.escape(recipient_label[:6]) + r'[^\]]*\](\d+)', issued_to_str or '')
+        m3 = re.search(r'\[(' + re.escape(recipient_label[:6]) + r'[^\]]*)\](\d+)',
+                       issued_to_str or '')
         if m3:
-            return m3.group(1)
-    return ''
+            inner = m3.group(1)
+            attn = inner.split(u'—', 1)[1].strip() if u'—' in inner else ''
+            return attn, m3.group(2)
+    return '', ''
 
 
 def empty_data():
@@ -117,7 +132,7 @@ def _groupable_sheet_params(sheets):
     return sorted(names)
 
 
-def get_live_data(settings_dir, max_revs=12, group_params=None):
+def get_live_data(settings_dir, max_revs=12, group_params=None, recipients=None):
     """settings_dir = the user's Settings folder (pytransmit_paths.SETTINGS_DIR),
     passed in rather than resolved here, so this can
     read the same recipients/distribution/reason/method JSON pyTransmit
@@ -128,7 +143,15 @@ def get_live_data(settings_dir, max_revs=12, group_params=None):
     test below - see the note in _groupable_sheet_params(). Grouping by a
     parameter that was never read produces a blank group key for every
     sheet, one nameless group, and therefore no group header rows at all -
-    silently, and identically in the Studio preview and in every export."""
+    silently, and identically in the Studio preview and in every export.
+
+    recipients = the caller's PYTRANSMIT_PAYLOAD['recipients'] - the
+    [{label, attn, copies}] list the pyTransmit window built from whichever
+    recipient mode is active. Passed in because it is the only place the
+    contact names the user typed exist before they are written to a revision,
+    and because in client mode the rows are companies, not the fixed roles in
+    distribution.json. Publish scripts have it; the Studio canvas does not,
+    and falls back to reading the last issued revision."""
     try:
         from pyrevit import revit, DB
         doc = revit.doc
@@ -150,18 +173,41 @@ def get_live_data(settings_dir, max_revs=12, group_params=None):
     except Exception:
         data = empty_data()
 
-    # -- Distribution (from Settings/distribution.json + recipients.json) ------
-    dist_rows = _load_json(os.path.join(settings_dir, 'distribution.json'), [])
-    recip_rows = _load_json(os.path.join(settings_dir, 'recipients.json'), [])
+    # -- Distribution ---------------------------------------------------------
+    # Three sources, most authoritative first. Attention To is filled from the
+    # first one that has a name; blanks fall through to the next.
+    #
+    #   1. the payload      what the pyTransmit window is publishing RIGHT NOW,
+    #                       including contacts typed but not yet written to any
+    #                       revision, and the right ROWS in client mode.
+    #   2. the revision     parsed out of IssuedTo further down, once the
+    #                       issued revisions have been read.
+    #   3. the JSON files   recipients.json joined to distribution.json.
+    #
+    # (3) only ever fires by coincidence and is kept as a last resort: the two
+    # files hold different vocabularies - distribution.json has fixed ROLES
+    # ("Architect/Designer"), recipients.json has client COMPANIES - so the
+    # names match only if a company happens to be spelt like a role. Relying
+    # on it alone is what left Attention To blank on every transmittal.
     distribution = []
-    for row in sorted(dist_rows, key=lambda r: r.get('display_order', 0)):
-        label = row.get('distribution', '')
-        attn = ', '.join(
-            r.get('attention_to', '') for r in recip_rows
-            if r.get('company') == label and r.get('attention_to')
-        )
-        distribution.append({'to': label, 'attn': attn, 'copies': '',
-                             'copies_by_rev': []})
+    for row in (recipients or []):
+        label = (row.get('label') or '').strip()
+        if label:
+            distribution.append({'to': label,
+                                 'attn': (row.get('attn') or '').strip(),
+                                 'copies': '', 'copies_by_rev': []})
+
+    if not distribution:
+        dist_rows = _load_json(os.path.join(settings_dir, 'distribution.json'), [])
+        recip_rows = _load_json(os.path.join(settings_dir, 'recipients.json'), [])
+        for row in sorted(dist_rows, key=lambda r: r.get('display_order', 0)):
+            label = row.get('distribution', '')
+            attn = ', '.join(
+                r.get('attention_to', '') for r in recip_rows
+                if r.get('company') == label and r.get('attention_to')
+            )
+            distribution.append({'to': label, 'attn': attn, 'copies': '',
+                                 'copies_by_rev': []})
     data['distribution'] = distribution
 
     # -- Reasons / Methods (from Settings/reason.json, method.json) -----------
@@ -213,13 +259,22 @@ def get_live_data(settings_dir, max_revs=12, group_params=None):
         data['revisions'] = revisions
         # Copies are per (recipient, revision) - one entry per revision so a
         # Number of Copies block in revision column N can read index N.
+        # Attention To is not per-revision: it is one name per recipient, so
+        # the latest issued revision that names one wins, and anything the
+        # payload already supplied wins over all of them.
         for di, dist in enumerate(distribution):
             per_rev = []
+            parsed_attn = ''
             for rev_el in issued_revs:
                 try:
-                    per_rev.append(_parse_copies(rev_el.IssuedTo or '', dist.get('to', ''), di))
+                    r_attn, r_copies = _parse_recipient(
+                        rev_el.IssuedTo or '', dist.get('to', ''), di)
                 except Exception:
-                    per_rev.append('')
+                    r_attn, r_copies = '', ''
+                per_rev.append(r_copies)
+                if r_attn:
+                    parsed_attn = r_attn
+            dist['attn'] = dist.get('attn') or parsed_attn
             dist['copies_by_rev'] = per_rev
             dist['copies'] = per_rev[-1] if per_rev else ''
 

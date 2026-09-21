@@ -183,7 +183,8 @@ if _rescaled:
 # The same reader the Studio canvas uses, so the preview and the workbook are
 # built from one description of the model rather than two.
 DATA = studio_live_data.get_live_data(
-    SETTINGS_DIR, group_params=_p.get('group_params') or [])
+    SETTINGS_DIR, group_params=_p.get('group_params') or [],
+    recipients=_p.get('recipients') or [])
 REVISIONS = DATA.get('revisions', []) or []
 DOCS = DATA.get('docs', []) or []
 DISTRIBUTION = DATA.get('distribution', []) or []

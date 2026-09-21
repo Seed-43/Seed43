@@ -23,6 +23,7 @@
 #     ('group', label)      group header; label is '' when group text is off
 #     ('more',  n)          n rows collapsed away by Condense Rows
 
+import re
 from collections import OrderedDict
 
 # ---------------------------------------------------------------------------
@@ -233,6 +234,40 @@ def _group_key(doc, group_params):
     return u'|'.join(_sheet_param(doc, pn) for pn in group_params)
 
 
+def _natural_key(text):
+    """Digit runs compared as numbers, so "1.10 Plans" follows "1.9 Plans"
+    instead of preceding it.
+
+    Every part is the same 3-tuple shape on purpose: a list holding bare ints
+    next to bare strings is an unorderable mix outside IronPython 2, and the
+    one place that ordering is wrong is the hardest to notice - a schedule
+    that looks plausible and is silently out of sequence.
+    """
+    return [(1, int(part), u'') if part.isdigit() else (0, 0, part.lower())
+            for part in re.split(r'(\d+)', text or u'') if part]
+
+
+def _group_sort_key(key):
+    """Order of the group HEADERS: by each grouping parameter's value in turn,
+    naturally, blanks last.
+
+    Without this the groups came out in the order their first sheet happened
+    to fall in - grouping by Sheet Collection then Folder put "0 General"
+    after "1 Civil Drawings", because C0.01 sorts before S0.00. Sorting the
+    groups themselves makes the header order follow the parameters the user
+    picked, which is what choosing them means.
+
+    Blanks sort last (like script_create_schedule.py's '~' sentinel) so a
+    sheet missing its Sheet Collection lands in a trailing untitled block
+    rather than heading the table with no label on it.
+    """
+    out = []
+    for value in key.split(u'|'):
+        value = (value or u'').strip()
+        out.append((1, []) if not value else (0, _natural_key(value)))
+    return out
+
+
 def condense_plan(plan, condense=True):
     """Collapse the middle of a row plan, leaving CONDENSE_MAX_ROWS at most."""
     if not condense or len(plan) <= CONDENSE_MAX_ROWS:
@@ -245,9 +280,10 @@ def sheet_row_plan(data, group_params=None, group_label=True, condense=False,
                    space_first_group=False, space_between_groups=False):
     """Build the row plan for the documentation table.
 
-    Groups appear in first-appearance order, sheets stay in the order
-    data['docs'] already has them (natural sheet-number sort), which is the
-    same ordering the published document uses.
+    Groups are ordered by their own parameter values (see _group_sort_key),
+    sheets stay in the order data['docs'] already has them (natural
+    sheet-number sort), which is the same ordering the published document
+    uses.
 
     group_label=False still inserts the header rows - they're what separates
     one group from the next on the page - but with no text in them, and drops
@@ -268,7 +304,8 @@ def sheet_row_plan(data, group_params=None, group_label=True, condense=False,
 
     plan = []
     first_group = True
-    for _key, members in groups.items():
+    for _key, members in sorted(groups.items(),
+                                key=lambda kv: _group_sort_key(kv[0])):
         label = group_label_for(members[0], group_params)
         # The gap is decided ONLY by its own switch - not by whether the group
         # is named, and not by whether group text is on. The two switches are

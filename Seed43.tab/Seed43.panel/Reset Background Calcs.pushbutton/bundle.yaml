@@ -1,0 +1,15 @@
+title: "Reset Background Calcs"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Clears the stuck save lock that reads "Cannot perform save this document
+  command because background calculations are in progress". Opens a blank
+  family for your Revit version. Close that family with the X on its tab,
+  without saving, and your model will save as normal.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

@@ -1,0 +1,35 @@
+title: "Shared Params"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Edits a Revit shared parameter file as a table, the way a spreadsheet
+  would, without the file ever having to be opened by hand. Open any
+  file or load the one Revit is currently pointed at, edit the cells,
+  then add, duplicate, delete, rename or regroup whole selections at
+  once.
+
+  Save checks the file before it writes it. A duplicate or malformed
+  GUID, an empty name, a group that is not in the table or a tab pasted
+  into a field all stop the save and mark the rows in red, because Revit
+  matches a shared parameter by its GUID alone and a file that gets that
+  wrong quietly unbinds every family using it.
+
+  The write itself is the careful part. The old file is copied into a
+  _backups folder beside it, the new one is written to one side and then
+  moved into place, so a save that is interrupted leaves either the old
+  file whole or the new one whole and never half of either.
+
+  Values are carried through as they were found. The column order is
+  read from the file rather than assumed, so a file from an older Revit
+  parses into the right fields, and a value the tool does not recognise
+  is left alone unless that cell is edited.
+
+  Nothing in the model is touched and no transaction is started. Undo
+  steps back through edits to the table.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

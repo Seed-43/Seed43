@@ -1,0 +1,22 @@
+title: "Filters"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Overrides every filter in the active view at once. The window names
+  the next step for each column: Filters Off unticks Enable Filter and
+  becomes Filters On once it is off, Filters Show ticks Visibility on to
+  bring back whatever the filters were hiding and becomes Filters Hide
+  once it is on, and Restore Filters appears whenever either is on and
+  undoes both. Type part of a name and press Enter. Each filter's setting
+  is recorded into the model first, so putting them back leaves any you
+  had already unticked unticked. Only the current view is touched, even
+  where a view template controls the filters, although reapplying that
+  template clears the override. An amber frame marks the view while it is
+  overridden, and closing the model offers to clear anything still on.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

@@ -178,11 +178,12 @@ snippets:
     description: >
       Helpers for tools that drive a 3D view's section box - model extents,
       the 3D-view guard, and applying a box.
-      Used by Grid Slice and Level Slice.
+      Used by Model Slice.
     functions:
       mm_to_ft:          Convert millimetres to Revit's internal feet.
       require_3d_view:   Return the active view if it can take a section box, else None.
       model_extents:     Return a BoundingBoxXYZ enclosing every model element.
+      datum_extents:     Plan extent of the grids and height range of the levels, padded; falls back to model_extents per axis.
       apply_section_box: Turn the section box on and set it, in one transaction.
 
   _selection.py:
@@ -272,8 +273,7 @@ snippets:
       explains the round trip rather than reporting status, so report()
       shows it once per column per direction and then keeps quiet, recording
       what has been shown in .user/ViewFilters/guide_shown.json; anything
-      that went wrong is shown every time. Used by Filters Off and Filters
-      Show.
+      that went wrong is shown every time. Used by the Filters button.
     functions:
       supports_filters:  Return True for a view whose filter checkboxes can be read.
       applied_filters:   Return the ElementIds of the filters applied to a view.

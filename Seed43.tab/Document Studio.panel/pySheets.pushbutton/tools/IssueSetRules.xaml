@@ -1,0 +1,241 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        SizeToContent="Height"
+        Width="560"
+        Title="Issue Set Rules"
+        Background="{DynamicResource BrushWindowBg}">
+
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="60"
+                             CornerRadius="10"
+                             GlassFrameThickness="0"
+                             ResizeBorderThickness="0"
+                             UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="BrushWindowBg"    Color="#3B4553"/>
+        <SolidColorBrush x:Key="BrushCardBg"      Color="#2B3340"/>
+        <SolidColorBrush x:Key="BrushHeaderBg"    Color="#232933"/>
+        <SolidColorBrush x:Key="BrushPrimaryGreen" Color="#208A3C"/>
+        <SolidColorBrush x:Key="BrushTextPrimary" Color="#F4FAFF"/>
+        <SolidColorBrush x:Key="BrushSecondaryPressed" Color="#333B48"/>
+        <SolidColorBrush x:Key="BrushDanger"      Color="#C53030"/>
+        <SolidColorBrush x:Key="BrushSuccess"     Color="#27AE60"/>
+        <SolidColorBrush x:Key="BrushInputBg"     Color="#1F252E"/>
+        <SolidColorBrush x:Key="BrushWarning"     Color="#E0A030"/>
+
+        <Style x:Key="GreenBtn" TargetType="Button">
+            <Setter Property="Background"  Value="{DynamicResource BrushPrimaryGreen}"/>
+            <Setter Property="Foreground"  Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontWeight"  Value="SemiBold"/>
+            <Setter Property="FontSize"    Value="12"/>
+            <Setter Property="Padding"     Value="16,8"/>
+            <Setter Property="Cursor"      Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSuccess}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SecBtn" TargetType="Button">
+            <Setter Property="Background"  Value="{DynamicResource BrushHeaderBg}"/>
+            <Setter Property="Foreground"  Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize"    Value="12"/>
+            <Setter Property="Padding"     Value="16,8"/>
+            <Setter Property="Cursor"      Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryPressed}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Custom title bar control: close -->
+        <Style x:Key="WinCtrlCloseBtn" TargetType="Button">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width"           Value="32"/>
+            <Setter Property="Height"          Value="32"/>
+            <Setter Property="FontSize"        Value="13"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="16">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushDanger}"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Same radio as the pySheets main window -->
+        <Style TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="FontSize"   Value="13"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+            <Setter Property="Margin"     Value="0,0,0,8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <StackPanel Orientation="Horizontal" Background="Transparent">
+                            <Border Width="16" Height="16"
+                                    BorderBrush="{DynamicResource BrushPrimaryGreen}" BorderThickness="1.5"
+                                    CornerRadius="8" Background="{DynamicResource BrushInputBg}"
+                                    VerticalAlignment="Center">
+                                <Ellipse x:Name="Dot" Width="8" Height="8"
+                                         Fill="{DynamicResource BrushPrimaryGreen}"
+                                         Visibility="Collapsed"/>
+                            </Border>
+                            <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Dot" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CardLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource BrushPrimaryGreen}"/>
+            <Setter Property="FontSize"   Value="13"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin"     Value="0,0,0,10"/>
+        </Style>
+
+        <Style x:Key="RuleHead" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="FontSize"   Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin"     Value="0,0,0,2"/>
+        </Style>
+
+        <Style x:Key="RuleBody" TargetType="TextBlock">
+            <Setter Property="Foreground"   Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="Opacity"      Value="0.7"/>
+            <Setter Property="FontSize"     Value="12"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin"       Value="0,0,0,10"/>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel>
+        <Border Background="{DynamicResource BrushHeaderBg}" Height="60" DockPanel.Dock="Top" CornerRadius="0,0,12,12">
+            <Border.Effect>
+                <DropShadowEffect Color="Black" Opacity="0.3" ShadowDepth="2" BlurRadius="6"/>
+            </Border.Effect>
+            <Grid Margin="20,0,16,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
+                    <TextBlock Text="py" FontWeight="Bold" FontSize="22" Foreground="{DynamicResource BrushPrimaryGreen}"/>
+                    <TextBlock Text="Sheets" FontWeight="Bold" FontSize="22" Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <TextBlock Text="  |  Issue Set Rules" FontSize="14"
+                               Foreground="{DynamicResource BrushTextPrimary}" Opacity="0.6"
+                               VerticalAlignment="Bottom" Margin="4,0,0,4"/>
+                </StackPanel>
+                <Button x:Name="win_close_btn"
+                        Content="&#10005;"
+                        Style="{StaticResource WinCtrlCloseBtn}"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        ToolTip="Close"
+                        Click="win_close_clicked"
+                        shell:WindowChrome.IsHitTestVisibleInChrome="True"/>
+            </Grid>
+        </Border>
+
+        <Border Background="{DynamicResource BrushHeaderBg}" Height="56" DockPanel.Dock="Bottom" CornerRadius="0,0,10,10">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                        VerticalAlignment="Center" Margin="0,0,20,0">
+                <Button Content="Cancel" Style="{StaticResource SecBtn}"
+                        Margin="0,0,8,0" Click="cancel_clicked"/>
+                <Button Content="Confirm" Style="{StaticResource GreenBtn}"
+                        Click="save_clicked"/>
+            </StackPanel>
+        </Border>
+
+        <StackPanel Margin="20">
+            <Border Background="{DynamicResource BrushCardBg}" CornerRadius="8" Padding="16" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="COMBINED SET ORDER" Style="{StaticResource CardLabel}"/>
+                    <RadioButton x:Name="order_number_rb"  GroupName="order" Content="Sheet number"/>
+                    <RadioButton x:Name="order_browser_rb" GroupName="order" Content="Project Browser order"/>
+                    <RadioButton x:Name="order_list_rb"    GroupName="order" Content="pySheets list order" Margin="0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Background="{DynamicResource BrushCardBg}" CornerRadius="8" Padding="16">
+                <StackPanel>
+                    <TextBlock Text="HOW FILES ARE ARCHIVED" Style="{StaticResource CardLabel}"/>
+
+                    <TextBlock Text="Sheets with a revision" Style="{StaticResource RuleHead}"/>
+                    <TextBlock Style="{StaticResource RuleBody}"
+                               Text="Judged by the revision itself and its place in Revit's revision list, not by its label. A later revision moves the old file into that format's Archived folder before printing, and so does a revision that has been relabelled (Draft 01 reused as Rev A) or deleted. The same revision printed again just replaces the file. A revision earlier in the list than the one already issued is held back: you are asked whether to skip it or print it anyway, which archives the issued file. Scheduled runs always skip."/>
+
+                    <TextBlock Text="Items with no revision (3D views, schedules)" Style="{StaticResource RuleHead}"/>
+                    <TextBlock Style="{StaticResource RuleBody}"
+                               Text="Printed again the same day, the file is replaced. On a new day the old file is archived with its print date added to the name."/>
+
+                    <TextBlock Text="Combined PDF and single XLS workbook" Style="{StaticResource RuleHead}"/>
+                    <TextBlock Style="{StaticResource RuleBody}"
+                               Text="The name carries the date. Same day, it is replaced. On a new day the previous one is archived. The combined PDF is built from the PDFs already in the PDF folder, never printed again from Revit."/>
+
+                    <TextBlock Text="First run in an export folder" Style="{StaticResource RuleHead}"/>
+                    <TextBlock Style="{StaticResource RuleBody}"
+                               Text="Any files already in a format folder (PDF, DWG and so on) are moved into its Archived folder, and tracking starts fresh."/>
+
+                    <TextBlock Text="Folders" Style="{StaticResource RuleHead}"/>
+                    <TextBlock Style="{StaticResource RuleBody}" Margin="0"
+                               Text="Current files sit in Export folder\PDF, \DWG and so on. Superseded files go to \PDF\Archived, \DWG\Archived. A register file in the export folder records which file belongs to which sheet: leave it in place."/>
+
+                    <Border x:Name="naming_warning" Visibility="Collapsed"
+                            BorderBrush="{DynamicResource BrushWarning}" BorderThickness="1"
+                            CornerRadius="6" Padding="10,8" Margin="0,12,0,0">
+                        <TextBlock x:Name="naming_warning_tb" TextWrapping="Wrap" FontSize="12"
+                                   Foreground="{DynamicResource BrushWarning}"/>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </DockPanel>
+</Window>

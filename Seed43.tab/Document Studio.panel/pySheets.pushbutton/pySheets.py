@@ -62,6 +62,8 @@ import folder_preset_resolve as fpe_resolve
 import ManageProfiles as profiles_win
 import ImportExportSettings as ies_win
 import ManageColumns as mc_win
+import IssueSetRules as isr_win
+import issue_set
 
 
 # Per-format export settings modules (from settings/ subfolder)
@@ -743,6 +745,12 @@ class PrintSheetsWindow(forms.WPFWindow):
         self._host_doc     = revit.doc
         self._project_info = revit.query.get_project_info(doc=self._host_doc)
         self._active_folder_preset = None
+
+        # ── Issue set mode ──
+        # Rules from the ... dialog, and the user's own subfolder/overwrite
+        # ticks while the mode has them locked on - see file_issue_changed.
+        self._issue_rules = dict(issue_set.DEFAULT_RULES)
+        self._issue_stash = None
 
         # ── Populate UI ──
         try:
@@ -2275,6 +2283,7 @@ class PrintSheetsWindow(forms.WPFWindow):
 
         total = len(queue)
         done  = [0]
+        issue = {}   # id(QueueItem) -> IssueItem, issue set mode only
 
         def tick(qi, status):
             qi.status   = status
@@ -2284,33 +2293,70 @@ class PrintSheetsWindow(forms.WPFWindow):
                 pct = int(done[0] * 100.0 / total)
                 self.overall_progress.Value = pct
                 self.overall_pct_tb.Text = '{}%'.format(pct)
+                it = issue.get(id(qi))
+                if it is not None:
+                    run.attribute(qi.format, it, status == 'Done')
             self._pump()
 
         by_fmt = {}
         for qi in queue:
             by_fmt.setdefault(qi.format, []).append(qi)
 
-
+        run = None
+        if self._issue_mode:
+            run = self._issue_prepare(by_fmt, base_folder)
+            if run is None:
+                return
+            for fmt in by_fmt:
+                for it in run.planned(fmt):
+                    issue[id(it.token)] = it
+            # An older revision than the one already issued is never
+            # exported: the issued file stays current, the row is Skipped.
+            blocked = run.blocked()
+            for fmt, it in blocked:
+                by_fmt[fmt].remove(it.token)
+                tick(it.token, 'Skipped')
 
         exporters = {'PDF': self._export_pdf, 'DWG': self._export_dwg,
                      'DGN': self._export_dgn, 'NWC': self._export_nwc,
                      'IFC': self._export_ifc, 'IMG': self._export_img,
                      'XLS': self._export_xls}
 
-        for fmt in ALL_FORMATS:
-            qitems = by_fmt.get(fmt)
-            if not qitems:
-                continue
-            folder = self._fmt_folder(base_folder, fmt)
-            try:
-                exporters[fmt](qitems, folder, tick)
-            except Exception as ex:
-                logger.error('%s export failed: %s', fmt, ex)
-                for qi in qitems:
-                    if qi.status in ('Waiting', 'Exporting'):
-                        tick(qi, 'Failed')
+        try:
+            for fmt in ALL_FORMATS:
+                qitems = by_fmt.get(fmt)
+                # A format whose every row was blocked still finishes below:
+                # its old set may already have been archived and needs
+                # rebuilding or putting back.
+                if not qitems and not (run and fmt in by_fmt):
+                    continue
+                folder = self._fmt_folder(base_folder, fmt)
+                try:
+                    if qitems:
+                        exporters[fmt](qitems, folder, tick)
+                except Exception as ex:
+                    logger.error('%s export failed: %s', fmt, ex)
+                    for qi in qitems:
+                        if qi.status in ('Waiting', 'Exporting'):
+                            tick(qi, 'Failed')
+                if run:
+                    self._issue_finish_format(run, fmt, qitems)
+                    if fmt == 'PDF':
+                        self.overall_pct_tb.Text = 'Building combined set'
+                        self._pump()
+                        self._issue_build_combined(run)
+        finally:
+            # Saved even if something above blew up: by then files have
+            # already been moved, and the register has to say where.
+            if run:
+                try:
+                    run.save()
+                except Exception as ex:
+                    logger.error('Issue register save failed: %s', ex)
 
         self.overall_pct_tb.Text = 'Complete'
+        if run and blocked:
+            self._issue_report_blocked(blocked)
         if self.open_folder_cb.IsChecked:
             # Not coreutils.open_folder_in_explorer: that launches Explorer
             # unconditionally, so every export left another window for the
@@ -2521,6 +2567,240 @@ class PrintSheetsWindow(forms.WPFWindow):
         if nf:
             self._fmt_naming['PDF_COMBINED'] = nf.name
             self._save_naming_memory()
+
+    # ── ISSUE SET ──
+    # The third File Output choice. Every format archives what a new export
+    # supersedes; PDF also rebuilds one combined set from the PDFs on disk.
+    # The rules live in tools/issue_set.py, this is only the wiring.
+    @property
+    def _issue_mode(self):
+        """Issue set is on and the export writes files."""
+        return (bool(self.file_issue_rb.IsChecked)
+                and self._get_print_destination() in ('file', 'both'))
+
+    def file_issue_changed(self, sender, args):
+        """Lock subfolders and auto-replace on while Issue set is chosen.
+
+        Subfolders, because each format's Archived folder sits inside its
+        own folder. Auto-replace, because superseded files are moved out
+        before the export, so all that is left to replace is a same-revision
+        reprint, and asking about those every run is noise. The user's own
+        ticks are kept aside and put back when the mode is turned off."""
+        on = bool(self.file_issue_rb.IsChecked)
+        if on and self._issue_stash is None:
+            self._issue_stash = (bool(self.subfolder_cb.IsChecked),
+                                 bool(self.auto_overwrite_cb.IsChecked))
+            self.subfolder_cb.IsChecked = True
+            self.auto_overwrite_cb.IsChecked = True
+        elif not on and self._issue_stash is not None:
+            self.subfolder_cb.IsChecked, self.auto_overwrite_cb.IsChecked = \
+                self._issue_stash
+            self._issue_stash = None
+        self.subfolder_cb.IsEnabled = not on
+        self.auto_overwrite_cb.IsEnabled = not on
+
+    def issue_rules_clicked(self, sender, args):
+        result = isr_win.show_rules(self._issue_rules,
+                                    self._issue_naming_warning())
+        if result is not None:
+            self._issue_rules = result
+
+    def _issue_naming_warning(self):
+        """Warn when a sheet format's naming leaves out the revision.
+
+        Archived files keep their name, so without {rev_number} in it the
+        Rev A and Rev B copies of one sheet land on the same name in
+        Archived and the later one replaces the earlier."""
+        fmts = list(self.namingformat_cb.ItemsSource or [])
+        missing = []
+        for fmt in ('PDF', 'DWG', 'DGN'):
+            nf = next((x for x in fmts if x.name == self._fmt_naming.get(fmt)),
+                      fmts[0] if fmts else None)
+            if nf and '{rev_number}' not in (nf.template or ''):
+                missing.append(fmt)
+        if not missing:
+            return None
+        return (u'The naming format for {} has no {{rev_number}}. Archived '
+                u'revisions of the same sheet will replace each other. Add '
+                u'{{rev_number}} to keep every revision.'
+                .format(', '.join(missing)))
+
+    def _issue_set_name(self, qitems):
+        """Combined set / single workbook name, always carrying the date."""
+        return issue_set.dated_name(self._combined_pdf_name(qitems),
+                                    coreutils.current_date())
+
+    @staticmethod
+    def _issue_item(qi):
+        """An issue_set.IssueItem for one queue row. Only a sheet carries a
+        revision; views and schedules fall under the by-date rule."""
+        src = qi.source
+        rev = rev_uid = None
+        if isinstance(src.revit_sheet, DB.ViewSheet) and src.revision.is_set:
+            rev = src.revision.number or None
+            try:
+                cur = revit.query.get_current_sheet_revision(src.revit_sheet)
+                rev_uid = cur.UniqueId if cur else None
+            except Exception:
+                pass
+        return issue_set.IssueItem(src.revit_sheet.UniqueId, rev,
+                                   src.number, src.name, token=qi,
+                                   rev_uid=rev_uid)
+
+    def _issue_revision_order(self):
+        """{Revision UniqueId: position} in the project's revision sequence,
+        the order of Sheet Issues/Revisions. This, not the label, decides
+        which of two revisions is the newer."""
+        doc = self._selected_doc
+        try:
+            return dict((doc.GetElement(rid).UniqueId, i) for i, rid in
+                        enumerate(DB.Revision.GetAllRevisionIds(doc)))
+        except Exception as ex:
+            logger.warning('Could not read the revision sequence: %s', ex)
+            return {}
+
+    def _issue_order_map(self):
+        """{UniqueId: position} for the combined set order rule."""
+        mode = self._issue_rules.get('order')
+        doc  = self._selected_doc
+        try:
+            if mode == issue_set.ORDER_BROWSER:
+                ids = _get_browser_order_ids(doc, for_sheets=True) or []
+                out = {}
+                for i, v in enumerate(ids):
+                    el = doc.GetElement(DB.ElementId(v))
+                    if el:
+                        out[el.UniqueId] = i
+                return out
+            if mode == issue_set.ORDER_LIST:
+                items = self._all_sheet_items
+                if self._sv_mode == 'sheets' and self._all_sheets:
+                    items = self._all_sheets
+                return dict((s.revit_sheet.UniqueId, i)
+                            for i, s in enumerate(items))
+        except Exception as ex:
+            logger.warning('Issue set order fell back to sheet number: %s', ex)
+        return {}
+
+    def _issue_prepare(self, by_fmt, base_folder):
+        """Plan the run, refuse if anything is held open, then archive.
+
+        Returns the IssueRun, or None when the export must not go ahead."""
+        run = issue_set.IssueRun(base_folder, self._issue_rules, logger,
+                                 self._issue_revision_order())
+        xls_single = (self._xls_ext() != '.csv'
+                      and bool(self.xls_single_rb.IsChecked))
+        for fmt, qitems in by_fmt.items():
+            folder = self._fmt_folder(base_folder, fmt)
+            if fmt == 'XLS' and xls_single:
+                # One workbook holds every schedule, so it is tracked as a
+                # set file. The folder is still planned so its first-run
+                # sweep happens.
+                run.plan(fmt, folder, [])
+                run.plan_set(fmt, folder,
+                             self._issue_set_name(qitems) + self._xls_ext(),
+                             op.join(folder, issue_set.ARCHIVE_DIR))
+                continue
+            run.plan(fmt, folder, [self._issue_item(qi) for qi in qitems])
+            if fmt == 'PDF':
+                run.plan_set(fmt, base_folder,
+                             self._issue_set_name(qitems) + '.pdf',
+                             op.join(folder, issue_set.ARCHIVE_DIR))
+        locked = run.locked()
+        if locked:
+            shown = '\n'.join(locked[:10])
+            more = len(locked) - 10
+            if more > 0:
+                shown += '\n... and {} more'.format(more)
+            self._stop('These files are open in another program, so the old '
+                       'revisions cannot be archived. Close them and export '
+                       'again.\n\n' + shown)
+            return None
+        self._issue_ask_override(run.find_older())
+        try:
+            run.archive()
+        except Exception as ex:
+            logger.error('Issue set archive failed: %s', ex)
+            self._stop('Archiving the old revisions failed, nothing was '
+                       'exported.\n\n{}'.format(ex))
+            return None
+        swept = sum(run.swept.values())
+        if swept:
+            logger.info('Issue set: first run moved %d existing file(s) into '
+                        'Archived', swept)
+        return run
+
+    def _issue_finish_format(self, run, fmt, qitems):
+        done = [it for it in run.planned(fmt) if it.token.status == 'Done']
+        run.finish_format(fmt, done)
+        if fmt == 'XLS' and run.set_target(fmt):
+            run.finish_set(fmt, any(qi.status == 'Done' for qi in qitems))
+
+    def _issue_build_combined(self, run):
+        """Merge the current PDFs into the dated combined set."""
+        dest = run.set_target('PDF')
+        if not dest:
+            return
+        paths = run.current_files('PDF', self._issue_order_map())
+        # lib/ is found by walking up from this script; Snippets sits in it,
+        # so its location is the fallback if the walk ever came back empty.
+        lib_dir = _lib_path or op.dirname(op.dirname(dlg.__file__))
+        ok = False
+        if paths:
+            try:
+                pages = issue_set.merge_pdfs(paths, dest, lib_dir)
+                logger.info('Issue set: %d page(s) from %d file(s) to %s',
+                            pages, len(paths), dest)
+                ok = True
+            except Exception as ex:
+                logger.error('Combined set failed: %s', ex)
+                if not self._unattended:
+                    dlg.message('The sheets exported, but the combined set '
+                                'could not be built:\n\n{}'.format(ex))
+        run.finish_set('PDF', ok)
+
+    def _issue_ask_override(self, older):
+        """Offer to issue an older revision anyway.
+
+        Skipping is the default (and the only answer on a scheduled run,
+        with nobody there to ask): printing an earlier revision over an
+        issued one is usually a mistake. When it is deliberate, say a
+        revision was withdrawn and the sheet goes back, the issued file is
+        archived like any superseded one and the older revision becomes
+        current."""
+        if not older or self._unattended:
+            return
+        lines = [u'{} {} ({}): Rev {} over issued Rev {}'.format(
+                    it.number, it.name, fmt, it.rev, prev.get('rev'))
+                 for fmt, it, prev in older]
+        shown = u'\n'.join(lines[:10])
+        if len(lines) > 10:
+            shown += u'\n... and {} more'.format(len(lines) - 10)
+        if dlg.confirm(u'{} item(s) are an earlier revision in the revision '
+                       u'list than the one already issued.\n\n{}\n\nSkip them '
+                       u'and keep the issued files, or print them anyway and '
+                       u'archive the issued ones?'.format(len(lines), shown),
+                       title='Older revision',
+                       yes='Print anyway', no='Skip them'):
+            for _, it, _ in older:
+                it.override = True
+
+    def _issue_report_blocked(self, blocked):
+        """Say which rows were refused as older than what is issued."""
+        lines = [u'{} {} ({}): Rev {} printed, Rev {} already issued'.format(
+                    it.number, it.name, fmt, it.rev, it.blocked.get('rev'))
+                 for fmt, it in blocked]
+        for line in lines:
+            logger.warning(u'Issue set skipped %s', line)
+        if self._unattended:
+            return
+        shown = u'\n'.join(lines[:10])
+        if len(lines) > 10:
+            shown += u'\n... and {} more'.format(len(lines) - 10)
+        dlg.message(u'{} item(s) were skipped because their revision comes '
+                    u'before the one already issued in the revision list. '
+                    u'The issued files were left as they are.\n\n{}'
+                    .format(len(lines), shown))
 
     def _print_to_physical(self, sheets):
         """Send items to the selected physical printer (PrintManager path).
@@ -4524,12 +4804,21 @@ class PrintSheetsWindow(forms.WPFWindow):
             'subfolders': bool(self.subfolder_cb.IsChecked),
             'open_after': bool(self.open_folder_cb.IsChecked),
             'auto_overwrite': bool(self.auto_overwrite_cb.IsChecked),
+            # Top level rather than in the pdf block: PDFSettings is a
+            # namedtuple built with cls(**data), so a new field there would
+            # make every older profile fail to load.
+            'issue_set': {'enabled': bool(self.file_issue_rb.IsChecked),
+                          'rules':   dict(self._issue_rules)},
             'dest': self._get_print_destination(),
             'sheet_sel': {f: sorted(int(i) for i in c._ids)
                           for f, c in self._sheet_selections.items()},
             'view_sel':  {f: sorted(int(i) for i in c._ids)
                           for f, c in self._view_selections.items()},
         }
+        # The locked subfolder/overwrite ticks are the mode's, not the user's:
+        # save what the user had underneath.
+        if self._issue_stash is not None:
+            data['subfolders'], data['auto_overwrite'] = self._issue_stash
         for key, mod in (('pdf', _pdf_settings), ('dwg', _dwg_settings),
                          ('dgn', _dgn_settings), ('nwc', _nwc_settings),
                          ('ifc', _ifc_settings), ('img', _img_settings)):
@@ -4584,9 +4873,21 @@ class PrintSheetsWindow(forms.WPFWindow):
                 if folder and op.isdir(folder):
                     self._export_folder = folder
                     self.export_folder_tb.Text = folder
+            # Drop out of Issue set first so the ticks below land as the
+            # user's own, then turn it back on if this profile uses it -
+            # file_issue_changed stashes them and locks the boxes.
+            self.file_issue_rb.IsChecked = False
             self.subfolder_cb.IsChecked      = data.get('subfolders', True)
             self.open_folder_cb.IsChecked    = data.get('open_after', False)
             self.auto_overwrite_cb.IsChecked = data.get('auto_overwrite', False)
+            issue = data.get('issue_set') or {}
+            self._issue_rules = dict(issue_set.DEFAULT_RULES,
+                                     **(issue.get('rules') or {}))
+            if issue.get('enabled'):
+                self.file_issue_rb.IsChecked = True
+            elif not (self.file_combine_rb.IsChecked
+                      or self.file_separate_rb.IsChecked):
+                self.file_separate_rb.IsChecked = True
             self._set_print_destination(data.get('dest', 'file'))
 
             # Restore checked sheets/views (ids that still exist apply)

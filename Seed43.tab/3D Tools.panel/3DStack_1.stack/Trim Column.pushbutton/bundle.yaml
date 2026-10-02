@@ -1,0 +1,27 @@
+title: "Trim Column"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Trims or extends a structural column to a face, which Revit's own
+  Trim/Extend refuses to do on a vertical column. Choose a mode when it
+  starts (type S or M, then Enter):
+
+  Single: pick the face, then click the column on the part you want to
+  keep, and repeat.
+
+  Multiple: pick the face once, then click every column that should trim
+  or extend to it. Esc goes back to picking a new face.
+
+  In a plan, section or elevation only faces seen edge on (top, bottom,
+  left, right) can be picked; in 3D any face. Esc at the face pick
+  finishes. Each column is switched
+  to End Point Driven, trimmed, and set back to its original Column Style
+  in one step, so a single undo reverses it. A column with that end
+  attached is skipped, detach it first.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

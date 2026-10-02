@@ -107,29 +107,60 @@ class ViewManager(object):
     def select_views_from_active_view(self):
         selected_views = []
         used_view_ids  = set()
-        while True:
-            try:
-                picked_ref = self.uidoc.Selection.PickObject(
-                    UI.Selection.ObjectType.Element,
-                    ViewSelectionFilter(),
-                    "Select view reference/callout/section (ESC to finish)")
-                if not picked_ref:
+        marked_ids     = set()
+        # Picked references go halftone as you pick them, the way pyRevit's
+        # ReNumber marks what it has done, so you can see what is left.
+        # NOTE: the marks live in a transaction group that is rolled back
+        # once picking ends, which puts every element's own overrides back
+        # exactly and leaves nothing on the undo stack.
+        group = DB.TransactionGroup(self.doc, "View Placer pick")
+        group.Start()
+        try:
+            while True:
+                try:
+                    picked_ref = self.uidoc.Selection.PickObject(
+                        UI.Selection.ObjectType.Element,
+                        ViewSelectionFilter(),
+                        "Select view reference/callout/section (ESC to finish)")
+                    if not picked_ref:
+                        break
+                    element     = self.doc.GetElement(picked_ref)
+                    view_result = self.get_view_from_element(element)
+                    if isinstance(view_result, list):
+                        for view in view_result:
+                            if view and view.Id not in used_view_ids:
+                                selected_views.append(view)
+                                used_view_ids.add(view.Id)
+                    elif view_result and view_result.Id not in used_view_ids:
+                        selected_views.append(view_result)
+                        used_view_ids.add(view_result.Id)
+                    if view_result and element.Id not in marked_ids:
+                        self._mark_picked(element)
+                        marked_ids.add(element.Id)
+                except Exception as e:
+                    if "cancelled" in str(e).lower() or "aborted" in str(e).lower():
+                        break
                     break
-                element     = self.doc.GetElement(picked_ref)
-                view_result = self.get_view_from_element(element)
-                if isinstance(view_result, list):
-                    for view in view_result:
-                        if view and view.Id not in used_view_ids:
-                            selected_views.append(view)
-                            used_view_ids.add(view.Id)
-                elif view_result and view_result.Id not in used_view_ids:
-                    selected_views.append(view_result)
-                    used_view_ids.add(view_result.Id)
-            except Exception as e:
-                if "cancelled" in str(e).lower() or "aborted" in str(e).lower():
-                    break
-                break
+        finally:
+            if group.HasStarted():
+                group.RollBack()
         return selected_views
+
+    def _mark_picked(self, element):
+        """Halftone one picked element in the active view."""
+        ogs = DB.OverrideGraphicSettings()
+        ogs.SetHalftone(True)
+        ogs.SetSurfaceTransparency(100)
+        t = DB.Transaction(self.doc, "Mark picked")
+        t.Start()
+        try:
+            self.doc.ActiveView.SetElementOverrides(element.Id, ogs)
+            t.Commit()
+        except Exception:
+            # A mark is only a visual aid: an element that refuses overrides
+            # is still picked, it just doesn't go grey.
+            if t.HasStarted() and not t.HasEnded():
+                t.RollBack()
 
 
 # ── DIALOG ────────────────────────────────────────────────────────────

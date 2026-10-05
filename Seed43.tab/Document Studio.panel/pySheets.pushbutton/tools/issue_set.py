@@ -3,7 +3,7 @@
 """Issue set mode: archive superseded exports, then rebuild the combined set
 from the files on disk.
 
-Each export folder keeps a register (REGISTER_NAME) mapping every exported
+Each export folder keeps a register (REGISTER_NAME, issue register.pysheets) mapping every exported
 item, by Revit UniqueId, to the files it last produced, its revision and the
 day it was printed. Filenames alone cannot do this: the revision is usually
 in the name, so the Rev A and Rev B files of one sheet share nothing a
@@ -42,7 +42,8 @@ from datetime import datetime
 
 
 # ── CONSTANTS ──────────────────────────────────────────────────────────────
-REGISTER_NAME = '_pySheets issue register.json'
+REGISTER_NAME = 'issue register.pysheets'   # JSON inside
+LEGACY_REGISTER_NAME = '_pySheets issue register.json'   # read once, then removed
 ARCHIVE_DIR   = 'Archived'
 DATE_FMT      = '%Y-%m-%d'   # same as pyrevit coreutils.current_date()
 
@@ -148,10 +149,13 @@ class IssueRegister(object):
 
     # --- construction ---
     def __init__(self, base_folder):
-        self.path = op.join(base_folder, REGISTER_NAME)
+        self.path   = op.join(base_folder, REGISTER_NAME)
+        self.legacy = op.join(base_folder, LEGACY_REGISTER_NAME)
         self.data = {'version': 1, 'items': {}, 'sets': {}}
-        if op.isfile(self.path):
-            with io.open(self.path, 'r', encoding='utf-8') as f:
+        source = (self.path if op.isfile(self.path) else
+                  self.legacy if op.isfile(self.legacy) else None)
+        if source:
+            with io.open(source, 'r', encoding='utf-8') as f:
                 loaded = json.load(f)
             self.data['items'] = loaded.get('items') or {}
             self.data['sets']  = loaded.get('sets') or {}
@@ -189,6 +193,9 @@ class IssueRegister(object):
         if op.isfile(self.path):
             os.remove(self.path)
         os.rename(tmp, self.path)
+        # Its contents now live in REGISTER_NAME, so the old name can go.
+        if op.isfile(self.legacy):
+            os.remove(self.legacy)
 
 
 # ── RUN ────────────────────────────────────────────────────────────────────

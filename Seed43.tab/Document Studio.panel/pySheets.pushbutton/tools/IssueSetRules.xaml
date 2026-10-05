@@ -226,7 +226,7 @@
 
                     <TextBlock Text="Folders" Style="{StaticResource RuleHead}"/>
                     <TextBlock Style="{StaticResource RuleBody}" Margin="0"
-                               Text="Current files sit in Export folder\PDF, \DWG and so on. Superseded files go to \PDF\Archived, \DWG\Archived. A register file in the export folder records which file belongs to which sheet: leave it in place."/>
+                               Text="Current files sit in Export folder\PDF, \DWG and so on. Superseded files go to \PDF\Archived, \DWG\Archived. The issue register.pysheets file in the export folder records which file belongs to which sheet: leave it in place."/>
 
                     <Border x:Name="naming_warning" Visibility="Collapsed"
                             BorderBrush="{DynamicResource BrushWarning}" BorderThickness="1"

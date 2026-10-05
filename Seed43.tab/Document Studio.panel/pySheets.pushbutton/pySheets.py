@@ -2400,13 +2400,55 @@ class PrintSheetsWindow(forms.WPFWindow):
                         found.append(path)
         return found
 
-    @staticmethod
-    def _pump():
+    def _pump(self):
         """Let WPF repaint mid-export so queue statuses update live."""
+        self._follow_queue()
         try:
             Forms.Application.DoEvents()
         except Exception:
             pass
+
+    QUEUE_ROWS_ABOVE = 4   # printed rows kept in view above the current one
+
+    def _follow_queue(self):
+        """Keep the row being exported fifth from the top of the queue.
+
+        Once the export passes row five the grid scrolls one row at a time,
+        so the last few printed rows stay visible above it and the waiting
+        ones below. Only ever scrolls down, so a format that exports its
+        rows out of order can't make the list jump back and forth."""
+        try:
+            items = list(self.queue_dg.ItemsSource or [])
+            idx = next((i for i, qi in enumerate(items)
+                        if qi.status == 'Exporting'), None)
+            if idx is None:
+                return
+            sv = self._queue_scroll_viewer()
+            if sv is None:
+                return
+            # CanContentScroll is on for this grid, so offsets count rows.
+            top = max(0, idx - self.QUEUE_ROWS_ABOVE)
+            if top > sv.VerticalOffset:
+                sv.ScrollToVerticalOffset(top)
+        except Exception:
+            pass
+
+    def _queue_scroll_viewer(self):
+        """The queue grid's ScrollViewer, found once and kept."""
+        sv = getattr(self, '_queue_sv', None)
+        if sv is None:
+            todo = [self.queue_dg]
+            while todo and sv is None:
+                node = todo.pop(0)
+                if isinstance(node, Windows.Controls.ScrollViewer):
+                    sv = node
+                    break
+                for i in range(Windows.Media.VisualTreeHelper
+                               .GetChildrenCount(node)):
+                    todo.append(Windows.Media.VisualTreeHelper
+                                .GetChild(node, i))
+            self._queue_sv = sv
+        return sv
 
     # ── PDF (native Revit exporter, Revit 2022+) ──
     def _pdf_options(self):

@@ -1016,6 +1016,17 @@
             </Style.Triggers>
         </Style>
 
+        <!-- Print queue rows: the row being exported lights up in the
+             selected-row green, so it is easy to follow down the list. -->
+        <Style x:Key="QueueRow" TargetType="DataGridRow" BasedOn="{StaticResource GridRow}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding status}" Value="Exporting">
+                    <Setter Property="Background" Value="{DynamicResource BrushSelectedRowBg}"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
         <!-- Revision badge template -->
         <DataTemplate x:Key="RevBadgeCell">
             <Border x:Name="Badge"
@@ -2794,7 +2805,7 @@
                     <Border Grid.Row="1" CornerRadius="6" ClipToBounds="True">
                         <DataGrid x:Name="queue_dg"
                                   Style="{StaticResource SheetGrid}"
-                                  RowStyle="{StaticResource GridRow}"
+                                  RowStyle="{StaticResource QueueRow}"
                                   ColumnHeaderStyle="{StaticResource GridColHeader}"
                                   CellStyle="{StaticResource GridCell}"
                                   IsReadOnly="True">

@@ -153,6 +153,33 @@ def pick_column():
 
 # ── GEOMETRY ────────────────────────────────────────────────────────────────
 
+def _nearest_face(element, point):
+    """The face of the element's model-space geometry closest to point, if
+    within ON_FACE_TOL; None otherwise."""
+    if point is None:
+        return None
+    best, best_d = None, 0.01      # ft, about 3 mm: a pick is not exact
+    for view in (None, doc.ActiveView):
+        opt = DB.Options()
+        opt.ComputeReferences = True
+        opt.DetailLevel = DB.ViewDetailLevel.Fine
+        if view is not None:
+            opt.View = view
+        stack = list(element.get_Geometry(opt) or [])
+        while stack:
+            obj = stack.pop()
+            if isinstance(obj, DB.GeometryInstance):
+                stack.extend(obj.GetInstanceGeometry())
+            elif isinstance(obj, DB.Solid):
+                for f in obj.Faces:
+                    hit = f.Project(point)
+                    if hit is not None and hit.Distance < best_d:
+                        best, best_d = f, hit.Distance
+        if best is not None:
+            break
+    return best
+
+
 def face_in_world(face_ref, point=None):
     """The picked face plus the transform that takes it into model space.
 
@@ -164,8 +191,21 @@ def face_in_world(face_ref, point=None):
     """
     element = doc.GetElement(face_ref)
     face = element.GetGeometryObjectFromReference(face_ref)
+    if not isinstance(face, DB.Face) and point is None:
+        point = face_ref.GlobalPoint
     if not isinstance(face, DB.Face):
-        raise _Skip("That pick was not a face.")
+        # Revit hands back nothing for some picked faces (found 2026-10-07,
+        # welded column 4070334 bottom face), so find the face of the
+        # element's own geometry that lies under the picked point instead.
+        near = _nearest_face(element, point)
+        if near is not None:
+            return near, DB.Transform.Identity
+    if not isinstance(face, DB.Face):
+        raise _Skip(u"That pick was not a face.\n\nElement: {} ({})\n"
+                    u"Reference resolved to: {}".format(
+                        _eid(element) if element else u"none",
+                        type(element).__name__,
+                        type(face).__name__ if face is not None else u"nothing"))
 
     xf = DB.Transform.Identity
     if isinstance(element, DB.FamilyInstance):

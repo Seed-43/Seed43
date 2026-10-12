@@ -236,7 +236,10 @@ def get_live_data(settings_dir, max_revs=12, group_params=None, recipients=None)
             ito = rev.IssuedTo or ''
 
             def _f(key, raw=ito):
-                m = re.search(r'\[' + key + r':([^\]]*)\]', raw)
+                # pyTransmit writes bare tags (R:BC M:E F:PDF S:A3); the
+                # old bracketed [R:BC] form is kept as a fallback.
+                m = (re.search(r'(?:^| )' + key + r':([^ |\]]+)', raw)
+                     or re.search(r'\[' + key + r':([^\]]*)\]', raw))
                 return m.group(1).strip() if m else ''
 
             letter = ''
@@ -254,7 +257,7 @@ def get_live_data(settings_dir, max_revs=12, group_params=None, recipients=None)
                 # Same [F:]/[P:] tags script_create_excel.py reads out of
                 # the revision's IssuedTo string.
                 'doc_format': _f('F'),
-                'paper_size': _f('P'),
+                'paper_size': _f('S') or _f('P'),
             })
         data['revisions'] = revisions
         # Copies are per (recipient, revision) - one entry per revision so a

@@ -165,8 +165,8 @@ class StudioLayout(object):
         them. script_create_excel.py and script_create_excel_studio.py apply
         the same override.
 
-        Worth knowing: these are the CURRENT issue's settings, so on a
-        multi-revision transmittal they also overwrite the older columns.
+        These are the CURRENT issue's settings, so only the newest revision
+        column takes them. Older columns keep what their own IssuedTo recorded.
         """
         vals = {}
         for label, value in (self._p.get('meta_rows') or []):
@@ -175,8 +175,9 @@ class StudioLayout(object):
                 vals[key] = value
         if not vals:
             return
-        for rev in (self.data.get('revisions') or []):
-            rev.update(vals)
+        revisions = self.data.get('revisions') or []
+        if revisions:
+            revisions[-1].update(vals)
         self._log('Issue metadata from the pyTransmit window: {}'.format(
             ', '.join(sorted(vals.keys()))))
 

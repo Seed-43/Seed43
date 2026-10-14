@@ -1,0 +1,18 @@
+title: "3D PDF"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Exports the active 3D view to a 3D PDF that opens in Adobe Acrobat and
+  Acrobat Reader. What the view shows is what you get: visibility,
+  filters, the section box and linked models all carry through. Each
+  element is listed in the PDF model tree under its category, coloured
+  by its Revit material, and the PDF opens on the Revit view's camera
+  with Top, Front, Back, Left, Right and Isometric presets. Other PDF
+  viewers show a placeholder page instead of the model.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

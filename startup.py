@@ -1250,8 +1250,12 @@ def _rebuild_stale_icons():
     gap. Deliberately on the UI thread rather than the worker above: WPF
     rendering needs an STA thread, and this one is.
 
-    Costs a handful of stat calls when nothing has changed, which is the
-    normal case - nothing is rendered unless a source is actually newer."""
+    Gated on _icon_sources_changed, so the normal launch, where nothing has
+    changed, costs a directory listing and imports nothing. The stamp is only
+    moved on a clean pass: a refused write leaves its source newer than the
+    stamp, so the next launch tries again."""
+    if not _icon_sources_changed():
+        return
     try:
         import sys as _sys
         if _LIB_DIR and os.path.isdir(_LIB_DIR) and _LIB_DIR not in _sys.path:
@@ -1263,8 +1267,56 @@ def _rebuild_stale_icons():
                 len(written), len(problems)))
             for problem in problems:
                 _log_note("  " + problem)
+        else:
+            _touch_icon_stamp()
     except Exception:
         _log_error("_rebuild_stale_icons")
+
+
+# Marks the last clean icon check. Under .user so it stays per-machine and
+# out of git, like every other piece of local state the extension keeps.
+_ICON_STAMP = os.path.join(EXTENSION_DIR, ".user", "icons_checked.stamp")
+
+
+def _icon_sources_changed():
+    """True if any SVG, the icons folder or the palette is newer than the
+    last clean icon check.
+
+    The folder's own date covers an SVG being added or removed. It does not
+    cover a new button folder for an SVG that already exists - its PNG is
+    missing, which only rebuild_all notices - so after adding one, run the
+    rebuild from About or delete the stamp."""
+    try:
+        stamp = os.path.getmtime(_ICON_STAMP)
+    except OSError:
+        return True
+    icons_dir = os.path.join(_LIB_DIR, "icons")
+    sources = [os.path.join(_LIB_DIR, "Snippets", "seed43_palette.json"),
+               icons_dir]
+    try:
+        sources += [os.path.join(icons_dir, name)
+                    for name in os.listdir(icons_dir)
+                    if name.lower().endswith(".svg")]
+    except OSError:
+        return True
+    for path in sources:
+        try:
+            if os.path.getmtime(path) > stamp:
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def _touch_icon_stamp():
+    try:
+        folder = os.path.dirname(_ICON_STAMP)
+        if not os.path.isdir(folder):
+            os.makedirs(folder)
+        with open(_ICON_STAMP, "w"):
+            pass
+    except Exception:
+        _log_error("_touch_icon_stamp")
 
 
 def _subscribe_idling():

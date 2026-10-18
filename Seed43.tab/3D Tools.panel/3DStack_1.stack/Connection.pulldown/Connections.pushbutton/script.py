@@ -62,9 +62,12 @@ from pyrevit import forms, revit
 from pyrevit.framework import Windows
 from System.Collections.Generic import List
 
+from Snippets import _dialogs as dlg
 from Snippets._connections import (connection_types, eid, element_name,
                                     family_name, param_text, placed_counts,
                                     read_param)
+from Snippets._icons import make_icon, make_icon_with_label, set_header_icon
+from Snippets._support import github_issue_url, open_url, support_mailto
 from Snippets.seed43_theme import (apply_seed43_dimensions,
                                    apply_seed43_palette, get_color)
 
@@ -75,6 +78,8 @@ uidoc = revit.uidoc
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 TOOL_NAME = "Connections"
+ABOUT_URL = "https://seed43.org/"
+SUPPORT_URL = "https://buymeacoffee.com/seed43"
 
 # Column widths, mirrored in Connections.xaml's header row. The two must
 # move together or the headings drift off the data.
@@ -314,6 +319,8 @@ class ConnectionsWindow(forms.WPFWindow):
         forms.WPFWindow.__init__(self, xaml_name)
         apply_seed43_palette(self, SCRIPT_DIR)
         apply_seed43_dimensions(self, SCRIPT_DIR)
+        set_header_icon(self, SCRIPT_DIR)
+        self._init_menu()
 
         # Resolved after the palette is applied, never before. A brush built
         # from an unresolved lookup comes back transparent, and the row text
@@ -332,7 +339,7 @@ class ConnectionsWindow(forms.WPFWindow):
         families = len(set(r.family for r in self._rows))
         placed = sum(r.placed for r in self._rows)
 
-        self.subtitle_tb.Text = u"|  {} types in {} families".format(
+        self.subtitle_tb.Text = u"  |  {} types in {} families".format(
             len(self._rows), families)
         self.summary_tb.Text = u"{} placed connections".format(placed)
         self.explain_tb.Text = (
@@ -503,6 +510,59 @@ class ConnectionsWindow(forms.WPFWindow):
         if bold:
             block.FontWeight = Windows.FontWeights.SemiBold
         return block
+
+    # --- private helpers: hamburger menu ---
+    def _init_menu(self):
+        """The header menu, as in Batch Upgrade.
+
+        make_icon bakes its colour in, so the two vector icons are built here,
+        after the palette has been applied, rather than declared in the XAML.
+        """
+        text = get_color(SCRIPT_DIR, "text_primary", fallback="#F4FAFF")
+        self.settings_toggle_btn.Content = make_icon("menu", size=18,
+                                                     color=text)
+        self.issue_btn.Content = make_icon_with_label(
+            "github", u"Report an issue on GitHub", icon_size=14, color=text)
+        toggle = self.settings_toggle_btn
+        toggle.PreviewMouseLeftButtonDown += self._on_menu_preview_down
+        self.help_btn.Click += self._on_menu_help
+        self.issue_btn.Click += self._on_menu_issue
+        self.about_btn.Click += self._on_menu_about
+        self.support_btn.Click += self._on_menu_support
+
+    def _on_menu_preview_down(self, sender, args):
+        """Explicit close-on-reclick.
+
+        StaysOpen=False already closes the popup on any outside click,
+        including one on this toggle - and that same click's Click event
+        would flip IsChecked straight back to True, reopening it. Intercept
+        first so a re-click only ever closes.
+        """
+        if self.settings_popup.IsOpen:
+            self.settings_popup.IsOpen = False
+            self.settings_toggle_btn.IsChecked = False
+            args.Handled = True
+
+    def _open_url(self, url, title=""):
+        open_url(url, window=self,
+                 on_error=lambda msg: dlg.message(msg, title=title))
+
+    def _on_menu_help(self, sender, args):
+        self.settings_toggle_btn.IsChecked = False
+        self._open_url(support_mailto(TOOL_NAME, SCRIPT_DIR), title=u"Support")
+
+    def _on_menu_issue(self, sender, args):
+        self.settings_toggle_btn.IsChecked = False
+        self._open_url(github_issue_url(TOOL_NAME, SCRIPT_DIR),
+                       title=u"Report an issue")
+
+    def _on_menu_about(self, sender, args):
+        self.settings_toggle_btn.IsChecked = False
+        self._open_url(ABOUT_URL, title=u"About")
+
+    def _on_menu_support(self, sender, args):
+        self.settings_toggle_btn.IsChecked = False
+        self._open_url(SUPPORT_URL, title=u"Support")
 
 
 # ── ENTRY POINT ─────────────────────────────────────────────────────────────

@@ -7,14 +7,14 @@
         WindowStyle="None"
         ResizeMode="CanResize"
         Width="980"
-        Height="700"
+        Height="720"
         MinWidth="860"
-        MinHeight="520"
+        MinHeight="560"
         Title="Connections"
         Background="{DynamicResource BrushWindowBg}">
 
     <shell:WindowChrome.WindowChrome>
-        <shell:WindowChrome CaptionHeight="64"
+        <shell:WindowChrome CaptionHeight="56"
                             CornerRadius="10"
                             GlassFrameThickness="0"
                             ResizeBorderThickness="8"
@@ -22,55 +22,298 @@
     </shell:WindowChrome.WindowChrome>
 
     <Window.Resources>
-        <!-- Fallbacks only; seed43_theme injects the live palette after the
-             XAML has parsed, which is what makes DynamicResource the only
-             usable binding here. Values match the dark profile so an
-             unreadable palette file still looks whole. -->
-        <SolidColorBrush x:Key="BrushWindowBg"           Color="#3B4553"/>
-        <SolidColorBrush x:Key="BrushCardBg"             Color="#2B3340"/>
-        <SolidColorBrush x:Key="BrushHeaderBg"           Color="#232933"/>
-        <SolidColorBrush x:Key="BrushPrimaryGreen"       Color="#208A3C"/>
-        <SolidColorBrush x:Key="BrushPrimaryGreenHover"  Color="#32934C"/>
-        <SolidColorBrush x:Key="BrushTextPrimary"        Color="#FFFFFF"/>
-        <SolidColorBrush x:Key="BrushTextMuted"          Color="#9CA3AF"/>
-        <SolidColorBrush x:Key="BrushInputBg"            Color="#1D1D20"/>
-        <SolidColorBrush x:Key="BrushBorderDefault"      Color="#208A3C"/>
-        <SolidColorBrush x:Key="BrushSecondaryBg"        Color="#48484B"/>
-        <SolidColorBrush x:Key="BrushSecondaryHover"     Color="#515155"/>
-        <SolidColorBrush x:Key="BrushSecondaryDisabledBg" Color="#2E2E32"/>
-        <SolidColorBrush x:Key="BrushSecondaryDisabledFg" Color="#77767B"/>
-        <SolidColorBrush x:Key="BrushDropdownItemHover"  Color="#3F3F41"/>
-        <SolidColorBrush x:Key="BrushSelectedRowBg"      Color="#08230F"/>
-        <SolidColorBrush x:Key="BrushDanger"             Color="#E01B24"/>
-        <SolidColorBrush x:Key="BrushSuccess"            Color="#27AE60"/>
+        <!-- Laid out on the Batch Upgrade template: same header, footer, body
+             card and button styles, the canonical blocks copied as they are.
 
-        <CornerRadius x:Key="CornerRadiusCard"     >8</CornerRadius>
-        <CornerRadius x:Key="CornerRadiusInput"    >6</CornerRadius>
-        <CornerRadius x:Key="CornerRadiusButton"   >10</CornerRadius>
-        <Thickness    x:Key="PaddingCard"          >16</Thickness>
-        <Thickness    x:Key="PaddingButtonPrimary" >15,7,15,7</Thickness>
-        <sys:Double   x:Key="FontSizeInput"        >12</sys:Double>
-        <sys:Double   x:Key="FontSizeFieldLabel"   >12</sys:Double>
-        <sys:Double   x:Key="FontSizeSectionLabel" >14</sys:Double>
-        <sys:Double   x:Key="FontSizeButton"       >12</sys:Double>
+             Every Brush*/Size*/CornerRadius*/Padding* key this window uses is
+             injected at open by seed43_theme.py from lib/Snippets/
+             seed43_palette.json - see the apply_seed43_palette() and
+             apply_seed43_dimensions() calls in script.py. There are
+             deliberately no local copies of those keys, as in Batch Upgrade:
+             a duplicate set only went stale and made a failure render the
+             wrong values instead of an obvious problem. -->
 
-        <!-- ── TEXT ──────────────────────────────────────────────────── -->
-        <Style x:Key="Section" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource BrushPrimaryGreen}"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="FontSize"   Value="{DynamicResource FontSizeSectionLabel}"/>
+
+        <!-- ── Buttons ─────────────────────────────────────────────────── -->
+
+        <Style x:Key="PrimaryBtn" TargetType="Button">
+            <Setter Property="Background"      Value="{DynamicResource BrushPrimaryGreen}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize"        Value="{DynamicResource FontSizeButton}"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
+            <Setter Property="Padding"         Value="{DynamicResource PaddingButtonPrimary}"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="MinWidth"        Value="130"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="{DynamicResource CornerRadiusButton}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreenPressed}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryDisabledBg}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource BrushSecondaryDisabledFg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
-        <Style x:Key="Hint" TargetType="TextBlock">
-            <Setter Property="Foreground"   Value="{DynamicResource BrushTextMuted}"/>
-            <Setter Property="FontSize"     Value="11"/>
-            <Setter Property="TextWrapping" Value="Wrap"/>
+
+        <Style x:Key="SecondaryBtn" TargetType="Button" BasedOn="{StaticResource PrimaryBtn}">
+            <Setter Property="Background" Value="{DynamicResource BrushSecondaryBg}"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+            <Setter Property="MinWidth"   Value="90"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="{DynamicResource CornerRadiusButton}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryPressed}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryDisabledBg}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource BrushSecondaryDisabledFg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
-        <Style x:Key="FieldLabel" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource BrushTextMuted}"/>
+
+        <Style x:Key="SmallBtn" TargetType="Button" BasedOn="{StaticResource SecondaryBtn}">
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeButtonSmall}"/>
+            <Setter Property="Height"   Value="{DynamicResource HeightButtonSmall}"/>
+            <Setter Property="Padding"  Value="{DynamicResource PaddingButtonSmall}"/>
+            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="Margin"   Value="6,0,0,0"/>
+        </Style>
+
+        <Style x:Key="WinCtrlCloseBtn" TargetType="Button">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width"           Value="32"/>
+            <Setter Property="Height"          Value="32"/>
+            <Setter Property="FontSize"        Value="13"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="16">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushDanger}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="HamburgerToggle" TargetType="ToggleButton">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Width"           Value="36"/>
+            <Setter Property="Height"          Value="36"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" Background="Transparent"
+                                CornerRadius="6" Width="36" Height="36">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryBg}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="HamburgerMenuItem" TargetType="Button">
+            <Setter Property="Background"                Value="Transparent"/>
+            <Setter Property="Foreground"                Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderThickness"           Value="0"/>
+            <Setter Property="Padding"                   Value="{DynamicResource PaddingMenuItem}"/>
+            <Setter Property="FontSize"                  Value="{DynamicResource FontSizeMenuItem}"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Cursor"                    Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryBg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+
+        <!-- ── Inputs ──────────────────────────────────────────────────── -->
+
+        <Style x:Key="PathBox" TargetType="TextBox">
+            <Setter Property="Background"      Value="{DynamicResource BrushInputBg}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextInput}"/>
+            <Setter Property="BorderBrush"     Value="{DynamicResource BrushBorderDefault}"/>
+            <Setter Property="BorderThickness" Value="{DynamicResource BorderThicknessInput}"/>
+            <Setter Property="FontSize"        Value="{DynamicResource FontSizeInput}"/>
+            <Setter Property="Padding"         Value="{DynamicResource PaddingInput}"/>
+            <Setter Property="Height"          Value="{DynamicResource HeightInput}"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="IsReadOnly"      Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="MainBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{DynamicResource CornerRadiusInput}">
+                            <!-- No Padding/Margin="{TemplateBinding Padding}" here.
+                                 WPF already applies TextBox.Padding to the element
+                                 named PART_ContentHost, so setting it again doubles
+                                 it - text clipped top and bottom. -->
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Focusable="False"
+                                          VerticalAlignment="Center"
+                                          HorizontalScrollBarVisibility="Hidden"
+                                          VerticalScrollBarVisibility="Hidden"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- PathBox is read-only by design; the name fields are typed into. -->
+        <Style x:Key="TextField" TargetType="TextBox" BasedOn="{StaticResource PathBox}">
+            <Setter Property="IsReadOnly" Value="False"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource BrushTextInput}"/>
+        </Style>
+
+        <Style x:Key="CheckBoxStyle" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="FontSize"   Value="{DynamicResource FontSizeFieldLabel}"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+            <Setter Property="Margin"     Value="0,4,18,4"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <!-- Transparent background, not none, so the whole row
+                             - label included - is the click target, not just
+                             the box itself. -->
+                        <StackPanel Orientation="Horizontal" Background="Transparent">
+                            <Border x:Name="Box"
+                                    Width="{DynamicResource SizeCheckbox}"
+                                    Height="{DynamicResource SizeCheckbox}"
+                                    Background="{DynamicResource BrushInputBg}"
+                                    BorderBrush="{DynamicResource BrushBorderDefault}"
+                                    BorderThickness="{DynamicResource BorderThicknessCheckbox}"
+                                    CornerRadius="{DynamicResource CornerRadiusCheckbox}"
+                                    VerticalAlignment="Center">
+                                <!-- BrushToggleKnob, not BrushTextPrimary: this
+                                     is a mark on an accent-filled control, the
+                                     same as the toggle knob, and it has to stay
+                                     light against the green in the light
+                                     profile too. -->
+                                <Path x:Name="Tick"
+                                      Data="M 3,7.5 L 6,10.5 L 11.5,4.5"
+                                      Stroke="{DynamicResource BrushToggleKnob}"
+                                      StrokeThickness="2"
+                                      StrokeEndLineCap="Round"
+                                      StrokeStartLineCap="Round"
+                                      Visibility="Collapsed"/>
+                            </Border>
+                            <ContentPresenter Margin="7,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Box"  Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+                                <Setter TargetName="Tick" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="{DynamicResource BrushSecondaryDisabledFg}"/>
+                                <Setter TargetName="Box" Property="Background"  Value="{DynamicResource BrushSecondaryDisabledBg}"/>
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource BrushSecondaryDisabledFg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background"   Value="{DynamicResource BrushCardBg}"/>
+            <Setter Property="CornerRadius" Value="{DynamicResource CornerRadiusCard}"/>
+            <Setter Property="Padding"      Value="{DynamicResource PaddingCard}"/>
+            <Setter Property="Margin"       Value="0,0,0,12"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="Black" Opacity="0.2" ShadowDepth="2" BlurRadius="4"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+
+        <!-- ── Text ────────────────────────────────────────────────────── -->
+
+        <Style x:Key="SectionLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="FontSize"   Value="{DynamicResource FontSizeFieldLabel}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Margin"     Value="0,0,0,4"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
+
+        <Style x:Key="SectionHeading" TargetType="TextBlock" BasedOn="{StaticResource SectionLabel}">
+            <Setter Property="FontSize"   Value="13"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+
+        <Style x:Key="Hint" TargetType="TextBlock">
+            <Setter Property="Foreground"   Value="{DynamicResource BrushTextMuted}"/>
+            <Setter Property="FontSize"     Value="{DynamicResource FontSizeBody}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+
         <Style x:Key="ColHead" TargetType="TextBlock">
             <Setter Property="Foreground"  Value="{DynamicResource BrushTextMuted}"/>
             <Setter Property="FontSize"    Value="11"/>
@@ -78,26 +321,9 @@
             <Setter Property="Margin"      Value="0,0,10,0"/>
         </Style>
 
-        <!-- ── INPUTS ────────────────────────────────────────────────── -->
-        <Style x:Key="Field" TargetType="TextBox">
-            <Setter Property="Background"      Value="{DynamicResource BrushInputBg}"/>
-            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
-            <Setter Property="CaretBrush"      Value="{DynamicResource BrushTextPrimary}"/>
-            <Setter Property="BorderBrush"     Value="{DynamicResource BrushBorderDefault}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="FontSize"        Value="{DynamicResource FontSizeInput}"/>
-            <Setter Property="Padding"         Value="7,5"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-        </Style>
 
-        <Style x:Key="Check" TargetType="CheckBox">
-            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
-            <Setter Property="FontSize"   Value="{DynamicResource FontSizeFieldLabel}"/>
-            <Setter Property="Cursor"     Value="Hand"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-        </Style>
+        <!-- ── List ────────────────────────────────────────────────────── -->
 
-        <!-- ── LIST ──────────────────────────────────────────────────── -->
         <Style x:Key="ListRow" TargetType="ListBoxItem">
             <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="FontSize"   Value="{DynamicResource FontSizeInput}"/>
@@ -150,182 +376,134 @@
                 </Setter.Value>
             </Setter>
         </Style>
-
-        <!-- ── BUTTONS ───────────────────────────────────────────────── -->
-        <Style x:Key="GreenBtn" TargetType="Button">
-            <Setter Property="Background"      Value="{DynamicResource BrushPrimaryGreen}"/>
-            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="FontWeight"      Value="SemiBold"/>
-            <Setter Property="FontSize"        Value="{DynamicResource FontSizeButton}"/>
-            <Setter Property="Padding"         Value="{DynamicResource PaddingButtonPrimary}"/>
-            <Setter Property="Cursor"          Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                CornerRadius="{DynamicResource CornerRadiusButton}"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background"
-                                        Value="{DynamicResource BrushPrimaryGreenHover}"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Bd" Property="Background"
-                                        Value="{DynamicResource BrushSecondaryDisabledBg}"/>
-                                <Setter Property="Foreground"
-                                        Value="{DynamicResource BrushSecondaryDisabledFg}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="GreyBtn" TargetType="Button" BasedOn="{StaticResource GreenBtn}">
-            <Setter Property="Background" Value="{DynamicResource BrushSecondaryBg}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                CornerRadius="{DynamicResource CornerRadiusButton}"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background"
-                                        Value="{DynamicResource BrushSecondaryHover}"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Bd" Property="Background"
-                                        Value="{DynamicResource BrushSecondaryDisabledBg}"/>
-                                <Setter Property="Foreground"
-                                        Value="{DynamicResource BrushSecondaryDisabledFg}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="WinCtrlCloseBtn" TargetType="Button">
-            <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Width"           Value="30"/>
-            <Setter Property="Height"          Value="30"/>
-            <Setter Property="FontSize"        Value="13"/>
-            <Setter Property="Cursor"          Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                CornerRadius="15">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background"
-                                        Value="{DynamicResource BrushDanger}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
     </Window.Resources>
 
     <DockPanel>
-        <!-- ── HEADER ────────────────────────────────────────────────── -->
-        <Border Background="{DynamicResource BrushHeaderBg}"
-                Height="64"
-                DockPanel.Dock="Top"
-                CornerRadius="0,0,12,12">
+
+        <!-- ── Header ──────────────────────────────────────────────────── -->
+        <Border Background="{DynamicResource BrushHeaderBg}" Height="56"
+                DockPanel.Dock="Top" CornerRadius="10,10,12,12">
             <Border.Effect>
-                <DropShadowEffect Color="Black" Opacity="0.3"
-                                  ShadowDepth="2" BlurRadius="6"/>
+                <DropShadowEffect Color="Black" Opacity="0.3" ShadowDepth="2" BlurRadius="6"/>
             </Border.Effect>
             <Grid Margin="20,0,16,0">
-                <StackPanel Orientation="Horizontal"
-                            VerticalAlignment="Center"
-                            HorizontalAlignment="Left">
-                    <TextBlock Text="Connection" FontWeight="Bold" FontSize="26"
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
+                    <!-- Source set from Python by Snippets._icons.set_header_icon -->
+                    <Image x:Name="header_icon"
+                           Width="{DynamicResource SizeTopBarLogo}"
+                           Height="{DynamicResource SizeTopBarLogo}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,10,0"/>
+                    <TextBlock Text="Connection" FontWeight="Bold" FontSize="22"
                                Foreground="{DynamicResource BrushPrimaryGreen}"/>
-                    <TextBlock Text="Clone" FontWeight="Bold" FontSize="26"
+                    <TextBlock Text="Clone" FontWeight="Bold" FontSize="22"
                                Foreground="{DynamicResource BrushTextPrimary}"/>
-                    <TextBlock x:Name="subtitle_tb" FontSize="16"
-                               Foreground="{DynamicResource BrushTextPrimary}"
-                               Opacity="0.6"
-                               VerticalAlignment="Bottom" Margin="10,0,0,4"/>
+                    <!-- Text set from Python: "  |  " and a live summary. -->
+                    <TextBlock x:Name="subtitle_tb" FontSize="14"
+                               Foreground="{DynamicResource BrushTextPrimary}" Opacity="0.6"
+                               VerticalAlignment="Bottom" Margin="4,0,0,4"/>
                 </StackPanel>
-                <Button x:Name="win_close_btn"
-                        Content="&#10005;"
-                        Style="{StaticResource WinCtrlCloseBtn}"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Center"
-                        ToolTip="Close"
-                        Click="close_clicked"
-                        shell:WindowChrome.IsHitTestVisibleInChrome="True"/>
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right" VerticalAlignment="Center"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Grid Margin="0,0,4,0">
+                        <ToggleButton x:Name="settings_toggle_btn"
+                                      Style="{StaticResource HamburgerToggle}"
+                                      ToolTip="Menu"/>
+                        <Popup x:Name="settings_popup"
+                               PlacementTarget="{Binding ElementName=settings_toggle_btn}"
+                               Placement="Bottom"
+                               AllowsTransparency="True"
+                               StaysOpen="False"
+                               IsOpen="{Binding ElementName=settings_toggle_btn, Path=IsChecked}">
+                            <Border Background="{DynamicResource BrushCardBg}"
+                                    BorderBrush="{DynamicResource BrushPrimaryGreen}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    MinWidth="200">
+                                <Border.Effect>
+                                    <DropShadowEffect Color="Black" Opacity="0.25" ShadowDepth="2" BlurRadius="8"/>
+                                </Border.Effect>
+                                <StackPanel>
+                                    <Button x:Name="help_btn"
+                                            Content="&#x2709;  Email support"
+                                            Style="{StaticResource HamburgerMenuItem}"/>
+                                    <Button x:Name="issue_btn"
+                                            Content="Report an issue on GitHub"
+                                            Style="{StaticResource HamburgerMenuItem}"/>
+                                    <Rectangle Fill="{DynamicResource BrushSecondaryBg}" Height="1" Margin="0,2"/>
+                                    <Button x:Name="about_btn"
+                                            Content="&#8505;  About Connections"
+                                            Style="{StaticResource HamburgerMenuItem}"/>
+                                    <Rectangle Fill="{DynamicResource BrushSecondaryBg}" Height="1" Margin="0,2"/>
+                                    <Button x:Name="support_btn"
+                                            Content="&#9749;  Support this project and help us grow"
+                                            Style="{StaticResource HamburgerMenuItem}"/>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <Button x:Name="win_close_btn"
+                            Content="&#10005;"
+                            Style="{StaticResource WinCtrlCloseBtn}"
+                            VerticalAlignment="Center"
+                            ToolTip="Close"
+                            Click="close_clicked"/>
+                </StackPanel>
             </Grid>
         </Border>
 
-        <!-- ── FOOTER ────────────────────────────────────────────────── -->
-        <Grid DockPanel.Dock="Bottom" Margin="20,0,20,20">
-            <TextBlock x:Name="status_tb" Style="{StaticResource Hint}"
-                       VerticalAlignment="Center" HorizontalAlignment="Left"
-                       MaxWidth="520"/>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button x:Name="close_btn" Content="Close" Width="90"
-                        Style="{StaticResource GreyBtn}" Margin="0,0,8,0"
-                        Click="close_clicked"/>
-                <Button x:Name="show_btn" Content="Show" Width="110"
-                        Style="{StaticResource GreyBtn}" Margin="0,0,8,0"
-                        ToolTip="Select the placed connections that use this type"
-                        Click="show_clicked"/>
-                <!-- Green is the tool's one committing action. -->
-                <Button x:Name="clone_btn" Content="Clone" Width="150"
-                        Style="{StaticResource GreenBtn}"
-                        ToolTip="Create a new connection family and type running the same algorithm as the highlighted one. The clone starts on the algorithm defaults: its Modify Parameters do not carry across."
-                        Click="clone_clicked"/>
-            </StackPanel>
-        </Grid>
+        <!-- ── Footer ──────────────────────────────────────────────────── -->
+        <Border DockPanel.Dock="Bottom" Margin="20,0,20,16">
+            <Grid>
+                <TextBlock x:Name="status_tb" Style="{StaticResource Hint}"
+                           VerticalAlignment="Center" HorizontalAlignment="Left"
+                           MaxWidth="520"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="close_btn" Content="Close"
+                            Style="{StaticResource SecondaryBtn}"
+                            Click="close_clicked"/>
+                    <Button x:Name="show_btn" Content="Show"
+                            Style="{StaticResource SecondaryBtn}" Margin="10,0,0,0"
+                            ToolTip="Select the placed connections that use this type"
+                            Click="show_clicked"/>
+                    <!-- Green is the tool's one committing action. -->
+                    <Button x:Name="clone_btn" Content="Clone"
+                            Style="{StaticResource PrimaryBtn}" Margin="10,0,0,0"
+                            ToolTip="Create a new connection family and type running the same algorithm as the highlighted one. The clone starts on the algorithm defaults: its Modify Parameters do not carry across."
+                            Click="clone_clicked"/>
+                </StackPanel>
+            </Grid>
+        </Border>
 
-        <!-- ── BODY ──────────────────────────────────────────────────── -->
+        <!-- ── Body ────────────────────────────────────────────────────── -->
         <Border Background="{DynamicResource BrushCardBg}"
                 CornerRadius="{DynamicResource CornerRadiusCard}"
                 Padding="{DynamicResource PaddingCard}"
-                Margin="20,16,20,16">
+                Margin="20,12,20,12">
             <DockPanel>
-                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
-                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                        <Button x:Name="reload_btn" Content="Reload"
-                                Style="{StaticResource GreyBtn}" Width="110"
-                                ToolTip="Re-read the connection types from the model as it stands now"
-                                Click="reload_clicked"/>
+                <Grid DockPanel.Dock="Top" Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock x:Name="summary_tb" Style="{StaticResource SectionHeading}"/>
+                        <TextBlock x:Name="explain_tb" Style="{StaticResource Hint}"
+                                   Margin="0,4,12,0"/>
                     </StackPanel>
-                    <StackPanel VerticalAlignment="Center">
-                        <TextBlock x:Name="summary_tb"
-                                   Style="{StaticResource Section}"/>
-                        <TextBlock x:Name="explain_tb"
-                                   Style="{StaticResource Hint}"
-                                   Margin="0,3,12,0"/>
-                    </StackPanel>
-                </DockPanel>
+                    <Button x:Name="reload_btn" Grid.Column="1" Content="Reload"
+                            Style="{StaticResource SmallBtn}" VerticalAlignment="Top"
+                            ToolTip="Re-read the connection types from the model as it stands now"
+                            Click="reload_clicked"/>
+                </Grid>
 
-                <!-- ── THE NEW VERSION ───────────────────────────────── -->
-                <Border DockPanel.Dock="Bottom"
-                        Background="{DynamicResource BrushHeaderBg}"
-                        CornerRadius="{DynamicResource CornerRadiusInput}"
-                        Padding="12"
-                        Margin="0,12,0,0">
+                <!-- The new version: docked to the bottom so the list is the
+                     only part that grows. -->
+                <Border DockPanel.Dock="Bottom" Style="{StaticResource Card}" Margin="0,12,0,0">
                     <StackPanel>
+                        <TextBlock Text="New version" Style="{StaticResource SectionHeading}"
+                                   Margin="0,0,0,10"/>
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -333,23 +511,20 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="NEW FAMILY"
-                                           Style="{StaticResource FieldLabel}"/>
-                                <TextBox x:Name="family_tb"
-                                         Style="{StaticResource Field}"
+                                <TextBlock Text="Family name:" Style="{StaticResource SectionLabel}"
+                                           Margin="0,0,0,6"/>
+                                <TextBox x:Name="family_tb" Style="{StaticResource TextField}"
                                          ToolTip="The name the connection is filed under in the Project Browser. Set here and never afterwards: Revit has no way to rename it."/>
                             </StackPanel>
                             <StackPanel Grid.Column="2">
-                                <TextBlock Text="NEW TYPE"
-                                           Style="{StaticResource FieldLabel}"/>
-                                <TextBox x:Name="type_tb"
-                                         Style="{StaticResource Field}"
+                                <TextBlock Text="Type name:" Style="{StaticResource SectionLabel}"
+                                           Margin="0,0,0,6"/>
+                                <TextBox x:Name="type_tb" Style="{StaticResource TextField}"
                                          ToolTip="The type name inside that family. This one can be renamed later."/>
                             </StackPanel>
                         </Grid>
-                        <CheckBox x:Name="move_cb"
-                                  Style="{StaticResource Check}"
-                                  Margin="0,10,0,0"
+                        <CheckBox x:Name="move_cb" Style="{StaticResource CheckBoxStyle}"
+                                  Margin="0,12,0,0"
                                   ToolTip="Off, the clone is created empty and the placed connections stay where they are"/>
                     </StackPanel>
                 </Border>
@@ -357,8 +532,7 @@
                 <!-- Column header. Widths are mirrored in the _cell() calls
                      of _build_row() and the two must move together or the
                      headings drift off the data. -->
-                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
-                            Margin="10,0,0,6">
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="10,0,0,6">
                     <TextBlock Style="{StaticResource ColHead}" Width="210" Text="FAMILY"/>
                     <TextBlock Style="{StaticResource ColHead}" Width="250" Text="TYPE"/>
                     <TextBlock Style="{StaticResource ColHead}" Width="62"  Text="PLACED"/>

@@ -321,6 +321,87 @@
             <Setter Property="Margin" Value="0,0,6,0"/>
         </Style>
 
+        <!-- The toolbar's one committing action: PrimaryBtn at toolbar size. -->
+        <Style x:Key="ToolPrimaryBtn" TargetType="Button" BasedOn="{StaticResource PrimaryBtn}">
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeButtonSmall}"/>
+            <Setter Property="Height"   Value="{DynamicResource HeightButtonSmall}"/>
+            <Setter Property="Padding"  Value="{DynamicResource PaddingButtonSmall}"/>
+            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="Margin"   Value="0,0,6,0"/>
+        </Style>
+
+        <!-- A toolbar button that opens a menu: ToolBtn's look, a chevron, and
+             green while its menu is open. -->
+        <Style x:Key="DropdownBtn" TargetType="ToggleButton">
+            <Setter Property="Background"      Value="{DynamicResource BrushSecondaryBg}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize"        Value="{DynamicResource FontSizeButtonSmall}"/>
+            <Setter Property="Height"          Value="{DynamicResource HeightButtonSmall}"/>
+            <Setter Property="Padding"         Value="{DynamicResource PaddingButtonSmall}"/>
+            <Setter Property="Margin"          Value="0,0,6,0"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="{DynamicResource CornerRadiusButton}"
+                                Padding="{TemplateBinding Padding}">
+                            <StackPanel Orientation="Horizontal">
+                                <ContentPresenter VerticalAlignment="Center"/>
+                                <Viewbox Width="8" Height="5" Margin="8,1,0,0" VerticalAlignment="Center">
+                                    <Path Data="M0,0 L8,0 L4,5 Z" Fill="{TemplateBinding Foreground}"/>
+                                </Viewbox>
+                            </StackPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- The panel every menu sits in: the header menu's look, as one style. -->
+        <Style x:Key="MenuPanel" TargetType="Border">
+            <Setter Property="Background"      Value="{DynamicResource BrushCardBg}"/>
+            <Setter Property="BorderBrush"     Value="{DynamicResource BrushPrimaryGreen}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius"    Value="6"/>
+            <Setter Property="MinWidth"        Value="200"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="Black" Opacity="0.25" ShadowDepth="2" BlurRadius="8"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="MenuSeparator" TargetType="Rectangle">
+            <Setter Property="Fill"   Value="{DynamicResource BrushSecondaryBg}"/>
+            <Setter Property="Height" Value="1"/>
+            <Setter Property="Margin" Value="0,2"/>
+        </Style>
+
+        <Style x:Key="MenuDangerItem" TargetType="Button" BasedOn="{StaticResource HamburgerMenuItem}">
+            <Setter Property="Foreground" Value="{DynamicResource BrushDanger}"/>
+        </Style>
+
+        <!-- Placeholder text over an empty search box. -->
+        <Style x:Key="SearchHint" TargetType="TextBlock">
+            <Setter Property="Foreground"        Value="{DynamicResource BrushTextMuted}"/>
+            <Setter Property="FontSize"          Value="{DynamicResource FontSizeInput}"/>
+            <Setter Property="IsHitTestVisible"  Value="False"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin"            Value="10,0,0,0"/>
+            <Setter Property="Visibility"        Value="Collapsed"/>
+        </Style>
+
         <!-- Its own hover and pressed tokens, so it never flashes green. -->
         <Style x:Key="DangerBtn" TargetType="Button" BasedOn="{StaticResource ToolBtn}">
             <Setter Property="Background" Value="{DynamicResource BrushDanger}"/>
@@ -819,17 +900,13 @@
                        VerticalAlignment="Center" HorizontalAlignment="Left"
                        MaxWidth="900"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button x:Name="check_btn" Content="Check" Width="100"
-                        Style="{StaticResource SecondaryBtn}" Margin="0,0,8,0"
-                        ToolTip="Report duplicate GUIDs, bad GUIDs, empty names and orphaned groups without writing anything"
-                        Click="check_clicked"/>
-                <Button x:Name="save_btn" Content="Save" Width="130"
-                        Style="{StaticResource PrimaryBtn}" Margin="0,0,8,0"
-                        ToolTip="Write the file. The old copy goes to a _backups folder beside it first, and the new one is written to a temp file and moved into place, so an interrupted save cannot leave a half written parameter file."
-                        Click="save_clicked"/>
-                <Button x:Name="close_btn" Content="Close" Width="100"
+                <Button x:Name="close_btn" Content="Close"
                         Style="{StaticResource SecondaryBtn}"
                         Click="close_clicked"/>
+                <Button x:Name="save_btn" Content="Save"
+                        Style="{StaticResource PrimaryBtn}" Margin="10,0,0,0"
+                        ToolTip="Write the file. The old copy goes to a _backups folder beside it first, and the new one is written to a temp file and moved into place, so an interrupted save cannot leave a half written parameter file."
+                        Click="save_clicked"/>
             </StackPanel>
         </Grid>
 
@@ -840,92 +917,130 @@
                 Margin="20,12,20,12">
             <DockPanel>
 
-                <!-- ── FILE ROW ──────────────────────────────────────── -->
-                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
-                            Margin="0,0,0,10">
-                    <Button x:Name="open_btn" Content="Open" Width="86"
-                            Style="{StaticResource ToolBtn}"
-                            ToolTip="Open a shared parameter file"
-                            Click="open_clicked"/>
-                    <Button x:Name="revit_btn" Content="Revit file" Width="92"
-                            Style="{StaticResource ToolBtn}"
-                            ToolTip="Open the shared parameter file Revit is currently pointed at"
-                            Click="revit_clicked"/>
-                    <Button x:Name="new_btn" Content="New" Width="72"
-                            Style="{StaticResource ToolBtn}"
-                            ToolTip="Start an empty shared parameter file"
-                            Click="new_clicked"/>
-                    <Button x:Name="saveas_btn" Content="Save as" Width="92"
-                            Style="{StaticResource ToolBtn}"
-                            ToolTip="Write to a different file"
-                            Click="saveas_clicked"/>
-                    <Border Width="1" Margin="4,2,10,2"
-                            Background="{DynamicResource BrushSecondaryBg}"/>
-                    <Button x:Name="set_revit_btn" Content="Point Revit here"
-                            Width="132" Style="{StaticResource ToolBtn}"
-                            ToolTip="Make this file the one Revit uses for shared parameters"
-                            Click="set_revit_clicked"/>
-                </StackPanel>
-
-                <!-- ── ACTION ROW ────────────────────────────────────── -->
+                <!-- ── TOOLBAR ───────────────────────────────────────── -->
+                <!-- Two columns rather than two panels sharing one cell:
+                     sharing is what put Undo on top of the Group label. -->
                 <Grid DockPanel.Dock="Top" Margin="0,0,0,12">
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                        <Button x:Name="add_btn" Content="Add" Width="72"
-                                Style="{StaticResource ToolBtn}"
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <WrapPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Grid>
+                            <ToggleButton x:Name="file_menu_btn" Content="File"
+                                          Style="{StaticResource DropdownBtn}"
+                                          ToolTip="Open, start or save a shared parameter file"/>
+                            <Popup x:Name="file_menu_popup"
+                                   PlacementTarget="{Binding ElementName=file_menu_btn}"
+                                   Placement="Bottom"
+                                   AllowsTransparency="True"
+                                   StaysOpen="False"
+                                   IsOpen="{Binding ElementName=file_menu_btn, Path=IsChecked}">
+                                <Border Style="{StaticResource MenuPanel}">
+                                    <StackPanel>
+                                            <Button x:Name="open_btn" Content="Open..."
+                                                    Style="{StaticResource HamburgerMenuItem}"
+                                                    ToolTip="Open a shared parameter file"/>
+                                            <Button x:Name="revit_btn" Content="Open Revit's file"
+                                                    Style="{StaticResource HamburgerMenuItem}"
+                                                    ToolTip="Open the shared parameter file Revit is currently pointed at"/>
+                                            <Button x:Name="new_btn" Content="New file"
+                                                    Style="{StaticResource HamburgerMenuItem}"
+                                                    ToolTip="Start an empty shared parameter file"/>
+                                            <Rectangle Style="{StaticResource MenuSeparator}"/>
+                                            <Button x:Name="saveas_btn" Content="Save as..."
+                                                    Style="{StaticResource HamburgerMenuItem}"
+                                                    ToolTip="Write to a different file"/>
+                                            <Rectangle Style="{StaticResource MenuSeparator}"/>
+                                            <Button x:Name="set_revit_btn" Content="Point Revit at this file"
+                                                    Style="{StaticResource HamburgerMenuItem}"
+                                                    ToolTip="Make this file the one Revit uses for shared parameters"/>
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <Button x:Name="add_btn" Content="+  Add"
+                                Style="{StaticResource ToolPrimaryBtn}"
                                 ToolTip="Add one parameter with a fresh GUID"
                                 Click="add_clicked"/>
-                        <Button x:Name="dup_btn" Content="Duplicate" Width="90"
-                                Style="{StaticResource ToolBtn}"
-                                ToolTip="Copy the selected rows, each with a fresh GUID"
-                                Click="dup_clicked"/>
-                        <Button x:Name="guid_btn" Content="New GUID" Width="94"
-                                Style="{StaticResource ToolBtn}"
-                                ToolTip="Give the selected rows fresh GUIDs. Any family or project already bound to the old GUID loses its link, so this is for fixing a duplicate, not for tidying."
-                                Click="guid_clicked"/>
-                        <Button x:Name="del_btn" Content="Delete" Width="78"
-                                Style="{StaticResource DangerBtn}"
-                                ToolTip="Remove the selected rows"
-                                Click="del_clicked"/>
-                        <Border Width="1" Margin="4,2,10,2"
-                                Background="{DynamicResource BrushSecondaryBg}"/>
-                        <Button x:Name="groups_btn" Content="Groups" Width="80"
+                        <Button x:Name="groups_btn" Content="Groups"
                                 Style="{StaticResource ToolBtn}"
                                 ToolTip="Add, rename and remove parameter groups"
                                 Click="groups_clicked"/>
-                        <Button x:Name="rename_btn" Content="Rename" Width="84"
+                        <Button x:Name="rename_btn" Content="Rename"
                                 Style="{StaticResource ToolBtn}"
                                 ToolTip="Prefix, suffix or find and replace across the selected rows"
                                 Click="rename_clicked"/>
-                        <Button x:Name="type_btn" Content="Set type" Width="84"
-                                Style="{StaticResource ToolBtn}"
-                                ToolTip="Set the data type on every selected row at once"
-                                Click="type_clicked"/>
-                        <Button x:Name="movegroup_btn" Content="Set group" Width="90"
-                                Style="{StaticResource ToolBtn}"
-                                ToolTip="Move every selected row into one group"
-                                Click="movegroup_clicked"/>
-                        <Button x:Name="sort_btn" Content="Sort" Width="70"
-                                Style="{StaticResource ToolBtn}"
-                                ToolTip="Reorder the rows in the file itself. Clicking a column header only sorts what is on screen."
-                                Click="sort_clicked"/>
-                        <Button x:Name="undo_btn" Content="Undo" Width="70"
+                        <Grid>
+                            <ToggleButton x:Name="batch_menu_btn" Content="Batch actions"
+                                          Style="{StaticResource DropdownBtn}"
+                                          ToolTip="Act on every selected row at once"/>
+                            <Popup x:Name="batch_menu_popup"
+                                   PlacementTarget="{Binding ElementName=batch_menu_btn}"
+                                   Placement="Bottom"
+                                   AllowsTransparency="True"
+                                   StaysOpen="False"
+                                   IsOpen="{Binding ElementName=batch_menu_btn, Path=IsChecked}">
+                                <Border Style="{StaticResource MenuPanel}">
+                                    <StackPanel>
+                                            <Button x:Name="dup_btn" Content="Duplicate"
+                                                    Style="{StaticResource HamburgerMenuItem}"
+                                                    ToolTip="Copy the selected rows, each with a fresh GUID"/>
+                                            <Button x:Name="guid_btn" Content="New GUID"
+                                                    Style="{StaticResource HamburgerMenuItem}"
+                                                    ToolTip="Give the selected rows fresh GUIDs. Any family or project already bound to the old GUID loses its link, so this is for fixing a duplicate, not for tidying."/>
+                                            <Button x:Name="type_btn" Content="Set type..."
+                                                    Style="{StaticResource HamburgerMenuItem}"
+                                                    ToolTip="Set the data type on every selected row at once"/>
+                                            <Button x:Name="movegroup_btn" Content="Set group..."
+                                                    Style="{StaticResource HamburgerMenuItem}"
+                                                    ToolTip="Move every selected row into one group"/>
+                                            <Rectangle Style="{StaticResource MenuSeparator}"/>
+                                            <Button x:Name="sort_btn" Content="Sort the file"
+                                                    Style="{StaticResource HamburgerMenuItem}"
+                                                    ToolTip="Reorder the rows in the file itself. Clicking a column header only sorts what is on screen."/>
+                                            <Button x:Name="check_btn" Content="Check the file"
+                                                    Style="{StaticResource HamburgerMenuItem}"
+                                                    ToolTip="Report duplicate GUIDs, bad GUIDs, empty names and orphaned groups without writing anything"/>
+                                            <Rectangle Style="{StaticResource MenuSeparator}"/>
+                                            <Button x:Name="del_btn" Content="Delete"
+                                                    Style="{StaticResource MenuDangerItem}"
+                                                    ToolTip="Remove the selected rows"/>
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <Button x:Name="undo_btn" Content="Undo"
                                 Style="{StaticResource ToolBtn}"
                                 ToolTip="Step back through the edits made since the file was opened"
                                 Click="undo_clicked"/>
-                    </StackPanel>
+                    </WrapPanel>
 
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <TextBlock Text="Group" Style="{StaticResource FieldLabel}"
-                                   VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <ComboBox x:Name="filter_group_cb" Width="150"
-                                  Style="{StaticResource Combo}" Margin="0,0,10,0"
+                    <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                VerticalAlignment="Center" Margin="12,0,0,0">
+                        <ComboBox x:Name="filter_group_cb" Width="160"
+                                  Style="{StaticResource Combo}" Margin="0,0,8,0"
                                   ToolTip="Show one group at a time"
                                   SelectionChanged="filter_changed"/>
-                        <TextBox x:Name="search_tb" Width="230"
-                                 Style="{StaticResource TextField}"
-                                 ToolTip="Filter by name, description, data type or GUID"
-                                 TextChanged="search_changed"/>
-                        <Button x:Name="clear_btn" Content="&#10005;" Width="30"
+                        <Grid Width="230">
+                            <TextBox x:Name="search_tb"
+                                     Style="{StaticResource TextField}"
+                                     ToolTip="Filter by name, description, data type or GUID"
+                                     TextChanged="search_changed"/>
+                            <TextBlock Text="Search">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource SearchHint}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Text, ElementName=search_tb}" Value="">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                        <Button x:Name="clear_btn" Content="&#10005;"
                                 Style="{StaticResource ToolBtn}" Margin="6,0,0,0"
                                 ToolTip="Clear the filters"
                                 Click="clear_clicked"/>
@@ -933,55 +1048,84 @@
                 </Grid>
 
                 <!-- ── GRID ──────────────────────────────────────────── -->
-                <Border Background="{StaticResource TblBg}"
-                        CornerRadius="6" ClipToBounds="True">
-                    <DataGrid x:Name="grid"
-                              CellEditEnding="cell_edit_ending"
-                              PreparingCellForEdit="preparing_cell_for_edit"
-                              PreviewKeyDown="grid_key_down">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Parameter name" Width="2*"
-                                                Binding="{Binding Name}"
-                                                ElementStyle="{StaticResource CellText}"
-                                                EditingElementStyle="{StaticResource CellEdit}"/>
-                            <DataGridComboBoxColumn x:Name="type_col"
-                                                    Header="Type of parameter" Width="160"
-                                                    SelectedValuePath="Token"
-                                                    DisplayMemberPath="Label"
-                                                    SelectedValueBinding="{Binding DataType}"
-                                                    ElementStyle="{StaticResource CellCombo}"
-                                                    EditingElementStyle="{StaticResource CellCombo}"/>
-                            <DataGridComboBoxColumn x:Name="group_col"
-                                                    Header="Group" Width="128"
-                                                    SelectedItemBinding="{Binding GroupName}"
-                                                    ElementStyle="{StaticResource CellCombo}"
-                                                    EditingElementStyle="{StaticResource CellCombo}"/>
-                            <DataGridTextColumn Header="Description" Width="2*"
-                                                Binding="{Binding Description}"
-                                                ElementStyle="{StaticResource CellText}"
-                                                EditingElementStyle="{StaticResource CellEditLong}"/>
-                            <DataGridComboBoxColumn x:Name="mod_col"
-                                                    Header="User modifiable" Width="104"
-                                                    SelectedItemBinding="{Binding UserModifiable}"
-                                                    ElementStyle="{StaticResource CellCombo}"
-                                                    EditingElementStyle="{StaticResource CellCombo}"/>
-                            <DataGridComboBoxColumn x:Name="vis_col"
-                                                    Header="Visibility" Width="80"
-                                                    SelectedItemBinding="{Binding Visible}"
-                                                    ElementStyle="{StaticResource CellCombo}"
-                                                    EditingElementStyle="{StaticResource CellCombo}"/>
-                            <DataGridTextColumn Header="GUID" Width="250"
-                                                Binding="{Binding Guid}"
-                                                ElementStyle="{StaticResource CellText}"
-                                                EditingElementStyle="{StaticResource CellEdit}"/>
-                            <DataGridComboBoxColumn x:Name="hide_col"
-                                                    Header="Hide when no value" Width="124"
-                                                    SelectedItemBinding="{Binding HideWhenNoValue}"
-                                                    ElementStyle="{StaticResource CellCombo}"
-                                                    EditingElementStyle="{StaticResource CellCombo}"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Border>
+                <Grid>
+                    <Border Background="{StaticResource TblBg}"
+                            CornerRadius="6" ClipToBounds="True">
+                        <DataGrid x:Name="grid"
+                                  CellEditEnding="cell_edit_ending"
+                                  PreparingCellForEdit="preparing_cell_for_edit"
+                                  PreviewKeyDown="grid_key_down">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Parameter name" Width="2*"
+                                                    Binding="{Binding Name}"
+                                                    ElementStyle="{StaticResource CellText}"
+                                                    EditingElementStyle="{StaticResource CellEdit}"/>
+                                <DataGridComboBoxColumn x:Name="type_col"
+                                                        Header="Type of parameter" Width="160"
+                                                        SelectedValuePath="Token"
+                                                        DisplayMemberPath="Label"
+                                                        SelectedValueBinding="{Binding DataType}"
+                                                        ElementStyle="{StaticResource CellCombo}"
+                                                        EditingElementStyle="{StaticResource CellCombo}"/>
+                                <DataGridComboBoxColumn x:Name="group_col"
+                                                        Header="Group" Width="128"
+                                                        SelectedItemBinding="{Binding GroupName}"
+                                                        ElementStyle="{StaticResource CellCombo}"
+                                                        EditingElementStyle="{StaticResource CellCombo}"/>
+                                <DataGridTextColumn Header="Description" Width="2*"
+                                                    Binding="{Binding Description}"
+                                                    ElementStyle="{StaticResource CellText}"
+                                                    EditingElementStyle="{StaticResource CellEditLong}"/>
+                                <DataGridComboBoxColumn x:Name="mod_col"
+                                                        Header="User modifiable" Width="104"
+                                                        SelectedItemBinding="{Binding UserModifiable}"
+                                                        ElementStyle="{StaticResource CellCombo}"
+                                                        EditingElementStyle="{StaticResource CellCombo}"/>
+                                <DataGridComboBoxColumn x:Name="vis_col"
+                                                        Header="Visibility" Width="80"
+                                                        SelectedItemBinding="{Binding Visible}"
+                                                        ElementStyle="{StaticResource CellCombo}"
+                                                        EditingElementStyle="{StaticResource CellCombo}"/>
+                                <DataGridTextColumn Header="GUID" Width="250"
+                                                    Binding="{Binding Guid}"
+                                                    ElementStyle="{StaticResource CellText}"
+                                                    EditingElementStyle="{StaticResource CellEdit}"/>
+                                <DataGridComboBoxColumn x:Name="hide_col"
+                                                        Header="Hide when no value" Width="124"
+                                                        SelectedItemBinding="{Binding HideWhenNoValue}"
+                                                        ElementStyle="{StaticResource CellCombo}"
+                                                        EditingElementStyle="{StaticResource CellCombo}"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
+                    <!-- Right-click menu for the grid. A Popup inside the window
+                         rather than a ContextMenu: a ContextMenu is a separate
+                         tree, so the palette injected into this window's
+                         resources may not reach it and it can render blank. -->
+                    <Popup x:Name="row_menu_popup"
+                           PlacementTarget="{Binding ElementName=grid}"
+                           Placement="MousePoint"
+                           AllowsTransparency="True"
+                           StaysOpen="False">
+                        <Border Style="{StaticResource MenuPanel}">
+                            <StackPanel>
+                                <Button x:Name="ctx_dup_btn" Content="Duplicate"
+                                                    Style="{StaticResource HamburgerMenuItem}"/>
+                                <Button x:Name="ctx_guid_btn" Content="New GUID"
+                                                    Style="{StaticResource HamburgerMenuItem}"/>
+                                <Button x:Name="ctx_rename_btn" Content="Rename..."
+                                                    Style="{StaticResource HamburgerMenuItem}"/>
+                                <Button x:Name="ctx_type_btn" Content="Set type..."
+                                                    Style="{StaticResource HamburgerMenuItem}"/>
+                                <Button x:Name="ctx_group_btn" Content="Set group..."
+                                                    Style="{StaticResource HamburgerMenuItem}"/>
+                                <Rectangle Style="{StaticResource MenuSeparator}"/>
+                                <Button x:Name="ctx_del_btn" Content="Delete"
+                                                    Style="{StaticResource MenuDangerItem}"/>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+                </Grid>
             </DockPanel>
         </Border>
     </DockPanel>

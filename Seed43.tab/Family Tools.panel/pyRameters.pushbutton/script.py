@@ -603,6 +603,7 @@ class SharedParamsWindow(forms.WPFWindow):
         apply_seed43_dimensions(self, SCRIPT_DIR)
         set_header_icon(self, SCRIPT_DIR)
         self._init_menu()
+        self._init_toolbar_menus()
 
         self.spf = sp_file.SharedParameterFile()
         self.dirty = False
@@ -1297,6 +1298,88 @@ class SharedParamsWindow(forms.WPFWindow):
     def close_clicked(self, sender, args):
         if self.check_discard():
             self.Close()
+
+    # --- private helpers: toolbar menus ---
+    def _init_toolbar_menus(self):
+        """The File and Batch actions dropdowns, and the right-click row menu.
+
+        Their buttons carry no Click in the XAML: each is wired here so the
+        menu closes before the action runs. An action that opens a dialog
+        would otherwise leave the popup floating over it.
+        """
+        actions = (
+            ("open_btn", self.open_clicked),
+            ("revit_btn", self.revit_clicked),
+            ("new_btn", self.new_clicked),
+            ("saveas_btn", self.saveas_clicked),
+            ("set_revit_btn", self.set_revit_clicked),
+            ("dup_btn", self.dup_clicked),
+            ("guid_btn", self.guid_clicked),
+            ("type_btn", self.type_clicked),
+            ("movegroup_btn", self.movegroup_clicked),
+            ("sort_btn", self.sort_clicked),
+            ("check_btn", self.check_clicked),
+            ("del_btn", self.del_clicked),
+            ("ctx_dup_btn", self.dup_clicked),
+            ("ctx_guid_btn", self.guid_clicked),
+            ("ctx_rename_btn", self.rename_clicked),
+            ("ctx_type_btn", self.type_clicked),
+            ("ctx_group_btn", self.movegroup_clicked),
+            ("ctx_del_btn", self.del_clicked),
+        )
+        for name, action in actions:
+            self.FindName(name).Click += self._menu_action(action)
+        for toggle in (self.file_menu_btn, self.batch_menu_btn):
+            toggle.PreviewMouseLeftButtonDown += self._on_dropdown_preview_down
+        self.grid.PreviewMouseRightButtonUp += self._on_grid_right_click
+
+    def _menu_action(self, action):
+        def run(sender, args):
+            self._close_menus()
+            action(sender, args)
+        return run
+
+    def _close_menus(self):
+        self.file_menu_btn.IsChecked = False
+        self.batch_menu_btn.IsChecked = False
+        self.row_menu_popup.IsOpen = False
+
+    def _on_dropdown_preview_down(self, sender, args):
+        """A re-click on an open dropdown only closes it.
+
+        Same reason as the header menu: StaysOpen=False closes the popup on
+        the click, and that click's Click event would reopen it.
+        """
+        if sender == self.file_menu_btn:
+            popup = self.file_menu_popup
+        else:
+            popup = self.batch_menu_popup
+        if popup.IsOpen:
+            popup.IsOpen = False
+            sender.IsChecked = False
+            args.Handled = True
+
+    def _on_grid_right_click(self, sender, args):
+        """Right-click a row: select it if it is not already, open the menu.
+
+        A row already in the selection leaves the selection alone, so a
+        right-click on one of several selected rows acts on all of them.
+        """
+        from System.Windows.Controls import DataGridRow
+        from System.Windows.Media import VisualTreeHelper
+        node = args.OriginalSource
+        while node is not None and not isinstance(node, DataGridRow):
+            try:
+                node = VisualTreeHelper.GetParent(node)
+            except Exception:
+                node = None     # a ContentElement (text run): no visual parent
+        if node is None:
+            return
+        if not node.IsSelected:
+            self.grid.SelectedItems.Clear()
+            node.IsSelected = True
+        self.row_menu_popup.IsOpen = True
+        args.Handled = True
 
     # --- private helpers: hamburger menu ---
     def _init_menu(self):

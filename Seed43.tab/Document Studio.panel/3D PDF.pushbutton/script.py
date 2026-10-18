@@ -338,15 +338,6 @@ def main():
     write_pdf(path, u3d_bytes, views, (0.0, 0.0, 0.0), max(radius, 1.0),
               title=safe_text(doc.Title), subtitle=subtitle)
 
-    nodes = len(scene._models)
-    msg = ("Exported {} elements, {:,} triangles.\n\n{}\n\nOpen it in "
-           "Adobe Acrobat or Acrobat Reader. Other viewers show a "
-           "placeholder instead of the model.").format(
-               nodes, ctx.triangles, path)
-    if forms.alert(msg, title=TITLE, options=["Open PDF", "Close"]) \
-            == "Open PDF":
-        os.startfile(path)
-
 
 if __name__ == "__main__":
     main()

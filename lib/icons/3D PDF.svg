@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   version="1.1"
+   id="svg1"
+   width="94.795959"
+   height="95.980713"
+   viewBox="0 0 94.795959 95.980713"
+   xml:space="preserve"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"><defs
+     id="defs1"><style
+       id="style1">
+      .outline { stroke:#2b2b2b; stroke-width:4; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+      .fill { fill:#ffffff; stroke:#2b2b2b; stroke-width:4; }
+      .accent { fill:#28a745; stroke:#2b2b2b; stroke-width:4; }
+      .accent-stroke { stroke:#28a745; stroke-width:3; }
+      .muted { fill:#dcdcdc; }
+      .dark { fill:#6b6b6b; }
+    </style><style
+       id="style1-7">
+      .outline { stroke:#2b2b2b; stroke-width:4; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+      .fill { fill:#ffffff; stroke:#2b2b2b; stroke-width:4; }
+      .accent { fill:#28a745; stroke:#2b2b2b; stroke-width:4; }
+      .accent-stroke { stroke:#28a745; stroke-width:3; }
+      .muted { fill:#dcdcdc; }
+      .dark { fill:#6b6b6b; }
+    </style><style
+       id="style1-9">
+      .outline { stroke:#2b2b2b; stroke-width:4; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+      .fill { fill:#ffffff; stroke:#2b2b2b; stroke-width:4; }
+      .accent { fill:#28a745; stroke:#2b2b2b; stroke-width:4; }
+      .accent-stroke { stroke:#28a745; stroke-width:3; }
+      .muted { fill:#dcdcdc; }
+      .dark { fill:#6b6b6b; }
+    </style><style
+       id="style1-7-2">
+      .outline { stroke:#2b2b2b; stroke-width:4; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+      .fill { fill:#ffffff; stroke:#2b2b2b; stroke-width:4; }
+      .accent { fill:#28a745; stroke:#2b2b2b; stroke-width:4; }
+      .accent-stroke { stroke:#28a745; stroke-width:3; }
+      .muted { fill:#dcdcdc; }
+      .dark { fill:#6b6b6b; }
+    </style></defs><g
+     id="g60-1"
+     transform="translate(-811.11951,-114.9781)"><rect
+       style="fill:#1f893c;fill-opacity:1;stroke:none;stroke-width:1.4;stroke-linecap:square;stroke-dasharray:none;stroke-opacity:1"
+       id="rect52-6-2"
+       width="91.795982"
+       height="92.980591"
+       x="812.61951"
+       y="116.47811"
+       rx="12.079668"
+       ry="12.031159" /><path
+       id="path52-9"
+       style="fill:#1faa3c;fill-opacity:1;stroke:none;stroke-width:1.4;stroke-linecap:square;stroke-dasharray:none;stroke-opacity:1"
+       d="m 904.41589,145.07687 v -13.84708 c 0,-8.17273 -6.60651,-14.75233 -14.81218,-14.75233 h -62.17286 c -8.20567,0 -14.81218,6.5796 -14.81218,14.75233 v 37.83637 a 89.969949,35.293131 0 0 0 6.48766,0.091 89.969949,35.293131 0 0 0 85.30956,-24.0803 z" /><rect
+       style="display:inline;fill:none;fill-opacity:1;stroke:#000000;stroke-width:2.99999;stroke-linecap:square;stroke-dasharray:none;stroke-opacity:1"
+       id="rect53-5-3"
+       width="91.795982"
+       height="92.980591"
+       x="812.61951"
+       y="116.47811"
+       rx="12.079668"
+       ry="12.031159" /><path
+       d="m 794.63543,-2243.0581 c 0,1.535 -0.84831,2.8681 -2.14099,3.5548 l -19.7939,10.8664 c -0.68673,0.4848 -1.45425,0.7272 -2.30255,0.7272 -0.84831,0 -1.65624,-0.2424 -2.30256,-0.7272 l -19.7939,-10.8664 c -1.29268,-0.6867 -2.14098,-2.0198 -2.14098,-3.5548 v -21.2078 c 0,-1.535 0.8483,-2.8681 2.14098,-3.5548 l 19.7939,-9.8565 c 0.64633,-0.4848 1.45425,-0.7272 2.30256,-0.7272 0.8483,0 1.61582,0.2424 2.30255,0.7272 l 19.7939,9.8565 c 1.29268,0.6867 2.14099,2.0198 2.14099,3.5548 v 21.2078 m -24.23744,-26.6611 -11.95714,5.4533 11.95714,6.4634 11.95713,-6.4634 -11.95713,-5.4533 m -16.15831,24.2777 12.11873,6.5845 v -11.9571 l -12.11873,-6.5441 v 11.9167 m 32.31659,0 v -11.9167 l -12.11872,6.5441 v 11.9571 z"
+       id="path1-85"
+       style="stroke-width:4.03958"
+       transform="translate(88.11951,2430.9781)" /><path
+       id="rect4"
+       style="fill:#000000;fill-opacity:1;stroke-width:1.21237"
+       d="m 740.52068,-2308.4155 v 27.58 h 6.89584 v -9.1934 h 4.5949 c 3.67714,0 6.89583,-3.2169 6.89583,-6.8942 v -4.5965 c 0,-3.6771 -3.21869,-6.8959 -6.89583,-6.8959 z m 22.98321,0 v 27.58 h 11.49073 c 3.67716,0 6.89409,-3.2189 6.89409,-6.896 v -13.7881 c 0,-3.6771 -3.21693,-6.8959 -6.89409,-6.8959 z m 22.98145,0 v 27.58 h 6.89411 v -9.1934 h 6.89584 v -6.8942 h -6.89584 v -4.5965 h 6.89584 v -6.8959 z m -39.06882,6.8959 h 4.5949 v 4.5965 h -4.5949 z m 22.98146,0 h 4.59664 v 13.7881 h -4.59664 z"
+       transform="translate(88.11951,2430.9781)" /></g></svg>

@@ -1062,6 +1062,28 @@
                                 </Border>
                             </Popup>
                         </Grid>
+                        <Grid>
+                            <ToggleButton x:Name="p_io_menu_btn" Content="Import/Export"
+                                          Style="{StaticResource DropdownBtn}"
+                                          ToolTip="Take the parameter list out to a spreadsheet and bring edits back"/>
+                            <Popup x:Name="p_io_menu_popup"
+                                   PlacementTarget="{Binding ElementName=p_io_menu_btn}"
+                                   Placement="Bottom"
+                                   AllowsTransparency="True"
+                                   StaysOpen="False"
+                                   IsOpen="{Binding ElementName=p_io_menu_btn, Path=IsChecked}">
+                                <Border Style="{StaticResource MenuPanel}">
+                                    <StackPanel>
+                                            <Button x:Name="p_export_csv_btn" Content="Export to CSV..."
+                                                    Style="{StaticResource HamburgerMenuItem}"
+                                                    ToolTip="Write the rows on screen to a CSV that Excel opens"/>
+                                            <Button x:Name="p_import_csv_btn" Content="Import from CSV..."
+                                                    Style="{StaticResource HamburgerMenuItem}"
+                                                    ToolTip="Read an edited CSV back. Differences are staged as changes for you to check before Apply; empty cells leave a parameter as it is."/>
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+                        </Grid>
                         <Button x:Name="p_revert_btn" Content="Revert"
                                 Style="{StaticResource ToolBtn}"
                                 ToolTip="Throw away every change waiting to be applied and read the parameters from the model again"/>

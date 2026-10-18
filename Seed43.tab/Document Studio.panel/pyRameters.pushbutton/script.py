@@ -629,8 +629,9 @@ class SharedParamsWindow(forms.WPFWindow):
         doc = HOST_APP.doc
         if doc is not None:
             try:
-                self.params = params_tab.ParamsTab(self, doc, RenameWindow,
-                                                   type_label)
+                self.params = params_tab.ParamsTab(
+                    self, doc, RenameWindow, type_label,
+                    user_path(TOOL_NAME, "category_groups.json"))
             except Exception as ex:
                 self.set_status(u"Could not read the parameters of {0}: {1}"
                                 .format(doc.Title, ex))

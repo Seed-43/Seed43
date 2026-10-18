@@ -13,6 +13,8 @@
 # Target: IronPython 2 (pyRevit).
 # """
 
+import os
+
 from pyrevit import forms
 
 from System.Collections.Generic import List
@@ -22,9 +24,10 @@ from System.Windows import Visibility
 from System.Windows.Controls import ComboBox, GroupStyle
 from System.Windows.Data import ListCollectionView
 
-from Snippets._dialogs import choice, confirm, message
+from Snippets._dialogs import ask_string, choice, confirm, message, save_file_as
 
 import doc_params as dp
+import params_io as pio
 
 __all__ = ["ParamsTab"]
 
@@ -210,14 +213,16 @@ class ParamsTab(object):
     token_label     the Shared file tab's DATATYPE token -> label function,
                     used for parameters added from the file before they
                     exist in the model
+    groups_file     where saved category groups live (in .user)
     """
 
-    def __init__(self, window, doc, rename_dialog, token_label):
+    def __init__(self, window, doc, rename_dialog, token_label, groups_file):
         self.w = window
         self.doc = doc
         self.is_family = doc.IsFamilyDocument
         self.rename_dialog = rename_dialog
         self.token_label = token_label
+        self.category_groups = pio.CategoryGroups(groups_file)
         self.rows = []
         self._loading = False
         self._categories = {}       # id -> name
@@ -287,10 +292,12 @@ class ParamsTab(object):
             ("p_to_shared_btn", self.convert_to_shared),
             ("p_to_family_btn", self.convert_to_family),
             ("p_del_btn", self.delete), ("p_ctx_del_btn", self.delete),
+            ("p_export_csv_btn", self.export_csv),
+            ("p_import_csv_btn", self.import_csv),
         )
         for name, action in actions:
             w.FindName(name).Click += self._menu_action(action)
-        for toggle in (w.p_add_menu_btn, w.p_batch_menu_btn):
+        for toggle in (w.p_add_menu_btn, w.p_batch_menu_btn, w.p_io_menu_btn):
             toggle.PreviewMouseLeftButtonDown += self._dropdown_preview_down
 
     def _menu_action(self, action):
@@ -302,12 +309,15 @@ class ParamsTab(object):
     def close_menus(self):
         self.w.p_add_menu_btn.IsChecked = False
         self.w.p_batch_menu_btn.IsChecked = False
+        self.w.p_io_menu_btn.IsChecked = False
         self.w.p_row_menu_popup.IsOpen = False
 
     def _dropdown_preview_down(self, sender, args):
         """A re-click on an open dropdown only closes it, as the header menu."""
         if sender == self.w.p_add_menu_btn:
             popup = self.w.p_add_menu_popup
+        elif sender == self.w.p_io_menu_btn:
+            popup = self.w.p_io_menu_popup
         else:
             popup = self.w.p_batch_menu_popup
         if popup.IsOpen:
@@ -673,6 +683,68 @@ class ParamsTab(object):
                    u"moved to {0}".format(picked))
 
     def _pick_categories(self, current, count):
+        """Categories for count parameters. Returns a tuple of ids, or None.
+
+        Saved category groups are offered first when there are any. A set
+        picked by hand can then be saved as a group for next time.
+        """
+        names = self.category_groups.names()
+        if names:
+            by_hand = u"Pick categories..."
+            remove = u"Delete a saved group..."
+            labels = dict((u"Group: " + n, n) for n in names)
+            chosen = forms.SelectFromList.show(
+                [by_hand] + [u"Group: " + n for n in names] + [remove],
+                title=u"Categories for {0}".format(_plural(count, u"parameter")),
+                button_name=u"Next", multiselect=False)
+            if not chosen:
+                return None
+            if chosen == remove:
+                gone = forms.SelectFromList.show(
+                    names, title=u"Delete a saved group", button_name=u"Delete",
+                    multiselect=False)
+                if gone and confirm(u"Delete the category group {0}?".format(gone),
+                                    title=u"Category groups", yes=u"Delete"):
+                    self.category_groups.delete(gone)
+                return self._pick_categories(current, count)
+            if chosen in labels:
+                ids = tuple(sorted(i for i in self.category_groups.ids(labels[chosen])
+                                   if i in self._categories))
+                if not ids:
+                    message(u"None of that group's categories can take "
+                            u"parameters in this project.", title=u"Categories")
+                    return None
+                return ids
+        ids = self._tick_categories(current, count)
+        if ids and len(ids) > 1:
+            self._offer_to_save_group(ids)
+        return ids
+
+    def _offer_to_save_group(self, ids):
+        picked = choice(
+            u"Save these {0} as a group, to pick in one go next time?".format(
+                _plural(len(ids), u"category")),
+            [("no", u"Not now"), ("save", u"Save as group")],
+            title=u"Category groups")
+        if picked != "save":
+            return
+        name = (ask_string(u"Name for this group", title=u"Category groups")
+                or u"").strip()
+        if not name:
+            return
+        if name in self.category_groups.names() and not confirm(
+                u"Replace the saved group {0}?".format(name),
+                title=u"Category groups", yes=u"Replace"):
+            return
+        try:
+            self.category_groups.save(
+                name, ids, [self._categories.get(i, u"") for i in ids])
+            self.w.set_status(u"Saved the category group {0}.".format(name))
+        except Exception as ex:
+            message(u"The group was not saved.\n\n{0}".format(ex),
+                    title=u"Category groups")
+
+    def _tick_categories(self, current, count):
         """Tick-list of bindable categories. Returns a tuple of ids, or None."""
         items = []
         for cid, name in sorted(self._categories.items(),
@@ -798,6 +870,223 @@ class ParamsTab(object):
             return
         self.load()
 
+    # --- CSV ---
+
+    def export_csv(self, sender=None, args=None):
+        """Write the rows on screen to a CSV, as ParaManager's Excel export."""
+        rows = self.visible_rows()
+        if not rows:
+            self.w.set_status(u"Nothing on screen to export.")
+            return
+        path = save_file_as(u"Export parameters to CSV",
+                            u"{0} parameters.csv".format(self.doc.Title), "csv")
+        if not path:
+            return
+        out = []
+        for row in rows:
+            p = row.param
+            out.append({
+                u"Name": p.name, u"Kind": p.kind,
+                u"Discipline": self.discipline_for(p),
+                u"Type": self.spec_label_for(p),
+                u"Group under": dp.group_label(p.group),
+                u"Instance/Type": INSTANCE if p.is_instance else TYPE,
+                u"Value": p.value if self.is_family else u"",
+                u"Formula": p.formula if self.is_family else u"",
+                u"Categories": pio.CATEGORY_SEPARATOR.join(sorted(
+                    self._categories.get(i, u"") for i in p.categories)),
+                u"GUID": p.guid})
+        try:
+            pio.write_csv(path, out)
+        except Exception as ex:
+            message(u"The CSV was not written.\n\n{0}".format(ex),
+                    title=u"Export")
+            return
+        self.w.set_status(u"Exported {0} to {1}".format(
+            _plural(len(out), u"parameter"), path))
+
+    def import_csv(self, sender=None, args=None):
+        """Read an edited CSV back as staged changes, never straight in.
+
+        Rows match an existing parameter by GUID, then by name. What differs
+        is staged with the same checks as editing in the grid; a row that
+        matches nothing becomes a New parameter where the API allows one.
+        Empty cells leave a parameter as it is.
+        """
+        path = forms.pick_file(file_ext="csv",
+                               title="Import parameters from CSV")
+        if not path:
+            return
+        try:
+            records = pio.read_csv(path)
+        except Exception as ex:
+            message(u"Could not read that file.\n\n{0}".format(ex),
+                    title=u"Import")
+            return
+        if not records:
+            self.w.set_status(u"The CSV has no parameter rows.")
+            return
+        by_guid = dict((r.param.guid.lower(), r) for r in self.rows
+                       if r.param.guid)
+        by_name = dict((r.param.name.lower(), r) for r in self.rows)
+        groups = dict((o.Label.lower(), o.Token) for o in self._groups)
+        cats = dict((n.lower(), i) for i, n in self._categories.items())
+        updated, created, notes = [], [], []
+        added = set()
+        for rec in records:
+            guid = rec.get(u"GUID", u"").lower()
+            row = by_guid.get(guid) if guid else None
+            matched_by_guid = row is not None
+            if row is None:
+                row = by_name.get(rec[u"Name"].lower())
+            if row is not None:
+                if self._import_into(row, rec, groups, cats, notes,
+                                     matched_by_guid):
+                    updated.append(row)
+                continue
+            if rec[u"Name"].lower() in added:
+                notes.append(u"{0}: listed more than once; the first row "
+                             u"was used".format(rec[u"Name"]))
+                continue
+            param = self._import_new(rec, groups, cats, notes)
+            if param is not None:
+                created.append(param)
+                added.add(rec[u"Name"].lower())
+        if created:
+            self._add_rows(created)
+        else:
+            self.refresh_view()
+        self.refresh_title()
+        summary = u"{0}: {1} updated, {2} new.".format(
+            os.path.basename(path), len(updated), len(created))
+        if notes:
+            more = len(notes) - 15
+            message(summary + u"\n\nNot taken:\n" + u"\n".join(notes[:15])
+                    + (u"\n...and {0} more.".format(more) if more > 0 else u""),
+                    title=u"Import")
+        self.w.set_status(summary + u" Check the marked rows, then Apply.")
+
+    def _import_into(self, row, rec, groups, cats, notes, matched_by_guid):
+        """Stage what a CSV row changes on an existing parameter."""
+        p = row.param
+        before = dict((f, getattr(p, f)) for f in dp.DocParam.FIELDS)
+
+        def take(field, value, reason):
+            if reason:
+                notes.append(u"{0}: {1}".format(p.name, reason))
+            else:
+                setattr(p, field, value)
+
+        name = rec.get(u"Name", u"")
+        # Only a GUID match can mean a rename; a different name otherwise is
+        # simply a different parameter.
+        if matched_by_guid and name and name != p.name:
+            take("name", name, p.why_not_rename(self.is_family))
+        label = rec.get(u"Group under", u"")
+        if label:
+            token = groups.get(label.lower())
+            if token is None:
+                notes.append(u"{0}: no group called {1}".format(p.name, label))
+            elif token != p.group:
+                take("group", token, p.why_not_change())
+        mode = rec.get(u"Instance/Type", u"").lower()
+        if mode in (u"instance", u"type") and (mode == u"instance") != p.is_instance:
+            take("is_instance", mode == u"instance", p.why_not_change())
+        if self.is_family:
+            formula = rec.get(u"Formula", u"")
+            if formula and formula != p.formula:
+                take("formula", formula, p.why_not_formula(True))
+            value = rec.get(u"Value", u"")
+            if value and value != p.value and not p.formula:
+                take("value", value, p.why_not_value(True))
+        else:
+            text = rec.get(u"Categories", u"")
+            if text:
+                ids, unknown = self._category_ids(text, cats)
+                if unknown:
+                    notes.append(u"{0}: unknown categories {1}".format(
+                        p.name, u", ".join(unknown)))
+                if ids and ids != p.categories:
+                    take("categories", ids, p.why_not_categories(False))
+        changed = any(getattr(p, f) != before[f] for f in before)
+        if changed:
+            p.refresh_state()
+            row.notify_all()
+        return changed
+
+    def _import_new(self, rec, groups, cats, notes):
+        """A New DocParam for a CSV row nothing matched, or None and a note."""
+        name = rec[u"Name"]
+        guid = rec.get(u"GUID", u"")
+        group = groups.get(rec.get(u"Group under", u"").lower(),
+                           self._default_group())
+        mode = rec.get(u"Instance/Type", u"").lower()
+        is_instance = (mode == u"instance") if mode else not self.is_family
+        if guid:
+            data = self._file_param(guid)
+            if data is None:
+                notes.append(u"{0}: GUID {1} is not in the file open in the "
+                             u"Shared file tab".format(name, guid))
+                return None
+            categories = ()
+            if not self.is_family:
+                categories, unknown = self._category_ids(
+                    rec.get(u"Categories", u""), cats)
+                if not categories:
+                    notes.append(u"{0}: no categories to bind it to".format(name))
+                    return None
+            real_guid = data.get("GUID", u"").strip()
+            self._new_labels[real_guid] = self.token_label(
+                data.get("DATATYPE", u""))
+            return dp.DocParam(dp.KIND_SHARED, data.get("NAME", name),
+                               guid=real_guid, group=group,
+                               is_instance=is_instance, categories=categories,
+                               state=dp.NEW)
+        if not self.is_family:
+            notes.append(u"{0}: not in this project, and Revit cannot create a "
+                         u"non-shared project parameter. Give it a GUID from the "
+                         u"shared file.".format(name))
+            return None
+        spec = self._spec_from(rec.get(u"Type", u""), rec.get(u"Discipline", u""))
+        if spec is None:
+            notes.append(u"{0}: no data type called {1}".format(
+                name, rec.get(u"Type")))
+            return None
+        formula = rec.get(u"Formula", u"")
+        return dp.DocParam(dp.KIND_FAMILY, name, group=group, spec=spec,
+                           is_instance=is_instance, formula=formula,
+                           value=u"" if formula else rec.get(u"Value", u""),
+                           state=dp.NEW)
+
+    def _category_ids(self, text, cats):
+        """'Doors; Walls' -> (sorted ids, [names not found])."""
+        ids, unknown = set(), []
+        for part in text.split(u";"):
+            part = part.strip()
+            if not part:
+                continue
+            if part.lower() in cats:
+                ids.add(cats[part.lower()])
+            else:
+                unknown.append(part)
+        return tuple(sorted(ids)), unknown
+
+    def _spec_from(self, type_label, discipline):
+        """A data type label (and discipline, to tell twins apart) -> TypeId."""
+        if not type_label:
+            return dp.text_spec()
+        matches = [o for o in self._specs if o.Label.lower() == type_label.lower()]
+        if len(matches) > 1 and discipline:
+            narrowed = [o for o in matches if o.Group.lower() == discipline.lower()]
+            matches = narrowed or matches
+        return matches[0].Token if matches else None
+
+    def _file_param(self, guid):
+        for data in self.w.spf.params:
+            if (data.get("GUID") or u"").strip().lower() == guid.strip().lower():
+                return data
+        return None
+
     # --- apply ---
 
     def commit_edit(self):
@@ -846,9 +1135,17 @@ class ParamsTab(object):
                                        self.doc.Title),
                        title=u"Apply", yes=u"Apply"):
             return
+        # Rows staged by Import or Convert never passed the save check that
+        # Add makes, and Revit reads shared definitions from disk.
+        shared_file = self.w.spf.path
+        if any((r.param.state == dp.NEW and r.param.kind == dp.KIND_SHARED)
+               or r.param.convert_to == dp.KIND_SHARED for r in waiting):
+            shared_file = self.w.shared_file_on_disk()
+            if not shared_file:
+                return
         try:
             report = dp.apply_changes(self.doc, [r.param for r in self.rows],
-                                      shared_file=self.w.spf.path)
+                                      shared_file=shared_file)
         except Exception as ex:
             message(u"Nothing was changed.\n\n{0}".format(ex), title=u"Apply")
             return

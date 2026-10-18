@@ -51,6 +51,9 @@ ACCENT_SOURCES = [
 # Folder suffixes a bundle name can carry, stripped when matching an SVG.
 BUNDLE_SUFFIXES = ('.pushbutton', '.pulldown', '.stack', '.panel', '.tab')
 
+# Appended to a bundle folder to disable it in pyRevit without deleting it.
+OFF_SUFFIX = '.off'
+
 DEFAULT_LONG_EDGE = 96      # px on the longer side; the rest follows the aspect
 
 
@@ -377,15 +380,19 @@ def parse_svg(svg_text):
 def icon_targets(extension_dir):
     """{svg_path: [icon.png path, ...]} for every SVG matching a bundle folder.
 
-    One rule, no exceptions: a name maps to the bundle folder that matches it
+    One rule: a name maps to the bundle folder that matches it
     with the suffix stripped. The extension's own icon.png at the root has no
     SVG on purpose - it stays the fixed green branding rather than following
-    the accent."""
+    the accent.
+
+    An SVG whose only folder is switched off (Name.pushbutton.off) is skipped
+    without a note: the tool is disabled deliberately and keeps its SVG for
+    when it comes back, so it is not a mismatch worth reporting."""
     icons_dir = op.join(extension_dir, 'lib', 'icons')
     if not op.isdir(icons_dir):
         return {}, []
 
-    folders = {}
+    folders, switched_off = {}, set()
     for current, dirnames, _files in os.walk(extension_dir):
         # Prune dot-directories in place. .claude/worktrees holds whole copies
         # of this extension, and walking into them means a name can resolve to
@@ -393,10 +400,14 @@ def icon_targets(extension_dir):
         # never reads, with nothing to show that anything went wrong.
         dirnames[:] = [d for d in dirnames if not d.startswith('.')]
         for dirname in dirnames:
+            lowered = dirname.lower()
             for suffix in BUNDLE_SUFFIXES:
-                if dirname.lower().endswith(suffix):
+                if lowered.endswith(suffix):
                     key = dirname[:-len(suffix)].lower()
                     folders.setdefault(key, []).append(op.join(current, dirname))
+                    break
+                if lowered.endswith(suffix + OFF_SUFFIX):
+                    switched_off.add(dirname[:-len(suffix + OFF_SUFFIX)].lower())
                     break
 
     targets, unmatched = {}, []
@@ -407,7 +418,8 @@ def icon_targets(extension_dir):
         source = op.join(icons_dir, filename)
         matches = folders.get(name.lower()) or []
         if not matches:
-            unmatched.append(filename)
+            if name.lower() not in switched_off:
+                unmatched.append(filename)
             continue
         if len(matches) > 1:
             # Prefer one that already has an icon.png, then the shallowest -

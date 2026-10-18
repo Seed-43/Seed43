@@ -388,9 +388,6 @@
             <Setter Property="Margin" Value="0,2"/>
         </Style>
 
-        <Style x:Key="MenuDangerItem" TargetType="Button" BasedOn="{StaticResource HamburgerMenuItem}">
-            <Setter Property="Foreground" Value="{DynamicResource BrushDanger}"/>
-        </Style>
 
         <!-- Placeholder text over an empty search box. -->
         <Style x:Key="SearchHint" TargetType="TextBlock">
@@ -811,6 +808,68 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="MenuDangerItem" TargetType="Button" BasedOn="{StaticResource HamburgerMenuItem}">
+            <Setter Property="Foreground" Value="{DynamicResource BrushDanger}"/>
+        </Style>
+
+        <!-- Tabs, as pySheets': a button per tab, Tag="Active" on the open one. -->
+        <Style x:Key="MainTab" TargetType="Button">
+            <Setter Property="Background"      Value="{DynamicResource BrushCardBg}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="BorderBrush"     Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="1.5"/>
+            <Setter Property="FontSize"        Value="13"/>
+            <Setter Property="FontWeight"      Value="Normal"/>
+            <Setter Property="Opacity"         Value="0.7"/>
+            <Setter Property="Padding"         Value="24,8"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8,8,0,0"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Tag" Value="Active">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreen}"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                <Setter Property="Opacity" Value="1"/>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                    <Condition Property="Tag" Value=""/>
+                                </MultiTrigger.Conditions>
+                                <Setter Property="Opacity" Value="0.85"/>
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- The change marker in the Parameters grid's first column. -->
+        <Style x:Key="CellState" TargetType="TextBlock" BasedOn="{StaticResource CellText}">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding StateLabel}" Value="New">
+                    <Setter Property="Foreground" Value="{DynamicResource BrushPrimaryGreen}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StateLabel}" Value="Changed">
+                    <Setter Property="Foreground" Value="{DynamicResource BrushWarning}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StateLabel}" Value="Delete">
+                    <Setter Property="Foreground" Value="{DynamicResource BrushDanger}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <DockPanel>
@@ -903,6 +962,9 @@
                 <Button x:Name="close_btn" Content="Close"
                         Style="{StaticResource SecondaryBtn}"
                         Click="close_clicked"/>
+                <Button x:Name="apply_btn" Content="Apply"
+                        Style="{StaticResource PrimaryBtn}" Margin="10,0,0,0"
+                        ToolTip="Write every change waiting in the Parameters tab to the model, in one undoable step"/>
                 <Button x:Name="save_btn" Content="Save"
                         Style="{StaticResource PrimaryBtn}" Margin="10,0,0,0"
                         ToolTip="Write the file. The old copy goes to a _backups folder beside it first, and the new one is written to a temp file and moved into place, so an interrupted save cannot leave a half written parameter file."
@@ -916,6 +978,212 @@
                 Padding="{DynamicResource PaddingCard}"
                 Margin="20,12,20,12">
             <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
+                    <Button x:Name="tab_params_btn" Content="Parameters"
+                            Style="{StaticResource MainTab}" Tag="Active"
+                            ToolTip="The parameters of the model or family that is open"/>
+                    <Button x:Name="tab_shared_btn" Content="Shared file"
+                            Style="{StaticResource MainTab}" Tag="" Margin="4,0,0,0"
+                            ToolTip="Edit a shared parameter file"/>
+                </StackPanel>
+                <Rectangle DockPanel.Dock="Top" Height="2" Margin="0,0,0,12"
+                           Fill="{DynamicResource BrushPrimaryGreen}"/>
+                <Grid>
+                <!-- ── PARAMETERS TAB ─────────────────────────────────── -->
+                <!-- The open document's own parameters. Edits are staged and
+                     marked in the first column; nothing is written to the
+                     model until Apply. -->
+                <DockPanel x:Name="params_panel">
+                <Grid DockPanel.Dock="Top" Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <WrapPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Grid>
+                            <ToggleButton x:Name="p_add_menu_btn" Content="+  Add"
+                                          Style="{StaticResource DropdownBtn}"
+                                          ToolTip="Add parameters to this model or family"/>
+                            <Popup x:Name="p_add_menu_popup"
+                                   PlacementTarget="{Binding ElementName=p_add_menu_btn}"
+                                   Placement="Bottom"
+                                   AllowsTransparency="True"
+                                   StaysOpen="False"
+                                   IsOpen="{Binding ElementName=p_add_menu_btn, Path=IsChecked}">
+                                <Border Style="{StaticResource MenuPanel}">
+                                    <StackPanel>
+                                            <Button x:Name="p_add_shared_btn" Content="From the shared file..."
+                                                    Style="{StaticResource HamburgerMenuItem}"
+                                                    ToolTip="Pick parameters from the file open in the Shared file tab"/>
+                                            <Button x:Name="p_add_family_btn" Content="New family parameter"
+                                                    Style="{StaticResource HamburgerMenuItem}"
+                                                    ToolTip="A family parameter of your own, named and typed in the grid"/>
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <Button x:Name="p_rename_btn" Content="Rename"
+                                Style="{StaticResource ToolBtn}"
+                                ToolTip="Prefix, suffix or find and replace across the selected family parameters"/>
+                        <Grid>
+                            <ToggleButton x:Name="p_batch_menu_btn" Content="Batch actions"
+                                          Style="{StaticResource DropdownBtn}"
+                                          ToolTip="Act on every selected row at once"/>
+                            <Popup x:Name="p_batch_menu_popup"
+                                   PlacementTarget="{Binding ElementName=p_batch_menu_btn}"
+                                   Placement="Bottom"
+                                   AllowsTransparency="True"
+                                   StaysOpen="False"
+                                   IsOpen="{Binding ElementName=p_batch_menu_btn, Path=IsChecked}">
+                                <Border Style="{StaticResource MenuPanel}">
+                                    <StackPanel>
+                                            <Button x:Name="p_dup_btn" Content="Duplicate"
+                                                    Style="{StaticResource HamburgerMenuItem}"/>
+                                            <Button x:Name="p_instance_btn" Content="Make instance"
+                                                    Style="{StaticResource HamburgerMenuItem}"/>
+                                            <Button x:Name="p_typemode_btn" Content="Make type"
+                                                    Style="{StaticResource HamburgerMenuItem}"/>
+                                            <Button x:Name="p_group_btn" Content="Set group under..."
+                                                    Style="{StaticResource HamburgerMenuItem}"/>
+                                            <Button x:Name="p_cats_btn" Content="Categories..."
+                                                    Style="{StaticResource HamburgerMenuItem}"/>
+                                            <Rectangle Style="{StaticResource MenuSeparator}"/>
+                                            <Button x:Name="p_to_shared_btn" Content="Convert to shared..."
+                                                    Style="{StaticResource HamburgerMenuItem}"
+                                                    ToolTip="Replace a family parameter with a shared one from the file, keeping its values"/>
+                                            <Button x:Name="p_to_family_btn" Content="Convert to family"
+                                                    Style="{StaticResource HamburgerMenuItem}"
+                                                    ToolTip="Replace a shared parameter with a family parameter of the same name"/>
+                                            <Rectangle Style="{StaticResource MenuSeparator}"/>
+                                            <Button x:Name="p_del_btn" Content="Delete"
+                                                    Style="{StaticResource MenuDangerItem}"/>
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <Button x:Name="p_revert_btn" Content="Revert"
+                                Style="{StaticResource ToolBtn}"
+                                ToolTip="Throw away every change waiting to be applied and read the parameters from the model again"/>
+                    </WrapPanel>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                VerticalAlignment="Center" Margin="12,0,0,0">
+                        <ComboBox x:Name="p_filter_cb" Width="170"
+                                  Style="{StaticResource Combo}" Margin="0,0,8,0"
+                                  ToolTip="Show one kind of parameter, or only the changes waiting to be applied"/>
+                        <Grid Width="230">
+                            <TextBox x:Name="p_search_tb"
+                                     Style="{StaticResource TextField}"
+                                     ToolTip="Filter by name, group, data type or GUID"/>
+                            <TextBlock Text="Search">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource SearchHint}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Text, ElementName=p_search_tb}" Value="">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                        <Button x:Name="p_clear_btn" Content="&#10005;"
+                                Style="{StaticResource ToolBtn}" Margin="6,0,0,0"
+                                ToolTip="Clear the filters"/>
+                    </StackPanel>
+                </Grid>
+
+                <Grid>
+                    <Border Background="{StaticResource TblBg}"
+                            CornerRadius="6" ClipToBounds="True">
+                        <!-- Column order is mirrored by the P_COL_* constants in
+                             params_tab.py; the two move together. -->
+                        <DataGrid x:Name="p_grid">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="" Width="70" IsReadOnly="True"
+                                                    Binding="{Binding StateLabel}"
+                                                    ElementStyle="{StaticResource CellState}"/>
+                                <DataGridTextColumn Header="Parameter name" Width="2*"
+                                                    Binding="{Binding Name}"
+                                                    ElementStyle="{StaticResource CellText}"
+                                                    EditingElementStyle="{StaticResource CellEdit}"/>
+                                <DataGridTextColumn Header="Kind" Width="76" IsReadOnly="True"
+                                                    Binding="{Binding Kind}"
+                                                    ElementStyle="{StaticResource CellText}"/>
+                                <DataGridTextColumn Header="Discipline" Width="110" IsReadOnly="True"
+                                                    Binding="{Binding Discipline}"
+                                                    ElementStyle="{StaticResource CellText}"/>
+                                <DataGridComboBoxColumn x:Name="p_type_col"
+                                                        Header="Type of parameter" Width="170"
+                                                        SelectedValuePath="Token"
+                                                        DisplayMemberPath="Label"
+                                                        SelectedValueBinding="{Binding Spec}"
+                                                        ElementStyle="{StaticResource CellCombo}"
+                                                        EditingElementStyle="{StaticResource CellCombo}"/>
+                                <DataGridComboBoxColumn x:Name="p_group_col"
+                                                        Header="Group under" Width="160"
+                                                        SelectedValuePath="Token"
+                                                        DisplayMemberPath="Label"
+                                                        SelectedValueBinding="{Binding Group}"
+                                                        ElementStyle="{StaticResource CellCombo}"
+                                                        EditingElementStyle="{StaticResource CellCombo}"/>
+                                <DataGridComboBoxColumn x:Name="p_inst_col"
+                                                        Header="Instance/Type" Width="104"
+                                                        SelectedItemBinding="{Binding InstanceType}"
+                                                        ElementStyle="{StaticResource CellCombo}"
+                                                        EditingElementStyle="{StaticResource CellCombo}"/>
+                                <DataGridTextColumn x:Name="p_value_col"
+                                                    Header="Value" Width="1.2*"
+                                                    Binding="{Binding Value}"
+                                                    ElementStyle="{StaticResource CellText}"
+                                                    EditingElementStyle="{StaticResource CellEdit}"/>
+                                <DataGridTextColumn x:Name="p_formula_col"
+                                                    Header="Formula" Width="1.5*"
+                                                    Binding="{Binding Formula}"
+                                                    ElementStyle="{StaticResource CellText}"
+                                                    EditingElementStyle="{StaticResource CellEdit}"/>
+                                <DataGridTextColumn x:Name="p_cats_col"
+                                                    Header="Categories" Width="1.6*" IsReadOnly="True"
+                                                    Binding="{Binding CategoriesText}"
+                                                    ElementStyle="{StaticResource CellText}"/>
+                                <DataGridTextColumn Header="GUID" Width="250" IsReadOnly="True"
+                                                    Binding="{Binding Guid}"
+                                                    ElementStyle="{StaticResource CellText}"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
+
+                    <Popup x:Name="p_row_menu_popup"
+                           PlacementTarget="{Binding ElementName=p_grid}"
+                           Placement="MousePoint"
+                           AllowsTransparency="True"
+                           StaysOpen="False">
+                        <Border Style="{StaticResource MenuPanel}">
+                            <StackPanel>
+                                <Button x:Name="p_ctx_dup_btn" Content="Duplicate"
+                                        Style="{StaticResource HamburgerMenuItem}"/>
+                                <Button x:Name="p_ctx_rename_btn" Content="Rename..."
+                                        Style="{StaticResource HamburgerMenuItem}"/>
+                                <Button x:Name="p_ctx_instance_btn" Content="Make instance"
+                                        Style="{StaticResource HamburgerMenuItem}"/>
+                                <Button x:Name="p_ctx_typemode_btn" Content="Make type"
+                                        Style="{StaticResource HamburgerMenuItem}"/>
+                                <Button x:Name="p_ctx_group_btn" Content="Set group under..."
+                                        Style="{StaticResource HamburgerMenuItem}"/>
+                                <Button x:Name="p_ctx_cats_btn" Content="Categories..."
+                                        Style="{StaticResource HamburgerMenuItem}"/>
+                                <Rectangle Style="{StaticResource MenuSeparator}"/>
+                                <Button x:Name="p_ctx_del_btn" Content="Delete"
+                                        Style="{StaticResource MenuDangerItem}"/>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+                </Grid>
+                </DockPanel>
+
+                <!-- ── SHARED FILE TAB ────────────────────────────────── -->
+                <DockPanel x:Name="shared_panel" Visibility="Collapsed">
 
                 <!-- ── TOOLBAR ───────────────────────────────────────── -->
                 <!-- Two columns rather than two panels sharing one cell:
@@ -1125,6 +1393,8 @@
                             </StackPanel>
                         </Border>
                     </Popup>
+                </Grid>
+                </DockPanel>
                 </Grid>
             </DockPanel>
         </Border>

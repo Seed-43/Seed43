@@ -5,8 +5,17 @@ tooltip: >
 
   Description:
 
-  Edits a Revit shared parameter file as a table, the way a spreadsheet
-  would, without the file ever having to be opened by hand. Open any
+  Parameters in two tabs.
+
+  Parameters lists every parameter in the open model or family in one
+  grid. Add them from a shared file, or as new family parameters; rename,
+  switch instance and type, change the group, set categories, values and
+  formulas, convert between family and shared, or delete. Every change is
+  marked and waits until Apply, which writes them all in one transaction,
+  so Revit's Undo takes the whole batch back in one step.
+
+  Shared file edits a Revit shared parameter file as a table, the way a
+  spreadsheet would, without the file ever having to be opened by hand. Open any
   file or load the one Revit is currently pointed at, edit the cells,
   then add, duplicate, delete, rename or regroup whole selections at
   once.
@@ -27,8 +36,8 @@ tooltip: >
   parses into the right fields, and a value the tool does not recognise
   is left alone unless that cell is edited.
 
-  Nothing in the model is touched and no transaction is started. Undo
-  steps back through edits to the table.
+  The Shared file tab never touches the model and starts no transaction.
+  Its Undo steps back through edits to the table.
 
   __________________________________________________________________
 min_revit_ver: 2022

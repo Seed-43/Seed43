@@ -57,6 +57,7 @@ from System.Collections.Generic import List
 from System.ComponentModel import (GroupDescription, INotifyPropertyChanged,
                                    PropertyChangedEventArgs)
 from System.Windows.Controls import ComboBox, GroupStyle, TextBox
+from System.Windows import Visibility
 from System.Windows.Data import ListCollectionView
 from System.Windows.Input import Key, Keyboard, ModifierKeys
 from System.Windows.Threading import DispatcherPriority
@@ -76,6 +77,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.append(SCRIPT_DIR)
 
+import params_tab  # noqa: E402
 import sp_file  # noqa: E402
 
 
@@ -621,6 +623,23 @@ class SharedParamsWindow(forms.WPFWindow):
         else:
             self.new_file(confirm_first=False)
 
+        # The Parameters tab needs an open model or family. Opened from the
+        # zero-document screen there is none, and only the file tab works.
+        self.params = None
+        doc = HOST_APP.doc
+        if doc is not None:
+            try:
+                self.params = params_tab.ParamsTab(self, doc, RenameWindow,
+                                                   type_label)
+            except Exception as ex:
+                self.set_status(u"Could not read the parameters of {0}: {1}"
+                                .format(doc.Title, ex))
+        self.tab_params_btn.Click += lambda s, a: self.show_tab("params")
+        self.tab_shared_btn.Click += lambda s, a: self.show_tab("shared")
+        self.apply_btn.Click += self.apply_clicked
+        self.tab_params_btn.IsEnabled = self.params is not None
+        self.show_tab("params" if self.params else "shared")
+
     # --- the file ---
 
     def load_file(self, path):
@@ -688,6 +707,9 @@ class SharedParamsWindow(forms.WPFWindow):
         self.refresh_title()
 
     def refresh_title(self):
+        if getattr(self, "params", None) and \
+                self.params_panel.Visibility == Visibility.Visible:
+            return      # the Parameters tab owns the subtitle while shown
         path = self.spf.path
         star = u"  *" if self.dirty else u""
         self.subtitle_tb.Text = u"  |  " + (path or u"unsaved file") + star
@@ -1296,8 +1318,57 @@ class SharedParamsWindow(forms.WPFWindow):
         return picked == "discard"
 
     def close_clicked(self, sender, args):
-        if self.check_discard():
+        if self.check_discard() and self.check_discard_params():
             self.Close()
+
+    def check_discard_params(self):
+        """True when no parameter changes are waiting, or the user lets them go."""
+        waiting = self.params.pending() if self.params else []
+        if not waiting:
+            return True
+        return confirm(
+            u"{0} parameter change{1} waiting in the Parameters tab have not "
+            u"been applied. Close without applying?".format(
+                len(waiting), u"" if len(waiting) == 1 else u"s"),
+            title=u"Changes not applied", yes=u"Close")
+
+    # --- tabs ---
+
+    def show_tab(self, name):
+        on_params = name == "params" and self.params is not None
+        shown, hidden = Visibility.Visible, Visibility.Collapsed
+        self.params_panel.Visibility = shown if on_params else hidden
+        self.shared_panel.Visibility = hidden if on_params else shown
+        self.tab_params_btn.Tag = u"Active" if on_params else u""
+        self.tab_shared_btn.Tag = u"" if on_params else u"Active"
+        self.apply_btn.Visibility = shown if on_params else hidden
+        self.save_btn.Visibility = hidden if on_params else shown
+        if on_params:
+            self.params.refresh_title()
+        else:
+            self.refresh_title()
+
+    def apply_clicked(self, sender, args):
+        if self.params:
+            self.params.commit_edit()
+            self.params.apply()
+
+    def shared_file_on_disk(self):
+        """The shared file's path once it is saved, or None.
+
+        Revit reads shared definitions from the file on disk, so unsaved
+        edits in the Shared file tab would not be what gets added.
+        """
+        if self.spf.path and not self.dirty:
+            return self.spf.path
+        picked = choice(
+            u"Revit reads shared parameters from the file on disk, so the "
+            u"Shared file tab has to be saved first.",
+            [("cancel", u"Cancel"), ("save", u"Save")],
+            title=u"Save the shared file")
+        if picked != "save" or not self.write_file(self.spf.path):
+            return None
+        return self.spf.path
 
     # --- private helpers: toolbar menus ---
     def _init_toolbar_menus(self):

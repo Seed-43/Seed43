@@ -62,9 +62,11 @@ from System.Windows.Input import Key, Keyboard, ModifierKeys
 from System.Windows.Threading import DispatcherPriority
 
 from Snippets._dialogs import choice, confirm, message, save_file_as
+from Snippets._icons import make_icon, make_icon_with_label, set_header_icon
+from Snippets._support import github_issue_url, open_url, support_mailto
 from Snippets._userdata import user_path
 from Snippets.seed43_theme import (apply_seed43_dimensions,
-                                   apply_seed43_palette)
+                                   apply_seed43_palette, get_color)
 
 # The parse and write core is a sibling module rather than a lib/Snippets
 # entry: nothing else consumes it, and a single consumer does not belong in
@@ -80,6 +82,8 @@ import sp_file  # noqa: E402
 # ── CONSTANTS ───────────────────────────────────────────────────────────────
 
 TOOL_NAME = "Shared Params"
+ABOUT_URL = "https://seed43.org/"
+SUPPORT_URL = "https://buymeacoffee.com/seed43"
 GUIDE_FILE = user_path(TOOL_NAME, "guide_shown.json")
 LAST_FILE = user_path(TOOL_NAME, "last_file.txt")
 
@@ -589,6 +593,8 @@ class SharedParamsWindow(forms.WPFWindow):
         forms.WPFWindow.__init__(self, xaml_name)
         apply_seed43_palette(self, SCRIPT_DIR)
         apply_seed43_dimensions(self, SCRIPT_DIR)
+        set_header_icon(self, SCRIPT_DIR)
+        self._init_menu()
 
         self.spf = sp_file.SharedParameterFile()
         self.dirty = False
@@ -675,7 +681,7 @@ class SharedParamsWindow(forms.WPFWindow):
     def refresh_title(self):
         path = self.spf.path
         star = u"  *" if self.dirty else u""
-        self.subtitle_tb.Text = (path or u"unsaved file") + star
+        self.subtitle_tb.Text = u"  |  " + (path or u"unsaved file") + star
 
     def mark_dirty(self):
         if not self.dirty:
@@ -1283,6 +1289,59 @@ class SharedParamsWindow(forms.WPFWindow):
     def close_clicked(self, sender, args):
         if self.check_discard():
             self.Close()
+
+    # --- private helpers: hamburger menu ---
+    def _init_menu(self):
+        """The header menu, as in Batch Upgrade.
+
+        make_icon bakes its colour in, so the two vector icons are built here,
+        after the palette has been applied, rather than declared in the XAML.
+        """
+        text = get_color(SCRIPT_DIR, "text_primary", fallback="#F4FAFF")
+        self.settings_toggle_btn.Content = make_icon("menu", size=18,
+                                                     color=text)
+        self.issue_btn.Content = make_icon_with_label(
+            "github", u"Report an issue on GitHub", icon_size=14, color=text)
+        toggle = self.settings_toggle_btn
+        toggle.PreviewMouseLeftButtonDown += self._on_menu_preview_down
+        self.help_btn.Click += self._on_menu_help
+        self.issue_btn.Click += self._on_menu_issue
+        self.about_btn.Click += self._on_menu_about
+        self.support_btn.Click += self._on_menu_support
+
+    def _on_menu_preview_down(self, sender, args):
+        """Explicit close-on-reclick.
+
+        StaysOpen=False already closes the popup on any outside click,
+        including one on this toggle - and that same click's Click event
+        would flip IsChecked straight back to True, reopening it. Intercept
+        first so a re-click only ever closes.
+        """
+        if self.settings_popup.IsOpen:
+            self.settings_popup.IsOpen = False
+            self.settings_toggle_btn.IsChecked = False
+            args.Handled = True
+
+    def _open_url(self, url, title=""):
+        open_url(url, window=self,
+                 on_error=lambda msg: message(msg, title=title))
+
+    def _on_menu_help(self, sender, args):
+        self.settings_toggle_btn.IsChecked = False
+        self._open_url(support_mailto(TOOL_NAME, SCRIPT_DIR), title=u"Support")
+
+    def _on_menu_issue(self, sender, args):
+        self.settings_toggle_btn.IsChecked = False
+        self._open_url(github_issue_url(TOOL_NAME, SCRIPT_DIR),
+                       title=u"Report an issue")
+
+    def _on_menu_about(self, sender, args):
+        self.settings_toggle_btn.IsChecked = False
+        self._open_url(ABOUT_URL, title=u"About")
+
+    def _on_menu_support(self, sender, args):
+        self.settings_toggle_btn.IsChecked = False
+        self._open_url(SUPPORT_URL, title=u"Support")
 
 
 # ── ENTRY ───────────────────────────────────────────────────────────────────

@@ -18,31 +18,16 @@
     </shell:WindowChrome.WindowChrome>
 
     <Window.Resources>
-        <!-- Fallbacks only; seed43_theme injects the live palette after the
-             XAML has parsed. Every tool carries its own copy. -->
-        <SolidColorBrush x:Key="BrushWindowBg"            Color="#3B4553"/>
-        <SolidColorBrush x:Key="BrushCardBg"              Color="#2B3340"/>
-        <SolidColorBrush x:Key="BrushHeaderBg"            Color="#232933"/>
-        <SolidColorBrush x:Key="BrushPrimaryGreen"        Color="#208A3C"/>
-        <SolidColorBrush x:Key="BrushPrimaryGreenHover"   Color="#32934C"/>
-        <SolidColorBrush x:Key="BrushTextPrimary"         Color="#FFFFFF"/>
-        <SolidColorBrush x:Key="BrushTextMuted"           Color="#9CA3AF"/>
-        <SolidColorBrush x:Key="BrushInputBg"             Color="#1D1D20"/>
-        <SolidColorBrush x:Key="BrushBorderDefault"       Color="#208A3C"/>
-        <SolidColorBrush x:Key="BrushSecondaryBg"         Color="#48484B"/>
-        <SolidColorBrush x:Key="BrushSecondaryHover"      Color="#515155"/>
-        <SolidColorBrush x:Key="BrushSecondaryDisabledBg" Color="#2E2E32"/>
-        <SolidColorBrush x:Key="BrushSecondaryDisabledFg" Color="#77767B"/>
+        <!-- Every Brush*/Size*/CornerRadius*/Padding* key this window uses is
+             injected at open by seed43_theme.py from lib/Snippets/
+             seed43_palette.json - see the apply_seed43_palette() and
+             apply_seed43_dimensions() calls in script.py. There are
+             deliberately no local copies of those keys, as in Batch Upgrade,
+             the layout this window follows: a duplicate set only went stale
+             and made a failure render the wrong values instead of an obvious
+             problem. -->
         <SolidColorBrush x:Key="BrushWarning"             Color="#E5A50A"/>
 
-        <CornerRadius x:Key="CornerRadiusCard"     >8</CornerRadius>
-        <CornerRadius x:Key="CornerRadiusInput"    >6</CornerRadius>
-        <CornerRadius x:Key="CornerRadiusButton"   >10</CornerRadius>
-        <Thickness    x:Key="PaddingCard"          >18</Thickness>
-        <Thickness    x:Key="PaddingButtonPrimary" >15,7,15,7</Thickness>
-        <sys:Double   x:Key="FontSizeInput"        >12</sys:Double>
-        <sys:Double   x:Key="FontSizeFieldLabel"   >12</sys:Double>
-        <sys:Double   x:Key="FontSizeButton"       >12</sys:Double>
 
         <Style x:Key="Title" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
@@ -58,56 +43,109 @@
         </Style>
         <Style x:Key="Hint" TargetType="TextBlock">
             <Setter Property="Foreground"   Value="{DynamicResource BrushTextMuted}"/>
-            <Setter Property="FontSize"     Value="11"/>
+            <Setter Property="FontSize"     Value="{DynamicResource FontSizeBody}"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
         </Style>
-        <Style x:Key="Field" TargetType="TextBox">
+        <Style x:Key="PathBox" TargetType="TextBox">
             <Setter Property="Background"      Value="{DynamicResource BrushInputBg}"/>
-            <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
-            <Setter Property="CaretBrush"      Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextInput}"/>
             <Setter Property="BorderBrush"     Value="{DynamicResource BrushBorderDefault}"/>
-            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderThickness" Value="{DynamicResource BorderThicknessInput}"/>
             <Setter Property="FontSize"        Value="{DynamicResource FontSizeInput}"/>
-            <Setter Property="Padding"         Value="7,5"/>
-            <Setter Property="Margin"          Value="0,0,0,8"/>
+            <Setter Property="Padding"         Value="{DynamicResource PaddingInput}"/>
+            <Setter Property="Height"          Value="{DynamicResource HeightInput}"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="IsReadOnly"      Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="MainBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{DynamicResource CornerRadiusInput}">
+                            <!-- No Padding/Margin="{TemplateBinding Padding}" here.
+                                 WPF already applies TextBox.Padding to the element
+                                 named PART_ContentHost, so setting it again doubles
+                                 it - text clipped top and bottom. -->
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Focusable="False"
+                                          VerticalAlignment="Center"
+                                          HorizontalScrollBarVisibility="Hidden"
+                                          VerticalScrollBarVisibility="Hidden"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
-        <Style x:Key="GreenBtn" TargetType="Button">
+
+        <!-- PathBox is read-only by design; these fields are typed into. -->
+        <Style x:Key="TextField" TargetType="TextBox" BasedOn="{StaticResource PathBox}">
+            <Setter Property="IsReadOnly" Value="False"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource BrushTextInput}"/>
+        </Style>
+        <Style x:Key="PrimaryBtn" TargetType="Button">
             <Setter Property="Background"      Value="{DynamicResource BrushPrimaryGreen}"/>
             <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="FontWeight"      Value="SemiBold"/>
             <Setter Property="FontSize"        Value="{DynamicResource FontSizeButton}"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
             <Setter Property="Padding"         Value="{DynamicResource PaddingButtonPrimary}"/>
             <Setter Property="Cursor"          Value="Hand"/>
-            <Setter Property="Margin"          Value="8,0,0,0"/>
+            <Setter Property="MinWidth"        Value="130"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
                                 CornerRadius="{DynamicResource CornerRadiusButton}"
                                 Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background"
-                                        Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreenPressed}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Bd" Property="Background"
-                                        Value="{DynamicResource BrushSecondaryDisabledBg}"/>
-                                <Setter Property="Foreground"
-                                        Value="{DynamicResource BrushSecondaryDisabledFg}"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryDisabledBg}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource BrushSecondaryDisabledFg}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
-        <Style x:Key="GreyBtn" TargetType="Button" BasedOn="{StaticResource GreenBtn}">
+        <Style x:Key="SecondaryBtn" TargetType="Button" BasedOn="{StaticResource PrimaryBtn}">
             <Setter Property="Background" Value="{DynamicResource BrushSecondaryBg}"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+            <Setter Property="MinWidth"   Value="90"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="{DynamicResource CornerRadiusButton}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryPressed}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryDisabledBg}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource BrushSecondaryDisabledFg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 
@@ -133,25 +171,25 @@
                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Prefix"
                            Style="{StaticResource FieldLabel}" Margin="0,0,0,8"/>
                 <TextBox   Grid.Row="0" Grid.Column="1" x:Name="prefix_tb"
-                           Style="{StaticResource Field}"
+                           Style="{StaticResource TextField}"
                            TextChanged="preview_changed"/>
 
                 <TextBlock Grid.Row="1" Grid.Column="0" Text="Suffix"
                            Style="{StaticResource FieldLabel}" Margin="0,0,0,8"/>
                 <TextBox   Grid.Row="1" Grid.Column="1" x:Name="suffix_tb"
-                           Style="{StaticResource Field}"
+                           Style="{StaticResource TextField}"
                            TextChanged="preview_changed"/>
 
                 <TextBlock Grid.Row="2" Grid.Column="0" Text="Replace"
                            Style="{StaticResource FieldLabel}" Margin="0,0,0,8"/>
                 <TextBox   Grid.Row="2" Grid.Column="1" x:Name="find_tb"
-                           Style="{StaticResource Field}"
+                           Style="{StaticResource TextField}"
                            TextChanged="preview_changed"/>
 
                 <TextBlock Grid.Row="3" Grid.Column="0" Text="With"
                            Style="{StaticResource FieldLabel}" Margin="0,0,0,8"/>
                 <TextBox   Grid.Row="3" Grid.Column="1" x:Name="with_tb"
-                           Style="{StaticResource Field}"
+                           Style="{StaticResource TextField}"
                            TextChanged="preview_changed"/>
             </Grid>
 
@@ -173,9 +211,9 @@
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
                         Margin="0,16,0,0">
                 <Button x:Name="cancel_btn" Content="Cancel" Width="100"
-                        Style="{StaticResource GreyBtn}" Click="cancel_clicked"/>
+                        Style="{StaticResource SecondaryBtn}" Click="cancel_clicked"/>
                 <Button x:Name="ok_btn" Content="Rename" Width="120"
-                        Style="{StaticResource GreenBtn}" Click="ok_clicked"/>
+                        Style="{StaticResource PrimaryBtn}" Click="ok_clicked"/>
             </StackPanel>
         </StackPanel>
     </Border>

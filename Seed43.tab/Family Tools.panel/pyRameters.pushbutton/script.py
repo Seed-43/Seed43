@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# "Shared Params"
+# "pyRameters"
 # "Seed43"
 # """
 # Edit a Revit shared parameter file as a table.
@@ -64,7 +64,7 @@ from System.Windows.Threading import DispatcherPriority
 from Snippets._dialogs import choice, confirm, message, save_file_as
 from Snippets._icons import make_icon, make_icon_with_label, set_header_icon
 from Snippets._support import github_issue_url, open_url, support_mailto
-from Snippets._userdata import user_path
+from Snippets._userdata import migrate, user_path, user_root
 from Snippets.seed43_theme import (apply_seed43_dimensions,
                                    apply_seed43_palette, get_color)
 
@@ -81,16 +81,24 @@ import sp_file  # noqa: E402
 
 # ── CONSTANTS ───────────────────────────────────────────────────────────────
 
-TOOL_NAME = "Shared Params"
+TOOL_NAME = "pyRameters"
+# The name before October 2026. .user is keyed by tool name, so the two
+# files below are carried across from it once rather than forgotten.
+LEGACY_NAME = "Shared Params"
 ABOUT_URL = "https://seed43.org/"
 SUPPORT_URL = "https://buymeacoffee.com/seed43"
-GUIDE_FILE = user_path(TOOL_NAME, "guide_shown.json")
-LAST_FILE = user_path(TOOL_NAME, "last_file.txt")
+def _user_file(name):
+    return migrate(os.path.join(user_root(), LEGACY_NAME, name),
+                   user_path(TOOL_NAME, name))
+
+
+GUIDE_FILE = _user_file("guide_shown.json")
+LAST_FILE = _user_file("last_file.txt")
 
 UNDO_DEPTH = 40
 ALL_GROUPS = u"All groups"
 
-# Column positions in SharedParams.xaml. Resolving the columns by index
+# Column positions in pyRameters.xaml. Resolving the columns by index
 # rather than by x:Name keeps this working whatever the name scope does with
 # DataGridColumn, which is not part of the visual tree.
 COL_NAME = 0
@@ -115,7 +123,7 @@ BLANK_MEANS = {
 }
 
 GUIDE = (
-    u"Shared Params edits a Revit shared parameter file as a table.\n\n"
+    u"pyRameters edits a Revit shared parameter file as a table.\n\n"
     u"Open a file, or use Revit file to load the one Revit is currently "
     u"pointed at. Edit any cell in place. Select rows to add, duplicate, "
     u"delete, rename or move them between groups.\n\n"
@@ -618,11 +626,11 @@ class SharedParamsWindow(forms.WPFWindow):
         try:
             spf = sp_file.SharedParameterFile.load(path)
         except sp_file.ParseError as ex:
-            message(unicode(ex), title=u"Shared Params")
+            message(unicode(ex), title=TOOL_NAME)
             return False
         except Exception as ex:
             message(u"Could not read that file.\n\n{0}".format(ex),
-                    title=u"Shared Params")
+                    title=TOOL_NAME)
             return False
         self.spf = spf
         self.dirty = False
@@ -784,7 +792,7 @@ class SharedParamsWindow(forms.WPFWindow):
     def need_selection(self):
         rows = self.selected_rows()
         if not rows:
-            message(u"Select one or more rows first.", title=u"Shared Params")
+            message(u"Select one or more rows first.", title=TOOL_NAME)
             return None
         return rows
 
@@ -798,7 +806,7 @@ class SharedParamsWindow(forms.WPFWindow):
 
     def undo_clicked(self, sender, args):
         if not self.undo_stack:
-            message(u"Nothing to undo.", title=u"Shared Params")
+            message(u"Nothing to undo.", title=TOOL_NAME)
             return
         params, groups = self.undo_stack.pop()
         self.spf.params = params
@@ -827,7 +835,7 @@ class SharedParamsWindow(forms.WPFWindow):
             message(
                 u"Revit is not pointed at a shared parameter file, or the "
                 u"file it names is not there.\n\n{0}".format(path or u""),
-                title=u"Shared Params")
+                title=TOOL_NAME)
             return
         if not self.check_discard():
             return
@@ -849,11 +857,11 @@ class SharedParamsWindow(forms.WPFWindow):
     def set_revit_clicked(self, sender, args):
         if not self.spf.path:
             message(u"Save the file first, then Revit can be pointed at it.",
-                    title=u"Shared Params")
+                    title=TOOL_NAME)
             return
         if self.dirty and not confirm(
                 u"There are unsaved changes. Point Revit at the file as it "
-                u"is on disk anyway?", title=u"Shared Params", yes=u"Point"):
+                u"is on disk anyway?", title=TOOL_NAME, yes=u"Point"):
             return
         try:
             HOST_APP.app.SharedParametersFilename = self.spf.path
@@ -861,7 +869,7 @@ class SharedParamsWindow(forms.WPFWindow):
                             u"file.")
         except Exception as ex:
             message(u"Revit would not take that path.\n\n{0}".format(ex),
-                    title=u"Shared Params")
+                    title=TOOL_NAME)
 
     # --- row buttons ---
 
@@ -1023,7 +1031,7 @@ class SharedParamsWindow(forms.WPFWindow):
             return
         names = sorted(self._group_ids.keys())
         if not names:
-            message(u"The file has no groups yet.", title=u"Shared Params")
+            message(u"The file has no groups yet.", title=TOOL_NAME)
             return
         picked = forms.SelectFromList.show(
             names, title="Move to group", button_name="Move",
@@ -1350,7 +1358,7 @@ def first_run_guide():
     """Explain the tool once, then stay quiet about it."""
     if os.path.isfile(GUIDE_FILE):
         return
-    message(GUIDE, title=u"Shared Params")
+    message(GUIDE, title=TOOL_NAME)
     try:
         folder = os.path.dirname(GUIDE_FILE)
         if not os.path.isdir(folder):
@@ -1377,7 +1385,7 @@ def opening_path():
 
 def main():
     first_run_guide()
-    window = SharedParamsWindow("SharedParams.xaml", opening_path())
+    window = SharedParamsWindow("pyRameters.xaml", opening_path())
     window.ShowDialog()
 
 

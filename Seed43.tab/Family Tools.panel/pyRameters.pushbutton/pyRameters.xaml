@@ -10,7 +10,7 @@
         Height="860"
         MinWidth="1080"
         MinHeight="600"
-        Title="Shared Params"
+        Title="pyRameters"
         Background="{DynamicResource BrushWindowBg}">
 
     <shell:WindowChrome.WindowChrome>
@@ -752,9 +752,9 @@
                            Height="{DynamicResource SizeTopBarLogo}"
                            VerticalAlignment="Center"
                            Margin="0,0,10,0"/>
-                    <TextBlock Text="Shared" FontWeight="Bold" FontSize="22"
+                    <TextBlock Text="py" FontWeight="Bold" FontSize="22"
                                Foreground="{DynamicResource BrushPrimaryGreen}"/>
-                    <TextBlock Text="Params" FontWeight="Bold" FontSize="22"
+                    <TextBlock Text="Rameters" FontWeight="Bold" FontSize="22"
                                Foreground="{DynamicResource BrushTextPrimary}"/>
                     <TextBlock x:Name="subtitle_tb" FontSize="14"
                                Foreground="{DynamicResource BrushTextPrimary}"
@@ -793,7 +793,7 @@
                                             Style="{StaticResource HamburgerMenuItem}"/>
                                     <Rectangle Fill="{DynamicResource BrushSecondaryBg}" Height="1" Margin="0,2"/>
                                     <Button x:Name="about_btn"
-                                            Content="&#8505;  About Shared Params"
+                                            Content="&#8505;  About pyRameters"
                                             Style="{StaticResource HamburgerMenuItem}"/>
                                     <Rectangle Fill="{DynamicResource BrushSecondaryBg}" Height="1" Margin="0,2"/>
                                     <Button x:Name="support_btn"

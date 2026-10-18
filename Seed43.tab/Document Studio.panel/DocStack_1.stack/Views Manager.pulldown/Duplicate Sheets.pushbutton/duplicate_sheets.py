@@ -7,7 +7,8 @@
 #
 # When duplicating a sheet "with Views", each placed view is duplicated using
 # whichever view-duplication option you choose, and the duplicate is placed on
-# the new sheet in the same viewport position.
+# the new sheet with its model where the original's is, and the same rotation
+# and title position.
 
 import time
 
@@ -183,6 +184,44 @@ def duplicate_view(view, dup_option):
                 return view.Duplicate(fallback)
         return None
     return view.Duplicate(dup_option)
+
+
+def match_viewport(source, target):
+    """Make target sit on its sheet exactly as source does. Returns how.
+
+    Rotation and the title label first, since both change the box. Then the
+    position. A viewport's box takes in its annotations, so a duplicate made
+    without detailing - tags and dimensions left behind - has a smaller box
+    with a different centre, and matching box centres shifted the model
+    itself across the sheet (issue #4). From Revit 2023 the view's
+    projection-to-sheet transform lines up the model instead, whatever the
+    box does. Schedules and legends have no such transform, nor has 2022,
+    and fall back to the box centre.
+    """
+    try:
+        if target.Rotation != source.Rotation:
+            target.Rotation = source.Rotation
+    except Exception:
+        pass
+    for prop in ("LabelOffset", "LabelLineLength"):
+        try:
+            setattr(target, prop, getattr(source, prop))
+        except Exception:
+            pass
+    # Outlines and transforms only reflect those edits after a regenerate.
+    doc.Regenerate()
+    try:
+        if source.HasViewportTransforms() and target.HasViewportTransforms():
+            delta = (source.GetProjectionToSheetTransform().Origin
+                     - target.GetProjectionToSheetTransform().Origin)
+            if not delta.IsZeroLength():
+                DB.ElementTransformUtils.MoveElement(
+                    doc, target.Id, DB.XYZ(delta.X, delta.Y, 0))
+            return "model"
+    except Exception:
+        pass        # 2022 has no viewport transforms; anything else: the box
+    target.SetBoxCenter(source.GetBoxCenter())
+    return "box"
 
 
 def get_title_blocks(view_sheet):
@@ -481,19 +520,13 @@ try:
                             except Exception:
                                 pass
 
-                            # Place on new sheet then move to exact same position
+                            # Place on the new sheet, then line it up with the
+                            # original: see match_viewport for why not by box.
                             try:
                                 centre = vp.GetBoxCenter()
-                                print_debug("VP original GetBoxCenter: {:.1f}, {:.1f}, {:.1f}".format(
-                                    centre.X, centre.Y, centre.Z))
-
-                                # Create at origin
                                 new_vp = DB.Viewport.Create(
                                     doc, new_sheet.Id, new_view_id,
-                                    DB.XYZ(0, 0, 0))
-
-                                print_debug("new_vp created at 0,0 | id: {}".format(
-                                    eid_int(new_vp.Id)))
+                                    DB.XYZ(centre.X, centre.Y, 0))
 
                                 # Copy viewport type (title style) from original
                                 try:
@@ -501,11 +534,9 @@ try:
                                 except Exception:
                                     pass
 
-                                # Move viewport to match original position.
-                                DB.ElementTransformUtils.MoveElement(
-                                    doc, new_vp.Id, DB.XYZ(centre.X, centre.Y, 0))
-                                print_debug("MoveElement translation applied: {:.1f}, {:.1f}".format(
-                                    centre.X, centre.Y))
+                                how = match_viewport(vp, new_vp)
+                                print_debug("viewport {} aligned by {}".format(
+                                    eid_int(new_vp.Id), how))
 
                                 placed_count += 1
                                 new_element_ids.append(new_view_id)

@@ -2183,6 +2183,31 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             logger.debug('_check_row_status failed: {}'.format(ex))
             return 'pending'
 
+    def _warn_if_open_in_excel(self, path):
+        """Say so, once per workbook, when it is open in Excel.
+
+        pyLink reads the file as saved on disk. A named range added or a
+        print area moved in Excel and not yet saved is not in that file,
+        so a refresh rebuilt the old range and looked as if it did nothing
+        (issue #11). Excel marks an open workbook with a ~$ owner file
+        beside it; a long name can lose its first two characters to it.
+        """
+        warned = getattr(self, '_excel_open_warned', None)
+        if warned is None:
+            warned = self._excel_open_warned = set()
+        if not path or path in warned:
+            return
+        folder, name = os.path.split(path)
+        owners = (os.path.join(folder, u'~$' + name),
+                  os.path.join(folder, u'~$' + name[2:]))
+        if not any(os.path.isfile(o) for o in owners):
+            return
+        warned.add(path)
+        _alert(u'{0} is open in Excel.\n\npyLink reads the workbook as it '
+               u'was last saved, so save it in Excel first to pick up a new '
+               u'named range, a changed print area or edited cells.'.format(name),
+               title='pyLink')
+
     def _refresh_row_click(self, sender, e):
         """Re-apply a single stale (blue) row without touching others."""
         row = sender.Tag
@@ -2255,6 +2280,7 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                     except Exception:
                         pass
             else:
+                self._warn_if_open_in_excel(row.FilePath)
                 # A legend or drafting view shared by several rows is
                 # rebuilt as a unit - see _run_siblings. For everything
                 # else this is a run of one and behaves as it always did.

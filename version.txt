@@ -1,4 +1,4 @@
-26.08.16
+26.10.19
 
 _____________________________________________________________________
 Last update:
@@ -7,21 +7,23 @@ Last update:
   - Seed43 tools are under active development and provided as-is.
 
   New
-  - pyLink - links Excel and Word documents to Revit views (replaces PyTables)
-  - Isolate Levels - isolates everything tied to a chosen level
-  - Model Slice - section box to a thin slice at a level or grid
-  - pySheets - scheduled printing, arm a profile and it prints with the
-    window closed
-
-  User settings
-  - All tool settings moved to .user; updates no longer overwrite them
-  - Settings from renamed tools are carried across automatically
+  - pyRameters - the model's parameters and shared parameter files in
+    one place (replaces Shared Params)
+  - Connections and Connection Library - clone and reuse steel
+    connections
+  - Param Map, 3D PDF, Trim Column, Link Display, pyRename,
+    Rotate To Element, Bake All Caps, Reset Background Calcs
 
   General
-  - Shared palette now drives sizes as well as colours across all tools
-  - Toolbar icons recolour to the chosen accent
-  - Tooltips and UI tidied up throughout
+  - New 2D Tools panel; Family Tools moved into Document Studio
+  - More windows on the standard Seed43 layout, and more toolbar icons
+    follow the accent colour
 
   Updated
-  - pyTransmit, pyFilter, Find Element, About
+  - pySheets, pyTransmit, pyLink, Duplicate Sheets, View Placer, Filters
+
+  Fixes
+  - pyTransmit demo lists missing on new installs
+  - pyLink reading only Column A from some ranges
+  - Duplicate Sheets placing views offset on the new sheet
 _____________________________________________________________________

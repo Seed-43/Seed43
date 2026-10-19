@@ -6,9 +6,6 @@ re-import with a diff preview before anything is written back to the model.
 𝐒𝐄𝐄𝐃𝟒𝟑
 """
 
-__title__ = "pyTable"
-__author__ = "𝐒𝐄𝐄𝐃𝟒𝟑"
-__doc__ = "Export Revit parameters to Excel/ODS and import edits back with a preview step."
 
 import os
 import sys

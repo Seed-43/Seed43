@@ -183,7 +183,8 @@ if _rescaled:
 # The same reader the Studio canvas uses, so the preview and the workbook are
 # built from one description of the model rather than two.
 DATA = studio_live_data.get_live_data(
-    SETTINGS_DIR, group_params=_p.get('group_params') or [])
+    SETTINGS_DIR, group_params=_p.get('group_params') or [],
+    recipients=_p.get('recipients') or [])
 REVISIONS = DATA.get('revisions', []) or []
 DOCS = DATA.get('docs', []) or []
 DISTRIBUTION = DATA.get('distribution', []) or []
@@ -203,12 +204,10 @@ for _lbl, _val in (_p.get('meta_rows') or []):
     _k = _META_KEYS.get(str(_lbl).lower().strip())
     if _k and str(_val or '').strip():
         _meta_vals[_k] = _val
-if _meta_vals:
-    # Applied to every revision column, matching the Layout Builder writer.
-    # Worth knowing: these are the CURRENT issue's settings, so on a
-    # multi-revision transmittal they also overwrite older columns.
-    for _rev in REVISIONS:
-        _rev.update(_meta_vals)
+if _meta_vals and REVISIONS:
+    # The CURRENT issue's settings, so they apply to the newest revision
+    # column only. Older columns keep what their own IssuedTo recorded.
+    REVISIONS[-1].update(_meta_vals)
     _log('Issue metadata from the pyTransmit window: {}'.format(
         ', '.join(sorted(_meta_vals.keys()))))
 

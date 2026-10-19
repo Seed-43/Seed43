@@ -251,15 +251,21 @@ for i in range(MAX_REVS):
         raw_date = get_param(rev, "Revision Date") or str(rev.RevisionDate)
         ito = rev.IssuedTo or ""
         def _f(key, raw=ito):
-            m2 = re.search(r'\[' + key + r':([^\]]*)\]', raw)
+            # pyTransmit writes bare tags (R:BC M:E F:PDF S:A3); the old
+            # bracketed [R:BC] form is kept as a fallback.
+            m2 = (re.search(r'(?:^| )' + key + r':([^ |\]]+)', raw)
+                  or re.search(r'\[' + key + r':([^\]]*)\]', raw))
             return m2.group(1).strip() if m2 else ""
+        # The window's issue metadata belongs to the newest revision only;
+        # older columns keep what their own IssuedTo recorded.
+        _mv = _meta_vals if i == n_revs - 1 else {}
         rev_meta.append({
             'date':       raw_date,
-            'initials':   _meta_vals.get('initials') or (rev.IssuedBy or '').strip() or _f('I'),
-            'reason':     _meta_vals.get('reason')   or _f('R'),
-            'method':     _meta_vals.get('method')   or _f('M'),
-            'doc_format': _meta_vals.get('doc_format') or _f('F'),
-            'paper_size': _meta_vals.get('paper_size') or _f('P'),
+            'initials':   _mv.get('initials') or (rev.IssuedBy or '').strip() or _f('I'),
+            'reason':     _mv.get('reason')   or _f('R'),
+            'method':     _mv.get('method')   or _f('M'),
+            'doc_format': _mv.get('doc_format') or _f('F'),
+            'paper_size': _mv.get('paper_size') or _f('S') or _f('P'),
             'letter':     get_rev_mark(rev, sheet=_rev_sheet_lookup.get(rev.Id)),
         })
     else:

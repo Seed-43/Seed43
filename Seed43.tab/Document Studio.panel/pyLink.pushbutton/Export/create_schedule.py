@@ -67,6 +67,13 @@ PT_TO_FT = 1.0 / 864.0  # points -> feet  (72pt/in, 12in/ft = 864)
 # requiring taller rows to maintain the same visual padding as Excel.
 ROW_H_FACTOR = 1.1339
 
+# Excel's default text colour. Used when a cell's font states no colour
+# of its own, which is what most writers emit for ordinary black text -
+# openpyxl, for one, writes <font><b/><sz val="10"/><name val="Arial"/></font>
+# with no <color> child at all. Without this the override is skipped and
+# the schedule keeps whatever colour the Revit template already had.
+DEFAULT_TEXT_RGB = (0, 0, 0)
+
 # ---------------------------------------------------------------------------
 # Payload
 # ---------------------------------------------------------------------------
@@ -83,6 +90,10 @@ cell_styles = _p.get('cell_styles', {})   # {(r,c): style_dict}
 merges      = _p.get('merges',      [])   # [(r1,c1,r2,c2), ...]
 row_heights = _p.get('row_heights', {})   # {row_idx: pts}
 col_widths  = _p.get('col_widths',  {})   # {col_idx: mm}
+# Rows/cols whose size the user deliberately set in Excel. Those are
+# honoured exactly; everything else is autofitted to its text.
+custom_rows = set(_p.get('custom_rows', []))
+custom_cols = set(_p.get('custom_cols', []))
 DEFAULT_ROW_H_PT = _p.get('default_row_height', 14.0)
 
 # ---------------------------------------------------------------------------
@@ -392,17 +403,249 @@ if n_cols == 0:
     logger.error('create_schedule: no columns in data')
     raise Exception('No column data provided to create_schedule.py')
 
-# ── Column widths: Excel mm -> Revit feet ─────────────────────────────────────
+# ── Text sizes, then cell sizes ───────────────────────────────────────────────
+# Both have to be settled before the grid is built. The text height is
+# the user's own per-project answer (asked once per kind of row), and the
+# cells are then measured to fit that text rather than inheriting Excel's
+# geometry - a column sized for 10pt Arial is far too wide for 2mm Revit
+# text. Clearing the answers is the hamburger menu's "Schedule Text Size".
+from pylink_shared import (resolve_row_text_sizes, autofit_table,
+                           store_schedule_row_sizes, wrap_text_to_lines,
+                           CELL_LINE_BREAK)
+
+
+def _excel_row_font_pt(ri):
+    """The Excel point size a row was formatted at, or None."""
+    for (r, _c), style in cell_styles.items():
+        if r == ri and style.get('font_size'):
+            try:
+                return float(style['font_size'])
+            except (TypeError, ValueError):
+                continue
+    return None
+
+
+all_rows = [fields] + list(records)
+# Normally already resolved by the caller, which asks once per row kind
+# for every view type rather than only when a schedule is built. Falling
+# back keeps this script runnable on its own.
+row_size_mm = _p.get('row_size_mm') or {}
+row_size_mm = dict((int(k), float(v)) for k, v in row_size_mm.items())
+if not row_size_mm:
+    row_size_mm = resolve_row_text_sizes(doc, all_rows, cell_styles)
+logger.debug('row text sizes (mm): {}'.format(row_size_mm))
+# (the record is written once the row overrides below are known)
+
 default_col_w_ft = max(20.0, 190.0 / n_cols) / 304.8
 col_w_ft = {}
-for ci in range(n_cols):
-    w_mm = col_widths.get(ci)
-    col_w_ft[ci] = (w_mm / 304.8) if w_mm else default_col_w_ft
+row_h_ft = {}
+row_overrides_mm = {}   # row heights the spreadsheet asked for, kept for Reset
+try:
+    fit_cols, fit_rows = autofit_table(
+        all_rows, cell_styles, row_size_mm, n_cols,
+        merges=merges, default_font=font)
+    for ci in range(n_cols):
+        col_w_ft[ci] = fit_cols[ci] / 304.8
+    for ri in fit_rows:
+        row_h_ft[ri] = fit_rows[ri] / 304.8
+
+    # A size the user chose in Excel wins over the measured one.
+    for ci in custom_cols:
+        if ci in col_widths and 0 <= ci < n_cols:
+            col_w_ft[ci] = col_widths[ci] / 304.8
+
+    # Row heights are scaled by how much smaller the Revit text is than
+    # Excel's. A 70pt row drawn around 10pt Excel text is "twice the text
+    # height"; copied literally into a schedule whose text is half that,
+    # it leaves the band of white space above the labels that made the
+    # schedule look nothing like the spreadsheet. Scaling keeps the
+    # proportion the row was drawn with. It can never go below the
+    # measured fit, so the text still can't clip.
+    for ri in custom_rows:
+        if ri not in row_heights:
+            continue
+        scale = 1.0
+        excel_pt = _excel_row_font_pt(ri)
+        chosen_mm = row_size_mm.get(ri)
+        if excel_pt and chosen_mm:
+            excel_mm = excel_pt * 25.4 / 72.0
+            if excel_mm > 0:
+                scale = chosen_mm / excel_mm
+        scaled_ft = row_heights[ri] * PT_TO_FT * ROW_H_FACTOR * scale
+        row_h_ft[ri] = max(scaled_ft, fit_rows.get(ri, 0.0) / 304.8)
+        row_overrides_mm[ri] = row_h_ft[ri] * 304.8
+
+    logger.debug('autofit mm - cols: {} rows: {}'.format(fit_cols, fit_rows))
+    logger.debug('Excel overrides - cols: {} rows: {}'.format(
+        sorted(custom_cols), sorted(custom_rows)))
+except Exception as ex:
+    # Fall back to Excel's own geometry rather than failing the export.
+    logger.warning('autofit failed, using Excel sizes: {}'.format(ex))
+    for ci in range(n_cols):
+        w_mm = col_widths.get(ci)
+        col_w_ft[ci] = (w_mm / 304.8) if w_mm else default_col_w_ft
+
+# Cells the spreadsheet wrapped. Refit needs them because a Revit
+# TableCellStyle has no wrap flag to read back, and without them RESET
+# widens every merged heading until it fits on one line - which is what
+# made the schedule come out wider than the sheet, with the title and
+# "DETAILING CONSTANTS" each holding their columns open. Rotated labels
+# are left out: they can't wrap in a schedule at all.
+wrap_cells = set(rc for rc, st in cell_styles.items()
+                 if st.get('wrap') and not st.get('rotation'))
+
+# Rotated labels are wrapped too, but against the ROW HEIGHT rather than
+# the column width, because that is the direction they run in - which is
+# also how the spreadsheet decided to put "Thickness (ti)" on two lines
+# and "Depth (d)" on one.
+rot_wrap_cells = set(rc for rc, st in cell_styles.items()
+                     if st.get('wrap') and st.get('rotation'))
+
+# A Revit schedule cell does not reflow text to fit its column: it draws
+# one line and ellipsises whatever will not fit, no matter how tall the
+# row is - which is why "DESIGN CAPACITY" kept arriving as "DESIGN...".
+# The only line break it honours is one written into the text (the same
+# one Shift+Enter puts there by hand), so any cell the SPREADSHEET wrapped
+# is broken here before it is written, at the points the spreadsheet broke
+# it. The wrap is measured in Excel's own geometry - Excel's font size
+# across the Excel width of the columns the cell spans - so the schedule
+# reproduces the sheet line for line rather than approximating it.
+_span_of = {}
+for _r1, _c1, _r2, _c2 in merges:
+    _span_of[(_r1, _c1)] = list(range(_c1, _c2 + 1))
+
+_default_col_mm = 190.0 / max(1, n_cols)
+
+# Where the SPREADSHEET wrapped depends on the width the spreadsheet
+# had, not the width Revit will draw. col_widths is calibrated for
+# Revit and runs about 9% wide; using it here let the title slip in
+# under the limit on one line when Excel had already broken it in two.
+_wrap_col_mm = _p.get('col_widths_excel') or col_widths
+
+
+def _prewrapped(ri, ci, text):
+    """Cell text with the spreadsheet's own line breaks written in."""
+    rotated = (ri, ci) in rot_wrap_cells
+    if not rotated and (ri, ci) not in wrap_cells:
+        return text
+    text = u'' if text is None else unicode(text)
+    if not text.strip():
+        return text
+    st = cell_styles.get((ri, ci), {})
+    span = _span_of.get((ri, ci), [ci])
+    if rotated:
+        # Down the row, not across the columns. Excel states the height
+        # in points; a row it never sized is one line tall and cannot
+        # wrap, so leave it alone.
+        pts = row_heights.get(ri)
+        if not pts:
+            return text
+        available = pts * 25.4 / 72.0
+    else:
+        available = sum(_wrap_col_mm.get(c, _default_col_mm) for c in span)
+    # The same slack the sheet leaves inside a cell; without it a heading
+    # that exactly filled its columns in Excel gains a spurious line.
+    available -= 1.5
+    if available <= 0:
+        return text
+    size_mm = float(st.get('font_size', 10.0)) * 25.4 / 72.0
+    lines = wrap_text_to_lines(text, st.get('font_name', font), size_mm,
+                               available, st.get('bold'), st.get('italic'))
+    if len(lines) < 2:
+        return text
+    logger.debug('pre-wrapped ({},{}) into {} lines: {}'.format(
+        ri, ci, len(lines), ' | '.join(lines)))
+    return CELL_LINE_BREAK.join(lines)
+
+# Written down so Refit can size cells against the real text height
+# rather than reading it back off the finished schedule, and so "Reset
+# Cell Sizes" returns the schedule to exactly how this import left it.
+try:
+    store_schedule_row_sizes(doc, view_name, row_size_mm, row_overrides_mm,
+                             wrap_cells=wrap_cells)
+except Exception as ex:
+    logger.debug('store_schedule_row_sizes: {}'.format(ex))
 
 # ── Delete existing schedule with the same name ───────────────────────────────
 # Always recreate to avoid stale SectionData handle errors on update.
+# Before deleting, record any sheet placement(s) so the new schedule can be
+# dropped back in the same spot - CreateSchedule below always gets a NEW
+# ElementId, so without this the old ScheduleSheetInstance(s) vanish along
+# with the deleted view and any placement the user made is silently lost
+# on every reload. NOTE: untested against live Revit - the
+# ScheduleSheetInstance.Create signature and OwnerViewId/Point property
+# names below match the documented API but this needs a real Revit test,
+# same as other API-behaviour-dependent changes in this file.
+def _eid_value(eid):
+    """ElementId's integer, across the 2024 64-bit API change."""
+    try:
+        return eid.Value
+    except AttributeError:
+        return eid.IntegerValue
+
+
+def _capture_view_params(view):
+    """Project/shared parameter values set on the view, to survive the
+    delete-and-recreate below.
+
+    Only user-added parameters are captured: a built-in parameter has a
+    negative id, and re-applying those would fight Revit (the name, the
+    view template, the sheet it sits on). A project parameter the user
+    filled in - a drawing reference, a status, a revision code - is
+    theirs, and recreating the view silently emptied it every reload.
+    """
+    saved = []
+    for p in view.Parameters:
+        try:
+            if p.IsReadOnly or _eid_value(p.Id) < 0:
+                continue
+            storage = p.StorageType
+            if storage == DB.StorageType.String:
+                value = p.AsString()
+            elif storage == DB.StorageType.Integer:
+                value = p.AsInteger()
+            elif storage == DB.StorageType.Double:
+                value = p.AsDouble()
+            elif storage == DB.StorageType.ElementId:
+                value = p.AsElementId()
+            else:
+                continue
+            if value is None:
+                continue
+            saved.append((p.Definition.Name, value))
+        except Exception as _pex:
+            logger.debug('Could not read view parameter: {}'.format(_pex))
+    return saved
+
+
+def _restore_view_params(view, saved):
+    restored = 0
+    for name, value in saved:
+        try:
+            p = view.LookupParameter(name)
+            if p is None or p.IsReadOnly:
+                logger.debug('Parameter "{}" not on the new view'.format(name))
+                continue
+            p.Set(value)
+            restored += 1
+        except Exception as _pex:
+            logger.debug('Could not restore "{}": {}'.format(name, _pex))
+    return restored
+
+
+_saved_placements = []
+_saved_params = []
 for v in revit.query.get_elements_by_class(ViewSchedule, doc=doc):
     if v.Name == view_name:
+        for _inst in FilteredElementCollector(doc).OfClass(DB.ScheduleSheetInstance).ToElements():
+            try:
+                if _inst.ScheduleId == v.Id:
+                    _saved_placements.append((_inst.OwnerViewId, _inst.Point))
+            except Exception as _pe:
+                logger.debug('Could not read schedule placement: {}'.format(_pe))
+        _saved_params = _capture_view_params(v)
+        logger.debug('Captured {} view parameter(s) to restore'.format(
+            len(_saved_params)))
         try:
             doc.Delete(v.Id)
         except Exception as _de:
@@ -413,6 +656,18 @@ for v in revit.query.get_elements_by_class(ViewSchedule, doc=doc):
 sched     = ViewSchedule.CreateSchedule(doc, ElementId.InvalidElementId)
 sched.Name = view_name
 sched_def  = sched.Definition
+
+# Put the user's own parameter values back on the recreated view.
+if _saved_params:
+    logger.debug('Restored {}/{} view parameter(s)'.format(
+        _restore_view_params(sched, _saved_params), len(_saved_params)))
+
+# ── Restore sheet placement(s) recorded above ─────────────────────────────────
+for _sheet_id, _point in _saved_placements:
+    try:
+        DB.ScheduleSheetInstance.Create(doc, _sheet_id, sched.Id, _point)
+    except Exception as _re:
+        logger.error('Could not restore schedule placement on sheet: {}'.format(_re))
 
 # ── Assembly Code field + two impossible filters = body always empty ──────────
 FIELD_ID_ASM_CODE = -1002500
@@ -501,10 +756,17 @@ for ci in range(total_cols):
     except Exception as ex:
         logger.debug('SetColumnWidth({}): {}'.format(ci, ex))
 
-# ── Set row heights from Excel (points -> feet) ───────────────────────────────
+# ── Set row heights ───────────────────────────────────────────────────────────
+# Measured to fit the text (see autofit above); Excel's own row heights
+# are only used if the measurement failed. The ROW_H_FACTOR correction
+# belongs to the Excel path - an autofit height is already in real mm.
 for ri in range(total_rows):
-    excel_ht = row_heights.get(ri)
-    ht_ft = (excel_ht if excel_ht else DEFAULT_ROW_H_PT) * PT_TO_FT * ROW_H_FACTOR
+    if ri in row_h_ft:
+        ht_ft = row_h_ft[ri]
+    else:
+        excel_ht = row_heights.get(ri)
+        ht_ft = ((excel_ht if excel_ht else DEFAULT_ROW_H_PT)
+                 * PT_TO_FT * ROW_H_FACTOR)
     try:
         hdr.SetRowHeight(ri, ht_ft)
     except Exception as ex:
@@ -573,8 +835,7 @@ for _ri, _row in enumerate(_all_input):
         )
 
 # ── Fill cells: text + per-cell Excel styling ─────────────────────────────────
-all_rows = [fields] + list(records)
-
+# all_rows and row_size_mm were settled before the grid was sized.
 for ri, row_data in enumerate(all_rows):
     for ci, cell in enumerate(row_data):
         if ci >= n_cols:
@@ -583,38 +844,37 @@ for ri, row_data in enumerate(all_rows):
         cs = cell_styles.get((ri, ci), {})
 
         fn       = cs.get('font_name',  font)
-        # cell_styles stores font_size in points; convert to mm for _apply_style
-        # font_size in cell_styles is already in points (from Excel)
-        # Fallback uses size_hdr_mm/size_dat_mm converted to pt
-        fs_pt    = cs.get('font_size',
-                          size_hdr_mm * (72.0 / 25.4) if ri == 0
-                          else size_dat_mm * (72.0 / 25.4))
+        # Text height comes from the user's per-project answer, not from
+        # Excel: Excel points size text on a screen, not on a sheet at a
+        # plot scale, so importing them literally gives an unreadable
+        # schedule. Excel's own size still decides which rows share an
+        # answer - see row_style_signature in pylink_shared.
+        fs_pt    = row_size_mm.get(ri, size_dat_mm) * (72.0 / 25.4)
         bold     = cs.get('bold',   ri == 0)
         italic   = cs.get('italic', False)
         underline = cs.get('underline', False)
         halign   = cs.get('halign', 'Center' if ri == 0 else 'Left')
         valign   = cs.get('valign', 'Bottom')
         fill_rgb = cs.get('fill_rgb', (220, 220, 220) if ri == 0 else None)
-        fg_rgb   = cs.get('color_rgb', None)
-        # Rotation only matters on the header row - body data isn't rotated
-        rotation = _excel_rotation_to_revit(cs.get('rotation', 0)) if ri == 0 else 0
+        # Excel's own default text colour is black, but a font that never
+        # states one writes no <color> element at all, which arrives here
+        # as None. Treating that as "no override" leaves whatever colour
+        # the Revit schedule already had - which is how black Excel text
+        # came through red. Fall back to Excel's default instead.
+        fg_rgb   = cs.get('color_rgb', None) or DEFAULT_TEXT_RGB
+        rotation = _excel_rotation_to_revit(cs.get('rotation', 0))
 
-        _safe_text(hdr, ri, ci, cell)
-        # Data rows never get borders, regardless of what Excel's own
-        # per-cell formatting says - all visible content lives in this
-        # Header section (the Body is deliberately kept empty), and
-        # borders are only wanted on the header row itself. Only the
-        # header row (ri == 0) reads Excel's actual border formatting.
-        if ri == 0:
-            bt, bt_c = cs.get('border_top', ''),    cs.get('border_top_color', None)
-            bb, bb_c = cs.get('border_bottom', ''), cs.get('border_bottom_color', None)
-            bl, bl_c = cs.get('border_left', ''),   cs.get('border_left_color', None)
-            br, br_c = cs.get('border_right', ''),  cs.get('border_right_color', None)
-        else:
-            bt, bt_c = '', None
-            bb, bb_c = '', None
-            bl, bl_c = '', None
-            br, br_c = '', None
+        _safe_text(hdr, ri, ci, _prewrapped(ri, ci, cell))
+        # Borders and rotation are read from Excel on EVERY row, not just
+        # the first. A spreadsheet with a two-level header (a merged group
+        # row above the column labels) carries formatting on rows the old
+        # ri == 0 test discarded, so those rows lost their rules and any
+        # rotation. Rows Excel left unformatted still come back empty here,
+        # so plain sheets are unaffected.
+        bt, bt_c = cs.get('border_top', ''),    cs.get('border_top_color', None)
+        bb, bb_c = cs.get('border_bottom', ''), cs.get('border_bottom_color', None)
+        bl, bl_c = cs.get('border_left', ''),   cs.get('border_left_color', None)
+        br, br_c = cs.get('border_right', ''),  cs.get('border_right_color', None)
         _apply_style(
             hdr, ri, ci,
             bold=bold,
@@ -642,7 +902,10 @@ for r1, c1, r2, c2 in merges:
     c2 = min(c2, n_cols - 1)
     anchor_cs = cell_styles.get((r1, c1), {})
     anchor_bg = anchor_cs.get('fill_rgb', None)
-    anchor_fg = anchor_cs.get('color_rgb', None)
+    # Same Excel-default fallback as the main styling loop above, so a
+    # merged group header doesn't keep the template colour on the cells
+    # either side of its anchor.
+    anchor_fg = anchor_cs.get('color_rgb', None) or DEFAULT_TEXT_RGB
 
     for mr in range(r1, r2 + 1):
         for mc in range(c1, c2 + 1):
@@ -652,6 +915,30 @@ for r1, c1, r2, c2 in merges:
                 _force_bg(hdr, mr, mc, anchor_bg)
             if anchor_fg:
                 _force_fg(hdr, mr, mc, anchor_fg)
+
+# ── Final sizing: the same pass "Reset Cell Sizes" runs ──────────────────────
+# The cells are populated and styled by this point, so the schedule can be
+# sized by the very code the Batch menu's Reset uses. Running it here is
+# what makes an import and a Reset agree: they are the same pass, not two
+# implementations that have to be kept in step. The recorded text heights
+# are handed over so it doesn't have to infer them from the cells.
+try:
+    from pylink_shared import refit_schedule, REFIT_RESET
+    refit_schedule(doc, sched, mode=REFIT_RESET, row_size_mm=row_size_mm,
+                   wrap_cells=wrap_cells)
+
+    # The body section's single empty column was sized from the total
+    # width worked out BEFORE this refit. Left alone it holds the whole
+    # schedule open at the old width - the table looks correct but sits
+    # in a much wider frame with dead space to the right. Match it to
+    # what the header actually came out as.
+    _fitted_ft = sum(hdr.GetColumnWidth(_c)
+                     for _c in range(hdr.NumberOfColumns))
+    body.SetColumnWidth(0, _fitted_ft)
+    logger.debug('body column matched to header: {:.1f} mm'.format(
+        _fitted_ft * 304.8))
+except Exception as ex:
+    logger.warning('final refit failed, keeping autofit sizes: {}'.format(ex))
 
 logger.debug('create_schedule complete: "{}" {}r x {}c'.format(
     view_name, hdr.NumberOfRows, hdr.NumberOfColumns

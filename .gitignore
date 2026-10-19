@@ -31,3 +31,7 @@ Seed43.tab/temp/
 Seed43.tab/Seed43.panel/BreakTime.pushbutton/
 sync-start.bat
 sync-end.bat
+
+# Dim tools: in development, kept locally but never on the branch
+Seed43.tab/2D Tools.panel/Annotation.pulldown/Dim Override.pushbutton.off/
+Seed43.tab/2D Tools.panel/Annotation.pulldown/Dim Restore.pushbutton.off/

@@ -1016,6 +1016,17 @@
             </Style.Triggers>
         </Style>
 
+        <!-- Print queue rows: the row being exported lights up in the
+             selected-row green, so it is easy to follow down the list. -->
+        <Style x:Key="QueueRow" TargetType="DataGridRow" BasedOn="{StaticResource GridRow}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding status}" Value="Exporting">
+                    <Setter Property="Background" Value="{DynamicResource BrushSelectedRowBg}"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
         <!-- Revision badge template -->
         <DataTemplate x:Key="RevBadgeCell">
             <Border x:Name="Badge"
@@ -2052,7 +2063,28 @@
                                                      Content="Combine into single PDF"
                                                      IsChecked="False"
                                                      Foreground="{DynamicResource BrushTextPrimary}"
-                                                     Margin="0,0,0,14"/>
+                                                     Margin="0,0,0,6"/>
+                                        <!-- Issue set: every format, archives superseded
+                                             revisions; PDF also rebuilds a combined set
+                                             from the files on disk. See tools/issue_set.py -->
+                                        <DockPanel LastChildFill="True" Margin="0,0,0,14">
+                                            <Button Content="…"
+                                                    DockPanel.Dock="Right"
+                                                    Width="26" Height="24"
+                                                    Margin="4,0,0,0"
+                                                    Style="{StaticResource SmallSecBtn}"
+                                                    Padding="0"
+                                                    Click="issue_rules_clicked"
+                                                    ToolTip="Issue set rules: combined set order and how files are archived"/>
+                                            <RadioButton x:Name="file_issue_rb" GroupName="filegrp"
+                                                         Content="Issue set (archive old revisions)"
+                                                         IsChecked="False"
+                                                         VerticalAlignment="Center"
+                                                         Checked="file_issue_changed"
+                                                         Unchecked="file_issue_changed"
+                                                         Foreground="{DynamicResource BrushTextPrimary}"
+                                                         ToolTip="Every format: superseded revisions move to an Archived folder. PDF also rebuilds the combined set from the PDFs on disk."/>
+                                        </DockPanel>
                                         <TextBlock Text="COMBINED PDF NAME"
                                                    Style="{StaticResource SectionLabel}"
                                                    FontSize="13" FontWeight="Bold" Opacity="0.9"
@@ -2773,7 +2805,7 @@
                     <Border Grid.Row="1" CornerRadius="6" ClipToBounds="True">
                         <DataGrid x:Name="queue_dg"
                                   Style="{StaticResource SheetGrid}"
-                                  RowStyle="{StaticResource GridRow}"
+                                  RowStyle="{StaticResource QueueRow}"
                                   ColumnHeaderStyle="{StaticResource GridColHeader}"
                                   CellStyle="{StaticResource GridCell}"
                                   IsReadOnly="True">

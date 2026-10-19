@@ -1,0 +1,31 @@
+title: "Connections"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Clones a steel connection under a family and type name of your own.
+
+  Revit names its connection families after the algorithm, and that name is
+  read-only forever after: it cannot be renamed, and duplicating a type
+  keeps the family it came from. The only moment a family name can be set is
+  when the type is created, which is what Clone does.
+
+  Pick a connection, name the family and type you want, and Clone makes one
+  running the same algorithm. Names are suggested from the Type Mark where
+  the existing name already carries the split. The placed connections can be
+  moved onto the clone in the same run, in a separate transaction so a clone
+  that fails to take still leaves the model whole.
+
+  Only real connections are listed. Copes, mitres and saw cuts are
+  sub-connections that modify one member rather than joining two, and a
+  Generic Connection is an empty placeholder, so neither appears.
+
+  Note: a clone starts on the algorithm defaults. Plate sizes, bolts and
+  layouts live in the Advance Steel store, which the Revit API can neither
+  read nor write, so Modify Parameters does not carry across and has to be
+  set once by hand. Copying a type keeps those settings but cannot change
+  the family, so the two cannot be had together.
+
+  __________________________________________________________________

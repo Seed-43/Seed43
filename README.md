@@ -15,6 +15,9 @@
 | **pyLink** | Links Excel and Word documents to Revit views — named ranges and document sections become legends, schedules or drafting views built from real Revit data, not images. |
 | **pyTable** | Exports model categories and schedule parameters to Excel or LibreOffice Calc, edit them externally, then import the changes back into the model. |
 | **pyFilter** | Creates and manages View Filter templates, then pushes them onto views or view templates — or pulls existing filters back into a template. |
+| **pyRameters** | Manages parameters in two tabs: every parameter of the open model or family in one grid, with changes staged until Apply, and a table editor for shared parameter files. |
+| **Param Map** | Carries parameter values across when an updated family renamed them: pair the old and new family, their types, then the parameters, and swap. |
+| **Project Units** | Saves and restores all project unit settings via a JSON file, including accuracy, grouping, prefix, suffix and display options. |
 | **CAD Layer Manager** | Shows or hides individual CAD layers from the view you are working in, without digging through Visibility/Graphics. |
 | **Filter Manager** | Builds View Filters from a selected host or linked element by type or family, deletes filters with automatic backup, and restores them again. |
 | **Text Formatting** | Text Note tools — batch formatting and type changes, find and replace, matching alignment, properties or width, merging notes, and exploding them. |
@@ -35,12 +38,6 @@
 |------|-------------|
 | **Find Element** | Finds which sheet or sheets the selected elements are placed on. |
 | **Inspector** | Pick any element and get a full breakdown of what Revit knows about it — identity, type parameters, family info, location and geometry. |
-
-### Family Tools
-
-| Tool | Description |
-|------|-------------|
-| **Project Units** | Saves and restores all project unit settings via a JSON file, including accuracy, grouping, prefix, suffix and display options. |
 
 ---
 

@@ -1,0 +1,19 @@
+title: "pyRevit Update"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Updates pyRevit itself when it was installed with the Windows installer,
+  which pyRevit's own Update button cannot do. Checks GitHub for the latest
+  pyRevit release and compares it with the installed version. If a newer
+  one is out, Install downloads the installer in the background and checks
+  its size and digital signature. The installer opens by itself once every
+  Revit window is closed. Extensions and settings are kept. Each run also
+  removes old "pyRevit version X" entries left in the Windows apps list by
+  earlier installs over the same folder, since uninstalling one of those
+  would delete the current pyRevit. Seed43 itself is updated from the About
+  window, not here.
+
+  __________________________________________________________________

@@ -5,8 +5,6 @@
 # Studio is a browser tool that reads StruCad .bsw models and converts them
 # to IFC (among other formats), which is how a .bsw model gets into Revit.
 
-__title__  = "Studio"
-__author__ = "SEED43"
 
 import webbrowser
 

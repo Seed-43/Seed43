@@ -11,6 +11,10 @@ logger = script.get_logger()
 _sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from pylink_shared import _col_letter_to_index
 
+# Excel's hidden name for a sheet's print area, and how pyLink lists it.
+PRINT_AREA_NAME = '_xlnm.Print_Area'
+PRINT_AREA_LABEL = 'Print_Area'
+
 """
 pylink_xlsx.py -- xlsx-specific reading for pyLink: named ranges and
 sheet names, named-range cell values, and per-cell formatting (fonts,
@@ -79,10 +83,19 @@ def read_xlsx_named_ranges(file_path):
         for i in range(dn_nodes.Count):
             node = dn_nodes[i]
             name_attr = node.Attributes.GetNamedItem('name')
-            if not name_attr or name_attr.Value.startswith('_xlnm'):
+            if not name_attr:
                 continue
             name = name_attr.Value
-            named_ranges.append(name)
+            # Excel keeps a sheet's print area as the hidden name
+            # _xlnm.Print_Area. Offered as Print_Area, it lets "Set Print
+            # Area" pick the range; the other _xlnm names (filters, print
+            # titles) are not ranges anyone means to link.
+            if name == PRINT_AREA_NAME:
+                name = PRINT_AREA_LABEL
+            elif name.startswith('_xlnm'):
+                continue
+            if name not in named_ranges:
+                named_ranges.append(name)
 
             # Determine which sheet this range belongs to
             target_sheet = None
@@ -147,12 +160,14 @@ def read_xlsx_range_data(file_path, named_range, sheet_name):
             wb_xml = XmlDocument()
             wb_xml.LoadXml(z.read('xl/workbook.xml').decode('utf-8'))
 
-            range_ref = _resolve_named_range(wb_xml, named_range)
+            range_ref = _resolve_named_range(wb_xml, named_range,
+                                             sheet_name)
 
             # Determine target sheet
             target_sheet = sheet_name
-            if range_ref and '!' in range_ref:
-                target_sheet = range_ref.split('!')[0].strip("'")
+            area = _first_area(range_ref) if range_ref else ''
+            if '!' in area and '(' not in area:
+                target_sheet = area.split('!')[0].strip("'")
 
             # Find worksheet file
             sheet_file = _find_sheet_file(z, wb_xml, target_sheet, XmlDocument)
@@ -208,18 +223,50 @@ def _read_shared_strings(z, XmlDocument):
         shared_strings.append(text)
     return shared_strings
 
-def _resolve_named_range(wb_xml, named_range):
+def _sheet_names(wb_xml):
+    nodes = wb_xml.GetElementsByTagName('sheet')
+    if nodes.Count == 0:
+        nodes = wb_xml.GetElementsByTagName(
+            'sheet',
+            'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+        )
+    names = []
+    for i in range(nodes.Count):
+        a = nodes[i].Attributes.GetNamedItem('name')
+        names.append(a.Value if a else '')
+    return names
+
+
+def _resolve_named_range(wb_xml, named_range, sheet_name=None):
+    """The reference text behind a defined name.
+
+    A name can be defined once per sheet (localSheetId) as well as for the
+    whole workbook - every sheet's print area is - so the one scoped to
+    sheet_name wins, then the workbook-wide one, then any match at all.
+    Matching on the name alone returned whichever came first.
+    """
+    wanted = PRINT_AREA_NAME if named_range == PRINT_AREA_LABEL else named_range
     dn_nodes = wb_xml.GetElementsByTagName('definedName')
     if dn_nodes.Count == 0:
         dn_nodes = wb_xml.GetElementsByTagName(
             'definedName',
             'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
         )
+    sheets = _sheet_names(wb_xml)
+    index = sheets.index(sheet_name) if sheet_name in sheets else None
+    workbook_wide = any_match = None
     for i in range(dn_nodes.Count):
         attr = dn_nodes[i].Attributes.GetNamedItem('name')
-        if attr and attr.Value == named_range:
-            return dn_nodes[i].InnerText
-    return None
+        if not attr or attr.Value != wanted:
+            continue
+        text = dn_nodes[i].InnerText
+        local = dn_nodes[i].Attributes.GetNamedItem('localSheetId')
+        if local is None:
+            workbook_wide = workbook_wide or text
+        elif index is not None and local.Value == str(index):
+            return text
+        any_match = any_match or text
+    return workbook_wide or any_match
 
 def _find_sheet_file(z, wb_xml, sheet_name, XmlDocument):
     sheet_nodes = wb_xml.GetElementsByTagName('sheet')
@@ -255,23 +302,67 @@ def _find_sheet_file(z, wb_xml, sheet_name, XmlDocument):
         id_attr = rel_nodes[i].Attributes.GetNamedItem('Id')
         if id_attr and id_attr.Value == r_id:
             target = rel_nodes[i].Attributes.GetNamedItem('Target').Value
-            if not target.startswith('xl/'):
+            if target.startswith('/'):
+                # Package-absolute path (e.g. openpyxl writes
+                # "/xl/worksheets/sheet1.xml") - strip the leading
+                # slash so it matches the zip's own entry names.
+                target = target.lstrip('/')
+            elif not target.startswith('xl/'):
+                # Relative path from the workbook part's own folder
+                # (e.g. "worksheets/sheet1.xml")
                 target = 'xl/' + target
             return target
     return None
 
+def _first_area(ref):
+    """The first area of a reference: "S!$A$1:$B$5,S!$D$1" -> "S!$A$1:$B$5".
+
+    Commas inside quotes (sheet names) or brackets (formulas) do not split.
+    """
+    ref = ref.strip().lstrip('=')
+    depth, quoted = 0, False
+    for i, c in enumerate(ref):
+        if c == "'":
+            quoted = not quoted
+        elif not quoted and c == '(':
+            depth += 1
+        elif not quoted and c == ')':
+            depth -= 1
+        elif not quoted and depth == 0 and c == ',':
+            return ref[:i]
+    return ref
+
+
 def _parse_range_bounds(range_ref):
+    """(min_col, min_row, max_col, max_row), 0-based; None means open-ended.
+
+    Handles A1:F20, a single cell, whole columns (A:F), whole rows (1:20)
+    and the first area of a multi-area name, as the print area often is.
+    A name defined by a formula (OFFSET, INDEX) has no fixed address to
+    read here, so it is read open-ended. These used to fail the A1 pattern
+    and fall back to open-ended silently, and with the old per-row widths
+    a sheet whose first row was a title came out as Column A alone.
+    """
     try:
         if not range_ref:
             return 0, 0, None, None
-        ref = range_ref.split('!')[-1].replace('$', '')
+        area = _first_area(range_ref)
+        if '(' in area:
+            return 0, 0, None, None
+        ref = area.split('!')[-1].replace('$', '').strip()
         start, end = (ref.split(':') + [ref])[:2]
-        m1 = re.match(r'([A-Za-z]+)(\d+)', start)
-        m2 = re.match(r'([A-Za-z]+)(\d+)', end)
-        return (
-            _col_letter_to_index(m1.group(1)), int(m1.group(2)) - 1,
-            _col_letter_to_index(m2.group(1)), int(m2.group(2)) - 1
-        )
+
+        def cell(text):
+            m = re.match(r'^([A-Za-z]*)(\d*)$', text.strip())
+            if not m or not (m.group(1) or m.group(2)):
+                raise ValueError(text)
+            col = _col_letter_to_index(m.group(1)) if m.group(1) else None
+            row = int(m.group(2)) - 1 if m.group(2) else None
+            return col, row
+
+        c1, r1 = cell(start)
+        c2, r2 = cell(end)
+        return (c1 or 0, r1 or 0, c2, r2)
     except Exception:
         return 0, 0, None, None
 
@@ -301,14 +392,28 @@ def read_xlsx_range_formatting(file_path, named_range, sheet_name):
         'merges': [(row_start, col_start, row_end, col_end), ...],
         'row_heights': {row_idx: float},  # in points
         'col_widths': {col_idx: float},   # in mm
+        'custom_rows': [row_idx, ...],    # heights the user set deliberately
+        'custom_cols': [col_idx, ...],    # widths the user set deliberately
     }
     Row/col indices are relative to the named range (0-based).
+
+    custom_rows/custom_cols come from OOXML's customHeight/customWidth
+    flags, which Excel sets when a size is chosen rather than computed.
+    They matter because col_widths is filled in for every column whether
+    or not anyone chose it, so the value alone can't say whether a size
+    was meant. A consumer that sizes cells itself can use these to tell
+    "the user wants exactly this" from "this is just Excel's default".
     """
     result = {
         'cell_styles': {},
         'merges':      [],
         'row_heights': {},
         'col_widths':  {},
+        # The same columns in Excel's own geometry, for deciding where
+        # text wrapped in the sheet - see the MDW comment below.
+        'col_widths_excel': {},
+        'custom_rows': [],
+        'custom_cols': [],
     }
 
     try:
@@ -404,11 +509,13 @@ def read_xlsx_range_formatting(file_path, named_range, sheet_name):
             # --- workbook for range ref ---
             wb_xml = XmlDocument()
             wb_xml.LoadXml(z.read('xl/workbook.xml').decode('utf-8'))
-            range_ref = _resolve_named_range(wb_xml, named_range)
+            range_ref = _resolve_named_range(wb_xml, named_range,
+                                             sheet_name)
 
             target_sheet = sheet_name
-            if range_ref and '!' in range_ref:
-                target_sheet = range_ref.split('!')[0].strip("'")
+            area = _first_area(range_ref) if range_ref else ''
+            if '!' in area and '(' not in area:
+                target_sheet = area.split('!')[0].strip("'")
 
             sheet_file = _find_sheet_file(z, wb_xml, target_sheet, XmlDocument)
             if not sheet_file or sheet_file not in names:
@@ -457,6 +564,9 @@ def read_xlsx_range_formatting(file_path, named_range, sheet_name):
                     result['row_heights'][rel_row] = float(ht_attr.Value)
                 except Exception:
                     pass
+            ch_attr = row_nodes[i].Attributes.GetNamedItem('customHeight')
+            if ch_attr and ch_attr.Value in ('1', 'true'):
+                result['custom_rows'].append(rel_row)
 
         # --- parse cell styles ---
         row_nodes2 = ws_xml.GetElementsByTagName('row')
@@ -568,14 +678,32 @@ def read_xlsx_range_formatting(file_path, named_range, sheet_name):
         else:
             _col_mdw = 7.6   # Calibri, Arial and others (approx)
 
+        # Excel's REAL max digit width, uncalibrated - the values at the
+        # top of this comment rather than the ones nudged for Revit.
+        # Both are needed and they are not interchangeable: the
+        # calibrated width says how wide to draw the column in Revit,
+        # this one says how much room the text had in the SPREADSHEET,
+        # which is what decides where a wrapped heading breaks. Using
+        # the calibrated width for that made every column read ~9% wider
+        # than it really was, and a title that wraps in Excel came
+        # through on one line.
+        if 'aptos' in _default_font_name:
+            _col_mdw_excel = 7.41
+        elif 'calibri light' in _default_font_name:
+            _col_mdw_excel = 6.8
+        else:
+            _col_mdw_excel = 7.0
+
         # Read explicit column widths for cols in range
         col_nodes = ws_xml.GetElementsByTagName('col')
         for i in range(col_nodes.Count):
             mn_attr = col_nodes[i].Attributes.GetNamedItem('min')
             mx_attr = col_nodes[i].Attributes.GetNamedItem('max')
             w_attr  = col_nodes[i].Attributes.GetNamedItem('width')
+            cw_attr = col_nodes[i].Attributes.GetNamedItem('customWidth')
             if not mn_attr or not w_attr:
                 continue
+            is_custom = bool(cw_attr and cw_attr.Value in ('1', 'true'))
             try:
                 mn = int(mn_attr.Value) - 1  # 0-based
                 mx = int(mx_attr.Value) - 1 if mx_attr else mn
@@ -587,6 +715,11 @@ def read_xlsx_range_formatting(file_path, named_range, sheet_name):
                         # MDW=7.41 for Aptos Narrow, 7.0 for Calibri/Arial
                         _px = int((w_ch * _col_mdw + 5) / _col_mdw * 256) / 256.0 * _col_mdw
                         result['col_widths'][rel_ci] = _px * 25.4 / 96.0
+                        _pxe = (int((w_ch * _col_mdw_excel + 5) / _col_mdw_excel * 256)
+                                / 256.0 * _col_mdw_excel)
+                        result['col_widths_excel'][rel_ci] = _pxe * 25.4 / 96.0
+                        if is_custom and rel_ci not in result['custom_cols']:
+                            result['custom_cols'].append(rel_ci)
             except Exception:
                 pass
 
@@ -596,6 +729,10 @@ def read_xlsx_range_formatting(file_path, named_range, sheet_name):
             if ci not in result['col_widths']:
                 _px = int((default_col_w_ch * _col_mdw + 5) / _col_mdw * 256) / 256.0 * _col_mdw
                 result['col_widths'][ci] = _px * 25.4 / 96.0
+            if ci not in result['col_widths_excel']:
+                _pxe = (int((default_col_w_ch * _col_mdw_excel + 5) / _col_mdw_excel * 256)
+                        / 256.0 * _col_mdw_excel)
+                result['col_widths_excel'][ci] = _pxe * 25.4 / 96.0
 
     except Exception as e:
         logger.error('read_xlsx_range_formatting failed: {}'.format(e))
@@ -1094,7 +1231,7 @@ def _extract_rows(ws_xml, shared_strings,
             'row',
             'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
         )
-    result = []
+    collected = []
     for ri in range(row_nodes.Count):
         row_node = row_nodes[ri]
         r_attr = row_node.Attributes.GetNamedItem('r')
@@ -1129,6 +1266,32 @@ def _extract_rows(ws_xml, shared_strings,
                 continue
 
             t_attr = cell.Attributes.GetNamedItem('t')
+
+            # Inline strings (<is><t>text</t></is>) have no <v> child
+            # at all - openpyxl writes text cells this way rather than
+            # via a shared-strings table, so this must be checked
+            # before falling through to the <v>-only path below.
+            if t_attr and t_attr.Value == 'inlineStr':
+                is_nodes = cell.GetElementsByTagName('is')
+                if is_nodes.Count == 0:
+                    is_nodes = cell.GetElementsByTagName(
+                        'is',
+                        'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+                    )
+                if is_nodes.Count > 0:
+                    t_nodes = is_nodes[0].GetElementsByTagName('t')
+                    if t_nodes.Count == 0:
+                        t_nodes = is_nodes[0].GetElementsByTagName(
+                            't',
+                            'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+                        )
+                    col_vals[col_idx] = ''.join(
+                        t_nodes[j].InnerText for j in range(t_nodes.Count)
+                    )
+                else:
+                    col_vals[col_idx] = ''
+                continue
+
             v_nodes = cell.GetElementsByTagName('v')
             if v_nodes.Count == 0:
                 v_nodes = cell.GetElementsByTagName(
@@ -1151,14 +1314,14 @@ def _extract_rows(ws_xml, shared_strings,
 
         if not col_vals:
             continue
+        collected.append(col_vals)
 
-        end_col = (
-            max_col if max_col is not None
-            else max(col_vals.keys())
-        )
-        result.append([
-            col_vals.get(c, '')
-            for c in range(min_col, end_col + 1)
-        ])
-
-    return result
+    if not collected:
+        return []
+    # Every row the same width. Without a right-hand edge each row used to
+    # end at its own last cell, and the table takes its column count from
+    # the first row - so a one-cell title row cut the table to Column A.
+    end_col = (max_col if max_col is not None
+               else max(max(vals.keys()) for vals in collected))
+    return [[vals.get(c, '') for c in range(min_col, end_col + 1)]
+            for vals in collected]

@@ -1,0 +1,20 @@
+title: "pyRename"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Batch renames sheet numbers and sheet names together, with a live preview
+  of the whole set before anything is written. Select sheets in the Project
+  Browser first or pick them from the list, set a rule for each field -
+  find and replace, or a template using [N] for number, [NAME] for name and
+  [#] [##] [###] for a counter - then check the preview and click Rename.
+  Duplicate numbers, numbers already used elsewhere, and characters Revit
+  rejects are flagged before anything runs. Shifting a whole block of
+  numbers up or down is safe, and if any sheet fails the whole rename rolls
+  back.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

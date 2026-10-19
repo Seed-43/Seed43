@@ -1,0 +1,13 @@
+title: "Project Folder"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Opens the folder the project is saved in, in Windows Explorer. For a
+  workshared model it opens the central model's folder rather than your
+  local copy. A cloud model or one not yet saved has no local folder, and
+  says so instead.
+
+  __________________________________________________________________

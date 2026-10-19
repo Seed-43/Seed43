@@ -1,0 +1,16 @@
+title: "Connection"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Tools for steel connections. Connections clones a connection type under
+  a family and type name of your own, which Revit only allows at creation.
+  Connection Library keeps connections in a shared Revit file, so one set
+  up once, plates and bolts included, can be saved and loaded on every job.
+
+  __________________________________________________________________
+layout:
+  - Connections
+  - Connection Library

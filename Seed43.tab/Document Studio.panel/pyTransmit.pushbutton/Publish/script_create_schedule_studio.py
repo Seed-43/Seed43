@@ -136,7 +136,8 @@ _log('Studio layout: {} ({}x{})'.format(
 # The same reader the Studio canvas uses, so the preview and the schedule are
 # built from one description of the model rather than two.
 DATA = studio_live_data.get_live_data(
-    SETTINGS_DIR, group_params=_p.get('group_params') or [])
+    SETTINGS_DIR, group_params=_p.get('group_params') or [],
+    recipients=_p.get('recipients') or [])
 SL = studio_publish.StudioLayout(LAYOUT, DATA, _p, log=_log)
 
 N_COLS = SL.n_cols

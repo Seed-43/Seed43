@@ -474,6 +474,14 @@ class StudioSettingsWindow(WPFWindow):
         self._last_state = None
         self._restoring = False
 
+        # Excel behaviour: the text box open over a cell while typing in it,
+        # and Studio's own clipboard (blocks keep their formatting; the text
+        # also goes on the Windows clipboard).
+        self._cell_editor = None
+        self._edit_mode = 'edit'
+        self._clip = None
+        self._clip_text = None
+
         self._build_blocks_panel()
         self._wire_ribbon_tabs()
         self._wire_home_ribbon()
@@ -490,6 +498,13 @@ class StudioSettingsWindow(WPFWindow):
         self.AllowDrop = True
         self.DragOver += self._window_drag_over
         self.KeyDown += self._on_window_key_down
+        self.PreviewKeyDown += self._on_window_preview_key
+        self.PreviewTextInput += self._on_window_text_input
+        # The cell pane takes keyboard focus when a cell is clicked, so the
+        # arrow keys always reach the grid rather than whichever ribbon
+        # control was used last. No dotted focus rectangle round it.
+        self.grid_scroll.Focusable = True
+        self.grid_scroll.FocusVisualStyle = None
         # Preview- so it runs before the ScrollViewer consumes the wheel for
         # scrolling; without Ctrl held we leave it alone and normal scrolling
         # still works.
@@ -659,6 +674,486 @@ class StudioSettingsWindow(WPFWindow):
             self._grid.clear_cell(r, c)
         self._render_all()
         args.Handled = True
+
+    # ======================================================================
+    # Keyboard, in-cell editing and clipboard (Excel behaviour)
+    # ======================================================================
+    #
+    # Preview events at the window, because the cell pane is a ScrollViewer
+    # and it eats the arrow keys for scrolling before a bubbling KeyDown
+    # would ever see them. Anything typed into a real text box (formula bar,
+    # Row H, the font combos, the in-cell editor itself) is left alone.
+
+    _MOVE_KEYS = {_SWI.Key.Left: (0, -1), _SWI.Key.Right: (0, 1),
+                  _SWI.Key.Up: (-1, 0), _SWI.Key.Down: (1, 0)}
+
+    def _typing_elsewhere(self):
+        focused = _SWI.Keyboard.FocusedElement
+        return isinstance(focused, (_SWC.TextBox, _SWC.ComboBox))
+
+    def _on_window_preview_key(self, sender, args):
+        if self._cell_editor is not None or self._typing_elsewhere():
+            return
+        mods = _SWI.Keyboard.Modifiers
+        ctrl = (mods & _SWI.ModifierKeys.Control) == _SWI.ModifierKeys.Control
+        shift = (mods & _SWI.ModifierKeys.Shift) == _SWI.ModifierKeys.Shift
+        key = args.Key
+        handled = True
+        if key in self._MOVE_KEYS:
+            dr, dc = self._MOVE_KEYS[key]
+            if ctrl:
+                self._kb_jump(dr, dc, extend=shift)
+            else:
+                self._kb_move(dr, dc, extend=shift)
+        elif key == _SWI.Key.Tab and not ctrl:
+            self._kb_move(0, -1 if shift else 1)
+        elif key == _SWI.Key.Enter and not ctrl:
+            self._kb_move(-1 if shift else 1, 0)
+        elif key == _SWI.Key.Home:
+            r = 0 if ctrl else self._sel[0]
+            self._kb_select(r, 0)
+        elif key == _SWI.Key.End and ctrl:
+            self._kb_select(self._grid.n_rows - 1, self._grid.n_cols - 1)
+        elif key == _SWI.Key.F2:
+            self._begin_cell_edit(mode='edit')
+        elif key == _SWI.Key.Back and not ctrl:
+            self._begin_cell_edit(initial=u'', mode='enter')
+        elif ctrl and key == _SWI.Key.A:
+            self._sel_mode = 'cell'
+            self._sel = (0, 0, self._grid.n_rows - 1, self._grid.n_cols - 1)
+            self._after_kb_select()
+        elif ctrl and key == _SWI.Key.C:
+            self._copy_selection(cut=False)
+        elif ctrl and key == _SWI.Key.X:
+            self._copy_selection(cut=True)
+        elif ctrl and key == _SWI.Key.V:
+            self._paste()
+        elif key == _SWI.Key.Escape and self._clip and self._clip.get('cut'):
+            self._clip = None
+            self.status_label.Text = 'Cut cancelled'
+        else:
+            handled = False
+        if handled:
+            args.Handled = True
+
+    def _on_window_text_input(self, sender, args):
+        """Typing on a selected cell starts editing it, replacing what was
+        there - the same as Excel's Enter mode."""
+        tb = self._cell_editor
+        if tb is not None:
+            # Keys typed in the instant before the new editor takes focus
+            # would otherwise be lost: hand them on.
+            if not tb.IsKeyboardFocusWithin and args.Text:
+                tb.Text = (tb.Text or u'') + args.Text
+                tb.CaretIndex = len(tb.Text)
+                args.Handled = True
+            return
+        if self._typing_elsewhere():
+            return
+        # Space on a focused ribbon button presses the button; it must not
+        # also start typing into the cell.
+        if isinstance(_SWI.Keyboard.FocusedElement, _SWC.Primitives.ButtonBase):
+            return
+        mods = _SWI.Keyboard.Modifiers
+        if mods & (_SWI.ModifierKeys.Control | _SWI.ModifierKeys.Alt):
+            return
+        text = args.Text
+        if not text or ord(text[0]) < 32 or self._selection_kind() != 'cell':
+            return
+        if self._begin_cell_edit(initial=text, mode='enter'):
+            args.Handled = True
+
+    # --- moving the selection ---
+    def _step(self, r, c, dr, dc):
+        """One cell over from (r, c), stepping across a merged cell as a
+        whole rather than one grid square at a time."""
+        orow, ocol = self._grid.origin_of(r, c)
+        rs, cs = self._grid.span_of(orow, ocol)
+        if dr > 0:
+            r = orow + rs
+        elif dr < 0:
+            r = orow - 1
+        if dc > 0:
+            c = ocol + cs
+        elif dc < 0:
+            c = ocol - 1
+        r = max(0, min(r, self._grid.n_rows - 1))
+        c = max(0, min(c, self._grid.n_cols - 1))
+        return r, c
+
+    def _kb_move(self, dr, dc, extend=False):
+        ar, ac, br, bc = self._sel
+        if self._selection_kind() != 'cell':
+            extend = False
+        self._sel_mode = 'cell'
+        if extend:
+            # The anchor stays put and the far corner moves, so Shift+arrows
+            # grow and shrink the selection from where it was started.
+            br, bc = self._step(br, bc, dr, dc)
+            self._sel = (ar, ac, br, bc)
+        else:
+            r, c = self._step(ar, ac, dr, dc)
+            r, c = self._grid.origin_of(r, c)
+            self._sel = (r, c, r, c)
+        self._after_kb_select()
+
+    def _kb_jump(self, dr, dc, extend=False):
+        """Ctrl+arrow: straight to that edge of the sheet."""
+        ar, ac, br, bc = self._sel
+        fr, fc = (br, bc) if extend else (ar, ac)
+        if dr:
+            fr = 0 if dr < 0 else self._grid.n_rows - 1
+        if dc:
+            fc = 0 if dc < 0 else self._grid.n_cols - 1
+        self._sel_mode = 'cell'
+        if extend:
+            self._sel = (ar, ac, fr, fc)
+            self._after_kb_select()
+        else:
+            self._kb_select(fr, fc)
+
+    def _kb_select(self, r, c):
+        r, c = self._grid.origin_of(r, c)
+        self._sel_mode = 'cell'
+        self._sel = (r, c, r, c)
+        self._after_kb_select()
+
+    def _after_kb_select(self):
+        self._move_overlay_to_selection()
+        self._update_formula_bar()
+        self._scroll_into_view(*self._sel[2:])
+
+    def _cell_pixel_bounds(self, r, c):
+        """(x0, y0, x1, y1) of the cell or merge at (r, c), unzoomed."""
+        orow, ocol = self._grid.origin_of(r, c)
+        rs, cs = self._grid.span_of(orow, ocol)
+        v0, vn = self._vrow_range(orow, orow + rs - 1)
+        x0 = sum(self._col_px[:ocol])
+        y0 = sum(self._row_px[:v0])
+        return (x0, y0, x0 + sum(self._col_px[ocol:ocol + cs]),
+                y0 + sum(self._row_px[v0:v0 + vn]))
+
+    def _scroll_into_view(self, r, c):
+        """Scroll just far enough to bring (r, c) fully on screen."""
+        try:
+            x0, y0, x1, y1 = [v * self._zoom for v in self._cell_pixel_bounds(r, c)]
+            sv = self.grid_scroll
+            h, v = sv.HorizontalOffset, sv.VerticalOffset
+            if x0 < h:
+                sv.ScrollToHorizontalOffset(x0)
+            elif x1 > h + sv.ViewportWidth:
+                sv.ScrollToHorizontalOffset(min(x0, x1 - sv.ViewportWidth))
+            if y0 < v:
+                sv.ScrollToVerticalOffset(y0)
+            elif y1 > v + sv.ViewportHeight:
+                sv.ScrollToVerticalOffset(min(y0, y1 - sv.ViewportHeight))
+        except Exception:
+            pass
+
+    # --- editing in the cell ---
+    def _begin_cell_edit(self, initial=None, mode='edit'):
+        """Open a text box over the active cell.
+
+        mode 'enter' (started by typing) commits and moves when an arrow key
+        is pressed; mode 'edit' (F2, double-click) lets the arrows move the
+        caret instead - Excel's two editing modes. Returns True if editing
+        started."""
+        if self._cell_editor is not None or self._selection_kind() != 'cell':
+            return False
+        ar, ac = self._sel[0], self._sel[1]
+        orow, ocol = self._grid.origin_of(ar, ac)
+        block = self._grid.block_at(orow, ocol)
+        if block is not None and block.get('type') != 'text':
+            self.status_label.Text = (
+                'This cell holds a {} block, which fills itself from Revit. '
+                'Press Delete to clear it first if you want to type here.'
+                .format(studio_blocks.block_display_summary(block)))
+            return False
+
+        self._sel = (orow, ocol, orow, ocol)
+        self._move_overlay_to_selection()
+        rs, cs = self._grid.span_of(orow, ocol)
+        v_first, v_count = self._vrow_range(orow, orow + rs - 1)
+        if rs == 1:
+            v_count = 1     # a repeating row: edit on its first drawn line
+
+        tb = _SWC.TextBox()
+        tb.Text = (initial if initial is not None
+                   else (block or {}).get('content', u''))
+        st = block or studio_blocks.DEFAULT_FONT
+        try:
+            tb.FontFamily = _SWM.FontFamily(st.get('font', 'Arial'))
+        except Exception:
+            pass
+        tb.FontSize = max(4, st.get('size_mm', studio_blocks.DEFAULT_FONT['size_mm']) * SCALE)
+        tb.FontWeight = _SW.FontWeights.Bold if st.get('bold') else _SW.FontWeights.Normal
+        tb.FontStyle = _SW.FontStyles.Italic if st.get('italic') else _SW.FontStyles.Normal
+        tb.Foreground = _brush(st.get('color') or '#000000')
+        tb.TextAlignment = {'center': _SW.TextAlignment.Center,
+                            'right': _SW.TextAlignment.Right}.get(
+                                st.get('just'), _SW.TextAlignment.Left)
+        tb.VerticalContentAlignment = _SW.VerticalAlignment.Center
+        tb.Background = _SWM.Brushes.White
+        tb.BorderBrush = theme_brush('accent')
+        tb.BorderThickness = _SW.Thickness(2)
+        tb.Padding = _SW.Thickness(1, 0, 1, 0)
+        tb.Tag = (orow, ocol)
+        _SWC.Grid.SetRow(tb, v_first)
+        _SWC.Grid.SetColumn(tb, ocol)
+        _SWC.Grid.SetRowSpan(tb, max(1, v_count))
+        _SWC.Grid.SetColumnSpan(tb, cs)
+        self._cells_grid.Children.Add(tb)
+
+        self._cell_editor = tb
+        self._edit_mode = mode
+        tb.PreviewKeyDown += self._on_editor_key
+        tb.LostKeyboardFocus += self._on_editor_lost_focus
+        tb.TextChanged += self._on_editor_text_changed
+
+        def _focus(*_a):
+            tb.Focus()
+            _SWI.Keyboard.Focus(tb)
+            tb.CaretIndex = len(tb.Text or '')
+        # Focus once it is in the visual tree; a box added this instant is
+        # not loaded yet and would refuse focus.
+        tb.Loaded += _focus
+        self.formula_bar_tb.Text = tb.Text
+        self.status_label.Text = ('Editing {}: Enter to save, Esc to cancel, '
+                                  'Alt+Enter for a new line'.format(_cell_ref(orow, ocol)))
+        return True
+
+    def _end_cell_edit(self, commit=True):
+        """Close the in-cell editor, saving its text unless cancelled.
+        Returns True if an editor was open."""
+        tb = self._cell_editor
+        if tb is None:
+            return False
+        # Cleared first: removing the box and moving focus raise
+        # LostKeyboardFocus, which must not commit a second time.
+        self._cell_editor = None
+        orow, ocol = tb.Tag
+        text = tb.Text or u''
+        try:
+            tb.Parent.Children.Remove(tb)
+        except Exception:
+            pass
+        try:
+            self.grid_scroll.Focus()
+        except Exception:
+            pass
+        self.status_label.Text = ''
+        if commit:
+            self._write_cell_text(orow, ocol, text)
+        else:
+            self._update_formula_bar()
+        return True
+
+    def _write_cell_text(self, r, c, text):
+        """Put typed text into a cell: a new borderless text block if the
+        cell is empty, otherwise the text block's content."""
+        block = self._grid.block_at(r, c)
+        if block is None:
+            if text:
+                typed = self._blank_block()
+                typed['content'] = text
+                self._grid.set_block(r, c, typed)
+        elif block.get('type') == 'text':
+            block['content'] = text
+        self._render_all()
+
+    def _on_editor_text_changed(self, sender, args):
+        try:
+            self.formula_bar_tb.Text = sender.Text
+        except Exception:
+            pass
+
+    def _on_editor_lost_focus(self, sender, args):
+        # Clicking away saves, as in Excel.
+        if self._cell_editor is sender:
+            self._end_cell_edit(commit=True)
+
+    def _on_editor_key(self, sender, args):
+        shift = ((_SWI.Keyboard.Modifiers & _SWI.ModifierKeys.Shift)
+                 == _SWI.ModifierKeys.Shift)
+        key = args.Key
+        if key == _SWI.Key.System and args.SystemKey == _SWI.Key.Enter:
+            # Alt+Enter: a line break inside the cell.
+            i = sender.CaretIndex
+            sender.Text = sender.Text[:i] + u'\n' + sender.Text[i:]
+            sender.CaretIndex = i + 1
+            args.Handled = True
+            return
+        if key == _SWI.Key.Escape:
+            self._end_cell_edit(commit=False)
+        elif key == _SWI.Key.Enter:
+            self._end_cell_edit(commit=True)
+            self._kb_move(-1 if shift else 1, 0)
+        elif key == _SWI.Key.Tab:
+            self._end_cell_edit(commit=True)
+            self._kb_move(0, -1 if shift else 1)
+        elif key == _SWI.Key.F2:
+            self._edit_mode = 'edit' if self._edit_mode == 'enter' else 'enter'
+        elif key in self._MOVE_KEYS and self._edit_mode == 'enter':
+            dr, dc = self._MOVE_KEYS[key]
+            self._end_cell_edit(commit=True)
+            self._kb_move(dr, dc)
+        else:
+            return
+        args.Handled = True
+
+    # --- clipboard ---
+    def _cell_text(self, r, c):
+        """What a cell reads as plain text, for the Windows clipboard."""
+        block = self._grid.block_at(r, c)
+        if block is None:
+            return u''
+        if block.get('type') == 'text':
+            return block.get('content', u'') or u''
+        return u'[{}]'.format(studio_blocks.block_display_summary(block))
+
+    def _copy_selection(self, cut=False):
+        """Ctrl+C / Ctrl+X. Keeps the blocks (formatting and all) for a
+        paste back into Studio, and puts the text on the Windows clipboard
+        so it pastes into Excel or an email too."""
+        r0, c0, r1, c1 = self._sel_rect()
+        cells = []
+        for (r, c) in self._sel_origins():
+            if not (r0 <= r <= r1 and c0 <= c <= c1):
+                continue
+            rs, cs = self._grid.span_of(r, c)
+            block = self._grid.block_at(r, c)
+            cells.append((r - r0, c - c0, rs, cs,
+                          json.loads(json.dumps(block)) if block else None))
+        lines = []
+        for r in range(r0, r1 + 1):
+            row = []
+            for c in range(c0, c1 + 1):
+                row.append(self._cell_text(r, c)
+                           if self._grid.origin_of(r, c) == (r, c) else u'')
+            lines.append(u'\t'.join(row))
+        text = u'\r\n'.join(lines)
+        self._clip = {'rows': r1 - r0 + 1, 'cols': c1 - c0 + 1, 'cells': cells,
+                      'cut': (r0, c0, r1, c1) if cut else None}
+        self._clip_text = text
+        try:
+            if text.strip():
+                _SW.Clipboard.SetText(text)
+            else:
+                _SW.Clipboard.Clear()
+        except Exception:
+            pass   # clipboard busy: Studio's own copy still works
+        n = (r1 - r0 + 1) * (c1 - c0 + 1)
+        self.status_label.Text = (
+            '{} {} cell(s): select where it goes and press Ctrl+V{}'.format(
+                'Cut' if cut else 'Copied', n,
+                ', Esc to cancel' if cut else ''))
+
+    def _paste(self):
+        """Ctrl+V. Studio's own copy comes back with its blocks, merges and
+        formatting; text copied from anywhere else (an Excel range, say) is
+        typed into the cells, one value per cell."""
+        sys_text = None
+        try:
+            if _SW.Clipboard.ContainsText():
+                sys_text = _SW.Clipboard.GetText()
+        except Exception:
+            pass
+        if self._clip and (not sys_text or sys_text == self._clip_text):
+            self._paste_blocks()
+        elif sys_text:
+            self._paste_text(sys_text)
+        else:
+            self.status_label.Text = 'Nothing to paste'
+
+    def _clear_rect(self, r0, c0, r1, c1):
+        """Unmerge and empty every cell in the rectangle."""
+        for r in range(r0, r1 + 1):
+            for c in range(c0, c1 + 1):
+                self._grid.unmerge(r, c)
+        for r in range(r0, r1 + 1):
+            for c in range(c0, c1 + 1):
+                self._grid.clear_cell(r, c)
+
+    def _paste_blocks(self):
+        clip = self._clip
+        r0, c0 = self._sel_rect()[:2]
+        h, w = clip['rows'], clip['cols']
+        if r0 + h > self._grid.n_rows or c0 + w > self._grid.n_cols:
+            _alert('There is not enough room here: the copied area is {} row(s) by '
+                   '{} column(s). Insert rows or columns, or pick a cell further '
+                   'up or left.'.format(h, w))
+            return
+        if clip.get('cut'):
+            self._clear_rect(*clip['cut'])
+        self._clear_rect(r0, c0, r0 + h - 1, c0 + w - 1)
+        for (dr, dc, rs, cs, block) in clip['cells']:
+            r, c = r0 + dr, c0 + dc
+            if rs > 1 or cs > 1:
+                try:
+                    self._grid.merge(r, c, r + rs - 1, c + cs - 1)
+                except ValueError:
+                    pass
+            if block is not None:
+                # A fresh copy each paste, so pasting twice gives two
+                # independent cells rather than two views of one block.
+                self._grid.set_block(r, c, json.loads(json.dumps(block)))
+        was_cut = bool(clip.get('cut'))
+        if was_cut:
+            self._clip = None     # a cut pastes once, as in Excel
+        self._sel_mode = 'cell'
+        self._sel = (r0, c0, r0 + h - 1, c0 + w - 1)
+        self._render_all()
+        self.status_label.Text = '{} {} cell(s)'.format(
+            'Moved' if was_cut else 'Pasted', h * w)
+
+    def _paste_text(self, text):
+        rows = text.replace(u'\r\n', u'\n').replace(u'\r', u'\n')
+        if rows.endswith(u'\n'):
+            rows = rows[:-1]
+        grid_vals = [line.split(u'\t') for line in rows.split(u'\n')]
+        r0, c0, r1, c1 = self._sel_rect()
+        targets = []
+        if len(grid_vals) == 1 and len(grid_vals[0]) == 1:
+            # One value onto a range fills every cell in it, like Excel.
+            targets = [(r, c, grid_vals[0][0]) for (r, c) in self._sel_origins()]
+        else:
+            for i, line in enumerate(grid_vals):
+                for j, val in enumerate(line):
+                    targets.append((r0 + i, c0 + j, val))
+        written, skipped, done = 0, 0, set()
+        for (r, c, val) in targets:
+            if not (0 <= r < self._grid.n_rows and 0 <= c < self._grid.n_cols):
+                skipped += 1
+                continue
+            orig = self._grid.origin_of(r, c)
+            if orig in done:
+                continue
+            done.add(orig)
+            block = self._grid.block_at(*orig)
+            if block is not None and block.get('type') != 'text':
+                skipped += 1     # Revit-driven blocks are never typed over
+                continue
+            if block is None:
+                if not val:
+                    continue
+                block = self._blank_block()
+                self._grid.set_block(orig[0], orig[1], block)
+            block['content'] = val
+            written += 1
+        self._render_all()
+        msg = 'Pasted {} value(s)'.format(written)
+        if skipped:
+            msg += ', skipped {} (off the sheet, or a Revit data cell)'.format(skipped)
+        self.status_label.Text = msg
+
+    def _on_ctx_copy(self, sender, args):
+        self._copy_selection(cut=False)
+
+    def _on_ctx_cut(self, sender, args):
+        self._copy_selection(cut=True)
+
+    def _on_ctx_paste(self, sender, args):
+        self._paste()
 
     # ======================================================================
     # Persistence
@@ -3354,6 +3849,13 @@ class StudioSettingsWindow(WPFWindow):
         self.status_label.Text = 'Redo ({} left)'.format(len(self._redo_stack))
 
     def _render_all(self):
+        # A render rebuilds the cell pane, which would throw away an open
+        # in-cell editor and what was typed in it. Save it instead: that
+        # commit renders, and the grid it draws already holds whatever
+        # change brought us here.
+        if getattr(self, '_cell_editor', None) is not None:
+            self._end_cell_edit(commit=True)
+            return
         self._record_undo_state()
         try:
             self.margin_box.Text = str(self._grid.margin_mm)
@@ -4216,6 +4718,8 @@ class StudioSettingsWindow(WPFWindow):
 
         Committing here means clicking away saves, exactly like Excel.
         """
+        if self._end_cell_edit(commit=True):
+            return
         try:
             if self.formula_bar_tb.IsFocused and not self.formula_bar_tb.IsReadOnly:
                 self._on_formula_commit(None, None)
@@ -4226,6 +4730,34 @@ class StudioSettingsWindow(WPFWindow):
     def _on_cell_down(self, sender, args):
         self._commit_pending_formula()
         _, r, c = sender.Tag
+        try:
+            self.grid_scroll.Focus()
+        except Exception:
+            pass
+
+        # Double-click edits the cell in place (Excel's F2).
+        if args.ClickCount >= 2:
+            self._sel_mode = 'cell'
+            self._sel = (r, c, r, c)
+            self._begin_cell_edit(mode='edit')
+            args.Handled = True
+            return
+
+        # Shift+click stretches the selection from where it was anchored.
+        shift = ((_SWI.Keyboard.Modifiers & _SWI.ModifierKeys.Shift)
+                 == _SWI.ModifierKeys.Shift)
+        if shift and self._selection_kind() == 'cell':
+            ar, ac = self._sel[0], self._sel[1]
+            self._sel = (ar, ac, r, c)
+            self._dragging = True
+            try:
+                sender.CaptureMouse()
+            except Exception:
+                pass
+            self._drag_owner = sender
+            self._update_formula_bar()
+            self._move_overlay_to_selection()
+            return
         # Pressing on the selection's outline starts a content move rather
         # than a new selection (Excel's drag-to-move).
         try:
@@ -4340,6 +4872,10 @@ class StudioSettingsWindow(WPFWindow):
     # -- right-click on a cell: Format Cells… ----------------------------------
     def _build_cell_context_menu(self):
         menu = _themed_menu()
+        menu.Items.Add(_themed_menu_item('Cut          Ctrl+X', self._on_ctx_cut))
+        menu.Items.Add(_themed_menu_item('Copy         Ctrl+C', self._on_ctx_copy))
+        menu.Items.Add(_themed_menu_item('Paste        Ctrl+V', self._on_ctx_paste))
+        menu.Items.Add(_themed_separator())
         menu.Items.Add(_themed_menu_item('Format Cells…', self._on_format_cells_click))
         return menu
 

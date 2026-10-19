@@ -1,19 +1,4 @@
 # -*- coding: utf-8 -*-
-__title__  = "Parameter Manager"
-__author__ = "Seed43"
-__doc__    = """
-𝐕𝐄𝐑𝐒𝐈𝐎𝐍 𝟐𝟔𝟎𝟓𝟎𝟏
-_____________________________________________________________________
-Description:
-
-Checks which Seed43 shared parameters are installed in the current
-project and lets you add any that are missing. Parameters are bound
-to the correct Revit categories automatically, no manual setup needed.
-
-Tick marks show what's already installed. Select any missing ones
-and click Create Parameters to add them.
-_____________________________________________________________________
-"""
 
 import os
 from pyrevit import revit, forms, script

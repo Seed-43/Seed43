@@ -1,0 +1,15 @@
+title: "Annotation"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Annotation tools. Rotate To Element turns a tag, text note or other
+  annotation until it runs parallel to the element it labels, so labels
+  lie along their member instead of across it.
+
+  __________________________________________________________________
+layout:
+  - Rotate To Element
+  - View Refs

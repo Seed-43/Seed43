@@ -33,6 +33,10 @@ doc = revit.doc
 
 view_name  = _p.get('view_name', 'pyLink Legend')
 TEMP_NAME  = '__pyLink_TEMP__'
+# Position in a run of rows sharing this legend. 0 clears and lands at
+# the top; higher numbers are copied in below what is already there.
+stack_index = int(_p.get('stack_index', 0) or 0)
+STACK_GAP_FT = 8.0 / 304.8
 
 # ---------------------------------------------------------------------------
 # Step 1 — Run create_drafting.py to build the temp drafting view
@@ -48,6 +52,10 @@ if not os.path.exists(_drafting_path):
 
 _payload_for_drafting = dict(_p)
 _payload_for_drafting['_legend_temp_view_name'] = TEMP_NAME
+# The temp view is created fresh every time, so it always draws at the
+# origin. Stacking happens when the elements are copied into the legend
+# below, where there is something to stack under.
+_payload_for_drafting['stack_index'] = 0
 
 _ns = {
     '__name__':         'drafting_for_legend',
@@ -145,18 +153,39 @@ class _UseDestination(DB.IDuplicateTypeNamesHandler):
 
 with revit.Transaction('pyLink - Create Legend: {}'.format(view_name)):
 
+    _copy_dy_ft = 0.0
     if existing_legend:
         dest = existing_legend
-        # Clear existing content
-        for cls in (CurveElement, TextNote, ImageInstance, FilledRegion):
-            for el in list(
-                FilteredElementCollector(doc, dest.Id)
-                .OfClass(cls).ToElements()
-            ):
+        if stack_index > 0:
+            # Sharing this legend with a table already on it: keep that
+            # and drop this one in underneath. Only the first row of a
+            # run clears, so re-applying the run replaces it instead of
+            # stacking another copy.
+            _lowest = None
+            for el in FilteredElementCollector(doc, dest.Id).ToElements():
                 try:
-                    doc.Delete(el.Id)
+                    bb = el.get_BoundingBox(dest)
                 except Exception:
-                    pass
+                    bb = None
+                if bb is None:
+                    continue
+                if _lowest is None or bb.Min.Y < _lowest:
+                    _lowest = bb.Min.Y
+            if _lowest is not None:
+                _copy_dy_ft = _lowest - STACK_GAP_FT
+            logger.debug('stacking legend table {} at y={:.1f}mm'.format(
+                stack_index, _copy_dy_ft * 304.8))
+        else:
+            # Clear existing content
+            for cls in (CurveElement, TextNote, ImageInstance, FilledRegion):
+                for el in list(
+                    FilteredElementCollector(doc, dest.Id)
+                    .OfClass(cls).ToElements()
+                ):
+                    try:
+                        doc.Delete(el.Id)
+                    except Exception:
+                        pass
     else:
         dest = doc.GetElement(
             base_legend.Duplicate(ViewDuplicateOption.Duplicate)
@@ -174,11 +203,17 @@ with revit.Transaction('pyLink - Create Legend: {}'.format(view_name)):
     opts = CopyPasteOptions()
     opts.SetDuplicateTypeNamesHandler(_UseDestination())
 
+    # The temp view drew at the origin, so a stacked table is shifted
+    # down on the way in rather than being redrawn somewhere else.
+    _xform = None
+    if _copy_dy_ft:
+        _xform = DB.Transform.CreateTranslation(DB.XYZ(0, _copy_dy_ft, 0))
+
     new_ids = ElementTransformUtils.CopyElements(
         temp_view,
         List[DB.ElementId](elements_to_copy),
         dest,
-        None,
+        _xform,
         opts
     )
 

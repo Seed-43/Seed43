@@ -1,7 +1,6 @@
 import subprocess
 import os
 
-__doc__ = "Opens the project folder in Windows Explorer."
 
 doc = __revit__.ActiveUIDocument.Document
 path = doc.PathName

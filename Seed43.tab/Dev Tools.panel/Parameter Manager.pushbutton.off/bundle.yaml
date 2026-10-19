@@ -1,0 +1,15 @@
+title: "Parameter Manager"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Checks which Seed43 shared parameters are installed in the current
+  project and lets you add any that are missing. Parameters are bound
+  to the correct Revit categories automatically, no manual setup needed.
+
+  Tick marks show what's already installed. Select any missing ones
+  and click Create Parameters to add them.
+
+  __________________________________________________________________

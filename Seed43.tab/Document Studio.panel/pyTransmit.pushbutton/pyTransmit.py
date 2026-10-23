@@ -209,6 +209,7 @@ class RevTableWindow(Window):
         self.param_counter = 1
         self.group_label_on = self._load_sync().get('group_label_on', True)
         self._setup_group_label_toggle()
+        self._setup_schedule_pages()
         self.PreviewMouseDown += self._options_popup_outside_click
         
         self.sheet_params = self.get_sheet_parameters()
@@ -393,6 +394,108 @@ class RevTableWindow(Window):
         except Exception:
             pass
         self._save_sync()
+
+    # --- Schedule Pages card ---
+    def _project_key(self):
+        """Key the split settings per project - sheet numbers differ between jobs."""
+        try:
+            return self.doc.PathName or self.doc.Title
+        except Exception:
+            return ''
+
+    # Schedule Pages switches: attribute -> (border name, text on, text off)
+    _PAGE_SWITCHES = {
+        'ignore_page_height': ('ignore_height_toggle', "Page Height Ignored", "Split at Page Height"),
+        'dist_every_page':    ('dist_every_page_toggle', "Distribution Every Page", "Distribution Once"),
+    }
+
+    def _setup_schedule_pages(self):
+        """Load this project's Schedule Pages settings and build its switches."""
+        import System
+        import System.Windows.Media as _SWM
+        saved = self._load_sync().get('schedule_pages', {}).get(self._project_key())
+        if saved is None:
+            # Not used on this PC yet - take the split the last issue
+            # recorded in its Issued To (SPL tag), so it travels with the model.
+            saved = self._schedule_pages_from_last_issue()
+        try:
+            self.split_after_tb.Text = saved.get('split_after', '')
+            self.split_after_tb.LostFocus += lambda s, e: self._save_sync()
+        except Exception:
+            pass
+        _knob_size   = self.TryFindResource('SizeToggleKnob') or 16.0
+        _knob_radius = (self.TryFindResource('CornerRadiusToggleKnob')
+                        or System.Windows.CornerRadius(_knob_size / 2.0))
+        self._page_knobs = {}
+        for attr, (border_name, _on_t, _off_t) in self._PAGE_SWITCHES.items():
+            setattr(self, attr, bool(saved.get(attr, False)))
+            try:
+                knob = System.Windows.Controls.Border()
+                knob.Width               = _knob_size
+                knob.Height              = _knob_size
+                knob.CornerRadius        = _knob_radius
+                knob.Background          = self.TryFindResource('BrushToggleKnob') or _SWM.Brushes.White
+                knob.HorizontalAlignment = System.Windows.HorizontalAlignment.Left
+                getattr(self, border_name).Child = knob
+                self._page_knobs[attr] = knob
+                # NOTE: default arg pins attr - a bare closure would see the
+                # loop's last value in every handler.
+                getattr(self, border_name).MouseLeftButtonUp += (
+                    lambda s, e, a=attr: self._on_page_switch(a))
+            except Exception:
+                pass
+            self._paint_page_switch(attr)
+
+    def _schedule_pages_from_last_issue(self):
+        """Schedule Pages settings from the last issued revision's SPL tag."""
+        import re as _re
+        try:
+            revs = sorted([r for r in FilteredElementCollector(self.doc).OfClass(DB.Revision)
+                           if r.Issued], key=lambda r: r.SequenceNumber)
+            ito = (revs[-1].IssuedTo or '') if revs else ''
+        except Exception:
+            ito = ''
+        m = _re.search(r'\bSPL:([^\s|]+)', ito)
+        if not m:
+            return {}
+        tokens = m.group(1).split(u'~~')
+        flags  = tokens[0] if tokens else u''
+        return {
+            'ignore_page_height': u'I1' in flags,
+            'dist_every_page':    u'D1' in flags,
+            'split_after':        u', '.join(t for t in tokens[1:] if t),
+        }
+
+    def _paint_page_switch(self, attr):
+        import System
+        import System.Windows.Media as _SWM
+        on = getattr(self, attr, False)
+        border_name, on_text, off_text = self._PAGE_SWITCHES[attr]
+        _on_brush    = self.TryFindResource('BrushPrimaryGreen') or _SWM.SolidColorBrush(_SWM.Color.FromRgb(0x20, 0x8A, 0x3C))
+        _off_brush   = self.TryFindResource('BrushToggleOffBg')  or _SWM.SolidColorBrush(_SWM.Color.FromRgb(0xA0, 0xAA, 0xBB))
+        _track_w     = self.TryFindResource('WidthToggle')       or 40.0
+        _knob_size   = self.TryFindResource('SizeToggleKnob')    or 16.0
+        _knob_margin = self.TryFindResource('MarginToggleKnob')  or 2.0
+        try:
+            left = (_track_w - _knob_size - _knob_margin) if on else _knob_margin
+            self._page_knobs[attr].Margin = System.Windows.Thickness(left, _knob_margin, 0, _knob_margin)
+            getattr(self, border_name).Background = _on_brush if on else _off_brush
+            getattr(self, border_name + '_tb').Text = on_text if on else off_text
+        except Exception:
+            pass
+
+    def _on_page_switch(self, attr):
+        setattr(self, attr, not getattr(self, attr, False))
+        self._paint_page_switch(attr)
+        self._save_sync()
+
+    def get_split_after(self):
+        """Sheet numbers typed in Split After, cleaned up."""
+        try:
+            raw = self.split_after_tb.Text or ''
+        except Exception:
+            raw = ''
+        return [s.strip() for s in raw.replace(';', ',').split(',') if s.strip()]
 
     def get_sheet_parameters(self):
         sheets = FilteredElementCollector(self.doc).OfCategory(BuiltInCategory.OST_Sheets).WhereElementIsNotElementType().ToElements()
@@ -722,6 +825,15 @@ class RevTableWindow(Window):
         if _gp_list:
             # Use ~~ as separator, safe, won't appear in Revit parameter names
             parts.append(u'GP:{}'.format(u'~~'.join(_gp_list)))
+
+        # SPL tag, snapshot the Schedule Pages card: flags then Split After
+        # sheets, e.g. SPL:I1D1~~S4.24 (I = Ignore Page Height, D =
+        # Distribution Every Page). Spaces are dropped - a tag value ends at one.
+        _spl = [u'I{}D{}'.format(int(bool(getattr(self, 'ignore_page_height', False))),
+                                 int(bool(getattr(self, 'dist_every_page', False))))]
+        _spl += [s.replace(u' ', u'') for s in self.get_split_after()]
+        if _spl != [u'I0D0']:
+            parts.append(u'SPL:{}'.format(u'~~'.join(_spl)))
 
         return ' | '.join(parts), _initials_val
     
@@ -2166,6 +2278,14 @@ class RevTableWindow(Window):
             sync_path = SYNC_FILE
             cfg = self._load_sync()
             cfg['group_label_on'] = getattr(self, 'group_label_on', True)
+            if hasattr(self, 'ignore_page_height'):
+                pages = cfg.get('schedule_pages') or {}
+                pages[self._project_key()] = {
+                    'ignore_page_height': self.ignore_page_height,
+                    'dist_every_page': getattr(self, 'dist_every_page', False),
+                    'split_after': u', '.join(self.get_split_after()),
+                }
+                cfg['schedule_pages'] = pages
             with open(sync_path, 'w') as f: _json.dump(cfg, f, indent=2)
         except Exception: pass
 
@@ -2488,6 +2608,12 @@ class RevTableWindow(Window):
                     page_height_mm   = 287
             except:
                 pass
+            # Main window's Schedule Pages card wins over Setup: Ignore Page
+            # Height turns the height split off, Split After adds hand breaks.
+            if getattr(self, 'ignore_page_height', False):
+                page_height_mode = 'none'
+            split_after = self.get_split_after()
+            self._save_sync()
 
             # ── Build meta rows from enabled Setup fields ──────────────────────
             # If no revision is being issued, fall back to last issued revision's stored data
@@ -2673,6 +2799,8 @@ class RevTableWindow(Window):
             payload = {
                 'page_height_mode':  page_height_mode,
                 'page_height_mm':    page_height_mm,
+                'split_after':       split_after,
+                'dist_every_page':   getattr(self, 'dist_every_page', False),
                 'meta_rows':         meta_rows,
                 'reason_legend':     reason_legend,
                 'method_legend':     method_legend,

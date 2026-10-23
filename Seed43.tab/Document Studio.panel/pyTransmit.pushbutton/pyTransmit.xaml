@@ -1066,6 +1066,41 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Schedule Pages Card: where the transmittal breaks into
+                     a second schedule / drafting view column. -->
+                <TextBlock Text="Schedule Pages" Style="{StaticResource SectionLabelStyle}" Margin="0,0,0,8"/>
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <DockPanel LastChildFill="False" Margin="0,0,0,8">
+                            <Border x:Name="ignore_height_toggle" DockPanel.Dock="Left"
+                                    Width="{DynamicResource WidthToggle}" Height="{DynamicResource HeightToggle}" CornerRadius="{DynamicResource CornerRadiusToggle}"
+                                    Cursor="Hand" Margin="0,0,8,0"
+                                    ToolTip="On: the page height is ignored and the list only splits after the sheets below. Off: it also splits wherever the page is full."/>
+                            <TextBlock x:Name="ignore_height_toggle_tb" DockPanel.Dock="Left"
+                                       Text="Split at Page Height" FontSize="9"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource BrushTextPrimary}"/>
+                            <Border x:Name="dist_every_page_toggle" DockPanel.Dock="Left"
+                                    Width="{DynamicResource WidthToggle}" Height="{DynamicResource HeightToggle}" CornerRadius="{DynamicResource CornerRadiusToggle}"
+                                    Cursor="Hand" Margin="16,0,8,0"
+                                    ToolTip="On: the distribution list and everything below the drawing list is repeated on every schedule page. Off: it only appears once."/>
+                            <TextBlock x:Name="dist_every_page_toggle_tb" DockPanel.Dock="Left"
+                                       Text="Distribution Once" FontSize="9"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource BrushTextPrimary}"/>
+                        </DockPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Split After" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBox   Grid.Column="1" x:Name="split_after_tb" Style="{StaticResource TextBoxStyle}"
+                                       ToolTip="Sheet numbers to start a new page after, separated by commas - e.g. S4.24, S6.02"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
                 <!-- Recipients Card — mode controlled by Setup -->
                 <TextBlock Text="Recipients" Style="{StaticResource SectionLabelStyle}" Margin="0,0,0,8"/>
                 <Border Style="{StaticResource CardStyle}">

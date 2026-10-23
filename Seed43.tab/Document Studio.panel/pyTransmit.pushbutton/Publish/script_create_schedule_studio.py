@@ -168,7 +168,9 @@ _SPLIT = (_p.get('page_height_mode') or 'a4') != 'none'
 # this transmittal is going onto.
 _PRINTABLE_H_MM = float(_p.get('page_height_mm') or SL.printable_h())
 
-PAGES = SL.page_rows(printable_h_mm=_PRINTABLE_H_MM, split=_SPLIT)
+PAGES = SL.page_rows(printable_h_mm=_PRINTABLE_H_MM, split=_SPLIT,
+                     split_after=_p.get('split_after'),
+                     repeat_below=bool(_p.get('dist_every_page')))
 TOTAL_PAGES = len(PAGES)
 
 # ── Line styles ──────────────────────────────────────────────────────────────
@@ -431,13 +433,27 @@ def _get_schedulable_field(sched_def, pid):
 
 
 def _get_or_create_schedule(name):
-    """Return (schedule, existed) for a schedule of this name."""
+    """Return (schedule, existed) for a schedule of this name.
+
+    A schedule for the same page but a different total (01-01 when 01-02 is
+    wanted) is renamed and reused, so one already placed on a sheet stays put.
+    """
+    same_page = None
+    m_want = re.match(r'^pyTransmit Schedule (\d+)-\d+$', name)
     for vs in revit.query.get_elements_by_class(ViewSchedule, doc=doc):
         try:
-            if vs.IsValidObject and vs.Name == name:
+            if not vs.IsValidObject:
+                continue
+            if vs.Name == name:
                 return vs, True
+            m_vs = re.match(r'^pyTransmit Schedule (\d+)-\d+$', vs.Name)
+            if m_want and m_vs and m_vs.group(1) == m_want.group(1) and same_page is None:
+                same_page = vs
         except Exception:
             pass
+    if same_page is not None:
+        same_page.Name = name
+        return same_page, True
     vs = ViewSchedule.CreateSchedule(doc, ElementId.InvalidElementId)
     vs.Name = name
     return vs, False
@@ -446,11 +462,17 @@ def _get_or_create_schedule(name):
 # ── Stale schedules from a previous, longer run ──────────────────────────────
 # A transmittal that used to need four schedules and now needs two would
 # otherwise leave 03 and 04 behind, still showing the old issue.
+# Also any NN-TT whose total no longer matches and that is not on a sheet (a
+# leftover 01-01 from an unsplit run) - a placed one is renamed and reused by
+# _get_or_create_schedule instead, so its position on the sheet survives.
+_placed_ids = set(_ssi.ScheduleId for _ssi in
+                  DB.FilteredElementCollector(doc).OfClass(DB.ScheduleSheetInstance))
 _stale = []
 for _vs in revit.query.get_elements_by_class(ViewSchedule, doc=doc):
     try:
-        m = re.match(r'^pyTransmit Schedule (\d+)-\d+$', _vs.Name)
-        if m and int(m.group(1)) > TOTAL_PAGES:
+        m = re.match(r'^pyTransmit Schedule (\d+)-(\d+)$', _vs.Name)
+        if m and (int(m.group(1)) > TOTAL_PAGES or
+                  (int(m.group(2)) != TOTAL_PAGES and _vs.Id not in _placed_ids)):
             _stale.append(_vs.Id)
     except Exception:
         pass

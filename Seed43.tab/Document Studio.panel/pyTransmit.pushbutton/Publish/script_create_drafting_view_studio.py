@@ -155,7 +155,9 @@ _SPLIT = (_p.get('page_height_mode') or 'a4') != 'none'
 # One entry per printed column: {'x_mm': left edge, 'rows': {v: (y_top, y_bot)}}
 PAGES = []
 _table_w_mm = SL.table_w()
-for _pi, _page_vs in enumerate(SL.page_rows(split=_SPLIT)):
+for _pi, _page_vs in enumerate(SL.page_rows(split=_SPLIT,
+                                            split_after=_p.get('split_after'),
+                                            repeat_below=bool(_p.get('dist_every_page')))):
     _rows = {}
     _y = 0.0
     for _v in _page_vs:

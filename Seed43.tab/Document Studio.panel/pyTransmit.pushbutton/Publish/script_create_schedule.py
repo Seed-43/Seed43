@@ -110,6 +110,31 @@ _MARGIN_MM   = 0.0
 _PAGE_MODE   = _p.get('page_height_mode') or 'a4'
 _SPLIT       = _PAGE_MODE != 'none'
 A4_USABLE    = float(_p.get('page_height_mm') or PAGE_H_MM - 2 * _MARGIN_MM)
+# Main window "Split After" - a new page starts after each of these sheets,
+# whether or not the page height is ignored.
+SPLIT_AFTER  = set((s or '').strip().upper() for s in (_p.get('split_after') or [])) - set([''])
+# Main window "Distribution Every Page" - every page gets the rows below the
+# drawing list (distribution, reason for issue, footer), not just the first/last.
+DIST_EVERY_PAGE = bool(_p.get('dist_every_page', False))
+
+
+def _paginate(items, first, rest):
+    """Deal ('sheet'|'group', x) rows into pages.
+
+    A page closes when it holds `first` rows (page 1) or `rest` rows (later
+    pages), and straight after any sheet listed in SPLIT_AFTER.
+    """
+    pages = [[]]
+    limit = first
+    for kind, item in items:
+        if len(pages[-1]) >= limit:
+            pages.append([])
+            limit = rest
+        pages[-1].append((kind, item))
+        if kind == 'sheet' and (item.SheetNumber or '').strip().upper() in SPLIT_AFTER:
+            pages.append([])
+            limit = rest
+    return pages
 
 # Usable width in Revit internal units (ft)
 _usable_w_mm = PAGE_W_MM - 2 * _MARGIN_MM   # e.g. 200mm for A4
@@ -468,10 +493,22 @@ def clear_schedule_header(h):
         except Exception: break
 
 def get_or_create_schedule(doc, name):
-    """Return existing schedule by name, or create a new one."""
+    """Return existing schedule by name, or create a new one.
+
+    A schedule for the same page but a different total (01-01 when 01-02 is
+    wanted) is renamed and reused, so one already placed on a sheet stays put.
+    """
+    _same_page = None
+    _m_want = re.match(r'^pyTransmit Schedule (\d+)-\d+$', name)
     for v in revit.query.get_elements_by_class(ViewSchedule, doc=doc):
         if v.Name == name:
             return v, True   # (schedule, existed)
+        _m_v = re.match(r'^pyTransmit Schedule (\d+)-\d+$', v.Name)
+        if _m_want and _m_v and _m_v.group(1) == _m_want.group(1) and _same_page is None:
+            _same_page = v
+    if _same_page is not None:
+        _same_page.Name = name
+        return _same_page, True
     vs = ViewSchedule.CreateSchedule(doc, ElementId.InvalidElementId)
     vs.Name = name
     return vs, False  # (schedule, existed)
@@ -746,23 +783,27 @@ def _pre_calc_pages():
         _fh = (ROW_TITLE + ROW_NORMAL * N_INFO + ROW_NORMAL + ROW_NORMAL + ROW_NORMAL * N_REC + ROW_NORMAL +
                (ROW_NORMAL + ROW_NORMAL * (1 + len(_filtered))) + ROW_NORMAL + ROW_NORMAL) / MM
         _rh = ROW_NORMAL / MM
-        _p1 = max(1, int((A4_USABLE - _fh) / _rh) - 1)
-        _pn = max(1, int((A4_USABLE - (ROW_NORMAL + ROW_NORMAL) / MM) / _rh) - 1)
-        _pages = [_rr[:_p1]]
-        _rem = _rr[_p1:]
-        while _rem:
-            _pages.append(_rem[:_pn]); _rem = _rem[_pn:]
-        return len(_pages)
+        _p1 = max(1, int((A4_USABLE - _fh) / _rh) - 1) if _SPLIT else 999999
+        _pn = max(1, int((A4_USABLE - (ROW_NORMAL + ROW_NORMAL) / MM) / _rh) - 1) if _SPLIT else 999999
+        return max(1, len([pg for pg in _paginate(_rr, _p1, _pn) if pg]))
     except Exception:
         return 1
 
 _pre_total_pages = _pre_calc_pages()
 
 # Delete any pyTransmit Schedule XX-YY schedules where XX > _pre_total_pages
+# Also any NN-TT whose total no longer matches and that is not on a sheet (a
+# leftover 01-01 from an unsplit run) - a placed one is renamed and reused by
+# get_or_create_schedule instead, so its position on the sheet survives.
+_placed_ids = set(_ssi.ScheduleId for _ssi in
+                  DB.FilteredElementCollector(doc).OfClass(DB.ScheduleSheetInstance))
 _stale_ids = []
 for _vs in revit.query.get_elements_by_class(ViewSchedule, doc=doc):
-    _m = _re_pre.match(r'^pyTransmit Schedule (\d+)-\d+$', _vs.Name)
-    if _m and int(_m.group(1)) > _pre_total_pages:
+    _m = _re_pre.match(r'^pyTransmit Schedule (\d+)-(\d+)$', _vs.Name)
+    if not _m:
+        continue
+    if (int(_m.group(1)) > _pre_total_pages or
+            (int(_m.group(2)) != _pre_total_pages and _vs.Id not in _placed_ids)):
         _stale_ids.append(_vs.Id)
 if _stale_ids:
     with revit.Transaction("pyTransmit — Remove stale schedules") as _tds:
@@ -964,15 +1005,21 @@ _fixed_h = sum(
 _row_h_mm = ROW_NORMAL / MM
 _slim_h_mm = (ROW_NORMAL * 2) / MM  # overflow page: doc list + col header
 
+# Plan rows that sit below the drawing list - repeated on every page when
+# DIST_EVERY_PAGE is on, so they also count against each page's height.
+_sheets_pi   = next((i for i, p in enumerate(render_plan) if p['kind'] == 'sheets'), len(render_plan))
+_BELOW_LIST  = set(id(p) for p in render_plan[_sheets_pi + 1:])
+if DIST_EVERY_PAGE:
+    _slim_h_mm += (sum(p['height'] for p in render_plan[_sheets_pi + 1:]) +
+                   sum(fp['height'] for fp in footer_plan)) / MM
+    _fixed_h   += sum(fp['height'] for fp in footer_plan) / MM
+
 rows_page1 = max(1, int((A4_USABLE - _fixed_h) / _row_h_mm) - 1) if _SPLIT else 999999
 rows_page_n = max(1, int((A4_USABLE - _slim_h_mm) / _row_h_mm) - 1) if _SPLIT else 999999
 
 # Split sheet rows into pages
 _all_sheet_items = _sheet_render_rows
-pages = [_all_sheet_items[:rows_page1]]
-_rem  = _all_sheet_items[rows_page1:]
-while _rem:
-    pages.append(_rem[:rows_page_n]); _rem = _rem[rows_page_n:]
+pages = _paginate(_all_sheet_items, rows_page1, rows_page_n)
 
 # ── Reflow group markers stranded at a page boundary ─────────────────────────
 # A group gap/header row only makes sense when its sheets follow it on the same
@@ -1030,7 +1077,8 @@ def _render_page(hdr, page_sheet_items, is_first_page, is_last_page=False):
         # Overflow pages: include only rows marked repeat_every_page in the JSON, plus the sheet data row
         _plan = [p for p in render_plan
                  if p['kind'] == 'sheets'
-                 or p['row'].get('repeat_every_page', False)]
+                 or p['row'].get('repeat_every_page', False)
+                 or (DIST_EVERY_PAGE and id(p) in _BELOW_LIST)]
 
     for plan_item in _plan:
         kind = plan_item['kind']
@@ -1040,7 +1088,7 @@ def _render_page(hdr, page_sheet_items, is_first_page, is_last_page=False):
             page_rows.append({'ri': ri, 'kind': 'fixed', 'row': row, 'item': None, 'layout_ri': _plan_lri})
             ri += 1
         elif kind == 'recip':
-            if not is_first_page: continue
+            if not is_first_page and not DIST_EVERY_PAGE: continue
             for idx, _ in enumerate(RECIPIENTS):
                 page_rows.append({'ri': ri, 'kind': 'recip', 'row': row,
                                   'item': idx, 'is_last': idx == len(RECIPIENTS)-1, 'layout_ri': _plan_lri})
@@ -1065,7 +1113,7 @@ def _render_page(hdr, page_sheet_items, is_first_page, is_last_page=False):
                                   'item': sr, 'is_last': _is_last_s, 'layout_ri': _plan_lri})
                 ri += 1
 
-    if is_last_page:
+    if is_last_page or DIST_EVERY_PAGE:
         for fp in footer_plan:
             if fp['kind'] == 'recip':
                 for idx, _ in enumerate(RECIPIENTS):
@@ -1288,7 +1336,7 @@ def _render_page(hdr, page_sheet_items, is_first_page, is_last_page=False):
     _REV_TYPES = {'spine_copies', 'spine_reason', 'spine_method',
                   'spine_initials', 'spine_doc_type', 'spine_print_size'}
     _HIDE_ALL  = {'t': False, 'b': False, 'l': False, 'r': False}
-    if is_last_page:
+    if is_last_page or DIST_EVERY_PAGE:
         for pr in page_rows:
             if pr['row'].get('section') != 'footer':
                 continue

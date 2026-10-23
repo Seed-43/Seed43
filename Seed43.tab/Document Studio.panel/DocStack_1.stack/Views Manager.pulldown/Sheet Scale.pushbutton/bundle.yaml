@@ -1,0 +1,20 @@
+title: "Sheet Scale"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Writes the view scales of sheets whose Scale reads As indicated into
+  the A1_Scale and A3_Scale sheet parameters and turns the title block's
+  scale override on so it shows them. Every other sheet has those
+  parameters cleared and the override turned off. Run it and pick
+  Current Sheet, which also takes sheets selected in the Project Browser,
+  or All Sheets. Scales are written 1:1 as the viewports show them,
+  smallest first, into A3_Scale on an A3 title block and A1_Scale on an
+  A1 title block, and the other size's parameter is cleared. Legends are left out, and so are viewports whose type
+  name holds No Scale, N.T.S, No Title or None.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

@@ -280,13 +280,21 @@ class StudioLayout(object):
         """Total height of a list of output rows, in mm."""
         return sum(self.row_h(v) for v in vs)
 
-    def page_rows(self, printable_h_mm=None, split=True):
+    def page_rows(self, printable_h_mm=None, split=True, split_after=None,
+                  repeat_below=False):
         """Output rows dealt out into printed pages.
 
         Rows in Studio's "Repeat at Top of Every Page" section open every
         page and rows in "Anchor to Bottom of Every Page" close it - the same
         two settings the Excel writer turns into print titles and a page
         footer. Everything else is dealt out in order until the page is full.
+
+        split=False ignores the page height. split_after (list of sheet
+        numbers) closes the page after each of those sheets whatever split is,
+        which is pyTransmit's Schedule Pages "Split After" box.
+        repeat_below=True treats every row below the drawing list
+        (distribution, reason for issue...) as anchored to the bottom of
+        every page - the "Distribution Every Page" switch.
 
         Returns a list of row lists, always at least one. What a "page" then
         means is the writer's business: a fresh column across the drafting
@@ -296,37 +304,86 @@ class StudioLayout(object):
         bottom = self.rows_in_section(SECTION_REPEAT_BOTTOM)
         fixed = set(top) | set(bottom)
         body = [v for v in range(len(self.vrows)) if v not in fixed]
+        if repeat_below:
+            sheet_vs = [v for v in body if self.vrows[v][0] in self._sheet_driven]
+            if sheet_vs:
+                below = [v for v in body if v > sheet_vs[-1]]
+                body = [v for v in body if v <= sheet_vs[-1]]
+                bottom = below + bottom
+        breaks = self._split_after_rows(split_after)
 
-        if not split:
+        if not split and not breaks:
             return [top + body + bottom]
 
         height = float(printable_h_mm or self.printable_h())
         budget = height - self.rows_height(top) - self.rows_height(bottom)
-        if budget <= 0:
+        if not split:
+            budget = float('inf')
+        elif budget <= 0:
             # The repeated bands alone are taller than the page. Splitting on
             # that basis would put one body row per page and run off the
             # paper, so keep it in one piece and say why.
             self._log('The repeating rows are taller than the printable page '
                       'height ({:.0f}mm) - the table is kept in one '
                       'piece.'.format(height))
-            return [top + body + bottom]
+            budget = float('inf')
 
-        pages = []
+        chunks = []
         current = []
         used = 0.0
         for v in body:
             h = self.row_h(v)
             if current and used + h > budget:
-                pages.append(top + current + bottom)
+                chunks.append(current)
                 current = []
                 used = 0.0
             current.append(v)
             used += h
-        pages.append(top + current + bottom)
+            if v in breaks:
+                chunks.append(current)
+                current = []
+                used = 0.0
+        if current or not chunks:
+            chunks.append(current)
+        # NOTE: a group spacer row only separates groups on the same page - at
+        # a page break it would leave a blank row under the column headings of
+        # the next page (or above the distribution), so it is dropped there.
+        # Page 1's own leading spacer is the layout's choice and stays.
+        for i, chunk in enumerate(chunks):
+            while i > 0 and chunk and self._is_spacer(chunk[0]):
+                chunk.pop(0)
+            while len(chunks) > 1 and chunk and self._is_spacer(chunk[-1]):
+                chunk.pop()
+        pages = [top + chunk + bottom for chunk in chunks]
         if len(pages) > 1:
             self._log('{} rows split across {} pages of {:.0f}mm printable '
                       'height.'.format(len(body), len(pages), height))
         return pages
+
+    def _is_spacer(self, v):
+        """True for a blank group-gap row of the drawing list."""
+        r, item = self.vrows[v]
+        return (r in self._sheet_driven and item is not None
+                and 0 <= item < len(self.row_plan)
+                and self.row_plan[item][0] == 'space')
+
+    def _split_after_rows(self, split_after):
+        """Output rows that close a page: the last row of each Split After sheet."""
+        wanted = set((s or '').strip().upper() for s in (split_after or []))
+        wanted.discard('')
+        if not wanted:
+            return set()
+        last = {}
+        for v, (r, item) in enumerate(self.vrows):
+            # recipient rows carry an item index too - into the distribution
+            if r not in self._sheet_driven:
+                continue
+            if item is None or not (0 <= item < len(self.row_plan)):
+                continue
+            kind, doc = self.row_plan[item]
+            if kind == 'doc' and (doc.get('sheet') or '').strip().upper() in wanted:
+                last[item] = v
+        return set(last.values())
 
     # --- public: content ---
     def rev_index_for(self, block, col):

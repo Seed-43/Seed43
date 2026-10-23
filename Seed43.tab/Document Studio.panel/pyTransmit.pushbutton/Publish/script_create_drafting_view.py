@@ -350,6 +350,8 @@ output.print_md("Layout: **{}** | Revisions: **{}** | Sheets: **{}**".format(
 # The Setup panel page_height_mode only controls whether to split at all.
 _PAGE_H_MODE = _p.get('page_height_mode') or 'a4'
 _SPLIT       = _PAGE_H_MODE != 'none'
+# Main window "Split After" - a new column starts after each of these sheets.
+SPLIT_AFTER  = set((s or '').strip().upper() for s in (_p.get('split_after') or [])) - set([''])
 _PAGE_H_MM   = PAGE_H_MM - 2 * _MARGIN_MM   # usable height from JSON
 _PAGE_H_FT   = _PAGE_H_MM * MM
 
@@ -985,9 +987,15 @@ with revit.Transaction("pyTransmit DV - Draw transmittal") as t:
 
             _doc_list_y_top = _doc_list_y_start or _y
 
+            _break_next = False
             for _kind, _item in _render_items:
+                # A Split After sheet closes its column once it is drawn, so
+                # the flag set here is acted on by the NEXT row.
+                _forced     = _break_next
+                _break_next = (_kind == 'sheet' and
+                               (_item.SheetNumber or '').strip().upper() in SPLIT_AFTER)
                 _limit = _rows_page1 if _is_first_block else _rows_page_n
-                if _rows_in_block >= _limit and _sheet_ys:
+                if (_rows_in_block >= _limit or _forced) and _sheet_ys:
                     # Close current column and open a new one to the right
                     if _sheet_hdr_y_bot:
                         _rev_b2 = next((b for b in _blocks if b and b.get('type') == 'spine_rev'), None)

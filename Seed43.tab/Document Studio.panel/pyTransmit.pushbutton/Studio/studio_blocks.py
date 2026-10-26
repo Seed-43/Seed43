@@ -413,7 +413,11 @@ def render_block(block, data, scale, logo_path='', rev_index=0, row_plan=None,
 
     t = block.get('type', '')
     pad = max(1, int(2 * scale))
-    thick = _SW.Thickness(pad)
+    # NOTE: vertical padding is much smaller than horizontal - at 2 units it
+    # ate ~4mm of every row, so a short row (a 4mm heading under 8pt text)
+    # clipped its own text. 0.5 keeps a hairline of air above and below.
+    pad_v = max(0, int(0.5 * scale))
+    thick = _SW.Thickness(pad, pad_v, pad, pad_v)
 
     root = _SWC.Grid()
     if block.get('bg_color'):
@@ -443,7 +447,7 @@ def render_block(block, data, scale, logo_path='', rev_index=0, row_plan=None,
         if not (block.get('content') or '').strip():
             return placeholder(block, scale, '(empty)')
         wrapper = _SWC.Border()
-        wrapper.Padding = _SW.Thickness(pad * 2, pad, pad * 2, pad)
+        wrapper.Padding = _SW.Thickness(pad * 2, pad_v, pad * 2, pad_v)
         wrapper.VerticalAlignment = _v_align(block.get('v_just'))
         wrapper.HorizontalAlignment = _SW.HorizontalAlignment.Stretch
         tb = _SWC.TextBlock()
@@ -499,7 +503,7 @@ def render_block(block, data, scale, logo_path='', rev_index=0, row_plan=None,
             tb = _SWC.TextBlock()
             fname = os.path.basename(logo_path) if logo_path else ''
             tb.Text = '[ {} missing ]'.format(fname) if fname else '[ LOGO ]'
-            tb.Padding = _SW.Thickness(pad * 2, pad, pad * 2, pad)
+            tb.Padding = _SW.Thickness(pad * 2, pad_v, pad * 2, pad_v)
             _apply_text_style(tb, DEFAULT_FONT, 'center', scale)
             inner.Child = tb
             wrapper.Child = inner
@@ -511,7 +515,7 @@ def render_block(block, data, scale, logo_path='', rev_index=0, row_plan=None,
         if not str(data.get(t, '') or '').strip():
             return placeholder(block, scale, '(no data)')
         wrapper = _SWC.Border()
-        wrapper.Padding = _SW.Thickness(pad * 2, pad, pad * 2, pad)
+        wrapper.Padding = _SW.Thickness(pad * 2, pad_v, pad * 2, pad_v)
         wrapper.VerticalAlignment = _v_align(block.get('v_just'))
         wrapper.HorizontalAlignment = _SW.HorizontalAlignment.Stretch
         tb = _SWC.TextBlock()

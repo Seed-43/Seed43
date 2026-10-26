@@ -706,7 +706,12 @@ Body: row/column headers + free grid on the left, collapsible Blocks panel on th
                             <StackPanel Margin="0,0,10,0">
                                 <StackPanel Orientation="Horizontal">
                                     <ComboBox x:Name="font_family_combo" Style="{StaticResource ComboBoxStyle}" Width="100" Margin="0,0,4,0"/>
-                                    <ComboBox x:Name="font_size_combo"    Style="{StaticResource ComboBoxStyle}" Width="50"  Margin="0,0,6,0"/>
+                                    <ComboBox x:Name="font_size_combo"    Style="{StaticResource ComboBoxStyle}" Width="50"  Margin="0,0,4,0"/>
+                                    <!-- The point size as printed text height, metric over
+                                         imperial - filled in by _show_font_size. -->
+                                    <TextBlock x:Name="font_size_note" Text="" FontSize="9" Width="44"
+                                               VerticalAlignment="Center" Margin="0,0,6,0" LineHeight="11"
+                                               Foreground="{DynamicResource BrushTextMuted}"/>
                                     <ToggleButton x:Name="bold_btn"      Content="B" Style="{StaticResource RibbonBtn}" FontWeight="Bold"/>
                                     <ToggleButton x:Name="italic_btn"    Content="I" Style="{StaticResource RibbonBtn}" FontStyle="Italic"/>
                                     <ToggleButton x:Name="underline_btn" Content="U" Style="{StaticResource RibbonBtn}"/>

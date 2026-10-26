@@ -3877,6 +3877,36 @@ class StudioSettingsWindow(WPFWindow):
                 items.Remove(previous)
             except Exception:
                 pass
+        self._show_font_size_note(size_mm)
+
+    @staticmethod
+    def _inch_fraction(inches):
+        """Nearest 1/64", reduced - the way Revit's imperial text sizes read."""
+        n = int(round(inches * 64))
+        if n <= 0:
+            return '{:.3f}"'.format(inches)
+        d = 64
+        while n % 2 == 0 and d > 1:
+            n //= 2
+            d //= 2
+        whole, n = divmod(n, d)
+        if not n:
+            return '{}"'.format(whole)
+        return '{}{}/{}"'.format('{} '.format(whole) if whole else '', n, d)
+
+    def _show_font_size_note(self, size_mm):
+        """Printed text height of the selected size, in mm and inches."""
+        try:
+            if not size_mm:
+                self.font_size_note.Text = ''
+                self.font_size_note.ToolTip = None
+                return
+            inches = size_mm / 25.4
+            self.font_size_note.Text = '{:.2f} mm\n{}'.format(size_mm, self._inch_fraction(inches))
+            self.font_size_note.ToolTip = '{} pt = {:.2f} mm = {:.3f}" text height'.format(
+                self._fmt_pt(studio_blocks.mm_to_pt(size_mm)), size_mm, inches)
+        except Exception:
+            pass
 
     def _sync_format_buttons(self, b):
         """Reflect a block's formatting on the ribbon controls."""

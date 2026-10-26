@@ -488,6 +488,8 @@ class StudioSettingsWindow(WPFWindow):
         self._wire_doc_table_ribbon()
         self._wire_header_buttons()
         self._wire_blocks_panel()
+        self._wire_structure_panel()
+        self._wire_quick_access()
         self._wire_templates()
         self._wire_logos()
 
@@ -2028,6 +2030,211 @@ class StudioSettingsWindow(WPFWindow):
             self.blocks_scroll.Visibility = _SW.Visibility.Collapsed
             self.blocks_title_label.Visibility = _SW.Visibility.Collapsed
             self.blocks_collapse_btn.Content = '«'  # «
+
+    # ======================================================================
+    # Structure panel, quick-access Undo/Redo and status readout
+    # ======================================================================
+    #
+    # Borrowed from Open Calc Studio's layout: an outline of the document on
+    # the left, Undo/Redo in the title bar, and a status bar that says where
+    # you are and how big the result is. Everything here only reads the grid
+    # and drives existing selection/undo code, and every builder is wrapped so
+    # a failure leaves the rest of the window working.
+
+    STRUCTURE_W = 210
+    _DOMAIN_NOTE = {'sheet': 'per sheet', 'recipient': 'per recipient'}
+
+    # --- Quick access ---
+    def _wire_quick_access(self):
+        try:
+            self.undo_btn.Click += lambda s, a: self._undo()
+            self.redo_btn.Click += lambda s, a: self._redo()
+        except Exception:
+            pass
+
+    def _sync_undo_buttons(self):
+        try:
+            self.undo_btn.IsEnabled = bool(self._undo_stack)
+            self.redo_btn.IsEnabled = bool(self._redo_stack)
+        except Exception:
+            pass
+
+    # --- Structure panel ---
+    def _wire_structure_panel(self):
+        self._structure_rows = {}
+        try:
+            self.structure_collapse_btn.Click += self._on_structure_collapse_click
+            self.structure_collapse_btn.IsChecked = False
+        except Exception:
+            pass
+
+    def _on_structure_collapse_click(self, sender, args):
+        expanded = not self.structure_collapse_btn.IsChecked
+        if expanded:
+            self.structure_col.Width = _SW.GridLength(self.STRUCTURE_W)
+            self.structure_scroll.Visibility = _SW.Visibility.Visible
+            self.structure_title_label.Visibility = _SW.Visibility.Visible
+            self.structure_collapse_btn.Content = '«'
+        else:
+            self.structure_col.Width = _SW.GridLength(28)
+            self.structure_scroll.Visibility = _SW.Visibility.Collapsed
+            self.structure_title_label.Visibility = _SW.Visibility.Collapsed
+            self.structure_collapse_btn.Content = '»'
+
+    def _row_summary(self, r):
+        """(block names, repeat note) for one model row - what the row holds."""
+        names = []
+        domain = None
+        for c in range(self._grid.n_cols):
+            if self._grid.origin_of(r, c) != (r, c):
+                continue
+            block = self._grid.block_at(r, c)
+            t = (block or {}).get('type')
+            if not t:
+                continue
+            if t == 'text':
+                text = (block.get('content') or '').strip()
+                name = u'"{}"'.format(text[:24]) if text else 'Text'
+            else:
+                name = studio_blocks.TYPE_NAMES.get(t, t)
+            if name not in names:
+                names.append(name)
+            domain = domain or studio_rows.repeat_domain(block)
+        return names, self._DOMAIN_NOTE.get(domain, '')
+
+    def _build_structure_panel(self):
+        """Rebuild the outline: a header per run of rows in one page section,
+        then one clickable line per row naming the blocks it holds."""
+        try:
+            panel = self.structure_panel_content
+        except Exception:
+            return
+        try:
+            panel.Children.Clear()
+            self._structure_rows = {}
+            last_section = None
+            for r in range(self._grid.n_rows):
+                section = self._grid.section_of(r)
+                if section != last_section:
+                    panel.Children.Add(self._structure_header(section))
+                    last_section = section
+                panel.Children.Add(self._structure_row(r, section))
+            self._highlight_structure()
+        except Exception:
+            pass
+
+    def _structure_header(self, section):
+        row = _SWC.StackPanel()
+        row.Orientation = _SWC.Orientation.Horizontal
+        row.Margin = _SW.Thickness(2, 8, 0, 3)
+        swatch = _SWC.Border()
+        swatch.Width = 8
+        swatch.Height = 8
+        swatch.CornerRadius = _SW.CornerRadius(2)
+        swatch.Margin = _SW.Thickness(0, 0, 6, 0)
+        swatch.VerticalAlignment = _SW.VerticalAlignment.Center
+        colour = studio_grid.SECTION_COLORS.get(section)
+        if colour:
+            swatch.Background = _brush(colour)
+        else:
+            swatch.Background = _SWM.Brushes.Transparent
+            swatch.BorderBrush = theme_brush('pill_off_border')
+            swatch.BorderThickness = _SW.Thickness(1)
+        lbl = _SWC.TextBlock()
+        lbl.Text = studio_grid.SECTION_SHORT.get(section, section).upper()
+        lbl.FontSize = 9
+        lbl.FontWeight = _SW.FontWeights.SemiBold
+        lbl.Foreground = theme_brush('text_muted')
+        lbl.VerticalAlignment = _SW.VerticalAlignment.Center
+        row.Children.Add(swatch)
+        row.Children.Add(lbl)
+        return row
+
+    def _structure_row(self, r, section):
+        names, note = self._row_summary(r)
+        item = _SWC.Border()
+        item.CornerRadius = _SW.CornerRadius(3)
+        item.Padding = _SW.Thickness(6, 3, 6, 3)
+        item.Margin = _SW.Thickness(0, 0, 0, 1)
+        item.Cursor = _SWI.Cursors.Hand
+        item.Background = _SWM.Brushes.Transparent
+        # The section colour runs down the left edge, like the row gutter.
+        colour = studio_grid.SECTION_COLORS.get(section)
+        if colour:
+            item.BorderBrush = _brush(colour)
+            item.BorderThickness = _SW.Thickness(2, 0, 0, 0)
+
+        dock = _SWC.DockPanel()
+        num = _SWC.TextBlock()
+        num.Text = str(r + 1)
+        num.Width = 22
+        num.FontSize = 10
+        num.Foreground = theme_brush('text_muted')
+        _SWC.DockPanel.SetDock(num, _SWC.Dock.Left)
+        dock.Children.Add(num)
+        if note:
+            tag = _SWC.TextBlock()
+            tag.Text = note
+            tag.FontSize = 9
+            tag.FontStyle = _SW.FontStyles.Italic
+            tag.Foreground = theme_brush('accent')
+            tag.Margin = _SW.Thickness(4, 0, 0, 0)
+            _SWC.DockPanel.SetDock(tag, _SWC.Dock.Right)
+            dock.Children.Add(tag)
+        txt = _SWC.TextBlock()
+        txt.Text = ', '.join(names) if names else '(empty)'
+        txt.FontSize = 10
+        txt.TextTrimming = _SW.TextTrimming.CharacterEllipsis
+        txt.Foreground = theme_brush('text_primary') if names else theme_brush('text_muted')
+        txt.ToolTip = txt.Text
+        dock.Children.Add(txt)
+        item.Child = dock
+
+        item.MouseLeftButtonUp += lambda s, a, row=r: self._on_structure_row_click(row)
+        self._structure_rows[r] = item
+        return item
+
+    def _on_structure_row_click(self, r):
+        """Select the whole row on the grid, the way clicking its number does."""
+        if not (0 <= r < self._grid.n_rows):
+            return
+        self._sel_mode = 'row'
+        self._sel = (r, 0, r, self._grid.n_cols - 1)
+        self._move_overlay_to_selection()
+        self._update_formula_bar()
+        self._scroll_into_view(r, 0)
+
+    def _highlight_structure(self):
+        rows = getattr(self, '_structure_rows', None)
+        if not rows:
+            return
+        try:
+            r0, _c0, r1, _c1 = self._sel_rect()
+        except Exception:
+            return
+        on = theme_brush('card_bg')
+        for r, item in rows.items():
+            item.Background = on if r0 <= r <= r1 else _SWM.Brushes.Transparent
+
+    # --- Status readout ---
+    def _update_status_info(self):
+        """Selection | rows x cols | printed pages | sheets, beside the zoom."""
+        try:
+            r0, c0, r1, c1 = self._sel_rect()
+            ref = _cell_ref(r0, c0)
+            if (r0, c0) != (r1, c1):
+                ref = '{}:{}'.format(ref, _cell_ref(r1, c1))
+            parts = [ref,
+                     '{} rows x {} cols'.format(self._grid.n_rows, self._grid.n_cols)]
+            pages = getattr(self, '_page_count', None)
+            if pages:
+                parts.append('{} page{}'.format(pages, '' if pages == 1 else 's'))
+            n_docs = len((self._data or {}).get('docs') or [])
+            parts.append('{} sheet{}'.format(n_docs, '' if n_docs == 1 else 's'))
+            self.status_info_label.Text = '   |   '.join(parts)
+        except Exception:
+            pass
+        self._highlight_structure()
 
     def _build_section_legend(self, panel):
         """Colour key for the row-section stripes, so the gutter colours
@@ -3625,6 +3832,9 @@ class StudioSettingsWindow(WPFWindow):
                 self.section_label.Visibility = _SW.Visibility.Visible
         except Exception:
             pass
+        # Every selection change ends here, so the status bar and the
+        # Structure highlight follow it without their own hooks.
+        self._update_status_info()
 
     @staticmethod
     def _fmt_pt(pt):
@@ -3863,9 +4073,11 @@ class StudioSettingsWindow(WPFWindow):
             pass
         self._apply_auto_row_heights()
         self._render_grid()
+        self._build_structure_panel()
         self._update_formula_bar()
         self._sync_doc_table_ribbon()
         self._sync_logo_combo()
+        self._sync_undo_buttons()
         if self._active_path:
             self.active_file_label.Text = '- {}'.format(os.path.basename(self._active_path))
         else:
@@ -4379,6 +4591,8 @@ class StudioSettingsWindow(WPFWindow):
         # same way - a repeating row's section applies to every row it draws.
         v_sections = [grid.section_of(mr) for mr, _it in self._vrows]
         y_breaks = self._row_break_positions(row_px, v_sections, page_h_px)
+        # Printed page count for the status bar - one more than the splits.
+        self._page_count = len(y_breaks) + 1
 
         # The width line is a ruler, not just a break - it answers "do my
         # columns fit the page?", so it must show even when content is

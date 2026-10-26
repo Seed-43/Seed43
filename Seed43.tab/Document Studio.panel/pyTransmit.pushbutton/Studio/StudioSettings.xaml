@@ -648,6 +648,13 @@ Body: row/column headers + free grid on the left, collapsible Blocks panel on th
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"
                             shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                    <!-- Quick-access Undo / Redo, the same pair Ctrl+Z / Ctrl+Y
+                         drive - greyed out when there is nothing to step to.
+                         Wired in Python (_wire_quick_access). -->
+                    <Button x:Name="undo_btn" Content="↶" Style="{StaticResource PBtn}" Width="28" Padding="0"
+                            FontSize="14" Margin="0,0,2,0" ToolTip="Undo (Ctrl+Z)"/>
+                    <Button x:Name="redo_btn" Content="↷" Style="{StaticResource PBtn}" Width="28" Padding="0"
+                            FontSize="14" Margin="0,0,14,0" ToolTip="Redo (Ctrl+Y)"/>
                     <TextBlock Text="Template" VerticalAlignment="Center" FontSize="11" Margin="0,0,6,0"
                                Foreground="{DynamicResource BrushTextMuted}"/>
                     <ComboBox x:Name="template_combo" Style="{StaticResource ComboBoxStyle}" Width="150" Margin="0,0,4,0"/>
@@ -978,24 +985,48 @@ Body: row/column headers + free grid on the left, collapsible Blocks panel on th
                     <Button x:Name="zoom_in_btn"    Content="+"    Style="{StaticResource PBtn}" Width="22" Height="18" Padding="0" FontSize="11"/>
                     <Button x:Name="zoom_reset_btn" Content="100%" Style="{StaticResource PBtn}" Height="18" Padding="6,0" Margin="6,0,0,0" FontSize="10"/>
                 </StackPanel>
+                <!-- Selection, grid size, printed pages and sheet count. -->
+                <TextBlock x:Name="status_info_label" DockPanel.Dock="Right" Text="" VerticalAlignment="Center"
+                           FontSize="11" Margin="0,0,16,0" Foreground="{DynamicResource BrushTextMuted}"/>
                 <TextBlock x:Name="status_label" Text="Ready" VerticalAlignment="Center" FontSize="11"
                            Foreground="{DynamicResource BrushTextMuted}"/>
             </DockPanel>
         </Border>
 
-        <!-- ── Grid body (left) + collapsible Blocks panel (right) ─────────────── -->
+        <!-- ── Structure panel (left) + grid body + collapsible Blocks panel (right) ── -->
         <Grid>
             <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="structure_col" Width="210"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition x:Name="blocks_col" Width="230"/>
             </Grid.ColumnDefinitions>
+
+            <!-- Structure: the layout's rows as an outline, grouped by page
+                 section, Open Calc Studio style - click a row to select it
+                 on the grid. Rebuilt in Python on every render
+                 (_build_structure_panel). -->
+            <Border Grid.Column="0" Background="{DynamicResource BrushHeaderBg}"
+                    BorderBrush="{DynamicResource BrushPillOffBorder}" BorderThickness="0,0,1,0">
+                <DockPanel>
+                    <Grid DockPanel.Dock="Top" Height="30">
+                        <TextBlock x:Name="structure_title_label" Text="Structure" Margin="10,0" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource BrushTextPrimary}" FontWeight="SemiBold" FontSize="12"/>
+                        <ToggleButton x:Name="structure_collapse_btn" Content="«" Style="{StaticResource RibbonBtn}"
+                                      HorizontalAlignment="Right" Margin="0,0,4,0" Width="24"/>
+                    </Grid>
+                    <ScrollViewer x:Name="structure_scroll" Style="{StaticResource MacScrollViewer}"
+                                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel x:Name="structure_panel_content" Margin="6" Orientation="Vertical"/>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
 
             <!-- Frozen headers: four quadrants. The corner never moves, the
                  column headers scroll horizontally only, the row headers
                  scroll vertically only, and the cell area scrolls both -
                  its ScrollChanged drives the other two (wired in Python).
                  Excel's frozen-panes behaviour. -->
-            <Grid Grid.Column="0" Margin="16" Background="{DynamicResource BrushWindowBg}">
+            <Grid Grid.Column="1" Margin="16" Background="{DynamicResource BrushWindowBg}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
@@ -1030,7 +1061,7 @@ Body: row/column headers + free grid on the left, collapsible Blocks panel on th
                 </ScrollViewer>
             </Grid>
 
-            <Border Grid.Column="1" Background="{DynamicResource BrushHeaderBg}"
+            <Border Grid.Column="2" Background="{DynamicResource BrushHeaderBg}"
                     BorderBrush="{DynamicResource BrushPillOffBorder}" BorderThickness="1,0,0,0">
                 <DockPanel>
                     <Grid DockPanel.Dock="Top" Height="30">

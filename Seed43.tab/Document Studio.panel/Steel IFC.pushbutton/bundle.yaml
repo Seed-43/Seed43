@@ -1,0 +1,21 @@
+title: "Steel IFC"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Imports a steel fabrication IFC (Tekla Structures, ProStructures) as
+  native Revit structural framing, braces and columns where a member is
+  a section swept along a straight line, and as DirectShapes for plates,
+  bent parts and anything else. Bolts, nuts and washers are skipped.
+  Sections are matched to loaded family types and the steel type
+  catalogues in the Revit content library; any section without a match
+  is listed so you can pick a family type for it or import it as a
+  shape, and your choices are remembered for the next import. Also
+  reads a Seed43 Studio .seed that holds an IFC. A report lists every
+  section, the type it became and anything that needs checking.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

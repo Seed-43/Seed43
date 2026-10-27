@@ -10,8 +10,9 @@ tooltip: >
   in the Studio tree in Comments. Reads the files made by 3D Seed and by
   Navisworks' Export to Studio. Pick the file, untick any categories you
   do not want, then choose where to place it and whether to make solids
-  or meshes. Shapes are not editable like native Revit elements, and a
-  .seed made from StruCad, IFC or STEP has to be opened in Studio instead.
+  or meshes. Shapes are not editable like native Revit elements. A .seed
+  made from an IFC is imported as with Steel IFC; one made from StruCad
+  or STEP has to be opened in Studio instead.
 
   __________________________________________________________________
 min_revit_ver: 2022

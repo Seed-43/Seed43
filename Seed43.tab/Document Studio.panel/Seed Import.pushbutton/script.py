@@ -15,6 +15,7 @@ from System.Collections.Generic import List
 from pyrevit import revit, DB, forms, script
 
 from seed_reader import SeedError, read_seed
+from Snippets import _steel_import
 
 doc = revit.doc
 
@@ -301,7 +302,15 @@ def main():
     try:
         model = read_seed(path)
     except SeedError as ex:
-        forms.alert(safe_text(ex), title=TITLE)
+        fmt = _steel_import.seed_format(path)
+        if fmt == "ifc":
+            import_ifc(path)
+        elif fmt == "bsw":
+            forms.alert(u"This .seed holds a StruCad model. Open it in "
+                        u"Seed43 Studio and use Export IFC, then import the "
+                        u"IFC with Steel IFC.", title=TITLE)
+        else:
+            forms.alert(safe_text(ex), title=TITLE)
         return
     except Exception as ex:
         forms.alert(u"Could not read the file: {}".format(ex), title=TITLE)
@@ -398,6 +407,23 @@ def main():
         raise
 
     report(path, model, made, failed, fallback, new_mats, placement)
+
+
+def import_ifc(path):
+    """A .seed made from an IFC: hand the IFC to the Steel IFC importer."""
+    try:
+        ifc_path, source = _steel_import.seed_ifc(path)
+    except Exception as ex:
+        forms.alert(u"Could not read the IFC in the .seed: {}".format(ex),
+                    title=TITLE)
+        return
+    try:
+        _steel_import.run(doc, ifc_path, source)
+    finally:
+        try:
+            os.remove(ifc_path)
+        except Exception:
+            pass
 
 
 def report(path, model, made, failed, fallback, new_mats, placement):

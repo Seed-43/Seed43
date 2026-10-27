@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   version="1.1"
+   id="svg1"
+   width="94.795959"
+   height="95.980713"
+   viewBox="0 0 94.795959 95.980713"
+   xml:space="preserve"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"><defs
+     id="defs1"><style
+       id="style1">
+      .outline { stroke:#2b2b2b; stroke-width:4; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+      .fill { fill:#ffffff; stroke:#2b2b2b; stroke-width:4; }
+      .accent { fill:#28a745; stroke:#2b2b2b; stroke-width:4; }
+      .accent-stroke { stroke:#28a745; stroke-width:3; }
+      .muted { fill:#dcdcdc; }
+      .dark { fill:#6b6b6b; }
+    </style><style
+       id="style1-7">
+      .outline { stroke:#2b2b2b; stroke-width:4; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+      .fill { fill:#ffffff; stroke:#2b2b2b; stroke-width:4; }
+      .accent { fill:#28a745; stroke:#2b2b2b; stroke-width:4; }
+      .accent-stroke { stroke:#28a745; stroke-width:3; }
+      .muted { fill:#dcdcdc; }
+      .dark { fill:#6b6b6b; }
+    </style><style
+       id="style1-9">
+      .outline { stroke:#2b2b2b; stroke-width:4; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+      .fill { fill:#ffffff; stroke:#2b2b2b; stroke-width:4; }
+      .accent { fill:#28a745; stroke:#2b2b2b; stroke-width:4; }
+      .accent-stroke { stroke:#28a745; stroke-width:3; }
+      .muted { fill:#dcdcdc; }
+      .dark { fill:#6b6b6b; }
+    </style><style
+       id="style1-7-2">
+      .outline { stroke:#2b2b2b; stroke-width:4; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+      .fill { fill:#ffffff; stroke:#2b2b2b; stroke-width:4; }
+      .accent { fill:#28a745; stroke:#2b2b2b; stroke-width:4; }
+      .accent-stroke { stroke:#28a745; stroke-width:3; }
+      .muted { fill:#dcdcdc; }
+      .dark { fill:#6b6b6b; }
+    </style></defs><g
+     id="g60-1"
+     transform="translate(-811.11951,-114.9781)"><rect
+       style="fill:#1f893c;fill-opacity:1;stroke:none;stroke-width:1.4;stroke-linecap:square;stroke-dasharray:none;stroke-opacity:1"
+       id="rect52-6-2"
+       width="91.795982"
+       height="92.980591"
+       x="812.61951"
+       y="116.47811"
+       rx="12.079668"
+       ry="12.031159" /><path
+       id="path52-9"
+       style="fill:#1faa3c;fill-opacity:1;stroke:none;stroke-width:1.4;stroke-linecap:square;stroke-dasharray:none;stroke-opacity:1"
+       d="m 904.41589,145.07687 v -13.84708 c 0,-8.17273 -6.60651,-14.75233 -14.81218,-14.75233 h -62.17286 c -8.20567,0 -14.81218,6.5796 -14.81218,14.75233 v 37.83637 a 89.969949,35.293131 0 0 0 6.48766,0.091 89.969949,35.293131 0 0 0 85.30956,-24.0803 z" /><rect
+       style="display:inline;fill:none;fill-opacity:1;stroke:#000000;stroke-width:2.99999;stroke-linecap:square;stroke-dasharray:none;stroke-opacity:1"
+       id="rect53-5-3"
+       width="91.795982"
+       height="92.980591"
+       x="812.61951"
+       y="116.47811"
+       rx="12.079668"
+       ry="12.031159" /><path id="importarrow" style="fill:#000000;fill-opacity:1;stroke:none" d="M 853,152 H 863 V 173 H 873 L 858,190 L 843,173 H 853 Z" /><path id="importtray" style="fill:#000000;fill-opacity:1;stroke:none" d="M 834,176 V 204 H 882 V 176 H 875 V 197 H 841 V 176 Z" /><path id="ibeam" style="fill:#000000;fill-opacity:1;stroke:none" d="M 841,121 H 875 V 128 H 861.5 V 141 H 875 V 148 H 841 V 141 H 854.5 V 128 H 841 Z" /></g></svg>

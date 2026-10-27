@@ -56,6 +56,76 @@ snippets:
       make_icon_with_label: Return a horizontal StackPanel with an icon and a text label beside it.
       icon_keys:            Return a sorted list of all available icon key names.
 
+  _ifc_step.py:
+    description: >
+      A small IFC (STEP physical file) reader: entities with their argument
+      lists parsed lazily (a 100 MB file is not decoded in full), the file's
+      length unit, IfcLocalPlacement chains and axis placements as 3x4
+      matrices in millimetres. No Revit types, so it runs under CPython for
+      testing as well as IronPython 2. Used by _ifc_steel.py.
+    functions:
+      IfcFile.load:       Read an IFC file into raw entities (IfcFile.from_bytes for bytes).
+      IfcFile.args:       Return an entity's arguments as Python values, parsed on first use.
+      IfcFile.by_type:    Return the ids of every entity of the given types.
+      IfcFile.placement:  Return the world matrix (mm) of an IfcLocalPlacement chain.
+      decode_string:      Turn a STEP string body into text (\X2\, \X\, \S\ escapes).
+      mat_mul:            Combine two 3x4 matrices (a after b).
+      mat_point:          Transform a point by a 3x4 matrix.
+      mat_vector:         Transform a direction by a 3x4 matrix.
+
+  _ifc_steel.py:
+    description: >
+      Steel parts out of an IFC file (Tekla Structures, ProStructures,
+      IFC2x3): every product with a body becomes a Part, with its solids as
+      Extrusions (profile, plane, direction, depth, half-space and solid
+      clips) or Breps, its mark, material and assembly, and bolts, nuts and
+      washers flagged. A part that is one straight extrusion also gets a
+      Member: the line through the profile's bounding-box centre, the
+      profile's x and y axes in the world, and its kind, dimensions, outline
+      and centroid. Millimetres, file world coordinates, no Revit types.
+      Used by _steel_import.py.
+    functions:
+      read_steel:    Read an IFC (path or IfcFile) into a SteelModel of Parts.
+      name_key:      Return (shape word, rounded numbers) so UB180*18, 180UB18.1 and UB 180x18 compare equal.
+      is_bolt_name:  Return True for nut, washer, bolt and Tekla bolt-part names.
+      loop_points:   Return a profile loop as a point list (circles become polygons).
+      signed_area:   Return the signed area of a 2D point loop.
+
+  _steel_import.py:
+    description: >
+      The Revit side of steel IFC import: members whose section matches a
+      family type become native structural framing, braces and columns,
+      rolled and moved so the type's section lies over the IFC outline
+      (each type is probed once in a rolled-back transaction); everything
+      else becomes DirectShapes, bolts are skipped. Sections are matched
+      against loaded framing/column types and the steel type catalogues in
+      the Revit content library (saved choice, then dimensions, then name),
+      and any section left over is put to the user in a mapping window
+      whose choices are saved in .user/Steel IFC/profile_map.json. Only the
+      library types actually used are loaded. Matching and orientation maths
+      use no Revit types and are tested under CPython in
+      tests/test_steel_ifc.py. Used by Steel IFC and Seed Import.
+    functions:
+      run:               Import a steel IFC into a document, with the mapping window and a report.
+      seed_format:       Return the sourceFormat of a Seed43 Studio .seed file.
+      seed_ifc:          Write the IFC a .seed carries to a temporary .ifc file.
+      Matcher:           Match a section and category to a family type, saved choice first.
+      Entry:             Hold one loaded or library family type and its dimensions.
+      parse_catalogue:   Read a Revit type catalogue into type names, dimensions in mm and section keys.
+      decode_catalogue:  Decode type catalogue bytes (UTF-16, UTF-8 or ANSI).
+      family_kind:       Return the section kind from a steel family name.
+      entry_values:      Return the comparable dimensions of a family type for a section kind.
+      profile_values:    Return the comparable dimensions of an IFC profile.
+      values_match:      Compare two dimension tuples within max(0.6 mm, 1.5%).
+      fit_orientation:   Pick the signed permutation that lays a type's section over the IFC one.
+      section_dirs:      Return the world directions the Revit section axes must take.
+      section_axes:      Return the two transform bases across a member's axis.
+      rotation_angle:    Return the angle about the member axis that turns one section axis onto another.
+      clip_line:         Trim a member line by its end cuts.
+      Mapper:            Map file millimetres to Revit internal feet (shared, internal or centred).
+      load_map:          Return the saved section-to-type choices.
+      save_map:          Merge section-to-type choices into the saved map.
+
   _migrations.py:
     description: >
       Reads seed43_migrations.yaml and copies user .json config from renamed

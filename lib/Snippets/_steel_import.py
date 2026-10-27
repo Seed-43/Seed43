@@ -1,0 +1,2059 @@
+# -*- coding: utf-8 -*-
+"""Steel fabrication IFC into Revit: native framing, columns and braces,
+DirectShapes for the rest.
+
+    from Snippets import _steel_import
+    _steel_import.run(doc, ifc_path, source_name)
+
+A member (a profile swept along a straight line, see _ifc_steel) whose
+section matches a Revit family type becomes a native structural framing,
+brace or column, rolled and shifted so its section sits where the IFC
+outline is. Everything else (plates, bent parts, sections chosen as shapes)
+becomes a DirectShape. Bolts, nuts and washers are skipped.
+
+Sections are matched against the loaded framing/column types and the type
+catalogues in the Revit content library: a saved choice first, then the
+section dimensions, then the section name. Sections that still have no
+match are put to the user in one window, and the choices are saved in
+.user/Steel IFC/profile_map.json for the next import.
+
+The matching and orientation maths at the top of the file use no Revit
+types, so they run under CPython for testing.
+"""
+import json
+import math
+import os
+import re
+
+try:
+    from Snippets._ifc_steel import read_steel, name_key, loop_points, \
+        signed_area, Extrusion, Brep
+except ImportError:                     # run outside the package (tests)
+    from _ifc_steel import read_steel, name_key, loop_points, \
+        signed_area, Extrusion, Brep
+
+try:
+    from Snippets._userdata import user_path
+except ImportError:
+    try:
+        from _userdata import user_path
+    except ImportError:
+        user_path = None
+
+try:
+    from Autodesk.Revit import DB
+except ImportError:                     # CPython tests
+    DB = None
+
+__all__ = ["run", "Entry", "Matcher", "family_kind", "parse_catalogue",
+           "decode_catalogue", "entry_values", "profile_values",
+           "values_match", "fit_orientation", "section_dirs", "section_axes",
+           "rotation_angle", "clip_line", "Mapper", "load_map", "save_map",
+           "seed_format", "seed_ifc"]
+
+TITLE = "Steel IFC"
+
+# ── CONSTANTS ───────────────────────────────────────────────────────────────
+
+MM_PER_FT = 304.8
+BATCH = 100                 # members per transaction
+SHAPE = "*shape*"           # profile map value: import as a DirectShape
+SHAPE_LABEL = u"Import as shape"
+MAP_TOOL = "Steel IFC"
+MAP_FILE = "profile_map.json"
+CACHE_FILE = "catalogue_cache.json"
+MAX_CHOICES = 150           # candidates listed per section in the window
+REPORT_SCORE_MM = 10.0      # orientation fits worse than this are listed
+
+PLACE_SHARED = "Shared coordinates (where it was modelled)"
+PLACE_INTERNAL = "Internal coordinates"
+PLACE_CENTRE = "Centred on the internal origin"
+
+VERTICAL_COS = 0.999999     # axis this close to vertical: a vertical column
+TILT_COS = math.cos(math.radians(45.0))     # columns flatter than this: beams
+END_CUT_COS = 0.5           # clip planes within 60 deg of the axis trim it
+
+# Family name prefix to section kind (see _ifc_steel.Profile).
+FAMILY_PREFIX_KINDS = {
+    "UB": "I", "UC": "I", "WB": "I", "WC": "I", "TFB": "I",
+    "PFC": "U", "EA": "L", "UA": "L", "BT": "T", "CT": "T",
+    "SHS": "RH", "RHS": "RH", "CHS": "CH",
+}
+# name_key shape word to section kind.
+WORD_KINDS = {
+    "UB": "I", "UC": "I", "WB": "I", "WC": "I", "TFB": "I", "PFC": "U",
+    "EA": "L", "UA": "L", "BT": "T", "CT": "T", "SHS": "RH", "RHS": "RH",
+    "CHS": "CH", "ROD": "C", "FL": "R", "PL": "R", "SB": "R",
+}
+KIND_NAMES = {"I": "I section", "U": "channel", "L": "angle", "T": "tee",
+              "RH": "RHS/SHS", "CH": "CHS", "C": "round bar", "R": "flat/plate",
+              "CS": "lipped C", "Z": "Z section", "ARB": "outline"}
+
+# Type parameter names (and short aliases) to the dimension they hold.
+PARAM_ALIASES = [
+    ("height", "H"), ("d", "H"),
+    ("width", "W"), ("bf", "W"), ("b", "W"),
+    ("flange thickness", "TF"), ("tf", "TF"),
+    ("web thickness", "TW"), ("tw", "TW"),
+    ("wall nominal thickness", "T"), ("t", "T"), ("thickness", "T"),
+    ("diameter", "D"), ("outside diameter", "D"), ("od", "D"),
+]
+PARAM_NAMES = ["Height", "d", "Width", "bf", "b", "Flange Thickness", "tf",
+               "Web Thickness", "tw", "Wall Nominal Thickness", "t",
+               "Thickness", "Diameter", "Outside Diameter", "OD"]
+_ALIAS = dict(PARAM_ALIASES)
+
+CATALOGUE_UNITS = {"MILLIMETERS": 1.0, "CENTIMETERS": 10.0,
+                   "DECIMETERS": 100.0, "METERS": 1000.0,
+                   "INCHES": 25.4, "FEET": MM_PER_FT}
+
+_GRADE = re.compile(r"(?<![A-Z])(?:C\d{3}|G\d{3}|\d{3}PLUS)|L0(?![0-9])")
+
+
+# ── TEXT ────────────────────────────────────────────────────────────────────
+
+try:
+    TEXT = unicode      # IronPython 2
+except NameError:
+    TEXT = str          # CPython 3 (tests)
+
+
+def safe_text(value):
+    try:
+        return TEXT(value)
+    except Exception:
+        return u"?"
+
+
+def fmt_mm(v):
+    if v is None:
+        return u"?"
+    if abs(v - round(v)) < 0.05:
+        return u"{}".format(int(round(v)))
+    return u"{:.1f}".format(v)
+
+
+# ── FAMILIES AND CATALOGUES ─────────────────────────────────────────────────
+
+def family_kind(family):
+    """Section kind from a family name: 'UB-Universal Beam' -> 'I'."""
+    up = (family or u"").upper()
+    if "ROUND BAR" in up:
+        return "C"
+    if "SQUARE BAR" in up or "FLAT BAR" in up:
+        return "R"
+    m = re.match(r"\s*([A-Z]+)", up)
+    if m:
+        return FAMILY_PREFIX_KINDS.get(m.group(1))
+    return None
+
+
+def is_column_library(path, family):
+    p = (path or u"").replace("/", "\\").lower()
+    return "34-11.1 columns" in p or "-column" in (family or u"").lower()
+
+
+def decode_catalogue(data):
+    """Type catalogue bytes to text (UTF-16 with BOM, UTF-8 or ANSI).
+    No isinstance test: IronPython 2 reads bytes into str, which is unicode."""
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        return data.decode("utf-16")
+    if data[:3] == b"\xef\xbb\xbf":
+        return data[3:].decode("utf-8", "replace")
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        return data.decode("latin-1")
+
+
+def split_csv(line):
+    """One catalogue line to cells; quotes may hold commas."""
+    cells = []
+    cur = []
+    quoted = False
+    i = 0
+    n = len(line)
+    while i < n:
+        c = line[i]
+        if quoted:
+            if c == '"':
+                if i + 1 < n and line[i + 1] == '"':
+                    cur.append('"')
+                    i += 1
+                else:
+                    quoted = False
+            else:
+                cur.append(c)
+        elif c == '"':
+            quoted = True
+        elif c == ",":
+            cells.append(u"".join(cur).strip())
+            cur = []
+        else:
+            cur.append(c)
+        i += 1
+    cells.append(u"".join(cur).strip())
+    return cells
+
+
+def parse_catalogue(text):
+    """Type catalogue text to [(type name, {param: mm}, section name key)].
+    Header cells are 'Name##TYPE##UNITS'; only length columns are kept."""
+    lines = [l for l in text.splitlines() if l.strip()]
+    if not lines:
+        return []
+    cols = []
+    for h in split_csv(lines[0])[1:]:
+        bits = h.split("##")
+        name = bits[0].strip()
+        unit = bits[2].strip().upper() if len(bits) > 2 else u""
+        cols.append((name, CATALOGUE_UNITS.get(unit)))
+    rows = []
+    for line in lines[1:]:
+        cells = split_csv(line)
+        tname = cells[0].strip()
+        if not tname:
+            continue
+        dims = {}
+        key = u""
+        for (name, factor), cell in zip(cols, cells[1:]):
+            if name.lower() == "section name key":
+                key = cell.strip()
+                continue
+            if factor is None or not cell:
+                continue
+            try:
+                dims[name] = float(cell) * factor
+            except ValueError:
+                pass
+        rows.append((tname, dims, key))
+    return rows
+
+
+def norm_dims(raw):
+    """{parameter name: mm} to {H, W, TF, TW, T, D: mm}."""
+    out = {}
+    for name, value in raw.items():
+        k = _ALIAS.get(name.strip().lower())
+        if k and value and k not in out:
+            out[k] = float(value)
+    return out
+
+
+class Entry(object):
+    """One family type a section can become: loaded or in the library."""
+
+    def __init__(self, family, type_name, dims, column, path=None,
+                 symbol=None, section_key=u""):
+        self.family = family
+        self.type_name = type_name
+        self.dims = norm_dims(dims)
+        self.column = column
+        self.path = path            # .rfa for a library type
+        self.symbol = symbol        # FamilySymbol once loaded
+        self.loaded = symbol is not None
+        self.keys = []
+        for text in (type_name, section_key):
+            k = name_key(text)
+            if k and k not in self.keys:
+                self.keys.append(k)
+        self.kind = family_kind(family)
+        if self.kind is None:
+            for k in self.keys:
+                if k[0] in WORD_KINDS:
+                    self.kind = WORD_KINDS[k[0]]
+                    break
+
+    @property
+    def label(self):
+        return u"{}: {}".format(self.family, self.type_name)
+
+    @property
+    def cat(self):
+        return "column" if self.column else "framing"
+
+
+# ── MATCHING ────────────────────────────────────────────────────────────────
+
+def tol(a, b):
+    return max(0.6, 0.015 * max(abs(a), abs(b)))
+
+
+def _desc(a, b):
+    return (a, b) if a >= b else (b, a)
+
+
+def entry_values(kind, d):
+    """Comparable dimensions of a catalogue type for a section kind."""
+    H, W, TF, TW, T, D = [d.get(k) for k in ("H", "W", "TF", "TW", "T", "D")]
+    if kind in ("I", "U", "T"):
+        if H and W:
+            return (H, W, TF, TW)
+    elif kind == "L":
+        if H and W:
+            return _desc(H, W) + (TF or T or TW,)
+    elif kind == "RH":
+        if H and W:
+            return _desc(H, W) + (T,)
+    elif kind == "CH":
+        dia = D or H
+        if dia:
+            return (dia, T)
+    elif kind == "C":
+        dia = D or H or W
+        if dia:
+            return (dia, dia)
+    elif kind == "R":
+        vals = sorted([v for v in (H, W, T) if v], reverse=True)
+        if len(vals) == 1:
+            return (vals[0], vals[0])
+        if len(vals) >= 2:
+            if H and W:
+                return _desc(H, W)
+            return (vals[0], vals[-1])
+    return None
+
+
+def profile_values(prof):
+    """Comparable dimensions of an IFC profile, or None (outlines)."""
+    d = prof.dims
+    k = prof.kind
+    g = d.get
+    if k in ("I", "U", "T") and g("depth") and g("width"):
+        return (g("depth"), g("width"), g("tf"), g("tw"))
+    if k in ("L", "RH") and g("depth") and g("width"):
+        return _desc(g("depth"), g("width")) + (g("t"),)
+    if k == "CH" and g("diameter"):
+        return (g("diameter"), g("t"))
+    if k == "C" and g("diameter"):
+        return (g("diameter"), g("diameter"))
+    if k == "R" and g("depth") and g("width"):
+        return _desc(g("depth"), g("width"))
+    return None
+
+
+def values_match(a, b):
+    """(match, distance): the first two must be present and agree, the
+    rest agree where both have them."""
+    if a is None or b is None or len(a) != len(b):
+        return False, 1e9
+    dist = 0.0
+    for i, (x, y) in enumerate(zip(a, b)):
+        if x is None or y is None:
+            if i < 2:
+                return False, 1e9
+            continue
+        if abs(x - y) > tol(x, y):
+            return False, 1e9
+        dist += abs(x - y)
+    return True, dist
+
+
+def section_kind(prof, section):
+    if prof is not None and prof.kind not in ("ARB", None):
+        return prof.kind
+    k = name_key(section) or (name_key(prof.name) if prof is not None else None)
+    if k:
+        return WORD_KINDS.get(k[0])
+    return None
+
+
+def bbox_ok(prof, e):
+    """The IFC outline's extents agree with the type's Height/Width."""
+    if prof is None:
+        return False
+    d = e.dims
+    if e.kind in ("CH", "C"):
+        dia = d.get("D") or d.get("H")
+        if not dia:
+            return None
+        want = (dia, dia)
+    else:
+        if not (d.get("H") and d.get("W")):
+            return None
+        want = _desc(d["H"], d["W"])
+    have = _desc(prof.extent[0], prof.extent[1])
+    return all(abs(x - y) <= 2 * tol(x, y) for x, y in zip(have, want))
+
+
+def name_match(key, e):
+    """0 = same name, 1 = one number list starts the other, None = no."""
+    for k in e.keys:
+        if k[0] != key[0]:
+            continue
+        if k[1] == key[1]:
+            return 0
+        n = min(len(k[1]), len(key[1]))
+        if k[1][:n] == key[1][:n]:
+            return 1
+    return None
+
+
+def grade_miss(family, material):
+    """0: the family's grade is the material's, 1: no grade in the family
+    name, 2+: a different grade."""
+    toks = _GRADE.findall((family or u"").upper())
+    if not toks:
+        return 1
+    mat = (material or u"").upper()
+    missing = len([t for t in toks if t not in mat])
+    return 0 if missing == 0 else 2 + missing
+
+
+class Matcher(object):
+    """Section + category ('framing' / 'column') to an Entry or SHAPE."""
+
+    def __init__(self, entries, saved=None):
+        self.entries = {"framing": [], "column": []}
+        self.by_label = {"framing": {}, "column": {}}
+        for e in entries:
+            if e.label in self.by_label[e.cat]:
+                old = self.by_label[e.cat][e.label]
+                if old.loaded or not e.loaded:
+                    continue        # loaded type wins over its library copy
+                self.entries[e.cat].remove(old)
+            self.entries[e.cat].append(e)
+            self.by_label[e.cat][e.label] = e
+        self.saved = saved or {}
+
+    def find(self, cat, label):
+        return self.by_label.get(cat, {}).get(label)
+
+    def match(self, section, cat, prof, material=u""):
+        """(Entry or SHAPE or None, how)."""
+        saved = (self.saved.get(cat) or {}).get(section)
+        if saved == SHAPE:
+            return SHAPE, "saved choice"
+        if saved:
+            e = self.find(cat, saved)
+            if e is not None:
+                return e, "saved choice"
+        pool = self.entries.get(cat, [])
+        hits = []
+        how = "dimensions"
+        pv = profile_values(prof) if prof is not None else None
+        if pv is not None:
+            for e in pool:
+                if e.kind != prof.kind:
+                    continue
+                ok, dist = values_match(pv, entry_values(e.kind, e.dims))
+                if ok:
+                    hits.append((e, dist))
+        if not hits:
+            how = "name"
+            key = name_key(section) or (name_key(prof.name) if prof else None)
+            if key:
+                for e in pool:
+                    nm = name_match(key, e)
+                    if nm is None:
+                        continue
+                    box = bbox_ok(prof, e)
+                    if box is False or (nm == 1 and box is not True):
+                        continue
+                    hits.append((e, float(nm)))
+        if not hits:
+            return None, ""
+        hits.sort(key=lambda h: (not h[0].loaded,
+                                 grade_miss(h[0].family, material),
+                                 len(h[0].family), h[1], h[0].label))
+        return hits[0][0], how
+
+    def closeness(self, section, prof, e):
+        kind = section_kind(prof, section)
+        score = 0.0 if (kind is not None and e.kind == kind) else 1000.0
+        pv = profile_values(prof) if prof is not None else None
+        ev = entry_values(e.kind, e.dims) if e.kind else None
+        if pv is not None and ev is not None and len(pv) == len(ev):
+            score += sum(abs(x - y) for x, y in zip(pv, ev)
+                         if x is not None and y is not None)
+        elif prof is not None and e.dims.get("H") and e.dims.get("W"):
+            have = _desc(prof.extent[0], prof.extent[1])
+            want = _desc(e.dims["H"], e.dims["W"])
+            score += abs(have[0] - want[0]) + abs(have[1] - want[1])
+        else:
+            score += 500.0
+        key = name_key(section)
+        if key is not None and name_match(key, e) is not None:
+            score -= 50.0
+        return score
+
+    def candidates(self, section, cat, prof, limit=MAX_CHOICES):
+        """[(score, Entry)] best first."""
+        scored = [(self.closeness(section, prof, e), e)
+                  for e in self.entries.get(cat, [])]
+        scored.sort(key=lambda s: (s[0], not s[1].loaded, s[1].label))
+        return scored[:limit]
+
+
+# ── PROFILE MAP ─────────────────────────────────────────────────────────────
+
+def map_path():
+    if user_path is None:
+        return None
+    return user_path(MAP_TOOL, MAP_FILE)
+
+
+def load_map(path=None):
+    path = path or map_path()
+    out = {"framing": {}, "column": {}}
+    if not path or not os.path.isfile(path):
+        return out
+    try:
+        with open(path, "rb") as f:
+            data = json.loads(f.read().decode("utf-8"))
+        for cat in out:
+            out[cat].update(data.get(cat) or {})
+    except Exception:
+        pass
+    return out
+
+
+def save_map(choices, path=None):
+    """Merge {cat: {section: label or SHAPE}} into the saved map."""
+    path = path or map_path()
+    if not path:
+        return False
+    data = load_map(path)
+    for cat, rows in choices.items():
+        data.setdefault(cat, {}).update(rows)
+    text = json.dumps(data, indent=2, sort_keys=True, ensure_ascii=True)
+    try:
+        with open(path, "wb") as f:
+            f.write(text.encode("utf-8"))
+        return True
+    except Exception:
+        return False
+
+
+# ── VECTORS ─────────────────────────────────────────────────────────────────
+
+def _add(a, b):
+    return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
+
+
+def _sub(a, b):
+    return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
+
+
+def _mul(a, s):
+    return (a[0] * s, a[1] * s, a[2] * s)
+
+
+def _dot(a, b):
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
+
+def _cross(a, b):
+    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0])
+
+
+def _len(a):
+    return _dot(a, a) ** 0.5
+
+
+def _unit(a):
+    l = _len(a)
+    return (a[0] / l, a[1] / l, a[2] / l) if l > 1e-12 else None
+
+
+# ── ORIENTATION ─────────────────────────────────────────────────────────────
+# A Revit section has axes (S1, S2) across the member, S1 x S2 = the axis.
+# The IFC section has axes (Xp, Yp). The type's geometry, read once from a
+# probe, has bounding-box centre m, extents e and centroid f (from the box
+# centre) in (S1, S2). A signed permutation A maps IFC section coordinates
+# to Revit ones: (u, v) = A (x, y), so S1 = a11 Xp + a12 Yp and
+# S2 = a21 Xp + a22 Yp. det A must be h = sign((S1 x S2) . (Xp x Yp)).
+
+SIGNED_PERMS = [((1, 0), (0, 1)), ((-1, 0), (0, -1)),
+                ((1, 0), (0, -1)), ((-1, 0), (0, 1)),
+                ((0, 1), (1, 0)), ((0, -1), (-1, 0)),
+                ((0, 1), (-1, 0)), ((0, -1), (1, 0))]
+
+
+def _det2(a):
+    return a[0][0] * a[1][1] - a[0][1] * a[1][0]
+
+
+def fit_orientation(probe, extent, centroid, h):
+    """(A, score mm): the permutation that best lays the type's section
+    (probe = (m, e, f)) over the IFC one (extent, centroid from bbox centre)."""
+    m, e, f = probe
+    ex, ey = extent
+    cx, cy = centroid
+    best = None
+    for A in SIGNED_PERMS:
+        if _det2(A) != h:
+            continue
+        ae = (abs(A[0][0]) * ex + abs(A[0][1]) * ey,
+              abs(A[1][0]) * ex + abs(A[1][1]) * ey)
+        ac = (A[0][0] * cx + A[0][1] * cy, A[1][0] * cx + A[1][1] * cy)
+        score = math.hypot(e[0] - ae[0], e[1] - ae[1]) + \
+            2.0 * math.hypot(f[0] - ac[0], f[1] - ac[1])
+        if best is None or score < best[1] - 1e-9:
+            best = (A, score)
+    return best
+
+
+def section_dirs(A, xp, yp):
+    """The world directions the Revit section axes must take."""
+    d1 = _add(_mul(xp, A[0][0]), _mul(yp, A[0][1]))
+    d2 = _add(_mul(xp, A[1][0]), _mul(yp, A[1][1]))
+    return d1, d2
+
+
+def section_axes(basis, axis):
+    """(S1, S2) of a transform (BasisX, BasisY, BasisZ): the two bases
+    across the member axis, in cyclic order (X axis -> Y, Z; Z -> X, Y)."""
+    dots = [abs(_dot(b, axis)) for b in basis]
+    i = dots.index(max(dots))
+    return basis[(i + 1) % 3], basis[(i + 2) % 3]
+
+
+def handedness(s1, s2, xp, yp):
+    return 1 if _dot(_cross(s1, s2), _cross(xp, yp)) >= 0 else -1
+
+
+def rotation_angle(d1, s1, s2):
+    """Angle about S1 x S2 that turns S1 onto d1."""
+    return math.atan2(_dot(d1, s2), _dot(d1, s1))
+
+
+def clip_line(start, end, clips, min_cos=END_CUT_COS):
+    """The member line trimmed by its end cuts: plane clips (and bounded
+    half-spaces the line passes through) facing along the axis.
+    Returns (start, end, trimmed, other clips left)."""
+    d = _sub(end, start)
+    length = _len(d)
+    if length < 1e-9:
+        return start, end, False, len(clips)
+    u = _mul(d, 1.0 / length)
+    lo, hi = 0.0, 1.0
+    others = 0
+    for c in clips:
+        if c.get("kind") not in ("plane", "bounded"):
+            others += 1
+            continue
+        k = c["keep"]
+        dk = _dot(d, k)
+        if abs(_dot(u, k)) < min_cos:
+            others += 1
+            continue
+        s = -_dot(_sub(start, c["origin"]), k) / dk
+        if c["kind"] == "bounded" and not _inside_bound(
+                _add(start, _mul(d, s)), c):
+            others += 1
+            continue
+        if dk > 0:
+            lo = max(lo, s)
+        else:
+            hi = min(hi, s)
+    if hi - lo < 1e-6:
+        return start, end, False, others
+    return (_add(start, _mul(d, lo)), _add(start, _mul(d, hi)),
+            lo > 1e-9 or hi < 1.0 - 1e-9, others)
+
+
+def _inside_bound(p, clip):
+    o, x, y = clip["plane"]
+    q = _sub(p, o)
+    return point_in_poly((_dot(q, x), _dot(q, y)), clip["poly"])
+
+
+def point_in_poly(pt, poly):
+    x, y = pt
+    inside = False
+    n = len(poly)
+    for i in range(n):
+        x0, y0 = poly[i]
+        x1, y1 = poly[(i + 1) % n]
+        if (y0 > y) != (y1 > y):
+            xc = x0 + (y - y0) * (x1 - x0) / (y1 - y0)
+            if xc > x:
+                inside = not inside
+    return inside
+
+
+def loop_orientations(loops, xaxis, yaxis, direction):
+    """[(loop, flip)]: flip the point order (or circle sense) so the outer
+    loop runs anticlockwise looking down the extrusion direction and holes
+    clockwise."""
+    s = 1.0 if _dot(_cross(xaxis, yaxis), direction) >= 0 else -1.0
+    out = []
+    for i, loop in enumerate(loops):
+        want = 1.0 if i == 0 else -1.0
+        if isinstance(loop, tuple) and loop and loop[0] == "circle":
+            area = 1.0              # circles are drawn anticlockwise
+        else:
+            area = signed_area(loop)
+        out.append((loop, area * s * want < 0))
+    return out
+
+
+class Mapper(object):
+    """File mm to Revit internal feet: p_int = R (p + shift) / 304.8 + o."""
+
+    def __init__(self, basis=None, origin=(0.0, 0.0, 0.0),
+                 shift=(0.0, 0.0, 0.0)):
+        self.basis = basis or ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0),
+                               (0.0, 0.0, 1.0))
+        self.origin = origin
+        self.shift = shift
+
+    def vector(self, v):
+        bx, by, bz = self.basis
+        return (bx[0] * v[0] + by[0] * v[1] + bz[0] * v[2],
+                bx[1] * v[0] + by[1] * v[1] + bz[1] * v[2],
+                bx[2] * v[0] + by[2] * v[1] + bz[2] * v[2])
+
+    def point(self, p):
+        q = _mul(_add(p, self.shift), 1.0 / MM_PER_FT)
+        return _add(self.vector(q), self.origin)
+
+
+def classify(member, role):
+    """(structural use, category, mode) for a member:
+    beam/brace -> framing; column -> column (vertical or slanted), or a
+    beam when it leans more than 45 degrees."""
+    d = member.direction
+    if role == "column":
+        c = abs(d[2])
+        if c < TILT_COS:
+            return "beam", "framing", "beam"
+        return "column", "column", "column" if c >= VERTICAL_COS else "slanted"
+    return role, "framing", "beam"
+
+
+def section_text(prof, section):
+    if prof is None:
+        return u""
+    kind = KIND_NAMES.get(prof.kind, prof.kind)
+    d = prof.dims
+    if prof.kind in ("I", "U", "T"):
+        nums = [d.get("depth"), d.get("width"), d.get("tf"), d.get("tw")]
+    elif prof.kind in ("L", "RH", "CS"):
+        nums = [d.get("depth"), d.get("width"), d.get("t")]
+    elif prof.kind == "CH":
+        nums = [d.get("diameter"), d.get("t")]
+    elif prof.kind == "C":
+        nums = [d.get("diameter")]
+    else:
+        nums = [prof.extent[1], prof.extent[0]]
+    return u"{} {}".format(kind, u" x ".join(fmt_mm(v) for v in nums
+                                             if v is not None))
+
+
+# ── SEED FILES ──────────────────────────────────────────────────────────────
+
+SEED_MAGIC = b"SEED43-STUDIO-V1"
+SEED_BEGIN = b"---BEGIN-SOURCE-DATA---\n"
+
+
+def seed_fields(data):
+    """(header fields, offset of the source data) of a .seed file's bytes."""
+    if not data.startswith(SEED_MAGIC):
+        raise ValueError("not a Seed43 Studio .seed file")
+    start = data.find(SEED_BEGIN)
+    if start < 0:
+        raise ValueError("the file has no model data")
+    fields = {}
+    for line in data[:start].decode("utf-8", "replace").splitlines()[1:]:
+        if u":" in line:
+            key, value = line.split(u":", 1)
+            fields[key.strip()] = value.strip()
+    return fields, start + len(SEED_BEGIN)
+
+
+def seed_format(path):
+    """The sourceFormat of a .seed file ('navis', 'ifc', 'bsw'...), or ''."""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(4096)
+        return seed_fields(head + SEED_BEGIN)[0].get(u"sourceFormat", u"")
+    except Exception:
+        return u""
+
+
+def _gunzip(data):
+    import struct
+    import zlib
+    flags = ord(data[3:4])
+    pos = 10
+    if flags & 4:
+        pos += 2 + struct.unpack("<H", data[pos:pos + 2])[0]
+    if flags & 8:
+        pos = data.index(b"\x00", pos) + 1
+    if flags & 16:
+        pos = data.index(b"\x00", pos) + 1
+    if flags & 2:
+        pos += 2
+    return zlib.decompressobj(-15).decompress(data[pos:])
+
+
+def seed_ifc(path, out_dir=None):
+    """Write the IFC a .seed (sourceFormat ifc) carries to a temporary
+    .ifc: (ifc path, source name). Raises ValueError for other formats."""
+    import tempfile
+    with open(path, "rb") as f:
+        data = f.read()
+    fields, start = seed_fields(data)
+    fmt = fields.get(u"sourceFormat", u"")
+    if fmt != u"ifc":
+        raise ValueError(u"this .seed holds a {} model, not an IFC".format(
+            fmt or u"unknown"))
+    try:
+        size = int(fields.get(u"sourceBytes", u""))
+    except ValueError:
+        raise ValueError("the header has no data size")
+    raw = data[start:start + size]
+    data = None
+    if raw[:2] == b"\x1f\x8b":
+        raw = _gunzip(raw)
+    name = fields.get(u"sourceName", u"") or os.path.basename(path)
+    base = re.sub(r"[^A-Za-z0-9_. -]", u"_", os.path.splitext(name)[0])
+    out = os.path.join(out_dir or tempfile.gettempdir(),
+                       u"Seed43 {}.ifc".format(base or u"model"))
+    with open(out, "wb") as f:
+        f.write(raw)
+    return out, name
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# REVIT
+# ════════════════════════════════════════════════════════════════════════════
+
+# ── REVIT HELPERS ───────────────────────────────────────────────────────────
+
+def element_name(el):
+    try:
+        return safe_text(DB.Element.Name.__get__(el))
+    except Exception:
+        try:
+            return safe_text(el.Name)
+        except Exception:
+            return u""
+
+
+def _xyz(t):
+    return DB.XYZ(t[0], t[1], t[2])
+
+
+def _tup(p):
+    return (p.X, p.Y, p.Z)
+
+
+def _swallow_warnings():
+    class SwallowWarnings(DB.IFailuresPreprocessor):
+        """Warnings would stop every batch with a dialog; they are dropped,
+        errors still roll the batch back."""
+
+        def PreprocessFailures(self, accessor):
+            for f in accessor.GetFailureMessages():
+                if f.GetSeverity() == DB.FailureSeverity.Warning:
+                    accessor.DeleteWarning(f)
+            return DB.FailureProcessingResult.Continue
+    return SwallowWarnings()
+
+
+def start_transaction(doc, name):
+    t = DB.Transaction(doc, name)
+    opts = t.GetFailureHandlingOptions()
+    opts.SetFailuresPreprocessor(_swallow_warnings())
+    t.SetFailureHandlingOptions(opts)
+    t.Start()
+    return t
+
+
+def set_param(el, bip, value):
+    try:
+        p = el.get_Parameter(bip)
+        if p is not None and not p.IsReadOnly:
+            p.Set(value)
+            return True
+    except Exception:
+        pass
+    return False
+
+
+# ── CATALOGUE ───────────────────────────────────────────────────────────────
+
+def symbol_dims(sym):
+    out = {}
+    for name in PARAM_NAMES:
+        try:
+            p = sym.LookupParameter(name)
+        except Exception:
+            p = None
+        if p is None or p.StorageType != DB.StorageType.Double:
+            continue
+        v = p.AsDouble() * MM_PER_FT
+        if v > 0:
+            out[name] = v
+    return out
+
+
+def symbol_section_key(sym):
+    try:
+        p = sym.LookupParameter("Section Name Key")
+        if p is not None and p.StorageType == DB.StorageType.String:
+            return safe_text(p.AsString() or u"")
+    except Exception:
+        pass
+    return u""
+
+
+def loaded_entries(doc):
+    out = []
+    for bic, column in ((DB.BuiltInCategory.OST_StructuralFraming, False),
+                        (DB.BuiltInCategory.OST_StructuralColumns, True)):
+        for sym in DB.FilteredElementCollector(doc) \
+                .OfClass(DB.FamilySymbol).OfCategory(bic):
+            try:
+                fam = safe_text(sym.FamilyName)
+            except Exception:
+                fam = u""
+            out.append(Entry(fam, element_name(sym), symbol_dims(sym), column,
+                             symbol=sym, section_key=symbol_section_key(sym)))
+    return out
+
+
+def library_roots(app):
+    roots = []
+    try:
+        for v in app.GetLibraryPaths().Values:
+            roots.append(safe_text(v))
+    except Exception:
+        pass
+    try:
+        ver = safe_text(app.VersionNumber)
+    except Exception:
+        ver = u""
+    pd = os.environ.get("PROGRAMDATA", r"C:\ProgramData")
+    roots.append(os.path.join(pd, "Autodesk", "RVT " + ver, "Libraries"))
+    out = []
+    seen = set()
+    for r in roots:
+        k = os.path.normcase(os.path.normpath(r))
+        if r and k not in seen and os.path.isdir(r):
+            seen.add(k)
+            out.append(r)
+    return out
+
+
+def find_catalogues(roots):
+    """[(rfa path, txt path)] for steel families with a type catalogue."""
+    found = []
+    seen = set()
+    for root in roots:
+        for folder, dirs, files in os.walk(root):
+            if "steel" not in folder.lower():
+                continue
+            lower = dict((f.lower(), f) for f in files)
+            for f in files:
+                if not f.lower().endswith(".rfa"):
+                    continue
+                txt = lower.get(f[:-4].lower() + ".txt")
+                if txt is None:
+                    continue
+                rfa = os.path.join(folder, f)
+                k = os.path.normcase(rfa)
+                if k not in seen:
+                    seen.add(k)
+                    found.append((rfa, os.path.join(folder, txt)))
+    return found
+
+
+def library_entries(app):
+    cache_path = user_path(MAP_TOOL, CACHE_FILE) if user_path else None
+    cache = {}
+    if cache_path and os.path.isfile(cache_path):
+        try:
+            with open(cache_path, "rb") as f:
+                cache = json.loads(f.read().decode("utf-8"))
+        except Exception:
+            cache = {}
+    new_cache = {}
+    out = []
+    for rfa, txt in find_catalogues(library_roots(app)):
+        family = os.path.splitext(os.path.basename(rfa))[0]
+        if family_kind(family) is None:
+            continue
+        try:
+            mtime = os.path.getmtime(txt)
+        except Exception:
+            continue
+        hit = cache.get(txt)
+        if hit and hit.get("mtime") == mtime:
+            rows = hit.get("rows") or []
+        else:
+            try:
+                with open(txt, "rb") as f:
+                    rows = parse_catalogue(decode_catalogue(f.read()))
+            except Exception:
+                rows = []
+        new_cache[txt] = {"mtime": mtime, "rows": rows}
+        column = is_column_library(rfa, family)
+        for tname, dims, key in rows:
+            out.append(Entry(family, tname, dims, column, path=rfa,
+                             section_key=key))
+    if cache_path:
+        try:
+            with open(cache_path, "wb") as f:
+                f.write(json.dumps(new_cache).encode("utf-8"))
+        except Exception:
+            pass
+    return out
+
+
+def load_entry(doc, e):
+    """Load a library type (in an open transaction): the FamilySymbol."""
+    if e.symbol is not None:
+        return e.symbol
+    sym = None
+    try:
+        import clr
+        ref = clr.Reference[DB.FamilySymbol]()
+        if doc.LoadFamilySymbol(e.path, e.type_name, ref):
+            sym = ref.Value
+    except Exception:
+        sym = None
+    if sym is None:
+        bic = DB.BuiltInCategory.OST_StructuralColumns if e.column \
+            else DB.BuiltInCategory.OST_StructuralFraming
+        for s in DB.FilteredElementCollector(doc).OfClass(DB.FamilySymbol) \
+                .OfCategory(bic):
+            try:
+                if safe_text(s.FamilyName) == e.family and \
+                        element_name(s) == e.type_name:
+                    sym = s
+                    break
+            except Exception:
+                pass
+    e.symbol = sym
+    return sym
+
+
+# ── MAPPING WINDOW ──────────────────────────────────────────────────────────
+
+def ask_mappings(rows):
+    """rows: dicts with section, cat, text, count, options, default.
+    Returns ({(cat, section): label or SHAPE}, remember) or None."""
+    import clr
+    clr.AddReference("PresentationFramework")
+    clr.AddReference("PresentationCore")
+    clr.AddReference("WindowsBase")
+    from System.Windows import (Window, Thickness, GridLength, GridUnitType,
+                                WindowStartupLocation, TextWrapping,
+                                FontWeights, MessageBox, VerticalAlignment,
+                                HorizontalAlignment)
+    from System.Windows.Controls import (Grid, ColumnDefinition, RowDefinition,
+                                         TextBlock, ComboBox, CheckBox, Button,
+                                         ScrollViewer, StackPanel, DockPanel,
+                                         Dock, Orientation, ScrollBarVisibility)
+
+    win = Window()
+    win.Title = TITLE + " - map sections"
+    win.Width = 980
+    win.Height = min(820, 240 + 34 * len(rows))
+    win.MinHeight = 300
+    win.WindowStartupLocation = WindowStartupLocation.CenterScreen
+
+    dock = DockPanel()
+    dock.Margin = Thickness(12)
+    win.Content = dock
+
+    intro = TextBlock()
+    intro.TextWrapping = TextWrapping.Wrap
+    intro.Margin = Thickness(0, 0, 0, 10)
+    intro.Text = (u"These sections have no matching Revit family type. Pick "
+                  u"a type for each (type to search), or import them as "
+                  u"shapes. Library types are loaded only if you pick them.")
+    DockPanel.SetDock(intro, Dock.Top)
+    dock.Children.Add(intro)
+
+    bottom = DockPanel()
+    bottom.Margin = Thickness(0, 10, 0, 0)
+    DockPanel.SetDock(bottom, Dock.Bottom)
+    dock.Children.Add(bottom)
+    remember = CheckBox()
+    remember.Content = u"Remember these choices for later imports"
+    remember.IsChecked = True
+    remember.VerticalAlignment = VerticalAlignment.Center
+    buttons = StackPanel()
+    buttons.Orientation = Orientation.Horizontal
+    buttons.HorizontalAlignment = HorizontalAlignment.Right
+    DockPanel.SetDock(buttons, Dock.Right)
+    bottom.Children.Add(buttons)
+    bottom.Children.Add(remember)
+
+    def button(text):
+        b = Button()
+        b.Content = text
+        b.MinWidth = 90
+        b.Padding = Thickness(10, 4, 10, 4)
+        b.Margin = Thickness(8, 0, 0, 0)
+        buttons.Children.Add(b)
+        return b
+    all_shape = button(u"All as shapes")
+    ok = button(u"Import")
+    cancel = button(u"Cancel")
+    ok.IsDefault = True
+    cancel.IsCancel = True
+
+    scroll = ScrollViewer()
+    scroll.VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+    dock.Children.Add(scroll)
+    grid = Grid()
+    scroll.Content = grid
+    for w in (GridLength(1, GridUnitType.Auto), GridLength(1, GridUnitType.Auto),
+              GridLength(1, GridUnitType.Auto), GridLength(1, GridUnitType.Star)):
+        c = ColumnDefinition()
+        c.Width = w
+        grid.ColumnDefinitions.Add(c)
+
+    def cell(text, r, c, bold=False):
+        tb = TextBlock()
+        tb.Text = text
+        tb.Margin = Thickness(0, 4, 14, 4)
+        tb.VerticalAlignment = VerticalAlignment.Center
+        if bold:
+            tb.FontWeight = FontWeights.Bold
+        Grid.SetRow(tb, r)
+        Grid.SetColumn(tb, c)
+        grid.Children.Add(tb)
+
+    grid.RowDefinitions.Add(RowDefinition())
+    for c, text in enumerate([u"Section", u"Shape and size", u"Count",
+                              u"Revit type"]):
+        cell(text, 0, c, True)
+    combos = []
+    for i, row in enumerate(rows):
+        r = i + 1
+        grid.RowDefinitions.Add(RowDefinition())
+        label = row["section"] or u"(no name)"
+        if row["cat"] == "column":
+            label += u"  (column)"
+        cell(label, r, 0)
+        cell(row["text"], r, 1)
+        cell(u"{}".format(row["count"]), r, 2)
+        cb = ComboBox()
+        cb.IsEditable = True
+        cb.IsTextSearchEnabled = True
+        cb.Margin = Thickness(0, 2, 0, 2)
+        cb.Items.Add(SHAPE_LABEL)
+        for opt in row["options"]:
+            cb.Items.Add(opt)
+        cb.Text = row["default"]
+        Grid.SetRow(cb, r)
+        Grid.SetColumn(cb, 3)
+        grid.Children.Add(cb)
+        combos.append(cb)
+
+    state = {"ok": False}
+
+    def on_all(sender, args):
+        for cb in combos:
+            cb.Text = SHAPE_LABEL
+
+    def on_ok(sender, args):
+        bad = []
+        for row, cb in zip(rows, combos):
+            text = safe_text(cb.Text).strip()
+            if text != SHAPE_LABEL and text not in row["valid"]:
+                bad.append(row["section"] or u"(no name)")
+        if bad:
+            MessageBox.Show(u"Not a known family type:\n\n" +
+                            u"\n".join(bad[:20]) +
+                            u"\n\nPick from the list, or Import as shape.",
+                            TITLE)
+            return
+        state["ok"] = True
+        win.Close()
+
+    all_shape.Click += on_all
+    ok.Click += on_ok
+    win.ShowDialog()
+    if not state["ok"]:
+        return None
+    out = {}
+    for row, cb in zip(rows, combos):
+        text = safe_text(cb.Text).strip()
+        out[(row["cat"], row["section"])] = SHAPE if text == SHAPE_LABEL \
+            else text
+    return out, bool(remember.IsChecked)
+
+
+# ── PROBES ──────────────────────────────────────────────────────────────────
+
+PROBE_BASE = (3000.0, 3000.0)       # ft, away from the model
+PROBE_SPACING = 40.0
+PROBE_LENGTH = 20.0
+PROBE_SLANT = math.radians(30.0)
+
+
+def _solids(geo, out):
+    if geo is None:
+        return out
+    for g in geo:
+        if isinstance(g, DB.Solid):
+            if g.Volume > 1e-9:
+                out.append(g)
+        elif isinstance(g, DB.GeometryInstance):
+            _solids(g.GetInstanceGeometry(), out)
+    return out
+
+
+def location_base(fi):
+    loc = fi.Location
+    if isinstance(loc, DB.LocationCurve):
+        return _tup(loc.Curve.GetEndPoint(0))
+    if isinstance(loc, DB.LocationPoint):
+        return _tup(loc.Point)
+    return _tup(fi.GetTransform().Origin)
+
+
+def instance_axes(fi, axis):
+    tr = fi.GetTransform()
+    basis = (_tup(tr.BasisX), _tup(tr.BasisY), _tup(tr.BasisZ))
+    return section_axes(basis, axis)
+
+
+def measure(fi, axis):
+    """(m, e, f) of an instance's section in its (S1, S2), mm, or None."""
+    s1, s2 = instance_axes(fi, axis)
+    base = location_base(fi)
+    opts = DB.Options()
+    opts.ComputeReferences = False
+    opts.DetailLevel = DB.ViewDetailLevel.Fine
+    solids = _solids(fi.get_Geometry(opts), [])
+    if not solids:
+        return None
+    us, vs = [], []
+    cu = cv = vol = 0.0
+    for s in solids:
+        for edge in s.Edges:
+            for p in edge.Tessellate():
+                q = _sub(_tup(p), base)
+                us.append(_dot(q, s1))
+                vs.append(_dot(q, s2))
+        try:
+            c = _sub(_tup(s.ComputeCentroid()), base)
+            cu += _dot(c, s1) * s.Volume
+            cv += _dot(c, s2) * s.Volume
+            vol += s.Volume
+        except Exception:
+            pass
+    if not us:
+        return None
+    m = ((min(us) + max(us)) / 2.0, (min(vs) + max(vs)) / 2.0)
+    e = (max(us) - min(us), max(vs) - min(vs))
+    f = (cu / vol - m[0], cv / vol - m[1]) if vol > 0 else (0.0, 0.0)
+    k = MM_PER_FT
+    return ((m[0] * k, m[1] * k), (e[0] * k, e[1] * k), (f[0] * k, f[1] * k))
+
+
+def place_member(doc, sym, mode, p0, p1, level, use):
+    """A native member at rotation 0; p0/p1 are internal-ft tuples (for
+    columns p0 is the bottom)."""
+    if mode == "beam":
+        st = DB.Structure.StructuralType.Brace if use == "brace" \
+            else DB.Structure.StructuralType.Beam
+        fi = doc.Create.NewFamilyInstance(
+            DB.Line.CreateBound(_xyz(p0), _xyz(p1)), sym, level, st)
+        set_param(fi, DB.BuiltInParameter.Y_JUSTIFICATION, 1)
+        set_param(fi, DB.BuiltInParameter.Z_JUSTIFICATION, 1)
+        for end in (0, 1):
+            try:
+                DB.Structure.StructuralFramingUtils.DisallowJoinAtEnd(fi, end)
+            except Exception:
+                pass
+        return fi
+    st = DB.Structure.StructuralType.Column
+    if mode == "slanted":
+        return doc.Create.NewFamilyInstance(
+            DB.Line.CreateBound(_xyz(p0), _xyz(p1)), sym, level, st)
+    elev = level.ProjectElevation
+    fi = doc.Create.NewFamilyInstance(DB.XYZ(p0[0], p0[1], elev), sym,
+                                      level, st)
+    set_param(fi, DB.BuiltInParameter.FAMILY_TOP_LEVEL_PARAM, level.Id)
+    set_param(fi, DB.BuiltInParameter.FAMILY_TOP_LEVEL_OFFSET_PARAM,
+              p1[2] - elev)
+    set_param(fi, DB.BuiltInParameter.FAMILY_BASE_LEVEL_OFFSET_PARAM,
+              p0[2] - elev)
+    return fi
+
+
+def probe_symbols(doc, wanted, level):
+    """{(symbol id, mode): (m, e, f)} measured on throwaway instances."""
+    out = {}
+    if not wanted:
+        return out
+    t = start_transaction(doc, TITLE + " probe")
+    placed = []
+    try:
+        z = level.ProjectElevation
+        for i, (sym, mode) in enumerate(wanted):
+            x = PROBE_BASE[0]
+            y = PROBE_BASE[1] + i * PROBE_SPACING
+            p0 = (x, y, z)
+            if mode == "beam":
+                p1 = (x + PROBE_LENGTH, y, z)
+                axis = (1.0, 0.0, 0.0)
+            elif mode == "column":
+                p1 = (x, y, z + PROBE_LENGTH)
+                axis = (0.0, 0.0, 1.0)
+            else:
+                axis = (math.sin(PROBE_SLANT), 0.0, math.cos(PROBE_SLANT))
+                p1 = _add(p0, _mul(axis, PROBE_LENGTH))
+            try:
+                fi = place_member(doc, sym, mode, p0, p1, level, "beam")
+                placed.append((sym, mode, fi, axis))
+            except Exception:
+                pass
+        doc.Regenerate()
+        for sym, mode, fi, axis in placed:
+            try:
+                r = measure(fi, axis)
+            except Exception:
+                r = None
+            if r is not None:
+                out[(sym.Id.ToString(), mode)] = r
+    finally:
+        t.RollBack()
+    return out
+
+
+# ── SHAPES ──────────────────────────────────────────────────────────────────
+
+class ShapeMaker(object):
+    def __init__(self, doc, mapper):
+        self.doc = doc
+        self.mapper = mapper
+        self.tol = doc.Application.ShortCurveTolerance
+        self.clip_failures = 0
+
+    def _world(self, plane, x, y):
+        o, ax, ay = plane
+        return (o[0] + x * ax[0] + y * ay[0], o[1] + x * ax[1] + y * ay[1],
+                o[2] + x * ax[2] + y * ay[2])
+
+    def _curve_loop(self, plane, loop, flip):
+        mp = self.mapper
+        cl = DB.CurveLoop()
+        if isinstance(loop, tuple) and loop and loop[0] == "circle":
+            c = _xyz(mp.point(self._world(plane, loop[1], loop[2])))
+            r = loop[3] / MM_PER_FT
+            xv = _xyz(mp.vector(plane[1]))
+            yv = _xyz(mp.vector(plane[2]))
+            if flip:
+                yv = yv.Negate()
+            cl.Append(DB.Arc.Create(c, r, 0.0, math.pi, xv, yv))
+            cl.Append(DB.Arc.Create(c, r, math.pi, 2 * math.pi, xv, yv))
+            return cl
+        pts = [_xyz(mp.point(self._world(plane, x, y))) for x, y in loop]
+        if flip:
+            pts.reverse()
+        clean = []
+        for p in pts:
+            if not clean or p.DistanceTo(clean[-1]) > self.tol:
+                clean.append(p)
+        while len(clean) > 2 and clean[0].DistanceTo(clean[-1]) <= self.tol:
+            clean.pop()
+        if len(clean) < 3:
+            return None
+        for i in range(len(clean)):
+            cl.Append(DB.Line.CreateBound(clean[i], clean[(i + 1) % len(clean)]))
+        return cl
+
+    def _prism(self, plane, loops, direction, depth_mm):
+        from System.Collections.Generic import List
+        curve_loops = List[DB.CurveLoop]()
+        for loop, flip in loop_orientations(loops, plane[1], plane[2],
+                                            direction):
+            cl = self._curve_loop(plane, loop, flip)
+            if cl is None:
+                if not curve_loops.Count:
+                    return None
+                continue
+            curve_loops.Add(cl)
+        return DB.GeometryCreationUtilities.CreateExtrusionGeometry(
+            curve_loops, _xyz(self.mapper.vector(direction)),
+            depth_mm / MM_PER_FT)
+
+    def extrusion(self, ex):
+        solid = self._prism(ex.plane, ex.profile.loops, ex.dir, ex.depth)
+        if solid is None:
+            return None
+        size = ex.depth + max(ex.profile.extent) + 1000.0
+        for clip in ex.clips:
+            try:
+                cut = self._clip(solid, clip, size)
+            except Exception:
+                cut = None
+            if cut is None:
+                self.clip_failures += 1
+            elif cut is False:
+                return None         # everything cut away
+            else:
+                solid = cut
+        return solid
+
+    def _clip(self, solid, clip, size):
+        mp = self.mapper
+        B = DB.BooleanOperationsUtils
+        if clip["kind"] == "plane":
+            plane = DB.Plane.CreateByNormalAndOrigin(
+                _xyz(mp.vector(clip["keep"])), _xyz(mp.point(clip["origin"])))
+            out = B.CutWithHalfSpace(solid, plane)
+            return out if out is not None and out.Volume > 1e-9 else False
+        if clip["kind"] == "bounded":
+            bo, bx, by = clip["plane"]
+            axis = clip["axis"]
+            start = _sub(bo, _mul(axis, size))
+            prism = self._prism((start, bx, by), [clip["poly"]], axis,
+                                2.0 * size)
+            if prism is None:
+                return None
+            away = clip["keep"]
+            plane = DB.Plane.CreateByNormalAndOrigin(
+                _xyz(mp.vector((-away[0], -away[1], -away[2]))),
+                _xyz(mp.point(clip["origin"])))
+            removed = B.CutWithHalfSpace(prism, plane)
+            if removed is None or removed.Volume < 1e-9:
+                return solid
+            return B.ExecuteBooleanOperation(
+                solid, removed, DB.BooleanOperationsType.Difference)
+        if clip["kind"] == "solid":
+            other = self.solid_of(clip["solid"])
+            if other is None:
+                return None
+            return B.ExecuteBooleanOperation(
+                solid, other, DB.BooleanOperationsType.Difference)
+        return None
+
+    def solid_of(self, body):
+        if isinstance(body, Extrusion):
+            return self.extrusion(body)
+        return None
+
+    def brep(self, br):
+        from System.Collections.Generic import List, IList
+        mp = self.mapper
+        b = DB.TessellatedShapeBuilder()
+        b.Target = DB.TessellatedShapeBuilderTarget.AnyGeometry
+        b.Fallback = DB.TessellatedShapeBuilderFallback.Mesh
+        b.OpenConnectedFaceSet(True)
+        faces = 0
+        for face in br.faces:
+            loops = List[IList[DB.XYZ]]()
+            for loop in face:
+                pts = List[DB.XYZ]()
+                last = None
+                for p in loop:
+                    q = _xyz(mp.point(p))
+                    if last is None or q.DistanceTo(last) > 1e-6:
+                        pts.Add(q)
+                        last = q
+                if pts.Count >= 3:
+                    loops.Add(pts)
+            if loops.Count:
+                b.AddFace(DB.TessellatedFace(loops, DB.ElementId.InvalidElementId))
+                faces += 1
+        b.CloseConnectedFaceSet()
+        if not faces:
+            return []
+        b.Build()
+        res = b.GetBuildResult()
+        if res.Outcome == DB.TessellatedShapeBuilderOutcome.Nothing:
+            return []
+        return list(res.GetGeometricalObjects())
+
+    def geometry(self, part):
+        out = []
+        for body in part.solids:
+            if isinstance(body, Extrusion):
+                s = self.extrusion(body)
+                if s is not None:
+                    out.append(s)
+            elif isinstance(body, Brep):
+                out.extend(self.brep(body))
+        return out
+
+
+class Categories(object):
+    def __init__(self, doc):
+        self.doc = doc
+        self._cache = {}
+
+    def _valid(self, bic):
+        try:
+            cid = DB.ElementId(bic)
+            if DB.DirectShape.IsValidCategoryId(cid, self.doc):
+                return cid
+        except Exception:
+            pass
+        return None
+
+    def get(self, ifc_type):
+        hit = self._cache.get(ifc_type)
+        if hit is None:
+            B = DB.BuiltInCategory
+            want = {"IFCPLATE": getattr(B, "OST_StructConnectionPlates", None),
+                    "IFCBEAM": B.OST_StructuralFraming,
+                    "IFCMEMBER": B.OST_StructuralFraming,
+                    "IFCCOLUMN": B.OST_StructuralColumns}.get(ifc_type)
+            hit = (self._valid(want) if want is not None else None) or \
+                DB.ElementId(B.OST_GenericModel)
+            self._cache[ifc_type] = hit
+        return hit
+
+
+# ── IMPORT ──────────────────────────────────────────────────────────────────
+
+def ifc_class(t):
+    """IFCBEAM -> IfcBeam (for Comments)."""
+    names = {"IFCBEAM": "IfcBeam", "IFCCOLUMN": "IfcColumn",
+             "IFCMEMBER": "IfcMember", "IFCPLATE": "IfcPlate",
+             "IFCDISCRETEACCESSORY": "IfcDiscreteAccessory",
+             "IFCBUILDINGELEMENTPROXY": "IfcBuildingElementProxy",
+             "IFCMECHANICALFASTENER": "IfcMechanicalFastener",
+             "IFCELEMENTASSEMBLY": "IfcElementAssembly"}
+    return names.get(t, t.title() if t else u"")
+
+
+def comments(part):
+    bits = [ifc_class(part.ifc_type), part.name, part.section, part.material,
+            part.assembly]
+    return u" | ".join(safe_text(b) for b in bits)
+
+
+def make_mapper(doc, model, placement):
+    if placement == PLACE_SHARED:
+        t = doc.ActiveProjectLocation.GetTotalTransform()
+        return Mapper((_tup(t.BasisX), _tup(t.BasisY), _tup(t.BasisZ)),
+                      _tup(t.Origin))
+    if placement == PLACE_CENTRE:
+        b = model_bounds(model)
+        if b is not None:
+            lo, hi = b
+            return Mapper(shift=tuple(-(lo[i] + hi[i]) / 2.0 for i in range(3)))
+    return Mapper()
+
+
+def model_bounds(model):
+    b = model.bounds()
+    if b is not None:
+        return b
+    lo = [1e30] * 3
+    hi = [-1e30] * 3
+    for p in model.parts:
+        for s in p.solids:
+            pts = []
+            if isinstance(s, Extrusion):
+                pts.append(s.plane[0])
+            elif isinstance(s, Brep):
+                pts.extend(q for f in s.faces[:4] for q in f[0][:1])
+            for q in pts:
+                for i in range(3):
+                    lo[i] = min(lo[i], q[i])
+                    hi[i] = max(hi[i], q[i])
+    return (lo, hi) if lo[0] <= hi[0] else None
+
+
+class Plan(object):
+    """One native member to make."""
+
+    def __init__(self, part, use, cat, mode, entry, how):
+        self.part = part
+        self.use = use
+        self.cat = cat
+        self.mode = mode
+        self.entry = entry
+        self.how = how
+        self.trimmed = False
+        self.notches = 0
+        self.fi = None
+        self.axis = None
+        self.target = None      # (d1, d2) in internal coordinates
+        self.phi = 0.0
+        self.sign = -1.0
+        self.flipped = False
+        self.shift = (0.0, 0.0)
+        self.score = None
+        self.verified = True
+
+
+def level_for(levels, z):
+    """Highest level at or below z (internal ft), else the lowest."""
+    best = None
+    for lv in levels:
+        if lv.ProjectElevation <= z + 1e-6:
+            best = lv
+    return best or levels[0]
+
+
+class Importer(object):
+    def __init__(self, doc, model, mapper, source_name):
+        self.doc = doc
+        self.model = model
+        self.mapper = mapper
+        self.source = source_name or u"IFC"
+        self.levels = []
+        self.probes = {}
+        self.sign = {"beam": -1.0, "slanted": -1.0}
+        self.made = {}
+        self.shapes = 0
+        self.failed = []
+        self.fits = []
+        self.unverified = 0
+        self.fallback = []      # natives that became shapes
+        self.cats = Categories(doc)
+        self.maker = ShapeMaker(doc, mapper)
+
+    # -- levels -----------------------------------------------------------------
+
+    def ensure_levels(self):
+        self.levels = sorted(DB.FilteredElementCollector(self.doc)
+                             .OfClass(DB.Level), key=lambda l: l.ProjectElevation)
+        if not self.levels:
+            self.levels = [DB.Level.Create(self.doc, 0.0)]
+
+    # -- native members ---------------------------------------------------------
+
+    def ends(self, plan):
+        m = plan.part.member
+        clips = plan.part.solids[0].clips
+        s, e, trimmed, others = clip_line(m.start, m.end, clips)
+        plan.trimmed = trimmed
+        plan.notches = others
+        p0 = self.mapper.point(s)
+        p1 = self.mapper.point(e)
+        if plan.cat == "column" and p1[2] < p0[2]:
+            p0, p1 = p1, p0
+        return p0, p1
+
+    def create(self, plan):
+        sym = plan.entry.symbol
+        p0, p1 = self.ends(plan)
+        level = level_for(self.levels, min(p0[2], p1[2]))
+        fi = place_member(self.doc, sym, plan.mode, p0, p1, level, plan.use)
+        plan.fi = fi
+        plan.axis = _unit(_sub(p1, p0))
+        part = plan.part
+        set_param(fi, DB.BuiltInParameter.ALL_MODEL_MARK, part.mark or u"")
+        set_param(fi, DB.BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS,
+                  comments(part))
+
+    def orient(self, plan):
+        """Work out (d1, d2) and turn the member to it (rotation only)."""
+        fi = plan.fi
+        m = plan.part.member
+        prof = m.profile
+        s1, s2 = instance_axes(fi, plan.axis)
+        xp = self.mapper.vector(m.x)
+        yp = self.mapper.vector(m.y)
+        h = handedness(s1, s2, xp, yp)
+        probe = self.probes.get((plan.entry.symbol.Id.ToString(), plan.mode))
+        if probe is None:
+            probe = ((0.0, 0.0), prof.extent, prof.centroid)
+            plan.verified = False
+        A, score = fit_orientation(probe, prof.extent, prof.centroid, h)
+        plan.score = score
+        plan.shift = probe[0]
+        d1, d2 = section_dirs(A, xp, yp)
+        plan.target = (d1, d2)
+        phi = rotation_angle(d1, s1, s2)
+        if abs(phi) < 1e-9:
+            return
+        plan.phi = phi
+        plan.flipped = False
+        plan.sign = self.sign.get(plan.mode, 1.0)
+        self._turn(plan, phi if plan.mode == "column" else plan.sign * phi)
+
+    def _turn(self, plan, angle):
+        """Vertical columns turn about their axis; framing and slanted
+        columns take a cross-section rotation (absolute, not added)."""
+        fi = plan.fi
+        if plan.mode == "column":
+            base = location_base(fi)
+            axis = DB.Line.CreateBound(_xyz(base), _xyz(_add(base, (0, 0, 1))))
+            DB.ElementTransformUtils.RotateElement(self.doc, fi.Id, axis, angle)
+        else:
+            set_param(fi, DB.BuiltInParameter.STRUCTURAL_BEND_DIR_ANGLE, angle)
+
+    def check(self, plan, final=False):
+        """True when the section axes are where they should be. On the first
+        check a member turned the wrong way is turned the other way; when
+        that proves right, later members of that mode start with it."""
+        if plan.target is None:
+            return True
+        s1, s2 = instance_axes(plan.fi, plan.axis)
+        if _dot(s1, plan.target[0]) > 0.999:
+            if final and plan.flipped and plan.mode != "column":
+                self.sign[plan.mode] = -plan.sign
+            return True
+        if not final:
+            phi = plan.phi
+            plan.flipped = True
+            if plan.mode == "column":
+                self._turn(plan, -2.0 * phi)
+            else:
+                self._turn(plan, -plan.sign * phi)
+        return False
+
+    def shift(self, plan):
+        s1, s2 = instance_axes(plan.fi, plan.axis)
+        m1, m2 = plan.shift
+        move = _mul(_add(_mul(s1, m1), _mul(s2, m2)), -1.0 / MM_PER_FT)
+        if _len(move) > 1e-7:
+            DB.ElementTransformUtils.MoveElement(self.doc, plan.fi.Id,
+                                                 _xyz(move))
+
+    def natives(self, plans, pb=None, done=0, total=1):
+        for start in range(0, len(plans), BATCH):
+            if pb is not None and pb.cancelled:
+                return False
+            batch = plans[start:start + BATCH]
+            t = start_transaction(self.doc, TITLE)
+            made = []
+            for plan in batch:
+                try:
+                    self.create(plan)
+                    made.append(plan)
+                except Exception as ex:
+                    self.fallback.append((plan, safe_text(ex)))
+            self.doc.Regenerate()
+            for plan in made:
+                try:
+                    self.orient(plan)
+                except Exception as ex:
+                    plan.verified = False
+                    self.failed.append((plan.part.section,
+                                        u"orientation: " + safe_text(ex)))
+            self.doc.Regenerate()
+            redo = [p for p in made if not self.check(p)]
+            if redo:
+                self.doc.Regenerate()
+                for p in redo:
+                    if not self.check(p, final=True):
+                        p.verified = False
+            for plan in made:
+                try:
+                    self.shift(plan)
+                except Exception:
+                    pass
+            if t.Commit() == DB.TransactionStatus.Committed:
+                for plan in made:
+                    key = plan.use
+                    self.made[key] = self.made.get(key, 0) + 1
+                    if not plan.verified:
+                        self.unverified += 1
+                    if plan.score is not None and plan.score > REPORT_SCORE_MM:
+                        self.fits.append(plan)
+            else:
+                self.failed.append((u"Members {} to {}".format(
+                    start + 1, start + len(batch)), u"Revit rolled the batch back"))
+            if pb is not None:
+                pb.update_progress(done + start + len(batch), total)
+        return True
+
+    # -- shapes -----------------------------------------------------------------
+
+    def shapes_of(self, parts, pb=None, done=0, total=1):
+        from System.Collections.Generic import List
+        for start in range(0, len(parts), BATCH):
+            if pb is not None and pb.cancelled:
+                return False
+            batch = parts[start:start + BATCH]
+            t = start_transaction(self.doc, TITLE)
+            made = 0
+            for part in batch:
+                ds = None
+                label = part.section or part.name or ifc_class(part.ifc_type)
+                try:
+                    geo = self.maker.geometry(part)
+                    if not geo:
+                        self.failed.append((label, u"no usable geometry"))
+                        continue
+                    ds = DB.DirectShape.CreateElement(
+                        self.doc, self.cats.get(part.ifc_type))
+                    ds.ApplicationId = "Seed43 Steel IFC"
+                    ds.ApplicationDataId = part.guid or self.source
+                    ds.SetShape(List[DB.GeometryObject](geo))
+                    try:
+                        ds.SetName(_clean_name(label))
+                    except Exception:
+                        pass
+                    set_param(ds, DB.BuiltInParameter.ALL_MODEL_MARK,
+                              part.mark or u"")
+                    set_param(ds, DB.BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS,
+                              comments(part))
+                    made += 1
+                except Exception as ex:
+                    self.failed.append((label, safe_text(ex)))
+                    if ds is not None:
+                        try:
+                            self.doc.Delete(ds.Id)
+                        except Exception:
+                            pass
+            if t.Commit() == DB.TransactionStatus.Committed:
+                self.shapes += made
+            else:
+                self.failed.append((u"Shapes {} to {}".format(
+                    start + 1, start + len(batch)), u"Revit rolled the batch back"))
+            if pb is not None:
+                pb.update_progress(done + start + len(batch), total)
+        return True
+
+
+def _clean_name(name):
+    for ch in u'\\:{}[]|;<>?`~':
+        name = name.replace(ch, u"_")
+    return name.strip() or u"Steel"
+
+
+def plan_parts(model, matcher):
+    """Sort parts into members to match (grouped by section and category),
+    shapes and bolts."""
+    groups = {}
+    shapes = []
+    bolts = 0
+    for part in model.parts:
+        if part.bolt:
+            bolts += 1
+            continue
+        if part.member is None or part.role is None:
+            shapes.append(part)
+            continue
+        use, cat, mode = classify(part.member, part.role)
+        key = (cat, part.section)
+        g = groups.get(key)
+        if g is None:
+            g = {"profile": part.member.profile, "parts": [], "materials": {}}
+            groups[key] = g
+        g["parts"].append((part, use, mode))
+        mat = part.material or u""
+        g["materials"][mat] = g["materials"].get(mat, 0) + 1
+    return groups, shapes, bolts
+
+
+def main_material(g):
+    best = u""
+    n = -1
+    for k, v in g["materials"].items():
+        if v > n:
+            best, n = k, v
+    return best
+
+
+def mapping_rows(matcher, unmatched, groups):
+    rows = []
+    for key in unmatched:
+        cat, section = key
+        g = groups[key]
+        prof = g["profile"]
+        cands = matcher.candidates(section, cat, prof)
+        options = [e.label for s, e in cands]
+        kind = section_kind(prof, section)
+        word = (name_key(section) or (u"",))[0]
+        default = SHAPE_LABEL
+        if kind != "R" and word not in ("PL", "FL") and cands:
+            best_score, best = cands[0]
+            if best.kind == kind and best_score < 5.0:
+                default = best.label
+        rows.append({"section": section, "cat": cat,
+                     "text": section_text(prof, section),
+                     "count": len(g["parts"]), "options": options,
+                     "default": default,
+                     "valid": set(matcher.by_label[cat])})
+    rows.sort(key=lambda r: (r["cat"], r["section"]))
+    return rows
+
+
+def run(doc, ifc_path, source_name=None):
+    """Import a steel IFC into doc. Returns False if cancelled."""
+    from pyrevit import forms, script
+
+    source = source_name or os.path.basename(ifc_path)
+    with forms.ProgressBar(title="Reading IFC...") as pb:
+        try:
+            model = read_steel(ifc_path, progress=lambda i, n:
+                               pb.update_progress(i, max(n, 1)))
+        except Exception as ex:
+            forms.alert(u"Could not read the IFC: {}".format(ex), title=TITLE)
+            return False
+    if not model.parts:
+        forms.alert("The IFC has no steel parts with geometry.", title=TITLE)
+        return False
+
+    placement = forms.CommandSwitchWindow.show(
+        [PLACE_SHARED, PLACE_INTERNAL, PLACE_CENTRE],
+        message="Place the model at")
+    if not placement:
+        return False
+    mapper = make_mapper(doc, model, placement)
+
+    with forms.ProgressBar(title="Reading family types...") as pb:
+        pb.update_progress(1, 3)
+        entries = loaded_entries(doc)
+        entries.extend(library_entries(doc.Application))
+        pb.update_progress(3, 3)
+    matcher = Matcher(entries, load_map())
+
+    groups, shape_parts, bolts = plan_parts(model, matcher)
+    matched = {}
+    unmatched = []
+    for key in sorted(groups):
+        cat, section = key
+        g = groups[key]
+        res, how = matcher.match(section, cat, g["profile"], main_material(g))
+        if res is None:
+            unmatched.append(key)
+        else:
+            matched[key] = (res, how)
+
+    if unmatched:
+        rows = mapping_rows(matcher, unmatched, groups)
+        answer = ask_mappings(rows)
+        if answer is None:
+            return False
+        choices, remember = answer
+        to_save = {}
+        for key, value in choices.items():
+            cat, section = key
+            if value == SHAPE:
+                matched[key] = (SHAPE, "chosen: shape")
+            else:
+                matched[key] = (matcher.find(cat, value), "chosen")
+            to_save.setdefault(cat, {})[section] = value
+        if remember:
+            save_map(to_save)
+
+    importer = Importer(doc, model, mapper, source)
+    plans = []
+    natives_by_key = {}
+    for key in sorted(groups):
+        res, how = matched.get(key, (SHAPE, "shape"))
+        cat = key[0]
+        for part, use, mode in groups[key]["parts"]:
+            if res == SHAPE or res is None:
+                shape_parts.append(part)
+            else:
+                plans.append(Plan(part, use, cat, mode, res, how))
+        natives_by_key[key] = (res, how, len(groups[key]["parts"]))
+
+    group = DB.TransactionGroup(doc, TITLE)
+    group.Start()
+    try:
+        # load and activate the chosen types
+        t = start_transaction(doc, TITLE + " families")
+        importer.ensure_levels()
+        bad = set()
+        for plan in plans:
+            e = plan.entry
+            if id(e) in bad:
+                continue
+            sym = load_entry(doc, e)
+            if sym is None:
+                bad.add(id(e))
+                continue
+            if not sym.IsActive:
+                sym.Activate()
+        t.Commit()
+        for plan in [p for p in plans if id(p.entry) in bad]:
+            importer.fallback.append((plan, u"could not load " + plan.entry.label))
+        plans = [p for p in plans if id(p.entry) not in bad]
+
+        wanted = []
+        seen = set()
+        for plan in plans:
+            k = (plan.entry.symbol.Id.ToString(), plan.mode)
+            if k not in seen:
+                seen.add(k)
+                wanted.append((plan.entry.symbol, plan.mode))
+        importer.probes = probe_symbols(doc, wanted, importer.levels[0])
+
+        total = len(plans) + len(shape_parts)
+        with forms.ProgressBar(title="Importing... ({value} of {max_value})",
+                               cancellable=True) as pb:
+            ok = importer.natives(plans, pb, 0, total)
+            shape_parts.extend(p.part for p, why in importer.fallback)
+            total = len(plans) + len(shape_parts)
+            if ok:
+                ok = importer.shapes_of(shape_parts, pb, len(plans), total)
+            cancelled = pb.cancelled
+        if cancelled:
+            group.RollBack()
+            return False
+        group.Assimilate()
+    except Exception:
+        if group.HasStarted():
+            group.RollBack()
+        raise
+
+    report(script.get_output(), ifc_path, model, placement, importer,
+           natives_by_key, plans, bolts)
+    return True
+
+
+# ── REPORT ──────────────────────────────────────────────────────────────────
+
+def report(out, path, model, placement, imp, by_key, plans, bolts):
+    out.print_md(u"## Steel IFC\n`{}`".format(path))
+    out.print_md(u"Schema {}. Placed in: {}.".format(
+        safe_text(model.ifc.schema) or u"?", placement))
+    natives = sum(imp.made.values())
+    bits = [u"{} {}".format(v, k + ("es" if k == "brace" else "s"))
+            for k, v in sorted(imp.made.items())]
+    out.print_md(u"**{}** native members ({}), **{}** shapes, **{}** bolt "
+                 u"parts skipped.".format(natives, u", ".join(bits) or u"none",
+                                          imp.shapes, bolts))
+
+    out.print_md(u"### Sections")
+    lines = [u"| Section | Category | Count | Revit type | How |",
+             u"|---|---|---|---|---|"]
+    for key in sorted(by_key):
+        res, how, n = by_key[key]
+        cat, section = key
+        target = u"shape" if res in (SHAPE, None) else res.label
+        if res not in (SHAPE, None) and not res.loaded:
+            target += u" (loaded from library)"
+        lines.append(u"| {} | {} | {} | {} | {} |".format(
+            section or u"(no name)", cat, n, target, how or u"shape"))
+    out.print_md(u"\n".join(lines))
+
+    trimmed = len([p for p in plans if p.trimmed])
+    notched = len([p for p in plans if p.notches])
+    if trimmed or notched:
+        out.print_md(u"End cuts trimmed {} native members to the cut. {} "
+                     u"native members have copes or notches that are not "
+                     u"modelled on them.".format(trimmed, notched))
+    if imp.fallback:
+        out.print_md(u"### Made as shapes instead of native ({})".format(
+            len(imp.fallback)))
+        for plan, why in imp.fallback[:100]:
+            out.print_md(u"- {} {}: {}".format(plan.part.section,
+                                               plan.part.mark, why))
+    if imp.fits:
+        out.print_md(u"### Orientation fits over {} mm ({})".format(
+            int(REPORT_SCORE_MM), len(imp.fits)))
+        out.print_md(u"The type's section does not lay well over the IFC "
+                     u"outline; check these.")
+        for plan in imp.fits[:100]:
+            out.print_md(u"- {} {} -> {}: {:.0f} mm {}".format(
+                plan.part.section, plan.part.mark, plan.entry.label,
+                plan.score, out.linkify(plan.fi.Id) if plan.fi else u""))
+    if imp.unverified:
+        out.print_md(u"{} members could not have their rotation checked."
+                     .format(imp.unverified))
+    if model.unsupported or imp.maker.clip_failures:
+        out.print_md(u"### Unsupported geometry")
+        for k in sorted(model.unsupported):
+            out.print_md(u"- {} ({})".format(k, model.unsupported[k]))
+        if imp.maker.clip_failures:
+            out.print_md(u"- cuts that failed and were left off ({})".format(
+                imp.maker.clip_failures))
+    if imp.failed:
+        out.print_md(u"### Not imported ({})".format(len(imp.failed)))
+        for name, why in imp.failed[:200]:
+            out.print_md(u"- {}: {}".format(name, why))

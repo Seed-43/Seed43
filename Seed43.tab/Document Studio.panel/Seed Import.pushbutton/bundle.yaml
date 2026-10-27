@@ -1,0 +1,18 @@
+title: "Seed Import"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Imports a Seed43 Studio .seed file into the model as DirectShapes, one
+  per element, in its own category with its name in Mark and its place
+  in the Studio tree in Comments. Reads the files made by 3D Seed and by
+  Navisworks' Export to Studio. Pick the file, untick any categories you
+  do not want, then choose where to place it and whether to make solids
+  or meshes. Shapes are not editable like native Revit elements, and a
+  .seed made from StruCad, IFC or STEP has to be opened in Studio instead.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

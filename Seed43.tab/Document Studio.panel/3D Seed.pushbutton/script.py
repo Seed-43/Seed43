@@ -3,9 +3,13 @@
 
 Walks the view with a CustomExporter, as 3D PDF does, so visibility,
 filters, section box and links come through as the view shows them. The
-file is the one Navisworks' Export to Studio writes (seed_writer.py), so
-Studio opens it with a Model > Category > Family: Type > element tree,
-Revit material colours, element properties and the view's camera.
+file is the one Navisworks' Export to Studio writes (seed_writer.py), with
+the elements laid out the way an IFC export makes them: a Project > Site >
+Building > Storey > element tree, each element named Family:Type:Id with
+the IFC class and GlobalId Revit's IFC exporter would give it, and Mark,
+Section, Grade, Assembly and Length in a StruCad property set (where
+Studio reads its fixed fields on an IFC). Revit material colours, the
+other element properties and the view's camera come through as before.
 Coordinates are shared coordinates, the Navisworks NWC default, so a Revit
 export and a Navisworks export of the same model line up in Studio.
 """
@@ -14,6 +18,7 @@ import os
 from pyrevit import revit, DB, forms
 
 from seed_writer import SeedScene, SeedItem, SeedPart
+from ifc_style import ifc_class, ifc_guid, kind_of, storey_of, STRUCAD_PSET
 
 doc = revit.doc
 
@@ -23,9 +28,13 @@ TITLE = "3D Seed"
 
 FT_TO_MM = 304.8
 DEFAULT_RGB = (0.7, 0.7, 0.7)
+NO_LEVEL = u"(no level)"
+
+# IFC classes whose type name is a steel section.
+SECTION_CLASSES = ("IfcBeam", "IfcColumn", "IfcMember")
 
 WITH_PROPS = "With element properties"
-NO_PROPS = "Geometry, names and materials only"
+NO_PROPS = "Geometry, names, materials and IFC fields only"
 
 
 # ── HELPERS ─────────────────────────────────────────────────────────────────
@@ -155,6 +164,167 @@ def element_props(el, src_doc, fam, tname):
         if tp:
             props[u"Type"] = tp
     return props
+
+
+# ── IFC-STYLE FIELDS ────────────────────────────────────────────────────────
+
+def bic_name(el):
+    """'OST_StructuralFraming' for an element's category, or ''."""
+    try:
+        cat = el.Category
+        if cat is None:
+            return u""
+        b = getattr(cat, "BuiltInCategory", None)       # Revit 2023+
+        if b is not None:
+            return safe_text(b)
+        import System
+        return safe_text(System.Enum.ToObject(DB.BuiltInCategory,
+                                              int(id_value(cat.Id))))
+    except Exception:
+        return u""
+
+
+def param_string(el, bip=None, name=None):
+    """A parameter's text by built-in id (skipped when the Revit version
+    has no such id) or by name, '' when absent."""
+    if el is None:
+        return u""
+    try:
+        p = None
+        if bip is not None:
+            b = getattr(DB.BuiltInParameter, bip, None)
+            if b is not None:
+                p = el.get_Parameter(b)
+        elif name:
+            p = el.LookupParameter(name)
+        return param_text(p) if p is not None else u""
+    except Exception:
+        return u""
+
+
+def export_as(el, etype):
+    """The element's "Export to IFC As", else its type's."""
+    for src, bips in ((el, ("IFC_EXPORT_ELEMENT_AS",)),
+                      (etype, ("IFC_EXPORT_ELEMENT_TYPE_AS",
+                               "IFC_EXPORT_ELEMENT_AS"))):
+        for bip in bips:
+            v = param_string(src, bip)
+            if v:
+                return v
+        v = param_string(src, name="IfcExportAs")
+        if v:
+            return v
+    return u""
+
+
+def structural_type(el):
+    try:
+        return safe_text(el.StructuralType)
+    except Exception:
+        return u""
+
+
+def global_id(el, src_doc):
+    """The IFC GlobalId: the one a past IFC export stored, else the id
+    Revit's exporter derives from the element."""
+    v = param_string(el, "IFC_GUID")
+    if len(v) == 22:
+        return v
+    try:
+        return ifc_guid(safe_text(DB.ExportUtils.GetExportId(src_doc, el.Id)))
+    except Exception:
+        return u""
+
+
+class Levels(object):
+    """Each document's levels, to put elements in storeys."""
+
+    def __init__(self):
+        self._by_doc = {}
+
+    def of(self, src_doc):
+        key = id(src_doc)
+        hit = self._by_doc.get(key)
+        if hit is None:
+            hit = {}
+            for lv in DB.FilteredElementCollector(src_doc).OfClass(DB.Level):
+                hit[id_value(lv.Id)] = (element_name(lv), lv.ProjectElevation)
+            self._by_doc[key] = hit
+        return hit
+
+    def storey(self, el, src_doc):
+        """(name, elevation) of the element's level, or None."""
+        levels = self.of(src_doc)
+        ids = []
+        try:
+            ids.append(el.LevelId)
+        except Exception:
+            pass
+        for bip in ("INSTANCE_REFERENCE_LEVEL_PARAM",
+                    "FAMILY_BASE_LEVEL_PARAM", "SCHEDULE_LEVEL_PARAM"):
+            try:
+                p = el.get_Parameter(getattr(DB.BuiltInParameter, bip))
+                if p is not None and p.HasValue:
+                    ids.append(p.AsElementId())
+            except Exception:
+                pass
+        for lid in ids:
+            try:
+                hit = levels.get(id_value(lid))
+            except Exception:
+                hit = None
+            if hit is not None:
+                return hit
+        try:
+            bb = el.get_BoundingBox(None)
+            if bb is not None:
+                return storey_of(list(levels.values()), bb.Min.Z)
+        except Exception:
+            pass
+        return None
+
+
+def length_mm(el):
+    for bip in ("STRUCTURAL_FRAME_CUT_LENGTH", "INSTANCE_LENGTH_PARAM",
+                "CURVE_ELEM_LENGTH"):
+        try:
+            p = el.get_Parameter(getattr(DB.BuiltInParameter, bip))
+            if p is not None and p.HasValue and \
+                    p.StorageType == DB.StorageType.Double and p.AsDouble() > 0:
+                return u"{}".format(int(round(p.AsDouble() * FT_TO_MM)))
+        except Exception:
+            pass
+    return u""
+
+
+def assembly_name(el, src_doc):
+    try:
+        aid = el.AssemblyInstanceId
+        if aid is not None and aid != DB.ElementId.InvalidElementId:
+            a = src_doc.GetElement(aid)
+            if a is not None:
+                return element_name(a)
+    except Exception:
+        pass
+    return u""
+
+
+def ifc_fields(c, cls):
+    """The StruCad set: Studio's fixed card fields, only those with values."""
+    el, src_doc = c.el, c.doc
+    try:
+        etype = src_doc.GetElement(el.GetTypeId())
+    except Exception:
+        etype = None
+    f = [(u"Kind", kind_of(cls)),
+         (u"Mark", param_string(el, "ALL_MODEL_MARK")),
+         (u"Section", c.tname if cls in SECTION_CLASSES else u""),
+         (u"Grade", structural_material(el, src_doc)),
+         (u"Assembly", assembly_name(el, src_doc)),
+         (u"Length", length_mm(el)),
+         (u"Desc", param_string(etype, "ALL_MODEL_DESCRIPTION")),
+         (u"Phase", param_string(el, "PHASE_CREATED"))]
+    return dict((k, v) for k, v in f if v)
 
 
 # ── EXPORT CONTEXT ──────────────────────────────────────────────────────────
@@ -359,58 +529,98 @@ class SeedContext(DB.IExportContext):
 
 # ── BUILD THE TREE ──────────────────────────────────────────────────────────
 
+def site_building(src_doc):
+    """(site name, building name) as Revit's IFC export names them."""
+    site = building = u""
+    try:
+        site = element_name(src_doc.ActiveProjectLocation)
+    except Exception:
+        pass
+    try:
+        building = safe_text(src_doc.ProjectInformation.BuildingName or u"")
+    except Exception:
+        pass
+    return site or u"Default", building or u"Default"
+
+
 def build_scene(ctx, with_props, progress=None):
-    """Model > Category > Family: Type > element, numbered depth-first so
-    Studio's tree-order rule holds (each branch and its items one run)."""
+    """IfcProject (one per model) > IfcSite > IfcBuilding > IfcBuildingStorey
+    (by elevation) > element, numbered depth-first so Studio's tree-order
+    rule holds (each branch and its items one run)."""
     app = doc.Application
     scene = SeedScene(document=safe_text(doc.Title) or u"Model",
                       product=u"Autodesk Revit {}".format(app.VersionNumber))
+    levels = Levels()
 
-    # model -> category -> "Family: Type" -> [(label, Collected)]
+    # model -> (storey elevation, storey name) -> [(sort key, Collected)]
     tree = {}
+    model_docs = {}
     for c in ctx.collected.values():
         if not c.parts:
             continue
         fam, tname = family_type(c.el, c.doc)
         c.fam, c.tname = fam, tname
-        ftype = u"{}: {}".format(fam, tname) if fam and tname else (fam or tname)
-        c.ftype = ftype
-        label = u"{} [{}]".format(ftype or element_name(c.el) or u"Element",
-                                  id_value(c.el.Id))
-        cats = tree.setdefault(c.model, {})
-        types = cats.setdefault(category_name(c.el), {})
-        types.setdefault(ftype or u"(no type)", []).append(
-            (id_value(c.el.Id), label, c))
+        c.ftype = u"{}: {}".format(fam, tname) if fam and tname \
+            else (fam or tname)
+        etype = None
+        try:
+            etype = c.doc.GetElement(c.el.GetTypeId())
+        except Exception:
+            pass
+        c.cls = ifc_class(bic_name(c.el), structural_type(c.el),
+                          export_as(c.el, etype))
+        eid = id_value(c.el.Id)
+        # Revit's IFC export names an element Family:Type:Id
+        base = u"{}:{}".format(fam, tname) if fam and tname \
+            else (fam or tname or element_name(c.el) or u"Element")
+        c.label = u"{}:{}".format(base, eid)
+        st = levels.storey(c.el, c.doc)
+        key = (1, 0.0, NO_LEVEL) if st is None else (0, st[1], st[0])
+        tree.setdefault(c.model, {}).setdefault(key, []).append(
+            ((c.cls, c.label, eid), c))
+        model_docs.setdefault(c.model, c.doc)
 
     done, total = 0, len(ctx.collected)
     for model in sorted(tree):
-        root = scene.add_node(ctx.models[model], u"File")
-        cats = tree[model]
-        for cat in sorted(cats):
-            cat_node = scene.add_node(cat, u"Category", root)
-            types = cats[cat]
-            for ftype in sorted(types):
-                type_node = scene.add_node(ftype, u"Type", cat_node)
-                for _, label, c in sorted(types[ftype], key=lambda e: e[0]):
-                    item = SeedItem(scene.add_node(label, u"Element", type_node))
-                    item.parts = c.parts
-                    item.cat = cat
-                    item.type = c.ftype
-                    item.mat = structural_material(c.el, c.doc)
-                    if not item.mat:
-                        # the material with the most triangles stands in
-                        best = max(c.parts, key=lambda p: len(p.triangles))
-                        item.mat = best.mat
-                    if with_props:
-                        try:
-                            item.props = element_props(c.el, c.doc,
-                                                       c.fam, c.tname)
-                        except Exception:
-                            item.props = None
-                    scene.items.append(item)
-                    done += 1
-                    if progress is not None and done % 50 == 0:
-                        progress(done, total)
+        site, building = site_building(model_docs[model])
+        project = scene.add_node(ctx.models[model], u"IfcProject")
+        site_node = scene.add_node(site, u"IfcSite", project)
+        bldg = scene.add_node(building, u"IfcBuilding", site_node)
+        storeys = tree[model]
+        for key in sorted(storeys):
+            storey_name = key[2]
+            storey = scene.add_node(storey_name, u"IfcBuildingStorey", bldg)
+            for _, c in sorted(storeys[key], key=lambda e: e[0]):
+                item = SeedItem(scene.add_node(c.label, c.cls, storey))
+                item.parts = c.parts
+                item.cat = category_name(c.el)
+                item.type = c.ftype
+                item.mat = structural_material(c.el, c.doc)
+                if not item.mat:
+                    # the material with the most triangles stands in
+                    best = max(c.parts, key=lambda p: len(p.triangles))
+                    item.mat = best.mat
+                props = {}
+                ifc = {u"GlobalId": global_id(c.el, c.doc),
+                       u"Class": c.cls, u"Storey": storey_name}
+                props[u"IFC"] = dict((k, v) for k, v in ifc.items() if v)
+                try:
+                    fields = ifc_fields(c, c.cls)
+                except Exception:
+                    fields = {}
+                if fields:
+                    props[STRUCAD_PSET] = fields
+                if with_props:
+                    try:
+                        props.update(element_props(c.el, c.doc,
+                                                   c.fam, c.tname))
+                    except Exception:
+                        pass
+                item.props = props
+                scene.items.append(item)
+                done += 1
+                if progress is not None and done % 50 == 0:
+                    progress(done, total)
     return scene
 
 

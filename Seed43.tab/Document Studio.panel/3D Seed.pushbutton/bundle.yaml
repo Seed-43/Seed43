@@ -8,9 +8,12 @@ tooltip: >
   Exports the active 3D view to a .seed file for Seed43 Studio, the same
   file Navisworks' Export to Studio makes. What the view shows is what
   you get: visibility, filters, the section box and linked models all
-  carry through. Studio opens it with a model, category and type tree,
-  Revit material colours and see-through glass, each element's
-  properties, and the Revit view's camera. Coordinates are the shared
+  carry through. Elements are laid out as an IFC export makes them: a
+  project, site, building and storey tree, each element named
+  Family:Type:Id with its IFC class and GlobalId, and Mark, Section,
+  Grade, Assembly and Length as Studio's element fields. Revit material
+  colours, see-through glass, each element's properties and the Revit
+  view's camera come through too. Coordinates are the shared
   coordinates, so it lines up with a Navisworks export of the same model.
 
   __________________________________________________________________

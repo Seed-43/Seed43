@@ -1,13 +1,20 @@
 # -*- coding: utf-8 -*-
-"""Import a Seed43 Studio .seed mesh into Revit as DirectShapes.
+"""3D Import: import a model into Revit, working out what to do from the file.
 
-Reads the files 3D Seed and Navisworks' Export to Studio write. Every item
-becomes one DirectShape in its category (Walls, Structural Framing...,
-Generic Models when the category is unknown or not allowed), named as in
-Studio, with Mark and Comments filled in and one Revit material per colour.
-Placed in shared coordinates by default, so a model exported with 3D Seed
-or from an NWC lands where it came from.
+One window (SeedImport.xaml) for every format, its options remembered in
+.user/Seed Import/options.json:
+
+  steel IFC, StruCad .bsw, or a .seed holding one
+      _steel_import.run: native members, steel plates, bolts, shape
+      families, with the window's options.
+  mesh .seed from 3D Seed or Navisworks' Export to Studio
+      every item one DirectShape in its category (Walls, Structural
+      Framing..., Generic Models when unknown or not allowed), named as in
+      Studio, Mark and Comments filled in, one material per colour.
+
+"Section map..." opens the saved section choices (Snippets._section_map).
 """
+import json
 import os
 
 from System.Collections.Generic import List
@@ -16,10 +23,15 @@ from pyrevit import revit, DB, forms, script
 
 from seed_reader import SeedError, read_seed
 from Snippets import _steel_import
+from Snippets._icons import set_header_icon
+from Snippets._userdata import user_path
+from Snippets.seed43_theme import apply_seed43_dimensions, apply_seed43_palette
 
 doc = revit.doc
 
-TITLE = "Seed Import"
+TITLE = "3D Import"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+OPTIONS_PATH = user_path("Seed Import", "options.json")   # the old name, kept
 
 # ── CONSTANTS ───────────────────────────────────────────────────────────────
 
@@ -293,31 +305,224 @@ def pick_categories(model, items):
     return set(labels[p] for p in picked)
 
 
+# ── OPTIONS WINDOW ──────────────────────────────────────────────────────────
+
+FILE_FILTER = ("Models (*.seed;*.ifc;*.bsw)|*.seed;*.ifc;*.bsw|"
+               "Seed43 Studio (*.seed)|*.seed|IFC (*.ifc)|*.ifc|"
+               "StruCad (*.bsw)|*.bsw")
+STEEL = "steel"         # file kinds
+MESH = "mesh"
+OTHER = "other"
+
+
+def file_kind(path):
+    """(kind, description) of a file: steel (IFC, StruCad or a .seed holding
+    one), a mesh .seed, or something 3D Import cannot take."""
+    low = path.lower()
+    if _steel_import.is_bsw(path):
+        return STEEL, u"StruCad model"
+    if low.endswith(".ifc"):
+        return STEEL, u"IFC model"
+    if low.endswith(".seed"):
+        fmt = _steel_import.seed_format(path)
+        if fmt == "ifc":
+            return STEEL, u"Seed43 Studio file holding an IFC model"
+        if fmt == "bsw":
+            return STEEL, u"Seed43 Studio file holding a StruCad model"
+        if fmt == "navis":
+            return MESH, u"Seed43 mesh (3D Seed or Navisworks)"
+        return OTHER, (u"Seed43 Studio file holding a {} model, which only "
+                       u"Studio can open".format(fmt or u"unknown"))
+    return OTHER, u"Not a file 3D Import reads"
+
+
+def load_options():
+    opts = dict(_steel_import.DEFAULT_OPTIONS)
+    opts["path"] = u""
+    try:
+        with open(OPTIONS_PATH, "r") as f:
+            opts.update(json.load(f))
+    except Exception:
+        pass
+    return opts
+
+
+def save_options(opts):
+    try:
+        with open(OPTIONS_PATH, "wb") as f:
+            f.write(_steel_import.json_text(opts, indent=2,
+                                            sort_keys=True).encode("utf-8"))
+    except Exception:
+        pass
+
+
+class ImportWindow(forms.WPFWindow):
+    CHECKS = (("natives", "natives_cb"), ("ask_map", "ask_map_cb"),
+              ("shape_families", "families_cb"), ("plates", "plates_cb"),
+              ("plate_cuts", "cuts_cb"), ("plate_holes", "holes_cb"),
+              ("grids_levels", "grids_cb"),
+              ("bolts", "bolts_cb"),
+              ("skip_base_plate_bolts", "skip_base_cb"))
+    # an indented option and the one it depends on
+    FOLLOWS = (("natives_cb", "ask_map_cb"), ("plates_cb", "cuts_cb"),
+               ("bolts_cb", "skip_base_cb"))
+    PLACES = (("shared", "place_shared_rb"), ("internal", "place_internal_rb"),
+              ("centre", "place_centre_rb"))
+
+    def __init__(self):
+        forms.WPFWindow.__init__(self, os.path.join(SCRIPT_DIR, "SeedImport.xaml"))
+        apply_seed43_palette(self, SCRIPT_DIR)
+        apply_seed43_dimensions(self, SCRIPT_DIR)
+        set_header_icon(self, SCRIPT_DIR)
+        self.go = False
+        self.options = load_options()
+        for key, name in self.CHECKS:
+            getattr(self, name).IsChecked = bool(self.options.get(key, True))
+        for key, name in self.PLACES:
+            getattr(self, name).IsChecked = self.options.get("placement") == key
+        path = self.options.get("path") or u""
+        self._set_path(path if path and os.path.isfile(path) else u"")
+        for parent, child in self.FOLLOWS:
+            getattr(self, parent).Checked += self._follow
+            getattr(self, parent).Unchecked += self._follow
+        self._follow(None, None)
+        self.browse_btn.Click += self._on_browse
+        self.map_btn.Click += self._on_map
+        self.import_btn.Click += self._on_import
+        self.cancel_btn.Click += lambda s, a: self.Close()
+        self.win_close_btn.Click += lambda s, a: self.Close()
+
+    def _follow(self, sender, args):
+        """An indented option only applies when the one above it is on."""
+        for parent, child in self.FOLLOWS:
+            getattr(self, child).IsEnabled = bool(getattr(self, parent).IsChecked) \
+                and self.kind != MESH
+
+    def _set_path(self, path):
+        from System.Windows import Visibility
+        self.path_tb.Text = path
+        self.subtitle_tb.Text = os.path.basename(path) if path else u""
+        if path:
+            self.kind, text = file_kind(path)
+            self.kind_tb.Text = text
+        else:
+            self.kind = None
+        steel = self.kind != MESH
+        for key, name in self.CHECKS:
+            # grids and levels come from every format
+            getattr(self, name).IsEnabled = steel or name == "grids_cb"
+        self.mesh_note_tb.Visibility = Visibility.Collapsed if steel \
+            else Visibility.Visible
+        self.import_btn.IsEnabled = self.kind in (STEEL, MESH)
+        if steel:
+            self._follow(None, None)
+
+    def _on_browse(self, sender, args):
+        start = os.path.dirname(self.path_tb.Text) if self.path_tb.Text else u""
+        path = forms.pick_file(files_filter=FILE_FILTER, init_dir=start or u"",
+                               title=TITLE)
+        if path:
+            self._set_path(path)
+
+    def _on_map(self, sender, args):
+        """The Section Map for the file chosen above: its member sections and
+        the type each becomes; changes are saved for later imports."""
+        from Snippets._dialogs import message
+        from Snippets._section_map import edit_section_map
+        path = self.path_tb.Text
+        if not path or self.kind != STEEL:
+            message(u"Browse to a steel IFC, StruCad .bsw or a .seed holding "
+                    u"one first: the Section Map shows that file's sections.",
+                    title=TITLE)
+            return
+        with forms.ProgressBar(title="Reading the model and family types...") as pb:
+            pb.update_progress(1, 3)
+            try:
+                model = _steel_import.read_model(path)
+            except Exception as ex:
+                message(u"Could not read the file: {}".format(ex), title=TITLE)
+                return
+            pb.update_progress(2, 3)
+            entries = _steel_import.loaded_entries(doc)
+            entries.extend(_steel_import.library_entries(doc.Application))
+            rows = _steel_import.file_section_rows(
+                model, entries, _steel_import.load_map())
+            pb.update_progress(3, 3)
+        choices = edit_section_map(rows, _steel_import.SPECIAL_CHOICES,
+                                   os.path.basename(path))
+        if choices is not None:
+            _steel_import.save_section_edits(rows, choices)
+
+    def _on_import(self, sender, args):
+        opts = {"path": self.path_tb.Text}
+        for key, name in self.CHECKS:
+            opts[key] = bool(getattr(self, name).IsChecked)
+        for key, name in self.PLACES:
+            if getattr(self, name).IsChecked:
+                opts["placement"] = key
+        self.options = opts
+        save_options(opts)
+        self.go = True
+        self.Close()
+
+
 # ── MAIN ────────────────────────────────────────────────────────────────────
 
+MESH_PLACES = {"shared": PLACE_SHARED, "internal": PLACE_INTERNAL,
+               "centre": PLACE_CENTRE}
+
+
 def main():
-    path = forms.pick_file(
-        files_filter="Models (*.seed;*.ifc)|*.seed;*.ifc|"
-                     "Seed43 Studio (*.seed)|*.seed|IFC (*.ifc)|*.ifc",
-        title=TITLE)
-    if not path:
+    win = ImportWindow()
+    win.ShowDialog()
+    if not win.go:
         return
-    # one button for every format: what happens depends on the file
-    if path.lower().endswith(".ifc"):
-        _steel_import.run(doc, path, os.path.basename(path))
-        return
+    opts = win.options
+    path = opts["path"]
+    kind = file_kind(path)[0]
+    if kind == STEEL and path.lower().endswith(".seed"):
+        import_ifc(path, opts)
+    elif kind == STEEL:
+        _steel_import.run(doc, path, os.path.basename(path), opts)
+    elif kind == MESH:
+        import_mesh(path, MESH_PLACES.get(opts.get("placement"), PLACE_SHARED),
+                    opts.get("grids_levels", True))
+
+
+# ── MESH IMPORT ─────────────────────────────────────────────────────────────
+
+class _Grid(object):
+    def __init__(self, label, a, b):
+        self.label = label
+        self.a = a
+        self.b = b
+
+
+def seed_grids_levels(model):
+    """The grids and levels a mesh .seed carries (3D Seed writes them; mm,
+    less the origin like the vertices): ([_Grid], [(name, z)])."""
+    grids = []
+    for g in model.meta.get("grids") or []:
+        try:
+            grids.append(_Grid(safe_text(g.get("n", u"")),
+                               tuple(float(v) for v in g["a"]),
+                               tuple(float(v) for v in g["b"])))
+        except Exception:
+            pass
+    levels = []
+    for lv in model.meta.get("levels") or []:
+        try:
+            levels.append((safe_text(lv.get("n", u"")), float(lv["z"])))
+        except Exception:
+            pass
+    return grids, levels
+
+
+def import_mesh(path, placement, with_grids=True):
     try:
         model = read_seed(path)
     except SeedError as ex:
-        fmt = _steel_import.seed_format(path)
-        if fmt == "ifc":
-            import_ifc(path)
-        elif fmt == "bsw":
-            forms.alert(u"This .seed holds a StruCad model. Open it in "
-                        u"Seed43 Studio and use Export IFC, then import that "
-                        u"IFC here.", title=TITLE)
-        else:
-            forms.alert(safe_text(ex), title=TITLE)
+        forms.alert(safe_text(ex), title=TITLE)
         return
     except Exception as ex:
         forms.alert(u"Could not read the file: {}".format(ex), title=TITLE)
@@ -333,23 +538,20 @@ def main():
         return
     items = [it for it in items if item_category(model, it) in wanted]
 
-    placement = forms.CommandSwitchWindow.show(
-        [PLACE_SHARED, PLACE_INTERNAL, PLACE_CENTRE],
-        message="Place the model at")
-    if not placement:
-        return
     shapes = forms.CommandSwitchWindow.show(
         [SHAPE_SOLID, SHAPE_MESH], message="Make the shapes as")
     if not shapes:
         return
 
     to_xyz = make_mapper(model, placement)
+    grids, levels = seed_grids_levels(model) if with_grids else ([], [])
     cats = CategoryMap(doc)
     source = os.path.basename(path)
     made, new_mats, failed, fallback = 0, 0, [], {}
 
     group = DB.TransactionGroup(doc, TITLE)
     group.Start()
+    grid_result = None
     try:
         mats = MaterialMap(doc)
         with forms.ProgressBar(title="Importing... ({value} of {max_value})",
@@ -371,23 +573,36 @@ def main():
                     if not exact:
                         fallback[cat_name] = fallback.get(cat_name, 0) + 1
                     ds = None
+                    step = u"reading the triangles"
                     try:
-                        geo = build_shape(model, it, mats, to_xyz,
-                                          shapes == SHAPE_SOLID)
+                        solid = shapes == SHAPE_SOLID
+                        geo = build_shape(model, it, mats, to_xyz, solid)
                         if not geo:
                             failed.append((name, u"no usable triangles"))
                             continue
+                        step = u"making the DirectShape"
                         ds = DB.DirectShape.CreateElement(doc, cat_id)
                         ds.ApplicationId = "Seed43 Studio"
                         ds.ApplicationDataId = source
-                        ds.SetShape(geo)
+                        step = u"setting its shape"
+                        try:
+                            ds.SetShape(geo)
+                        except Exception:
+                            if not solid:
+                                raise
+                            # Revit refuses some solids: the mesh still goes in
+                            step = u"setting its shape as a mesh"
+                            ds.SetShape(build_shape(model, it, mats, to_xyz,
+                                                    False))
+                        step = u"naming it"
                         ds.SetName(clean_name(name))
                         set_text(ds, DB.BuiltInParameter.ALL_MODEL_MARK, name)
                         set_text(ds, DB.BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS,
                                  u" > ".join(model.path(it["node"])))
                         batch_made += 1
                     except Exception as ex:
-                        failed.append((name, safe_text(ex)))
+                        failed.append((name, u"{} ({}): {}".format(
+                            step, type(ex).__name__, safe_text(ex))))
                         if ds is not None:
                             # an empty DirectShape would be left behind
                             try:
@@ -407,17 +622,26 @@ def main():
         if cancelled:
             group.RollBack()
             return
+        # grids and levels last: nothing they do can stop the shapes
+        if grids or levels:
+            from Snippets._grids_levels import make_grids_levels
+            try:
+                grid_result = make_grids_levels(doc, grids, levels, to_xyz)
+            except Exception as ex:
+                failed.append((u"Grids and levels", safe_text(ex)))
         group.Assimilate()
     except Exception:
         if group.HasStarted():
             group.RollBack()
         raise
 
-    report(path, model, made, failed, fallback, new_mats, placement)
+    report(path, model, made, failed, fallback, new_mats, placement,
+           grid_result)
 
 
-def import_ifc(path):
-    """A .seed made from an IFC: hand the IFC to the Steel IFC importer."""
+def import_ifc(path, options=None):
+    """A .seed made from an IFC or a StruCad .bsw: hand that model to the
+    steel importer."""
     try:
         ifc_path, source = _steel_import.seed_ifc(path)
     except Exception as ex:
@@ -425,7 +649,7 @@ def import_ifc(path):
                     title=TITLE)
         return
     try:
-        _steel_import.run(doc, ifc_path, source)
+        _steel_import.run(doc, ifc_path, source, options)
     finally:
         try:
             os.remove(ifc_path)
@@ -433,14 +657,19 @@ def import_ifc(path):
             pass
 
 
-def report(path, model, made, failed, fallback, new_mats, placement):
+def report(path, model, made, failed, fallback, new_mats, placement,
+           grid_result=None):
     out = script.get_output()
-    out.print_md(u"## Seed Import\n`{}`".format(path))
+    out.print_md(u"## 3D Import\n`{}`".format(path))
     out.print_md(u"From **{}** ({}). Placed in: {}.".format(
         safe_text(model.meta.get("document", u"")),
         safe_text(model.meta.get("product", u"")), placement))
     out.print_md(u"**{}** DirectShapes made, **{}** new materials.".format(
         made, new_mats))
+    if grid_result is not None:
+        from Snippets._grids_levels import report_md
+        for line in report_md(grid_result):
+            out.print_md(line)
     if fallback:
         out.print_md(u"### Imported as Generic Models\nNot a category a "
                      u"DirectShape can use in this project:")

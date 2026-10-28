@@ -112,7 +112,7 @@ def read_seed(path):
     if fmt != u"navis":
         raise SeedError(
             u"this .seed holds a {} model ({}), which only Studio can read. "
-            u"Seed Import reads the mesh files made by 3D Seed in Revit and "
+            u"3D Import reads the mesh files made by 3D Seed in Revit and "
             u"Export to Studio in Navisworks.".format(fmt or u"unknown", name))
     try:
         size = int(fields.get(u"sourceBytes", u""))

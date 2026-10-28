@@ -16,9 +16,34 @@ import struct
 import time
 import zlib
 
-__all__ = ["SeedNode", "SeedItem", "SeedPart", "SeedScene"]
+__all__ = ["SeedNode", "SeedItem", "SeedPart", "SeedScene", "write_source_seed"]
 
 CHUNK = 60000       # values per struct.pack call, keeps the argument list small
+COPY_BLOCK = 1 << 20
+SEED_TAIL = (b"\n---END-SOURCE-DATA---\n"
+             b'{"paramDefs":[],"itemParams":[],"dimensions":[]}')
+
+
+def write_source_seed(path, source_path, source_format, source_name):
+    """Wrap a model file Studio reads itself (an IFC) in a .seed, as
+    Studio's own Save does: the header, the file's bytes as they are, the
+    tail. Copied in blocks, so a large IFC never sits in memory twice."""
+    import os
+    size = os.path.getsize(source_path)
+    name = source_name.replace(u"\r", u"").replace(u"\n", u"")
+    head = (u"SEED43-STUDIO-V1\nsourceFormat: %s\nsourceName: %s\n"
+            u"sourceBytes: %d\n---BEGIN-SOURCE-DATA---\n"
+            % (source_format, name, size)).encode("utf-8")
+    with open(path, "wb") as out:
+        out.write(head)
+        with open(source_path, "rb") as src:
+            while True:
+                block = src.read(COPY_BLOCK)
+                if not block:
+                    break
+                out.write(block)
+        out.write(SEED_TAIL)
+    return len(head) + size + len(SEED_TAIL)
 
 
 class SeedNode(object):
@@ -90,6 +115,8 @@ class SeedScene(object):
         self.view = None    # (position, direction, up, perspective), position absolute mm
         self.nodes = []
         self.items = []
+        self.grids = []     # (label, (x, y, z), (x, y, z)), absolute mm
+        self.levels = []    # (name, elevation), absolute mm
 
     def add_node(self, name, cls, parent=-1):
         self.nodes.append(SeedNode(name, cls, parent))
@@ -162,6 +189,18 @@ class SeedScene(object):
             "vertexCount": vcount, "triangleCount": tcount,
             "nodes": nodes, "items": items,
         }
+        # grids and levels for 3D Import (relative to the origin, like
+        # the vertices); Studio does not need them
+        o = self.origin
+        if self.grids:
+            root["grids"] = [
+                {"n": label,
+                 "a": _r4((a[0] - o[0], a[1] - o[1], a[2] - o[2])),
+                 "b": _r4((b[0] - o[0], b[1] - o[1], b[2] - o[2]))}
+                for label, a, b in self.grids]
+        if self.levels:
+            root["levels"] = [{"n": name, "z": round(z - o[2], 2)}
+                              for name, z in self.levels]
         if self.view is not None:
             pos, direction, up, persp = self.view
             o = self.origin
@@ -235,8 +274,7 @@ class SeedScene(object):
         head = (u"SEED43-STUDIO-V1\nsourceFormat: navis\nsourceName: %s\n"
                 u"sourceBytes: %d\n---BEGIN-SOURCE-DATA---\n"
                 % (name, len(src))).encode("utf-8")
-        tail = (b"\n---END-SOURCE-DATA---\n"
-                b'{"paramDefs":[],"itemParams":[],"dimensions":[]}')
+        tail = SEED_TAIL
         with open(path, "wb") as f:
             f.write(head)
             f.write(src)

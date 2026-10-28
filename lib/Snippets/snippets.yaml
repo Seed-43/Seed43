@@ -122,7 +122,7 @@ snippets:
       whose choices are saved in .user/Steel IFC/profile_map.json. Only the
       library types actually used are loaded. Matching and orientation maths
       use no Revit types and are tested under CPython in
-      tests/test_steel_ifc.py. Used by Steel IFC and Seed Import.
+      tests/test_steel_ifc.py. Used by 3D Import.
     functions:
       run:               Import a steel IFC into a document, with the mapping window and a report.
       seed_format:       Return the sourceFormat of a Seed43 Studio .seed file.

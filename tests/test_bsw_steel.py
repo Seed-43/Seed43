@@ -6,9 +6,9 @@
 Writes a small synthetic .bsw (no client files): a hollow member, a member
 with a cut end, a plate with a bolt hole, a 2 x 2 bolt group, a dummy
 member with no geometry, a grid line and one unreadable record. Reads it
-with _bsw_steel and checks the parts _steel_import gets. When the TACH
-sample models are on this PC (Reference info/BSW in Proton Drive) they are
-read too. Nothing here needs Revit.
+with _bsw_steel and checks the parts _steel_import gets. When sample
+models are on this PC (Reference info/BSW in Proton Drive) they are read
+too. Nothing here needs Revit.
 """
 import glob
 import math

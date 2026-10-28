@@ -5,7 +5,7 @@
 
 Checks ifc_style (IFC class mapping, GlobalId compression, storeys) and
 runs the button's build_scene against a fake Revit, then writes the .seed
-and reads it back with Seed Import's reader. Nothing here needs Revit.
+and reads it back with 3D Import's reader. Nothing here needs Revit.
 """
 import os
 import sys
@@ -14,10 +14,10 @@ import types
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PANEL = os.path.join(HERE, "..", "Seed43.tab", "Document Studio.panel")
+PANEL = os.path.join(HERE, "..", "Seed43.tab", "3D Tools.panel")
 SEED_DIR = os.path.join(PANEL, "3D Seed.pushbutton")
 sys.path.insert(0, SEED_DIR)
-sys.path.insert(0, os.path.join(PANEL, "Seed Import.pushbutton"))
+sys.path.insert(0, os.path.join(PANEL, "3D Import.pushbutton"))
 
 import ifc_style                                  # noqa: E402
 

@@ -7,7 +7,7 @@ columns of a matching family type, plates and bent parts become
 DirectShapes, and bolts are skipped. Sections with no matching type are
 listed for the user to map, and the choices are remembered. Also takes a
 Seed43 Studio .seed that carries an IFC. The work is in
-lib/Snippets/_steel_import.py, which Seed Import uses too.
+lib/Snippets/_steel_import.py, which 3D Import uses too.
 """
 import os
 

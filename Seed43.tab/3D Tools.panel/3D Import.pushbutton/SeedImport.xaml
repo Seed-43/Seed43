@@ -1,0 +1,358 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        SizeToContent="Height"
+        Width="620"
+        Title="3D Import"
+        Background="{DynamicResource BrushWindowBg}">
+
+    <!-- 3D Import's options. One file, any format: a steel IFC or StruCad
+         .bsw (or a .seed holding one) gets every option below; a mesh .seed
+         from 3D Seed or Navisworks only uses the placement. The choices are
+         remembered in .user/Seed Import/options.json. Every colour and size
+         comes from lib/Snippets/seed43_palette.json at open (script.py). -->
+
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="56"
+                            CornerRadius="10"
+                            GlassFrameThickness="0"
+                            ResizeBorderThickness="0"
+                            UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
+
+    <Window.Resources>
+
+        <!-- ── TEXT ──────────────────────────────────────────────────── -->
+        <Style x:Key="SectionHeading" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="FontSize"   Value="13"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin"     Value="0,0,0,8"/>
+        </Style>
+        <Style x:Key="Hint" TargetType="TextBlock">
+                    <Setter Property="Foreground"   Value="{DynamicResource BrushTextMuted}"/>
+                    <Setter Property="FontSize"     Value="{DynamicResource FontSizeBody}"/>
+                    <Setter Property="TextWrapping" Value="Wrap"/>
+                </Style>
+
+        <Style x:Key="CheckBoxStyle" TargetType="CheckBox">
+                    <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+                    <Setter Property="FontSize"   Value="{DynamicResource FontSizeFieldLabel}"/>
+                    <Setter Property="Cursor"     Value="Hand"/>
+                    <Setter Property="Margin"     Value="0,4,18,4"/>
+                    <Setter Property="VerticalAlignment" Value="Center"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="CheckBox">
+                                <StackPanel Orientation="Horizontal" Background="Transparent">
+                                    <Border x:Name="Box"
+                                            Width="{DynamicResource SizeCheckbox}"
+                                            Height="{DynamicResource SizeCheckbox}"
+                                            Background="{DynamicResource BrushInputBg}"
+                                            BorderBrush="{DynamicResource BrushBorderDefault}"
+                                            BorderThickness="{DynamicResource BorderThicknessCheckbox}"
+                                            CornerRadius="{DynamicResource CornerRadiusCheckbox}"
+                                            VerticalAlignment="Center">
+                                        <Path x:Name="Tick"
+                                              Data="M 3,7.5 L 6,10.5 L 11.5,4.5"
+                                              Stroke="{DynamicResource BrushToggleKnob}"
+                                              StrokeThickness="2"
+                                              StrokeEndLineCap="Round"
+                                              StrokeStartLineCap="Round"
+                                              Visibility="Collapsed"/>
+                                    </Border>
+                                    <ContentPresenter Margin="7,0,0,0" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsChecked" Value="True">
+                                        <Setter TargetName="Box"  Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+                                        <Setter TargetName="Tick" Property="Visibility" Value="Visible"/>
+                                    </Trigger>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                                    </Trigger>
+                                    <Trigger Property="IsEnabled" Value="False">
+                                        <Setter Property="Foreground" Value="{DynamicResource BrushSecondaryDisabledFg}"/>
+                                        <Setter TargetName="Box" Property="Background" Value="{DynamicResource BrushSecondaryDisabledBg}"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+
+        <Style x:Key="PrimaryBtn" TargetType="Button">
+                    <Setter Property="Background"      Value="{DynamicResource BrushPrimaryGreen}"/>
+                    <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+                    <Setter Property="BorderThickness" Value="0"/>
+                    <Setter Property="FontSize"        Value="{DynamicResource FontSizeButton}"/>
+                    <Setter Property="FontWeight"      Value="SemiBold"/>
+                    <Setter Property="Padding"         Value="{DynamicResource PaddingButtonPrimary}"/>
+                    <Setter Property="Cursor"          Value="Hand"/>
+                    <Setter Property="MinWidth"        Value="120"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                        CornerRadius="{DynamicResource CornerRadiusButton}"
+                                        Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushPrimaryGreenPressed}"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+
+        <Style x:Key="SecondaryBtn" TargetType="Button" BasedOn="{StaticResource PrimaryBtn}">
+                    <Setter Property="Background" Value="{DynamicResource BrushSecondaryBg}"/>
+                    <Setter Property="FontWeight" Value="Normal"/>
+                    <Setter Property="MinWidth"   Value="90"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                        CornerRadius="{DynamicResource CornerRadiusButton}"
+                                        Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryHover}"/>
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSecondaryPressed}"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+
+        <Style x:Key="WinCtrlCloseBtn" TargetType="Button">
+                    <Setter Property="Background"      Value="Transparent"/>
+                    <Setter Property="Foreground"      Value="{DynamicResource BrushTextPrimary}"/>
+                    <Setter Property="BorderThickness" Value="0"/>
+                    <Setter Property="Width"           Value="32"/>
+                    <Setter Property="Height"          Value="32"/>
+                    <Setter Property="FontSize"        Value="13"/>
+                    <Setter Property="Cursor"          Value="Hand"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="16">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushDanger}"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+
+        <!-- an indented option that depends on the one above it -->
+        <Style x:Key="SubCheckBox" TargetType="CheckBox" BasedOn="{StaticResource CheckBoxStyle}">
+            <Setter Property="Margin" Value="26,2,18,6"/>
+        </Style>
+
+        <!-- ── RADIO (round version of the checkbox) ─────────────────── -->
+        <Style x:Key="RadioStyle" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="FontSize"   Value="{DynamicResource FontSizeFieldLabel}"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+            <Setter Property="Margin"     Value="0,4,18,4"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <StackPanel Orientation="Horizontal" Background="Transparent">
+                            <Border x:Name="Ring"
+                                    Width="{DynamicResource SizeCheckbox}"
+                                    Height="{DynamicResource SizeCheckbox}"
+                                    CornerRadius="8"
+                                    Background="{DynamicResource BrushInputBg}"
+                                    BorderBrush="{DynamicResource BrushBorderDefault}"
+                                    BorderThickness="{DynamicResource BorderThicknessCheckbox}"
+                                    VerticalAlignment="Center">
+                                <Ellipse x:Name="Dot" Width="6" Height="6"
+                                         Fill="{DynamicResource BrushToggleKnob}"
+                                         Visibility="Collapsed"/>
+                            </Border>
+                            <ContentPresenter Margin="7,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Ring" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+                                <Setter TargetName="Dot"  Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── FILE BOX ──────────────────────────────────────────────── -->
+        <Style x:Key="PathBox" TargetType="TextBox">
+            <Setter Property="Background"      Value="{DynamicResource BrushInputBg}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource BrushTextInput}"/>
+            <Setter Property="BorderBrush"     Value="{DynamicResource BrushBorderDefault}"/>
+            <Setter Property="BorderThickness" Value="{DynamicResource BorderThicknessInput}"/>
+            <Setter Property="FontSize"        Value="{DynamicResource FontSizeInput}"/>
+            <Setter Property="Padding"         Value="{DynamicResource PaddingInput}"/>
+            <Setter Property="Height"          Value="{DynamicResource HeightInput}"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="IsReadOnly"      Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{DynamicResource CornerRadiusInput}">
+                            <!-- WPF applies Padding to PART_ContentHost already -->
+                            <ScrollViewer x:Name="PART_ContentHost" Focusable="False"
+                                          VerticalAlignment="Center"
+                                          HorizontalScrollBarVisibility="Hidden"
+                                          VerticalScrollBarVisibility="Hidden"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background"   Value="{DynamicResource BrushCardBg}"/>
+            <Setter Property="CornerRadius" Value="{DynamicResource CornerRadiusCard}"/>
+            <Setter Property="Padding"      Value="{DynamicResource PaddingCard}"/>
+            <Setter Property="Margin"       Value="20,12,20,0"/>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel>
+        <!-- ── HEADER ────────────────────────────────────────────────── -->
+        <Border Background="{DynamicResource BrushHeaderBg}" Height="56"
+                DockPanel.Dock="Top" CornerRadius="10,10,12,12">
+            <Border.Effect>
+                <DropShadowEffect Color="Black" Opacity="0.3" ShadowDepth="2" BlurRadius="6"/>
+            </Border.Effect>
+            <Grid Margin="20,0,16,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Source set from Python by Snippets._icons.set_header_icon -->
+                    <Image x:Name="header_icon"
+                           Width="{DynamicResource SizeTopBarLogo}"
+                           Height="{DynamicResource SizeTopBarLogo}"
+                           VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <TextBlock Text="3D" FontWeight="Bold" FontSize="22"
+                               Foreground="{DynamicResource BrushPrimaryGreen}"/>
+                    <TextBlock Text="Import" FontWeight="Bold" FontSize="22"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <TextBlock x:Name="subtitle_tb" FontSize="14"
+                               Foreground="{DynamicResource BrushTextPrimary}" Opacity="0.6"
+                               VerticalAlignment="Bottom" Margin="6,0,0,4"/>
+                </StackPanel>
+                <Button x:Name="win_close_btn" Content="&#10005;"
+                        Style="{StaticResource WinCtrlCloseBtn}"
+                        HorizontalAlignment="Right" VerticalAlignment="Center"
+                        ToolTip="Close"
+                        shell:WindowChrome.IsHitTestVisibleInChrome="True"/>
+            </Grid>
+        </Border>
+
+        <!-- ── FOOTER ────────────────────────────────────────────────── -->
+        <Grid DockPanel.Dock="Bottom" Margin="20,16,20,16">
+            <Button x:Name="map_btn" Content="Section map..."
+                    Style="{StaticResource SecondaryBtn}" HorizontalAlignment="Left"
+                    ToolTip="See, change or forget the saved section choices"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="cancel_btn" Content="Cancel"
+                        Style="{StaticResource SecondaryBtn}" Margin="0,0,8,0"/>
+                <Button x:Name="import_btn" Content="Import" Style="{StaticResource PrimaryBtn}"/>
+            </StackPanel>
+        </Grid>
+
+        <StackPanel>
+            <!-- ── MODEL ─────────────────────────────────────────────── -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Model" Style="{StaticResource SectionHeading}"/>
+                    <DockPanel>
+                        <Button x:Name="browse_btn" Content="Browse..."
+                                Style="{StaticResource SecondaryBtn}"
+                                DockPanel.Dock="Right" Margin="8,0,0,0"/>
+                        <TextBox x:Name="path_tb" Style="{StaticResource PathBox}"/>
+                    </DockPanel>
+                    <TextBlock x:Name="kind_tb" Style="{StaticResource Hint}" Margin="0,8,0,0"
+                               Text="A steel IFC (Tekla, ProStructures), a StruCad .bsw, or a .seed from Seed43 Studio, 3D Seed or Navisworks."/>
+                </StackPanel>
+            </Border>
+
+            <!-- ── PLACE ─────────────────────────────────────────────── -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Place the model at" Style="{StaticResource SectionHeading}"/>
+                    <WrapPanel>
+                        <RadioButton x:Name="place_shared_rb" Style="{StaticResource RadioStyle}"
+                                     GroupName="place" IsChecked="True"
+                                     Content="Shared coordinates"
+                                     ToolTip="Where it was modelled - lines up with a Navisworks export of the same model"/>
+                        <RadioButton x:Name="place_internal_rb" Style="{StaticResource RadioStyle}"
+                                     GroupName="place" Content="Internal coordinates"/>
+                        <RadioButton x:Name="place_centre_rb" Style="{StaticResource RadioStyle}"
+                                     GroupName="place" Content="Centred on the internal origin"/>
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ── BUILD ─────────────────────────────────────────────── -->
+            <Border x:Name="steel_card" Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Build" Style="{StaticResource SectionHeading}"/>
+                    <CheckBox x:Name="grids_cb" Style="{StaticResource CheckBoxStyle}" IsChecked="True"
+                              Content="Grids and levels"
+                              ToolTip="The file's grid lines and levels. Levels at a height the project already has, and grids whose name is taken, are left as they are."/>
+                    <CheckBox x:Name="natives_cb" Style="{StaticResource CheckBoxStyle}" IsChecked="True"
+                              Content="Members as native framing, columns and braces"
+                              ToolTip="Sections matched to your family types. Off: every member comes in as a shape."/>
+                    <CheckBox x:Name="ask_map_cb" Style="{StaticResource SubCheckBox}" IsChecked="True"
+                              Content="Ask me to map sections with no matching type"
+                              ToolTip="Off: those members come in as shapes without asking"/>
+                    <CheckBox x:Name="families_cb" Style="{StaticResource CheckBoxStyle}" IsChecked="True"
+                              Content="Custom shapes as Generic Model families (copies share one)"
+                              ToolTip="Posts, bends and other custom parts become families you can open and remodel. Off: plain shapes."/>
+                    <CheckBox x:Name="plates_cb" Style="{StaticResource CheckBoxStyle}" IsChecked="True"
+                              Content="Plates as Revit steel plates"
+                              ToolTip="As the Steel tab's Plate tool makes. Off: plates come in as shapes."/>
+                    <CheckBox x:Name="cuts_cb" Style="{StaticResource SubCheckBox}" IsChecked="True"
+                              Content="Cut the IFC's openings into them (contour cuts)"/>
+                    <CheckBox x:Name="bolts_cb" Style="{StaticResource CheckBoxStyle}" IsChecked="True"
+                              Content="Bolts and anchors as Revit steel bolts"
+                              ToolTip="Connected to the plates they pass through. Off: bolts are left out."/>
+                    <CheckBox x:Name="skip_base_cb" Style="{StaticResource SubCheckBox}" IsChecked="True"
+                              Content="Leave out base plate bolts (the rods stay)"/>
+                    <CheckBox x:Name="holes_cb" Style="{StaticResource CheckBoxStyle}" IsChecked="True"
+                              Content="Bolt holes in plates and shapes"
+                              ToolTip="Round and slotted holes up to 60 mm wide. Off: plates, shapes and shape families come in without them; Revit's bolts can cut their own."/>
+                    <TextBlock x:Name="mesh_note_tb" Style="{StaticResource Hint}" Margin="0,6,0,0"
+                               Visibility="Collapsed"
+                               Text="This file is a mesh .seed: it comes in as shapes, so only Grids and levels applies."/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </DockPanel>
+</Window>

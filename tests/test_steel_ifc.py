@@ -435,6 +435,57 @@ class MatchTests(unittest.TestCase):
         self.assertEqual(rows[0]["options"],
                          [u"PFC-Parallel Flange Channel-Column: 180PFC"])
 
+    def test_file_section_map(self):
+        fd, path = tempfile.mkstemp(suffix=".json")
+        os.close(fd)
+        os.remove(path)
+        try:
+            other = {u"Z-1": u"F: T"}              # another file's choice
+            imp.save_map({"framing": dict(other, **{u"EA75*75*5": imp.PLATE})},
+                         path)
+            rows = imp.file_section_rows(self.model, entries(), imp.load_map(path))
+            by = dict((r["section"], r) for r in rows)
+            self.assertNotIn(u"Z-1", by)             # only this file's sections
+            self.assertEqual(by[u"EA75*75*5"]["default"], imp.PLATE_LABEL)
+            self.assertEqual(by[u"EA75*75*5"]["how"], u"saved")
+            ub = by[u"UB180*18"]
+            self.assertTrue(ub["matched"])
+            self.assertEqual(ub["default"], ub["auto"])
+            pick = [o for o in ub["options"] if o != ub["auto"]][0]
+            special = dict(imp.SPECIAL_CHOICES)
+            choices = dict(((r["cat"], r["section"]),
+                            special.get(r["default"], r["default"]))
+                           for r in rows)       # Save with nothing changed
+
+            choices[("framing", u"EA75*75*5")] = None        # reset
+            choices[("framing", u"UB180*18")] = pick         # changed
+            imp.save_section_edits(rows, choices, path)
+            data = imp.load_map(path)
+            self.assertEqual(data["framing"], {u"Z-1": u"F: T",
+                                               u"UB180*18": pick})
+            self.assertEqual(data["column"], {})   # unchanged rows not saved
+        finally:
+            if os.path.exists(path):
+                os.remove(path)
+
+    def test_strip_holes(self):
+        import math as m
+        Brep, Part = steel.Brep, steel.Part
+        hole = [(50 + 9 * m.cos(a * m.pi / 8), 50 + 9 * m.sin(a * m.pi / 8), 0.0)
+                for a in range(16)]
+        cutout = [(100, 100, 0), (180, 100, 0), (180, 180, 0), (100, 180, 0)]
+        top = [[(0, 0, 0), (300, 0, 0), (300, 300, 0), (0, 300, 0)], hole, cutout]
+        bore = [hole[0], hole[1], (hole[1][0], hole[1][1], -10.0),
+                (hole[0][0], hole[0][1], -10.0)]
+        rims = [hole[0], hole[1], hole[2]]          # a face of rim points only
+        part = Part(1, "IFCPLATE")
+        part.solids = [Brep([top, [bore], [rims]])]
+        self.assertEqual(imp.strip_holes(part), 1)
+        faces = part.solids[0].faces
+        self.assertEqual(faces[0], [top[0], cutout])    # the cut-out stays
+        self.assertEqual(len(faces), 2)                 # the rim face went
+        self.assertEqual(faces[1], [bore])              # bore points are off-rim
+
     def test_classify(self):
         self.assertEqual(imp.classify(self.by_name["PFC180*75"].member,
                                       "column")[2], "column")
@@ -857,6 +908,11 @@ class HelperTests(unittest.TestCase):
                 f.write(b"SEED43-STUDIO-V1\nsourceFormat: bsw\nsourceBytes: 1"
                         b"\n---BEGIN-SOURCE-DATA---\nx")
             self.assertEqual(imp.seed_format(seed), "bsw")
+            out, name = imp.seed_ifc(seed, tmp)     # a StruCad model comes out as .bsw
+            self.assertTrue(out.endswith(".bsw"))
+            with open(seed, "wb") as f:
+                f.write(b"SEED43-STUDIO-V1\nsourceFormat: step\nsourceBytes: 1"
+                        b"\n---BEGIN-SOURCE-DATA---\nx")
             self.assertRaises(ValueError, imp.seed_ifc, seed, tmp)
         finally:
             import shutil

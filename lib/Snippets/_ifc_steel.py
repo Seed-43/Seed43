@@ -20,7 +20,7 @@ except (ImportError, ValueError):       # run outside the package (tests)
     from _ifc_step import (IfcFile, IDENTITY, mat_mul, mat_point,
                            mat_vector, frame)
 
-__all__ = ["Profile", "Member", "Part", "SteelModel", "read_steel",
+__all__ = ["Profile", "Member", "Part", "SteelModel", "GridLine", "read_steel",
            "name_key", "is_bolt_name"]
 
 CIRCLE_SEGMENTS = 32
@@ -667,19 +667,24 @@ class Part(object):
 
     @property
     def section(self):
-        """The section name to match: the profile name, ObjectType or Name,
-        the first that reads as a section; placeholder names such as
-        ProStructures' "SHAPE" are passed over."""
-        names = []
+        """The section name to match: the profile name or ObjectType, the
+        first that reads as a section, else the first that is given; the
+        part's Name only when neither is. Placeholder names such as
+        ProStructures' "SHAPE" are passed over. The Name comes last because
+        it is often a part mark, and a StruCad mark like Z-442 reads as a
+        Z section when the real one is HS-HST250/15."""
+        given = []
         if self.member is not None:
-            names.append(self.member.profile.name)
-        names.extend([self.object_type, self.name])
-        names = [v.strip() for v in names if v and not is_generic_name(v)]
-        for v in names:
+            given.append(self.member.profile.name)
+        given.append(self.object_type)
+        given = [v.strip() for v in given if v and not is_generic_name(v)]
+        for v in given:
             if name_key(v):
                 return v
-        if names:
-            return names[0]
+        if given:
+            return given[0]
+        if self.name and not is_generic_name(self.name):
+            return self.name.strip()
         return (self.object_type or self.name or u"").strip()
 
 
@@ -701,11 +706,22 @@ def member_of(solids):
     return Member(start, end, x, y, ex.profile)
 
 
+class GridLine(object):
+    """A grid line: its label and two end points (mm, model coordinates)."""
+
+    def __init__(self, label, a, b):
+        self.label = label
+        self.a = a
+        self.b = b
+
+
 class SteelModel(object):
     def __init__(self, ifc):
         self.ifc = ifc
         self.parts = []
         self.unsupported = {}
+        self.grids = []         # GridLine
+        self.levels = []        # (name, elevation mm)
 
     def bounds(self):
         lo = [1e30] * 3
@@ -843,7 +859,47 @@ def read_steel(path_or_ifc, progress=None):
         if progress is not None and n % 200 == 0:
             progress(n, total)
     model.unsupported = bodies.unsupported
+    try:
+        model.grids = read_grids(ifc)
+        model.levels = read_levels(ifc)
+    except Exception:
+        pass                    # grids and levels are extras; the steel stands
     return model
+
+
+def read_grids(ifc):
+    """The GridLines of every IfcGrid: each axis's polyline, first to last
+    point, placed in the model."""
+    out = []
+    for g in ifc.by_type("IFCGRID"):
+        a = ifc.args(g)
+        world = ifc.placement(a[5])
+        for axes in a[7:10]:
+            for ax in axes or ():
+                aa = ifc.args(ax)
+                if aa is None or ifc.type_of(aa[1]) != "IFCPOLYLINE":
+                    continue
+                pts = ifc.args(aa[1])[0] or []
+                if len(pts) < 2:
+                    continue
+                out.append(GridLine(_text(aa[0]),
+                                    mat_point(world, ifc.point(pts[0])),
+                                    mat_point(world, ifc.point(pts[-1]))))
+    return out
+
+
+def read_levels(ifc):
+    """[(name, elevation mm)] of the building storeys, from where each is
+    placed (its Elevation attribute is often left at 0 or relative)."""
+    out = []
+    for st in ifc.by_type("IFCBUILDINGSTOREY"):
+        a = ifc.args(st)
+        name = _text(a[2]) or (_text(a[7]) if len(a) > 7 else u"")
+        z = mat_point(ifc.placement(a[5]), (0.0, 0.0, 0.0))[2]
+        if abs(z) < 1e-6 and len(a) > 9 and isinstance(a[9], float):
+            z = a[9] * ifc.mm
+        out.append((name, z))
+    return out
 
 
 def _angle_unit(ifc):

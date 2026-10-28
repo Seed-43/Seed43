@@ -38,6 +38,11 @@ except ImportError:                     # run outside the package (tests)
     from _shape_families import repeated_shapes, make_shape_families
 
 try:
+    from Snippets._bsw_steel import read_steel_bsw, is_bsw
+except ImportError:                     # run outside the package (tests)
+    from _bsw_steel import read_steel_bsw, is_bsw
+
+try:
     from Snippets._userdata import user_path
 except ImportError:
     try:
@@ -64,6 +69,10 @@ MM_PER_FT = 304.8
 BATCH = 100                 # members per transaction
 SHAPE = "*shape*"           # profile map value: import as a DirectShape
 SHAPE_LABEL = u"Import as shape"
+PLATE = "*plate*"           # profile map value: import as a Revit steel plate
+PLATE_LABEL = u"Import as plate"
+# the choices a section can have besides a family type, (label, map value)
+SPECIAL_CHOICES = [(SHAPE_LABEL, SHAPE), (PLATE_LABEL, PLATE)]
 MAP_TOOL = "Steel IFC"
 MAP_FILE = "profile_map.json"
 CACHE_FILE = "catalogue_cache.json"
@@ -435,8 +444,8 @@ class Matcher(object):
     def match(self, section, cat, prof, material=u""):
         """(Entry or SHAPE or None, how)."""
         saved = (self.saved.get(cat) or {}).get(section)
-        if saved == SHAPE:
-            return SHAPE, "saved choice"
+        if saved in (SHAPE, PLATE):
+            return saved, "saved choice"
         if saved:
             e = self.find(cat, saved)
             if e is not None:
@@ -538,6 +547,21 @@ def json_text(data, **kw):
     '16Ø THREADED ROD', so non-ASCII characters are escaped here."""
     kw["ensure_ascii"] = False
     return _NON_ASCII.sub(_escape, json.dumps(data, **kw))
+
+
+def replace_map(data, path=None):
+    """Write data as the whole saved map (the Section Map editor)."""
+    path = path or map_path()
+    if not path:
+        return False
+    data = {"framing": dict(data.get("framing", {})),
+            "column": dict(data.get("column", {}))}
+    try:
+        with open(path, "wb") as f:
+            f.write(json_text(data, indent=2, sort_keys=True).encode("utf-8"))
+        return True
+    except Exception:
+        return False
 
 
 def save_map(choices, path=None):
@@ -785,9 +809,36 @@ def _is_rect(pts, bbox):
 
 PLATE_FLAT_MM = 0.05        # face points this far off a plate face: not flat
 PLATE_SQUARE_COS = 0.002    # side faces must be this square to the plate
+HOLE_WIDTH_MM = 60.0        # a curved opening no wider than this is a bolt
+HOLE_LENGTH_MM = 150.0      # hole (round, or slotted up to this long)
+HOLE_MIN_POINTS = 6         # straight-sided openings are cut-outs, not holes
 
 
-def plate_spec(part):
+def is_hole(loop, normal):
+    """True for a bolt hole: a small round or slotted opening (a cut loop on
+    a plate face, world points), as opposed to a notch or cut-out."""
+    if len(loop) < HOLE_MIN_POINTS:
+        return False
+    n = _unit(normal)
+    u = _unit(_sub(loop[1], loop[0]))
+    if n is None or u is None:
+        return False
+    v = _cross(n, u)
+    best = None
+    # the loop's narrowest box over a few turns, so slots on a skew count
+    for k in range(12):
+        a = math.pi * k / 12.0
+        du = _add(_mul(u, math.cos(a)), _mul(v, math.sin(a)))
+        dv = _cross(n, du)
+        xs = [_dot(q, du) for q in loop]
+        ys = [_dot(q, dv) for q in loop]
+        w, h = sorted((max(xs) - min(xs), max(ys) - min(ys)))
+        if best is None or w < best[0]:
+            best = (w, h)
+    return best[0] <= HOLE_WIDTH_MM and best[1] <= HOLE_LENGTH_MM
+
+
+def plate_spec(part, force=False):
     """How to make a part as a Revit steel plate, or None.
 
     Returns {"outline": world points (mm) on one face, "normal": the way the
@@ -799,12 +850,13 @@ def plate_spec(part):
       - a faceted solid that is two matching parallel faces with square
         sides (ProStructures writes some flats that way).
     Straight cuts through the thickness (chamfers, trimmed ends) trim the
-    outline; any other cut leaves the part a shape.
+    outline; any other cut leaves the part a shape. force: the user mapped
+    the part's section to "import as plate", so any flat part qualifies.
     """
     if len(part.solids) != 1:
         return None
     word = (name_key(part.section) or (u"",))[0]
-    platey = part.ifc_type == "IFCPLATE" or word in ("PL", "FL")
+    platey = force or part.ifc_type == "IFCPLATE" or word in ("PL", "FL")
     body = part.solids[0]
     if isinstance(body, Brep):
         return _brep_plate(body) if platey else None
@@ -849,6 +901,64 @@ def plate_spec(part):
     else:
         return None
     return _clip_plate(spec, ex.clips)
+
+
+HOLLOW_KINDS = ("RH", "CH")  # their inner loop is the hollow, not a hole
+
+
+def _profile_hole(loop):
+    if isinstance(loop, tuple) and loop and loop[0] == "circle":
+        return 2.0 * loop[3] <= HOLE_WIDTH_MM
+    pts = [(x, y, 0.0) for x, y in loop]
+    return is_hole(pts, (0.0, 0.0, 1.0))
+
+
+def _key(p):
+    return (round(p[0], 2), round(p[1], 2), round(p[2], 2))
+
+
+def strip_holes(part):
+    """Take the bolt holes out of a part's own geometry (Tekla and StruCad
+    model them into the body), for "Include bolt holes" off: small inner
+    loops of extruded outlines and of brep faces, and the bore faces
+    between them. Returns the number of hole loops removed."""
+    import copy
+    removed = 0
+    bodies = []
+    for body in part.solids:
+        if isinstance(body, Extrusion) and len(body.profile.loops) > 1 and                 body.profile.kind not in HOLLOW_KINDS:
+            keep = [body.profile.loops[0]] + [
+                l for l in body.profile.loops[1:] if not _profile_hole(l)]
+            if len(keep) < len(body.profile.loops):
+                removed += len(body.profile.loops) - len(keep)
+                prof = copy.copy(body.profile)  # profiles are shared
+                prof.loops = keep
+                body = copy.copy(body)
+                body.profile = prof
+        elif isinstance(body, Brep):
+            rims = set()
+            faces = []
+            for face in body.faces:
+                if not face or len(face) < 2:
+                    faces.append(face)
+                    continue
+                n = _face_normal(face[0])
+                keep = [face[0]]
+                for loop in face[1:]:
+                    if is_hole(loop, n):
+                        rims.update(_key(q) for q in loop)
+                        removed += 1
+                    else:
+                        keep.append(loop)
+                faces.append(keep)
+            if rims:
+                # the bore: faces made only of hole rim points
+                faces = [f for f in faces if not f or len(f) > 1 or
+                         not all(_key(q) in rims for q in f[0])]
+                body = Brep(faces)
+        bodies.append(body)
+    part.solids = bodies
+    return removed
 
 
 def plate_cuts(spec, openings):
@@ -1279,7 +1389,7 @@ def _rod_along(part, d):
     return md is not None and abs(_dot(md, d)) > 0.98
 
 
-def plan_bolts(parts, index):
+def plan_bolts(parts, index, skip_base_plates=True):
     """Native bolt and anchor specs for the fasteners in parts, and the ones
     that could not be placed [(part, why)].
 
@@ -1314,7 +1424,7 @@ def plan_bolts(parts, index):
             if any(_rod_along(c, d) for c in crossed):
                 skipped.append((part, u"a nut on a threaded rod"))
                 continue
-            if _base_plate_bolt(crossed, d, names):
+            if skip_base_plates and _base_plate_bolt(crossed, d, names):
                 skipped.append((part, u"a base plate bolt (left out; rods "
                                       u"and anchors are kept)"))
                 continue
@@ -1448,17 +1558,21 @@ def _gunzip(data):
     return zlib.decompressobj(-15).decompress(data[pos:])
 
 
+SEED_MODELS = {u"ifc": u".ifc", u"bsw": u".bsw"}
+
+
 def seed_ifc(path, out_dir=None):
-    """Write the IFC a .seed (sourceFormat ifc) carries to a temporary
-    .ifc: (ifc path, source name). Raises ValueError for other formats."""
+    """Write the model a .seed carries (an IFC, or a StruCad .bsw) to a
+    temporary file: (file path, source name). Raises ValueError for the
+    other formats (meshes and the rest are 3D Import's own)."""
     import tempfile
     with open(path, "rb") as f:
         data = f.read()
     fields, start = seed_fields(data)
     fmt = fields.get(u"sourceFormat", u"")
-    if fmt != u"ifc":
-        raise ValueError(u"this .seed holds a {} model, not an IFC".format(
-            fmt or u"unknown"))
+    if fmt not in SEED_MODELS:
+        raise ValueError(u"this .seed holds a {} model, not an IFC or "
+                         u"StruCad model".format(fmt or u"unknown"))
     try:
         size = int(fields.get(u"sourceBytes", u""))
     except ValueError:
@@ -1470,7 +1584,8 @@ def seed_ifc(path, out_dir=None):
     name = fields.get(u"sourceName", u"") or os.path.basename(path)
     base = re.sub(r"[^A-Za-z0-9_. -]", u"_", os.path.splitext(name)[0])
     out = os.path.join(out_dir or tempfile.gettempdir(),
-                       u"Seed43 {}.ifc".format(base or u"model"))
+                       u"Seed43 {}{}".format(base or u"model",
+                                             SEED_MODELS[fmt]))
     with open(out, "wb") as f:
         f.write(raw)
     return out, name
@@ -1689,156 +1804,6 @@ def load_entry(doc, e):
                 pass
     e.symbol = sym
     return sym
-
-
-# ── MAPPING WINDOW ──────────────────────────────────────────────────────────
-
-def ask_mappings(rows):
-    """rows: dicts with section, cat, text, count, options, default.
-    Returns ({(cat, section): label or SHAPE}, remember) or None."""
-    import clr
-    clr.AddReference("PresentationFramework")
-    clr.AddReference("PresentationCore")
-    clr.AddReference("WindowsBase")
-    from System.Windows import (Window, Thickness, GridLength, GridUnitType,
-                                WindowStartupLocation, TextWrapping,
-                                FontWeights, MessageBox, VerticalAlignment,
-                                HorizontalAlignment)
-    from System.Windows.Controls import (Grid, ColumnDefinition, RowDefinition,
-                                         TextBlock, ComboBox, CheckBox, Button,
-                                         ScrollViewer, StackPanel, DockPanel,
-                                         Dock, Orientation, ScrollBarVisibility)
-
-    win = Window()
-    win.Title = TITLE + " - map sections"
-    win.Width = 980
-    win.Height = min(820, 240 + 34 * len(rows))
-    win.MinHeight = 300
-    win.WindowStartupLocation = WindowStartupLocation.CenterScreen
-
-    dock = DockPanel()
-    dock.Margin = Thickness(12)
-    win.Content = dock
-
-    intro = TextBlock()
-    intro.TextWrapping = TextWrapping.Wrap
-    intro.Margin = Thickness(0, 0, 0, 10)
-    intro.Text = (u"These sections have no matching Revit family type. Pick "
-                  u"a type for each (type to search), or import them as "
-                  u"shapes. Library types are loaded only if you pick them.")
-    DockPanel.SetDock(intro, Dock.Top)
-    dock.Children.Add(intro)
-
-    bottom = DockPanel()
-    bottom.Margin = Thickness(0, 10, 0, 0)
-    DockPanel.SetDock(bottom, Dock.Bottom)
-    dock.Children.Add(bottom)
-    remember = CheckBox()
-    remember.Content = u"Remember these choices for later imports"
-    remember.IsChecked = True
-    remember.VerticalAlignment = VerticalAlignment.Center
-    buttons = StackPanel()
-    buttons.Orientation = Orientation.Horizontal
-    buttons.HorizontalAlignment = HorizontalAlignment.Right
-    DockPanel.SetDock(buttons, Dock.Right)
-    bottom.Children.Add(buttons)
-    bottom.Children.Add(remember)
-
-    def button(text):
-        b = Button()
-        b.Content = text
-        b.MinWidth = 90
-        b.Padding = Thickness(10, 4, 10, 4)
-        b.Margin = Thickness(8, 0, 0, 0)
-        buttons.Children.Add(b)
-        return b
-    all_shape = button(u"All as shapes")
-    ok = button(u"Import")
-    cancel = button(u"Cancel")
-    ok.IsDefault = True
-    cancel.IsCancel = True
-
-    scroll = ScrollViewer()
-    scroll.VerticalScrollBarVisibility = ScrollBarVisibility.Auto
-    dock.Children.Add(scroll)
-    grid = Grid()
-    scroll.Content = grid
-    for w in (GridLength(1, GridUnitType.Auto), GridLength(1, GridUnitType.Auto),
-              GridLength(1, GridUnitType.Auto), GridLength(1, GridUnitType.Star)):
-        c = ColumnDefinition()
-        c.Width = w
-        grid.ColumnDefinitions.Add(c)
-
-    def cell(text, r, c, bold=False):
-        tb = TextBlock()
-        tb.Text = text
-        tb.Margin = Thickness(0, 4, 14, 4)
-        tb.VerticalAlignment = VerticalAlignment.Center
-        if bold:
-            tb.FontWeight = FontWeights.Bold
-        Grid.SetRow(tb, r)
-        Grid.SetColumn(tb, c)
-        grid.Children.Add(tb)
-
-    grid.RowDefinitions.Add(RowDefinition())
-    for c, text in enumerate([u"Section", u"Shape and size", u"Count",
-                              u"Revit type"]):
-        cell(text, 0, c, True)
-    combos = []
-    for i, row in enumerate(rows):
-        r = i + 1
-        grid.RowDefinitions.Add(RowDefinition())
-        label = row["section"] or u"(no name)"
-        if row["cat"] == "column":
-            label += u"  (column)"
-        cell(label, r, 0)
-        cell(row["text"], r, 1)
-        cell(u"{}".format(row["count"]), r, 2)
-        cb = ComboBox()
-        cb.IsEditable = True
-        cb.IsTextSearchEnabled = True
-        cb.Margin = Thickness(0, 2, 0, 2)
-        cb.Items.Add(SHAPE_LABEL)
-        for opt in row["options"]:
-            cb.Items.Add(opt)
-        cb.Text = row["default"]
-        Grid.SetRow(cb, r)
-        Grid.SetColumn(cb, 3)
-        grid.Children.Add(cb)
-        combos.append(cb)
-
-    state = {"ok": False}
-
-    def on_all(sender, args):
-        for cb in combos:
-            cb.Text = SHAPE_LABEL
-
-    def on_ok(sender, args):
-        bad = []
-        for row, cb in zip(rows, combos):
-            text = safe_text(cb.Text).strip()
-            if text != SHAPE_LABEL and text not in row["valid"]:
-                bad.append(row["section"] or u"(no name)")
-        if bad:
-            MessageBox.Show(u"Not a known family type:\n\n" +
-                            u"\n".join(bad[:20]) +
-                            u"\n\nPick from the list, or Import as shape.",
-                            TITLE)
-            return
-        state["ok"] = True
-        win.Close()
-
-    all_shape.Click += on_all
-    ok.Click += on_ok
-    win.ShowDialog()
-    if not state["ok"]:
-        return None
-    out = {}
-    for row, cb in zip(rows, combos):
-        text = safe_text(cb.Text).strip()
-        out[(row["cat"], row["section"])] = SHAPE if text == SHAPE_LABEL \
-            else text
-    return out, bool(remember.IsChecked)
 
 
 # ── PROBES ──────────────────────────────────────────────────────────────────
@@ -2244,7 +2209,7 @@ class PlateMaker(object):
         try:
             for i, (part, spec) in enumerate(specs):
                 if progress is not None and i % SHOW_EVERY == 0:
-                    progress(u"Steel plates", u"{} {:g} mm".format(
+                    progress(u"Installing plates", u"{} {:g} mm".format(
                         part.section or part.name, spec["thickness"]), i)
                 plate = None
                 error = u""
@@ -2279,7 +2244,7 @@ class PlateMaker(object):
                 written.append((part, guid, error))
             for j, b in enumerate(bolts):
                 if progress is not None and j % SHOW_EVERY == 0:
-                    progress(u"Anchors" if b.get("anchor") else u"Bolts",
+                    progress(u"Connecting anchors" if b.get("anchor") else u"Connecting bolts",
                              u"M{:g} {}".format(b["diameter"], b["grade"]),
                              len(specs) + j)
                 pattern = None
@@ -2507,6 +2472,7 @@ class Importer(object):
         self.anchors = 0
         self.shape_families = None  # _shape_families.ShapeFamilyResult
         self.bolt_failed = []   # (fastener part, why)
+        self.grids_levels = None    # _grids_levels.GridsLevelsResult
 
     # -- levels -----------------------------------------------------------------
 
@@ -2616,7 +2582,7 @@ class Importer(object):
             made = []
             for k, plan in enumerate(batch):
                 if k % SHOW_EVERY == 0:
-                    show_progress(pb, u"Native members", u"{} as {}".format(
+                    show_progress(pb, u"Placing members", u"{} as {}".format(
                         plan.part.section, plan.entry.type_name),
                         done + start + k, total)
                 try:
@@ -2707,7 +2673,7 @@ class Importer(object):
                 ds = None
                 label = part.section or part.name or ifc_class(part.ifc_type)
                 if k % SHOW_EVERY == 0:
-                    show_progress(pb, u"Shapes", label, done + start + k, total)
+                    show_progress(pb, u"Locating shapes", label, done + start + k, total)
                 try:
                     geo = self.maker.geometry(part)
                     if not geo:
@@ -2817,7 +2783,9 @@ def mapping_rows(matcher, unmatched, groups):
         kind = section_kind(prof, section)
         word = (name_key(section) or (u"",))[0]
         default = SHAPE_LABEL
-        if kind != "R" and word not in ("PL", "FL") and cands:
+        if kind == "R" or word in ("PL", "FL"):
+            default = PLATE_LABEL
+        elif cands:
             best_score, best = cands[0]
             if best.kind == kind and best_score < 5.0:
                 default = best.label
@@ -2830,27 +2798,140 @@ def mapping_rows(matcher, unmatched, groups):
     return rows
 
 
-def run(doc, ifc_path, source_name=None):
-    """Import a steel IFC into doc. Returns False if cancelled."""
+DEFAULT_OPTIONS = {
+    "placement": "shared",          # shared / internal / centre
+    "natives": True,                # members as native framing and columns
+    "ask_map": True,                # ask about sections with no match
+    "shape_families": True,         # custom shapes as Generic Model families
+    "plates": True,                 # Revit steel plates
+    "plate_cuts": True,             # IFC openings as contour cuts
+    "plate_holes": True,            # bolt holes in plates and shapes
+    "grids_levels": True,           # the file's grids and levels
+    "bolts": True,                  # Revit bolts and anchors
+    "skip_base_plate_bolts": True,  # leave base plate bolts out
+}
+PLACEMENTS = {"shared": PLACE_SHARED, "internal": PLACE_INTERNAL,
+              "centre": PLACE_CENTRE}
+
+
+def read_model(path):
+    """The steel model in a .ifc, .bsw or a .seed holding one."""
+    if path.lower().endswith(".seed"):
+        tmp, name = seed_ifc(path)
+        try:
+            return read_model(tmp)
+        finally:
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
+    return read_steel_bsw(path) if is_bsw(path) else read_steel(path)
+
+
+def _choice_label(res, flat):
+    """A match result as the label the Section Map shows."""
+    if res == PLATE:
+        return PLATE_LABEL
+    if res == SHAPE:
+        return SHAPE_LABEL
+    if res is None:
+        return PLATE_LABEL if flat else SHAPE_LABEL
+    return res.label
+
+
+def file_section_rows(model, entries, saved):
+    """Rows for the Section Map of one file: every member section in it,
+    with its type now ("default": the saved choice, else the automatic
+    match) and the automatic match on its own ("auto"), so only real
+    changes get saved."""
+    matcher = Matcher(entries, saved)
+    auto = Matcher(entries, {})
+    groups, shapes, bolts = plan_parts(model, matcher)
+    rows = []
+    for key in sorted(groups):
+        cat, section = key
+        g = groups[key]
+        prof = g["profile"]
+        mat = main_material(g)
+        kind = section_kind(prof, section)
+        flat = kind == "R" or (name_key(section) or (u"",))[0] in ("PL", "FL")
+        now, how = matcher.match(section, cat, prof, mat)
+        guess, guess_how = auto.match(section, cat, prof, mat)
+        options = [e.label for sc, e in matcher.candidates(section, cat, prof)]
+        rows.append({"section": section, "cat": cat,
+                     "text": section_text(prof, section),
+                     "count": len(g["parts"]), "options": options,
+                     "default": _choice_label(now, flat),
+                     "auto": _choice_label(guess, flat),
+                     "matched": guess is not None,
+                     "how": u"saved" if how == "saved choice" else
+                            (u"no match" if guess is None else guess_how),
+                     "valid": set(matcher.by_label[cat])})
+    return rows
+
+
+def save_section_edits(rows, choices, path=None):
+    """Write the Section Map's choices for one file into the saved map:
+    a choice that differs from the automatic match is saved, one that is
+    the automatic match drops any saved entry. choices: {(cat, section):
+    type label or map value} as _section_map returns them."""
+    special = dict(SPECIAL_CHOICES)
+    data = load_map(path)
+    for row in rows:
+        key = (row["cat"], row["section"])
+        if key not in choices:
+            continue
+        value = choices[key]
+        auto = special.get(row["auto"], row["auto"])
+        shown = special.get(row["default"], row["default"])
+        cat_map = data.setdefault(row["cat"], {})
+        if value is None or (value == auto and
+                             (row["matched"] or row.get("reset"))):
+            # back to the automatic match (with none, the import asks again)
+            cat_map.pop(row["section"], None)
+        elif value != shown or row["how"] == u"saved":
+            cat_map[row["section"]] = value
+    return replace_map(data, path)
+
+
+def section_labels(doc):
+    """{cat: [type labels]} of every framing/column type a section can be
+    mapped to (loaded types and the library catalogues), for the map editor."""
+    entries = loaded_entries(doc)
+    entries.extend(library_entries(doc.Application))
+    m = Matcher(entries, {})
+    return dict((cat, sorted(m.by_label[cat])) for cat in m.by_label)
+
+
+def run(doc, ifc_path, source_name=None, options=None):
+    """Import a steel IFC or StruCad .bsw into doc with the options from
+    3D Import's window (DEFAULT_OPTIONS for any left out). Returns False
+    if cancelled."""
     from pyrevit import forms, script
+    opts = dict(DEFAULT_OPTIONS)
+    opts.update(options or {})
 
     source = source_name or os.path.basename(ifc_path)
-    with forms.ProgressBar(title="Reading IFC...") as pb:
+    strucad = is_bsw(ifc_path)
+    what = u"StruCad model" if strucad else u"IFC"
+    with forms.ProgressBar(title=u"Reading {}...".format(what)) as pb:
         try:
-            model = read_steel(ifc_path, progress=lambda i, n:
-                               pb.update_progress(i, max(n, 1)))
+            reader = read_steel_bsw if strucad else read_steel
+            model = reader(ifc_path, progress=lambda i, n:
+                           pb.update_progress(i, max(n, 1)))
         except Exception as ex:
-            forms.alert(u"Could not read the IFC: {}".format(ex), title=TITLE)
+            forms.alert(u"Could not read the {}: {}".format(what, ex),
+                        title=TITLE)
             return False
     if not model.parts:
         forms.alert("The IFC has no steel parts with geometry.", title=TITLE)
         return False
+    if not opts["plate_holes"]:
+        for part in model.parts:
+            if not part.bolt:
+                strip_holes(part)
 
-    placement = forms.CommandSwitchWindow.show(
-        [PLACE_SHARED, PLACE_INTERNAL, PLACE_CENTRE],
-        message="Place the model at")
-    if not placement:
-        return False
+    placement = PLACEMENTS.get(opts["placement"], PLACE_SHARED)
     mapper = make_mapper(doc, model, placement)
 
 
@@ -2867,23 +2948,31 @@ def run(doc, ifc_path, source_name=None):
     for key in sorted(groups):
         cat, section = key
         g = groups[key]
+        if not opts["natives"]:
+            matched[key] = (SHAPE, "members as shapes")
+            continue
         res, how = matcher.match(section, cat, g["profile"], main_material(g))
         if res is None:
             unmatched.append(key)
         else:
             matched[key] = (res, how)
 
+    if unmatched and not opts["ask_map"]:
+        for key in unmatched:
+            matched[key] = (SHAPE, "no match")
+        unmatched = []
     if unmatched:
+        from Snippets._section_map import ask_section_map
         rows = mapping_rows(matcher, unmatched, groups)
-        answer = ask_mappings(rows)
+        answer = ask_section_map(rows, SPECIAL_CHOICES)
         if answer is None:
             return False
         choices, remember = answer
         to_save = {}
         for key, value in choices.items():
             cat, section = key
-            if value == SHAPE:
-                matched[key] = (SHAPE, "chosen: shape")
+            if value in (SHAPE, PLATE):
+                matched[key] = (value, "chosen")
             else:
                 matched[key] = (matcher.find(cat, value), "chosen")
             to_save.setdefault(cat, {})[section] = value
@@ -2893,11 +2982,15 @@ def run(doc, ifc_path, source_name=None):
     importer = Importer(doc, model, mapper, source)
     plans = []
     natives_by_key = {}
+    as_plate = set()                    # members mapped to "import as plate"
     for key in sorted(groups):
         res, how = matched.get(key, (SHAPE, "shape"))
         cat = key[0]
         for part, use, mode in groups[key]["parts"]:
-            if res == SHAPE or res is None:
+            if res == PLATE:
+                as_plate.add(id(part))
+                shape_parts.append(part)
+            elif res == SHAPE or res is None:
                 shape_parts.append(part)
             else:
                 plans.append(Plan(part, use, cat, mode, res, how))
@@ -2906,28 +2999,28 @@ def run(doc, ifc_path, source_name=None):
     # flat plates can be Revit's own steel plates instead of shapes
     plate_specs = []
     plate_maker = None
-    candidates = [(p, plate_spec(p)) for p in shape_parts]
+    candidates = [(p, plate_spec(p, id(p) in as_plate)) for p in shape_parts]
     candidates = [(p, s) for p, s in candidates if s is not None]
     kept = []
     for p, s in candidates:
         cuts = plate_cuts(s, p.openings) if p.openings else []
         if cuts is None:                # an opening a contour cut cannot make
             continue
+        if cuts and not opts["plate_holes"]:
+            cuts = [c for c in cuts if not is_hole(c, s["normal"])]
+        if not opts["plate_cuts"]:
+            if cuts:                    # uncut it would be wrong; a shape keeps
+                continue                # the opening
+            cuts = []
         s["cuts"] = cuts
         kept.append((p, s))
     candidates = kept
     if candidates:
         plate_maker = PlateMaker(doc, mapper)
-        if plate_maker.api is not None:
-            choice = forms.CommandSwitchWindow.show(
-                [PLATES_NATIVE, PLATES_SHAPE],
-                message="Make the {} flat plates as".format(len(candidates)))
-            if not choice:
-                return False
-            if choice == PLATES_NATIVE:
-                plate_specs = candidates
-                taken = set(id(p) for p, s in candidates)
-                shape_parts = [p for p in shape_parts if id(p) not in taken]
+        if plate_maker.api is not None and opts["plates"]:
+            plate_specs = candidates
+            taken = set(id(p) for p, s in candidates)
+            shape_parts = [p for p in shape_parts if id(p) not in taken]
 
     # bolts can be Revit's own steel bolts
     bolt_specs = []
@@ -2937,32 +3030,25 @@ def run(doc, ifc_path, source_name=None):
     if fasteners:
         if plate_maker is None:
             plate_maker = PlateMaker(doc, mapper)
-        if plate_maker.api is not None:
-            choice = forms.CommandSwitchWindow.show(
-                [BOLTS_NATIVE, BOLTS_SKIP],
-                message="The IFC has {} bolt assemblies".format(len(fasteners)))
-            if not choice:
-                return False
-            if choice == BOLTS_NATIVE:
-                index = SolidIndex(model.parts, plate_specs)
-                bolt_specs, bolt_skipped = plan_bolts(fasteners, index)
+        if plate_maker.api is not None and opts["bolts"]:
+            index = SolidIndex(model.parts, plate_specs)
+            bolt_specs, bolt_skipped = plan_bolts(
+                fasteners, index, opts["skip_base_plate_bolts"])
 
     # repeated custom shapes can be one family each, placed at every copy
     shape_groups = []
-    repeats = repeated_shapes(shape_parts)
-    if repeats:
-        choice = forms.CommandSwitchWindow.show(
-            [REPEATS_FAMILY, REPEATS_SHAPE],
-            message="{} parts are custom shapes ({} different ones)".format(
-                sum(len(g[3]) for g in repeats), len(repeats)))
-        if not choice:
-            return False
-        if choice == REPEATS_FAMILY:
-            shape_groups = repeats
+    if opts["shape_families"]:
+        shape_groups = repeated_shapes(shape_parts)
 
     group = DB.TransactionGroup(doc, TITLE)
     group.Start()
     try:
+        # grids and levels first, so members are hosted on the file's levels
+        if opts["grids_levels"]:
+            from Snippets._grids_levels import make_grids_levels
+            importer.grids_levels = make_grids_levels(
+                doc, getattr(model, "grids", None), getattr(model, "levels", None),
+                lambda x, y, z: _xyz(mapper.point((x, y, z))))
         # load and activate the chosen types
         t = start_transaction(doc, TITLE + " families")
         importer.ensure_levels()
@@ -2994,29 +3080,32 @@ def run(doc, ifc_path, source_name=None):
         total = len(plans) + len(plate_specs) + len(bolt_specs) + len(shape_parts)
         with forms.ProgressBar(title="Starting... ({value} of {max_value})",
                                cancellable=True) as pb:
+            # build order: members, shapes, then plates with their bolts
+            # (bolts must share the plates' steel transaction to connect)
             ok = importer.natives(plans, pb, 0, total)
             shape_parts.extend(p.part for p, why in importer.fallback)
             total = len(plans) + len(plate_specs) + len(bolt_specs) + len(shape_parts)
-            if ok and (plate_specs or bolt_specs):
-                importer.plate_maker = plate_maker
-                ok = importer.steel_of(plate_specs, bolt_specs, plate_maker, pb,
-                                       len(plans), total)
-                importer.bolt_failed[:0] = bolt_skipped
-                shape_parts.extend(p for p, why in importer.plate_failed)
-                total = len(plans) + len(plate_specs) + len(bolt_specs) + len(shape_parts)
+            done = len(plans)
             if ok and shape_groups:
-                done = len(plans) + len(plate_specs) + len(bolt_specs)
-                taken = set(id(p) for g in shape_groups for p, f in g[3])
                 importer.shape_families = make_shape_families(
                     doc, mapper, shape_groups, start_transaction, _part_marks,
                     lambda i, n, part: show_progress(
-                        pb, u"Shape families", part.section or part.name,
+                        pb, u"Locating shapes", part.section or part.name,
                         done + i, total))
                 placed = importer.shape_families.placed
                 shape_parts = [q for q in shape_parts if id(q) not in placed]
             if ok:
-                ok = importer.shapes_of(shape_parts, pb, len(plans) +
-                                        len(plate_specs) + len(bolt_specs), total)
+                ok = importer.shapes_of(shape_parts, pb, done, total)
+            done = total - len(plate_specs) - len(bolt_specs)
+            if ok and (plate_specs or bolt_specs):
+                importer.plate_maker = plate_maker
+                ok = importer.steel_of(plate_specs, bolt_specs, plate_maker, pb,
+                                       done, total)
+                importer.bolt_failed[:0] = bolt_skipped
+                # plates Revit would not make still come in, as shapes
+                failed = [p for p, why in importer.plate_failed]
+                if ok and failed:
+                    ok = importer.shapes_of(failed, pb, total - len(failed), total)
             cancelled = pb.cancelled
         if cancelled:
             group.RollBack()
@@ -3046,6 +3135,10 @@ def report(out, path, model, placement, imp, by_key, plans, bolts):
                  u"and washer parts were not made as shapes.".format(
                      natives, u", ".join(bits) or u"none", imp.plates,
                      imp.bolts, imp.anchors, imp.shapes, bolts))
+    if imp.grids_levels is not None:
+        from Snippets._grids_levels import report_md
+        for line in report_md(imp.grids_levels):
+            out.print_md(line)
     if imp.anchors:
         out.print_md(u"Anchors use Revit's default anchor standard and snap "
                      u"to its stock lengths; check them against the drawings.")
@@ -3085,8 +3178,9 @@ def report(out, path, model, placement, imp, by_key, plans, bolts):
     for key in sorted(by_key):
         res, how, n = by_key[key]
         cat, section = key
-        target = u"shape" if res in (SHAPE, None) else res.label
-        if res not in (SHAPE, None) and not res.loaded:
+        target = {SHAPE: u"shape", PLATE: u"plate", None: u"shape"}.get(res) \
+            if res in (SHAPE, PLATE, None) else res.label
+        if res not in (SHAPE, PLATE, None) and not res.loaded:
             target += u" (loaded from library)"
         lines.append(u"| {} | {} | {} | {} | {} |".format(
             section or u"(no name)", cat, n, target, how or u"shape"))

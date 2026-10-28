@@ -1,4 +1,4 @@
-title: "Seed Import"
+title: "3D Import"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
 tooltip: >
   __________________________________________________________________
@@ -6,12 +6,14 @@ tooltip: >
   Description:
 
   Imports a model into Revit, working out what to do from the file. A
-  steel fabrication IFC (Tekla Structures, ProStructures) becomes native
+  steel fabrication IFC (Tekla Structures, ProStructures) or StruCad .bsw
+  becomes native
   framing, braces and columns, Revit steel plates, bolts and anchors,
   with sections matched to your family types and anything unmatched put
   to you to map; your choices are remembered. A .seed from 3D Seed or
   Navisworks' Export to Studio comes in as shapes, one per element, and
-  a .seed that holds an IFC is imported as that IFC. A report lists what
+  a .seed that holds an IFC or StruCad model is imported as that model.
+  A report lists what
   became what and anything that needs checking.
 
   __________________________________________________________________

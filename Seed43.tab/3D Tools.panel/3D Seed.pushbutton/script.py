@@ -17,7 +17,7 @@ import os
 
 from pyrevit import revit, DB, forms
 
-from seed_writer import SeedScene, SeedItem, SeedPart
+from seed_writer import SeedScene, SeedItem, SeedPart, write_source_seed
 from ifc_style import ifc_class, ifc_guid, kind_of, storey_of, STRUCAD_PSET
 
 doc = revit.doc
@@ -33,8 +33,28 @@ NO_LEVEL = u"(no level)"
 # IFC classes whose type name is a steel section.
 SECTION_CLASSES = ("IfcBeam", "IfcColumn", "IfcMember")
 
-WITH_PROPS = "With element properties"
-NO_PROPS = "Geometry, names, materials and IFC fields only"
+SMART = "Smart model: an IFC with every Revit parameter"
+WITH_PROPS = "Mesh with element properties"
+NO_PROPS = "Mesh: geometry, names, materials and IFC fields only"
+
+# Revit's IFC exporter, set up so nothing of the model is lost: every
+# instance and type parameter (built-in, project and shared) as Revit
+# property sets, the IFC common sets and quantities, steel elements, and
+# only what the view shows, placed in shared coordinates.
+IFC_OPTIONS = (
+    ("ExportInternalRevitPropertySets", "true"),
+    ("ExportIFCCommonPropertySets", "true"),
+    ("ExportMaterialPsets", "true"),
+    ("ExportSchedulesAsPsets", "false"),
+    ("ExportUserDefinedPsets", "false"),
+    ("VisibleElementsOfCurrentView", "true"),
+    ("UseActiveViewGeometry", "true"),
+    ("IncludeSteelElements", "true"),
+    ("ExportPartsAsBuildingElements", "false"),
+    ("ExportAnnotations", "false"),
+    ("ExportLinkedFiles", "false"),
+    ("SitePlacement", "0"),             # shared coordinates
+)
 
 
 # ── HELPERS ─────────────────────────────────────────────────────────────────
@@ -626,6 +646,40 @@ def build_scene(ctx, with_props, progress=None):
 
 # ── MAIN ────────────────────────────────────────────────────────────────────
 
+def export_smart(view, path):
+    """The view through Revit's IFC exporter (IFC_OPTIONS), wrapped in a
+    .seed Studio opens as an IFC. Returns the IFC's size in bytes."""
+    import shutil
+    import tempfile
+    folder = tempfile.mkdtemp(prefix="seed43_")
+    name = safe_text(doc.Title) or u"Model"
+    for ch in u'<>:"/\\|?*':
+        name = name.replace(ch, u"_")
+    name += u".ifc"
+    try:
+        opts = DB.IFCExportOptions()
+        opts.FileVersion = DB.IFCVersion.IFC2x3CV2
+        opts.FilterViewId = view.Id
+        opts.ExportBaseQuantities = True
+        opts.WallAndColumnSplitting = False
+        for key, value in IFC_OPTIONS:
+            opts.AddOption(key, value)
+        # IFC export needs an open transaction; nothing it does is kept
+        t = DB.Transaction(doc, TITLE)
+        t.Start()
+        try:
+            ok = doc.Export(folder, name, opts)
+        finally:
+            t.RollBack()
+        ifc = os.path.join(folder, name)
+        if not ok or not os.path.isfile(ifc):
+            raise RuntimeError("Revit's IFC exporter wrote no file")
+        write_source_seed(path, ifc, u"ifc", name)
+        return os.path.getsize(ifc)
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+
+
 def pick_output(view):
     folder = os.path.dirname(doc.PathName) if doc.PathName else ""
     name = u"{} {}".format(safe_text(doc.Title), safe_text(view.Name))
@@ -633,6 +687,26 @@ def pick_output(view):
         name = name.replace(ch, u"_")
     return forms.save_file(file_ext="seed", default_name=name.strip(),
                            init_dir=folder, title=TITLE)
+
+
+def grids_levels(to_shared):
+    """The project's straight grids and its levels in shared mm, for Seed
+    Import to make again."""
+    grids = []
+    for g in DB.FilteredElementCollector(doc).OfClass(DB.Grid):
+        c = g.Curve
+        if not isinstance(c, DB.Line):
+            continue            # arc grids are left out
+        a = to_shared.OfPoint(c.GetEndPoint(0))
+        b = to_shared.OfPoint(c.GetEndPoint(1))
+        grids.append((element_name(g),
+                      (a.X * FT_TO_MM, a.Y * FT_TO_MM, a.Z * FT_TO_MM),
+                      (b.X * FT_TO_MM, b.Y * FT_TO_MM, b.Z * FT_TO_MM)))
+    levels = []
+    for lv in DB.FilteredElementCollector(doc).OfClass(DB.Level):
+        p = to_shared.OfPoint(DB.XYZ(0.0, 0.0, lv.ProjectElevation))
+        levels.append((element_name(lv), p.Z * FT_TO_MM))
+    return grids, levels
 
 
 def main():
@@ -643,13 +717,28 @@ def main():
                     "elements all apply.", title=TITLE)
         return
 
-    choice = forms.CommandSwitchWindow.show([WITH_PROPS, NO_PROPS],
-                                            message="Export to Seed43 Studio")
-    if not choice:
-        return
+    # always the smart model (an IFC with every Revit parameter); the mesh
+    # export below stays for when a choice comes back
+    choice = SMART
 
     path = pick_output(view)
     if not path:
+        return
+
+    if choice == SMART:
+        try:
+            with forms.ProgressBar(title="Exporting IFC with Revit's exporter...",
+                                   indeterminate=True):
+                size = export_smart(view, path)
+        except Exception as ex:
+            forms.alert(u"Could not export the IFC: {}".format(ex), title=TITLE)
+            return
+        if forms.alert(u"Saved a smart model ({:,.1f} MB IFC with every Revit "
+                       u"parameter) to\n{}\n\nOpen Seed43 Studio to view "
+                       u"it?".format(size / 1048576.0, path),
+                       title=TITLE, yes=True, no=True):
+            import webbrowser
+            webbrowser.open("https://seed43.org/studio/")
         return
 
     # Shared coordinates, as Navisworks reads an NWC by default.
@@ -687,6 +776,8 @@ def main():
     bb = ctx.bbox
     scene.origin = (round((bb[0] + bb[3]) / 2.0), round((bb[1] + bb[4]) / 2.0),
                     round((bb[2] + bb[5]) / 2.0))
+
+    scene.grids, scene.levels = grids_levels(to_shared)
 
     orient = view.GetOrientation()
     eye = to_shared.OfPoint(orient.EyePosition)

@@ -296,8 +296,15 @@ def pick_categories(model, items):
 # ── MAIN ────────────────────────────────────────────────────────────────────
 
 def main():
-    path = forms.pick_file(file_ext="seed", title=TITLE)
+    path = forms.pick_file(
+        files_filter="Models (*.seed;*.ifc)|*.seed;*.ifc|"
+                     "Seed43 Studio (*.seed)|*.seed|IFC (*.ifc)|*.ifc",
+        title=TITLE)
     if not path:
+        return
+    # one button for every format: what happens depends on the file
+    if path.lower().endswith(".ifc"):
+        _steel_import.run(doc, path, os.path.basename(path))
         return
     try:
         model = read_seed(path)
@@ -307,8 +314,8 @@ def main():
             import_ifc(path)
         elif fmt == "bsw":
             forms.alert(u"This .seed holds a StruCad model. Open it in "
-                        u"Seed43 Studio and use Export IFC, then import the "
-                        u"IFC with Steel IFC.", title=TITLE)
+                        u"Seed43 Studio and use Export IFC, then import that "
+                        u"IFC here.", title=TITLE)
         else:
             forms.alert(safe_text(ex), title=TITLE)
         return

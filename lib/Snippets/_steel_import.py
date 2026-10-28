@@ -33,6 +33,11 @@ except ImportError:                     # run outside the package (tests)
         signed_area, Extrusion, Brep
 
 try:
+    from Snippets._shape_families import repeated_shapes, make_shape_families
+except ImportError:                     # run outside the package (tests)
+    from _shape_families import repeated_shapes, make_shape_families
+
+try:
     from Snippets._userdata import user_path
 except ImportError:
     try:
@@ -49,7 +54,7 @@ __all__ = ["run", "Entry", "Matcher", "family_kind", "parse_catalogue",
            "decode_catalogue", "entry_values", "profile_values",
            "values_match", "fit_orientation", "section_dirs", "section_axes",
            "rotation_angle", "clip_line", "Mapper", "load_map", "save_map",
-           "seed_format", "seed_ifc"]
+           "seed_format", "seed_ifc", "plate_spec"]
 
 TITLE = "Steel IFC"
 
@@ -64,6 +69,14 @@ MAP_FILE = "profile_map.json"
 CACHE_FILE = "catalogue_cache.json"
 MAX_CHOICES = 150           # candidates listed per section in the window
 REPORT_SCORE_MM = 10.0      # orientation fits worse than this are listed
+
+PLATES_NATIVE = "Revit steel plates (as the Steel tab makes)"
+PLATES_SHAPE = "Shapes"
+REPEATS_FAMILY = "Make them Generic Model families (copies share one)"
+REPEATS_SHAPE = "Keep them as shapes"
+BOLTS_NATIVE = "Make them Revit steel bolts (as the Steel tab makes)"
+BOLTS_SKIP = "Leave the bolts out"
+RECT_AREA_TOL = 0.01        # outline area within 1% of its box: a rectangle
 
 PLACE_SHARED = "Shared coordinates (where it was modelled)"
 PLACE_INTERNAL = "Internal coordinates"
@@ -508,6 +521,25 @@ def load_map(path=None):
     return out
 
 
+_NON_ASCII = re.compile(u"[^\x00-\x7f]")
+
+
+def _escape(match):
+    code = ord(match.group(0))
+    if code > 0xFFFF:
+        code -= 0x10000
+        return u"\\u%04x\\u%04x" % (0xD800 + (code >> 10), 0xDC00 + (code & 0x3FF))
+    return u"\\u%04x" % code
+
+
+def json_text(data, **kw):
+    """json.dumps that survives IronPython 2: its ensure_ascii encoder tries
+    to decode text that is already unicode and fails on names such as
+    '16Ø THREADED ROD', so non-ASCII characters are escaped here."""
+    kw["ensure_ascii"] = False
+    return _NON_ASCII.sub(_escape, json.dumps(data, **kw))
+
+
 def save_map(choices, path=None):
     """Merge {cat: {section: label or SHAPE}} into the saved map."""
     path = path or map_path()
@@ -516,7 +548,7 @@ def save_map(choices, path=None):
     data = load_map(path)
     for cat, rows in choices.items():
         data.setdefault(cat, {}).update(rows)
-    text = json.dumps(data, indent=2, sort_keys=True, ensure_ascii=True)
+    text = json_text(data, indent=2, sort_keys=True)
     try:
         with open(path, "wb") as f:
             f.write(text.encode("utf-8"))
@@ -741,6 +773,632 @@ def section_text(prof, section):
         nums = [prof.extent[1], prof.extent[0]]
     return u"{} {}".format(kind, u" x ".join(fmt_mm(v) for v in nums
                                              if v is not None))
+
+
+# ── PLATES ──────────────────────────────────────────────────────────────────
+
+def _is_rect(pts, bbox):
+    """True when an outline fills its bounding box (an axis-aligned rectangle)."""
+    box = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])
+    return box > 0 and abs(abs(signed_area(pts)) - box) <= RECT_AREA_TOL * box
+
+
+PLATE_FLAT_MM = 0.05        # face points this far off a plate face: not flat
+PLATE_SQUARE_COS = 0.002    # side faces must be this square to the plate
+
+
+def plate_spec(part):
+    """How to make a part as a Revit steel plate, or None.
+
+    Returns {"outline": world points (mm) on one face, "normal": the way the
+    thickness goes from that face, "thickness": mm}. A plate is one outline
+    with no holes, made as:
+      - an extrusion swept through its thickness (an IfcPlate),
+      - a flat bar extrusion swept along its length (PL/FL sections, which
+        Tekla also writes as IfcBeam),
+      - a faceted solid that is two matching parallel faces with square
+        sides (ProStructures writes some flats that way).
+    Straight cuts through the thickness (chamfers, trimmed ends) trim the
+    outline; any other cut leaves the part a shape.
+    """
+    if len(part.solids) != 1:
+        return None
+    word = (name_key(part.section) or (u"",))[0]
+    platey = part.ifc_type == "IFCPLATE" or word in ("PL", "FL")
+    body = part.solids[0]
+    if isinstance(body, Brep):
+        return _brep_plate(body) if platey else None
+    if not isinstance(body, Extrusion):
+        return None
+    ex = body
+    prof = ex.profile
+    if prof is None or len(prof.loops) != 1:
+        return None
+    o, x, y = ex.plane
+    z = _unit(_cross(x, y))
+    if z is None or abs(_dot(z, ex.dir)) < 0.9999 or ex.depth <= 0:
+        return None
+    if not (platey or (prof.kind == "R" and part.role is not None)):
+        return None
+    pts = loop_points(prof.loops[0])
+    if len(pts) < 3:
+        return None
+    d = ex.dir
+
+    def world(px, py, pz=0.0):
+        return (o[0] + px * x[0] + py * y[0] + pz * d[0],
+                o[1] + px * x[1] + py * y[1] + pz * d[1],
+                o[2] + px * x[2] + py * y[2] + pz * d[2])
+
+    if ex.depth <= min(prof.extent):
+        # swept through its thickness: the outline is the plate
+        spec = {"outline": [world(px, py) for px, py in pts], "normal": d,
+                "thickness": ex.depth}
+    elif _is_rect(pts, prof.bbox):
+        # a flat bar swept along its length: the plate lies on its wide side
+        x0, y0, x1, y1 = prof.bbox
+        length = ex.depth
+        if prof.extent[0] <= prof.extent[1]:
+            spec = {"outline": [world(x0, y0), world(x0, y1),
+                                world(x0, y1, length), world(x0, y0, length)],
+                    "normal": x, "thickness": x1 - x0}
+        else:
+            spec = {"outline": [world(x0, y0), world(x1, y0),
+                                world(x1, y0, length), world(x0, y0, length)],
+                    "normal": y, "thickness": y1 - y0}
+    else:
+        return None
+    return _clip_plate(spec, ex.clips)
+
+
+def plate_cuts(spec, openings):
+    """Contour cut outlines (world points on the plate's face plane) for the
+    IFC openings of a plate, or None when an opening is not a straight
+    through-cut (the plate is then better made as a shape). Openings that
+    miss the plate are left out."""
+    n = _unit(spec["normal"])
+    o = spec["outline"][0]
+    u = _unit(_sub(spec["outline"][1], o))
+    if n is None or u is None:
+        return None
+    v = _cross(n, u)
+
+    def flat(q):                    # onto the face plane
+        return _sub(q, _mul(n, _dot(_sub(q, o), n)))
+
+    def uv(q):
+        r = _sub(q, o)
+        return (_dot(r, u), _dot(r, v))
+
+    plate2d = [uv(q) for q in spec["outline"]]
+    lo = (min(p[0] for p in plate2d), min(p[1] for p in plate2d))
+    hi = (max(p[0] for p in plate2d), max(p[1] for p in plate2d))
+    cuts = []
+    for body in openings:
+        loop = None
+        if isinstance(body, Extrusion) and body.profile is not None:
+            if abs(_dot(body.dir, n)) < 0.999 or len(body.profile.loops) != 1:
+                return None
+            bo, bx, by = body.plane
+            loop = [_add(bo, _add(_mul(bx, px), _mul(by, py)))
+                    for px, py in loop_points(body.profile.loops[0])]
+        elif isinstance(body, Brep):
+            best = None
+            for face in body.faces:
+                if not face or len(face[0]) < 3:
+                    continue
+                fn = _face_normal(face[0])
+                area = _len(fn)
+                if area <= 0:
+                    continue
+                c = abs(_dot(_mul(fn, 1.0 / area), n))
+                if c > 0.999:
+                    if best is None or area > best[0]:
+                        best = (area, face[0])
+                elif c > PLATE_SQUARE_COS:
+                    return None     # a bevelled or stepped opening
+            if best is None:
+                return None
+            loop = best[1]
+        else:
+            return None
+        loop = drop_inline([flat(q) for q in loop])
+        if len(loop) < 3:
+            continue
+        pts = [uv(q) for q in loop]
+        if max(p[0] for p in pts) < lo[0] or min(p[0] for p in pts) > hi[0] or \
+                max(p[1] for p in pts) < lo[1] or min(p[1] for p in pts) > hi[1]:
+            continue                # misses the plate
+        cuts.append(loop)
+    return cuts
+
+
+def _clip_plate(spec, clips):
+    """Trim a plate outline by straight cuts through its thickness."""
+    outline = spec["outline"]
+    n = spec["normal"]
+    for clip in clips:
+        if clip.get("kind") != "plane" or abs(_dot(clip["keep"], n)) > PLATE_SQUARE_COS:
+            return None             # bevelled, bounded or solid cut
+        outline = _clip_polygon(outline, clip["origin"], clip["keep"])
+        if len(outline) < 3:
+            return None
+    spec["outline"] = outline
+    return spec
+
+
+def _clip_polygon(pts, origin, keep):
+    """Sutherland-Hodgman: the part of a 3D polygon on the keep side."""
+    out = []
+    n = len(pts)
+    for i in range(n):
+        a = pts[i]
+        b = pts[(i + 1) % n]
+        da = _dot(_sub(a, origin), keep)
+        db = _dot(_sub(b, origin), keep)
+        if da >= 0:
+            out.append(a)
+        if (da >= 0) != (db >= 0):
+            t = da / (da - db)
+            out.append(_add(a, _mul(_sub(b, a), t)))
+    clean = []
+    for p in out:
+        if not clean or _len(_sub(p, clean[-1])) > 1e-6:
+            clean.append(p)
+    if len(clean) > 1 and _len(_sub(clean[0], clean[-1])) <= 1e-6:
+        clean.pop()
+    return clean
+
+
+def drop_inline(pts, tol=0.01):
+    """An outline without repeated corners and corners that sit on a straight
+    edge (within tol mm); the steel plate tool can refuse those."""
+    out = []
+    for p in pts:
+        if not out or _len(_sub(p, out[-1])) > tol:
+            out.append(p)
+    if len(out) > 1 and _len(_sub(out[0], out[-1])) <= tol:
+        out.pop()
+    changed = True
+    while changed and len(out) > 3:
+        changed = False
+        for i in range(len(out)):
+            a = out[i - 1]
+            b = out[i]
+            c = out[(i + 1) % len(out)]
+            ac = _sub(c, a)
+            l = _len(ac)
+            if l <= tol or _len(_cross(_sub(b, a), ac)) / l <= tol:
+                del out[i]
+                changed = True
+                break
+    return out
+
+
+# ── BOLTS ───────────────────────────────────────────────────────────────────
+
+BOLT_STANDARD = "AS 1252"   # the AU/NZ structural bolt in Revit's steel data
+BOLT_GRADE = "8.8"
+BOLT_REACH_MM = 150.0       # how far along a bolt line to look for material
+BOLT_STEP_MM = 0.5
+BOLT_GAP_MM = 2.0           # gaps up to this between plies still one grip
+
+_M_SIZE = re.compile(r"M\s*(\d{1,2}(?:\.\d)?)", re.I)    # CHEMSET_M16260 is M16
+_GRADE_TXT = re.compile(r"(?<![\d.])(\d{1,2}\.\d)(?![\d])")
+
+
+def bolt_size(props):
+    """(diameter mm, grade, on site) from a fastener's properties, as Tekla
+    (Bolt Name BOLTM16*25, Bolt standard 8.8S, Location Site) and
+    ProStructures (Description 'M20 x 45 8.8/S GALV') write them."""
+    props = props or {}
+    texts = [safe_text(props.get(k) or u"") for k in
+             ("Bolt Name", "_Description", "Description", "Name",
+              "Style Name", "Bolt standard")]
+    diameter = None
+    for txt in texts:
+        m = _M_SIZE.search(txt)
+        if m:
+            diameter = float(m.group(1))
+            break
+    if diameter is None:
+        for k in ("_NominalDiameter", "Nominal Diameter", "Bolt size"):
+            try:
+                v = float(props.get(k) or 0)
+            except (TypeError, ValueError):
+                v = 0
+            if v > 0:
+                diameter = v
+                break
+    grade = BOLT_GRADE
+    for txt in (texts[5], texts[4], texts[1], texts[2], texts[0]):
+        m = _GRADE_TXT.search(txt)
+        if m:
+            grade = m.group(1)
+            break
+    site = u"shop" not in safe_text(props.get("Location") or u"").lower()
+    return diameter, grade, site
+
+
+def _principal_axis(pts):
+    n = float(len(pts))
+    c = tuple(sum(p[i] for p in pts) / n for i in range(3))
+    cov = [[0.0] * 3 for _ in range(3)]
+    for p in pts:
+        d = (p[0] - c[0], p[1] - c[1], p[2] - c[2])
+        for i in range(3):
+            for j in range(3):
+                cov[i][j] += d[i] * d[j]
+    v = (1.0, 0.7, 0.4)
+    for _ in range(60):
+        w = tuple(sum(cov[i][j] * v[j] for j in range(3)) for i in range(3))
+        v = _unit(w) or v
+    return c, v
+
+
+def bolt_axes(part):
+    """Centre lines [(point, direction)] of the bolts in one fastener:
+    round shanks/washers grouped by line (Tekla), else the long axis of each
+    faceted bolt (ProStructures)."""
+    lines = []
+    for s in part.solids:
+        if isinstance(s, Extrusion) and s.profile is not None and \
+                s.profile.kind in ("C", "CH"):
+            o, x, y = s.plane
+            cx, cy = s.profile.centre
+            lines.append((_add(o, _add(_mul(x, cx), _mul(y, cy))), s.dir))
+    if not lines:
+        for s in part.solids:
+            if isinstance(s, Brep):
+                pts = [q for f in s.faces for loop in f for q in loop]
+                if len(pts) < 6:
+                    continue
+                # the bolt line is square to its biggest flat face (head or
+                # nut top); the long axis of the shape misleads on a nut,
+                # which is wider than it is tall
+                best = None
+                for f in s.faces:
+                    if f and len(f[0]) >= 3:
+                        fn = _face_normal(f[0])
+                        if best is None or _len(fn) > _len(best):
+                            best = fn
+                c, v = _principal_axis(pts)
+                lines.append((c, _unit(best) if best is not None and
+                              _len(best) > 0 else v))
+    if not lines:
+        for s in part.solids:
+            if isinstance(s, Extrusion):
+                o, x, y = s.plane
+                cx, cy = s.profile.centre
+                lines.append((_add(o, _add(_mul(x, cx), _mul(y, cy))), s.dir))
+    axes = []
+    for p, d in lines:
+        for i, (q, e, n) in enumerate(axes):
+            if abs(_dot(d, e)) > 0.999:
+                off = _sub(p, q)
+                off = _sub(off, _mul(e, _dot(off, e)))
+                if _len(off) < 2.0:
+                    axes[i] = (q, e, n + 1)
+                    break
+        else:
+            axes.append((p, d, 1))
+    return [(p, d) for p, d, n in axes]
+
+
+class SolidIndex(object):
+    """The plates and profile members of a model, for asking which of them a
+    bolt line passes through (and for how long)."""
+
+    def __init__(self, parts, plate_specs=None):
+        self.entries = []
+        specs = dict((id(p), s) for p, s in (plate_specs or []))
+        for part in parts:
+            if part.bolt:
+                continue
+            spec = specs.get(id(part))
+            if spec is not None:
+                self._add_plate(part, spec)
+                continue
+            for s in part.solids:
+                if isinstance(s, Extrusion) and s.profile is not None:
+                    self._add_extrusion(part, s)
+
+    def _add_plate(self, part, spec):
+        out = spec["outline"]
+        n = _unit(spec["normal"])
+        u = _unit(_sub(out[1], out[0]))
+        if n is None or u is None:
+            return
+        v = _cross(n, u)
+        o = out[0]
+        poly = [(_dot(_sub(q, o), u), _dot(_sub(q, o), v)) for q in out]
+        t = spec["thickness"]
+        corners = list(out) + [_add(q, _mul(n, t)) for q in out]
+        self.entries.append((part, ("plate", o, u, v, n, t, poly, []),
+                             _box(corners)))
+
+    def _add_extrusion(self, part, ex):
+        o, x, y = ex.plane
+        loops = [loop_points(l) for l in ex.profile.loops]
+        if not loops or len(loops[0]) < 3:
+            return
+        corners = []
+        for px, py in loops[0]:
+            q = _add(o, _add(_mul(x, px), _mul(y, py)))
+            corners.append(q)
+            corners.append(_add(q, _mul(ex.dir, ex.depth)))
+        self.entries.append((part, ("ext", o, x, y, ex.dir, ex.depth,
+                                    loops[0], loops[1:]), _box(corners)))
+
+    @staticmethod
+    def _inside(geo, p):
+        kind, o, a, b, d, depth, outer, inner = geo
+        r = _sub(p, o)
+        h = _dot(r, d)
+        if h < -1e-6 or h > depth + 1e-6:
+            return False
+        q = (_dot(r, a), _dot(r, b))
+        if not point_in_poly(q, outer):
+            return False
+        return not any(point_in_poly(q, l) for l in inner)
+
+    def grip(self, point, d):
+        """(start, end, grip mm, parts crossed) of the material a bolt line
+        passes through around point, or None. start is on the far side from
+        end along d."""
+        reach = BOLT_REACH_MM
+        lo = _sub(point, _mul(d, reach))
+        hi = _add(point, _mul(d, reach))
+        seg = _box([lo, hi])
+        near = [(part, geo) for part, geo, box in self.entries
+                if _boxes_meet(seg, box)]
+        if not near:
+            return None
+        steps = int(2 * reach / BOLT_STEP_MM) + 1
+        hits = []
+        for i in range(steps):
+            s = -reach + i * BOLT_STEP_MM
+            p = _add(point, _mul(d, s))
+            inside = [part for part, geo in near if self._inside(geo, p)]
+            hits.append((s, inside))
+        runs = []
+        cur = None
+        for s, inside in hits:
+            if inside:
+                if cur is not None and s - cur[1] <= BOLT_GAP_MM + 1e-9:
+                    cur[1] = s
+                    cur[2].update(id(p) for p in inside)
+                    cur[3].extend(p for p in inside if id(p) not in cur[4])
+                    cur[4].update(id(p) for p in inside)
+                else:
+                    cur = [s, s, set(id(p) for p in inside), list(inside),
+                           set(id(p) for p in inside)]
+                    runs.append(cur)
+        if not runs:
+            return None
+        best = min(runs, key=lambda r: 0.0 if r[0] <= 0 <= r[1]
+                   else min(abs(r[0]), abs(r[1])))
+        s0 = best[0] - BOLT_STEP_MM / 2.0
+        s1 = best[1] + BOLT_STEP_MM / 2.0
+        crossed = []
+        seen = set()
+        for p in best[3]:
+            if id(p) not in seen:
+                seen.add(id(p))
+                crossed.append(p)
+        return (_add(point, _mul(d, s0)), _add(point, _mul(d, s1)), s1 - s0,
+                crossed)
+
+
+def _box(pts):
+    return (tuple(min(p[i] for p in pts) for i in range(3)),
+            tuple(max(p[i] for p in pts) for i in range(3)))
+
+
+def _boxes_meet(a, b, pad=1.0):
+    return all(a[0][i] <= b[1][i] + pad and b[0][i] <= a[1][i] + pad
+               for i in range(3))
+
+
+ANCHOR_NAME = re.compile(r"CHEM|ANCHOR|HOLD.?DOWN|(?<![A-Z])HD(?![A-Z])|"
+                         r"MASONRY|EPOXY|EXPANSION", re.I)
+_ANCHOR_LEN = re.compile(r"M\s*\d{1,2}\s*[X*_ -]?\s*(\d{2,4})(?!\d)", re.I)
+
+
+def _axis_extent(part, point, d):
+    """(low, high) of a fastener's geometry along its line, from point."""
+    lo, hi = 1e30, -1e30
+    for s in part.solids:
+        pts = []
+        if isinstance(s, Extrusion) and s.profile is not None:
+            o, x, y = s.plane
+            for px, py in loop_points(s.profile.loops[0]):
+                q = _add(o, _add(_mul(x, px), _mul(y, py)))
+                pts.append(q)
+                pts.append(_add(q, _mul(s.dir, s.depth)))
+        elif isinstance(s, Brep):
+            pts = [q for f in s.faces for loop in f for q in loop]
+        for q in pts:
+            t = _dot(_sub(q, point), d)
+            lo = min(lo, t)
+            hi = max(hi, t)
+    return (lo, hi) if lo <= hi else None
+
+
+def anchor_length(props):
+    """Anchor length from its name (CHEMSET_M16260 is M16 x 260), or None."""
+    for k in ("Bolt Name", "_Description", "Description", "Name"):
+        m = _ANCHOR_LEN.search(safe_text((props or {}).get(k) or u""))
+        if m and 50 <= int(m.group(1)) <= 3000:
+            return float(m.group(1))
+    return None
+
+
+_NOMINAL_LEN = re.compile(r"M\s*\d{1,2}(?:\.\d)?\s*[X*]\s*(\d{1,4})(?!\d)", re.I)
+
+
+# Grating names (ProStructures A325MSG, C325MPG...): clipped down, not anchored.
+GRATING_NAME = re.compile(r"GRAT|\d{3}M[SP][GU]\b", re.I)
+
+
+def nominal_length(props):
+    """The bolt length the IFC states (M20 x 45, BOLTM16*25, Nominal
+    Length), 0 for a nut-only fastener (M16 x 0), or None when not given."""
+    props = props or {}
+    for k in ("_Description", "Description", "Bolt Name"):
+        m = _NOMINAL_LEN.search(safe_text(props.get(k) or u""))
+        if m:
+            return float(m.group(1))
+    for k in ("Nominal Length", "_NominalLength"):
+        try:
+            v = float(props.get(k))
+        except (TypeError, ValueError):
+            continue
+        return v
+    return None
+
+
+def _base_plate_bolt(crossed, d, names):
+    """A vertical bolt through a single plate (not a grating) with nothing
+    modelled under it: it goes into concrete or steel outside the model."""
+    return len(crossed) == 1 and crossed[0].ifc_type == "IFCPLATE" and \
+        abs(d[2]) > 0.9 and not ANCHOR_NAME.search(names) and \
+        not GRATING_NAME.search(crossed[0].section or u"")
+
+
+def _rod_along(part, d):
+    """True for a round bar or threaded rod running along d: a fastener on
+    it is a nut, not a bolt."""
+    m = part.member
+    if m is None:
+        return False
+    word = (name_key(part.section) or (u"",))[0]
+    if m.profile.kind != "C" and word != "ROD":
+        return False
+    md = m.direction
+    return md is not None and abs(_dot(md, d)) > 0.98
+
+
+def plan_bolts(parts, index):
+    """Native bolt and anchor specs for the fasteners in parts, and the ones
+    that could not be placed [(part, why)].
+
+    A fastener is an anchor (base plate hold-down, chemical anchor) when its
+    geometry runs well past the joint on one side, or its name says so; its
+    top is the short side, where the nut is."""
+    bolts, skipped = [], []
+    for part in parts:
+        if part.ifc_type not in ("IFCMECHANICALFASTENER", "IFCFASTENER"):
+            continue
+        diameter, grade, site = bolt_size(part.props)
+        if not diameter:
+            skipped.append((part, u"no bolt size"))
+            continue
+        nominal = nominal_length(part.props)
+        if nominal is not None and nominal <= 0:
+            skipped.append((part, u"a nut only (bolt length 0), e.g. on a "
+                                  u"threaded rod"))
+            continue
+        axes = bolt_axes(part)
+        if not axes:
+            skipped.append((part, u"no bolt line in the geometry"))
+            continue
+        names = u" ".join(safe_text((part.props or {}).get(k) or u"") for k in
+                          ("Bolt Name", "_Description", "Description")) +             u" " + safe_text(part.name)
+        for point, d in axes:
+            g = index.grip(point, d)
+            if g is None:
+                skipped.append((part, u"passes through no plate or member"))
+                continue
+            start, end, grip, crossed = g
+            if any(_rod_along(c, d) for c in crossed):
+                skipped.append((part, u"a nut on a threaded rod"))
+                continue
+            if _base_plate_bolt(crossed, d, names):
+                skipped.append((part, u"a base plate bolt (left out; rods "
+                                      u"and anchors are kept)"))
+                continue
+            spec = {"part": part, "head": end,
+                    "normal": _unit(_sub(end, start)), "grip": grip,
+                    "diameter": diameter, "grade": grade, "site": site,
+                    "crossed": crossed, "anchor": False, "length": None,
+                    "nominal": nominal}
+            ext = _axis_extent(part, point, d)
+            if ext is not None:
+                t0 = _dot(_sub(start, point), d)
+                t1 = _dot(_sub(end, point), d)
+                below = t0 - ext[0]         # past the joint on the start side
+                above = ext[1] - t1         # past it on the end side
+                long_side = max(below, above)
+                if long_side > max(60.0, 4.0 * diameter) or                         ANCHOR_NAME.search(names):
+                    spec["anchor"] = True
+                    if above > below:       # embedded towards the end side
+                        spec["head"] = start
+                        spec["normal"] = _mul(spec["normal"], -1.0)
+                    spec["length"] = anchor_length(part.props) or nominal or                         (ext[1] - ext[0])
+            bolts.append(spec)
+    return bolts, skipped
+
+
+def _face_normal(loop):
+    """Newell normal (length = 2 x area) of a 3D polygon."""
+    nx = ny = nz = 0.0
+    m = len(loop)
+    for i in range(m):
+        a = loop[i]
+        b = loop[(i + 1) % m]
+        nx += (a[1] - b[1]) * (a[2] + b[2])
+        ny += (a[2] - b[2]) * (a[0] + b[0])
+        nz += (a[0] - b[0]) * (a[1] + b[1])
+    return (nx, ny, nz)
+
+
+def _brep_plate(br):
+    """A faceted solid as a plate: its biggest face, a matching opposite face
+    a thickness away, every corner on one of the two, square sides."""
+    faces = []
+    for face in br.faces:
+        if not face or len(face[0]) < 3:
+            continue
+        nv = _face_normal(face[0])
+        area = _len(nv) / 2.0
+        if area <= 0:
+            continue
+        faces.append((area, _unit(nv), face))
+    if len(faces) < 4:
+        return None
+    faces.sort(key=lambda f: -f[0])
+    area, n, top = faces[0]
+    if len(top) != 1:
+        return None                 # holes are not made on plates yet
+    p0 = top[0][0]
+    bottom = None
+    for a2, n2, f2 in faces[1:]:
+        if _dot(n, n2) < -0.9999 and abs(a2 - area) <= 0.01 * area:
+            bottom = (a2, n2, f2)
+            break
+    if bottom is None:
+        return None
+    offset = _dot(_sub(bottom[2][0][0], p0), n)
+    thickness = abs(offset)
+    if thickness <= 0 or thickness * thickness > area:
+        return None                 # thicker than it is wide: not a plate
+    for a2, n2, f2 in faces:
+        if f2 is top or f2 is bottom[2]:
+            continue
+        if abs(_dot(n2, n)) > PLATE_SQUARE_COS:
+            return None             # a bevelled or stepped side
+    for a2, n2, f2 in faces:
+        for loop in f2:
+            for q in loop:
+                h = abs(_dot(_sub(q, p0), n))
+                if min(h, abs(h - thickness)) > PLATE_FLAT_MM:
+                    return None
+    # the thickness runs from the top face towards the opposite one (face
+    # winding in IFC files is not always outward, so it is not trusted)
+    return {"outline": list(top[0]),
+            "normal": n if offset > 0 else _mul(n, -1.0),
+            "thickness": thickness}
 
 
 # ── SEED FILES ──────────────────────────────────────────────────────────────
@@ -999,7 +1657,7 @@ def library_entries(app):
     if cache_path:
         try:
             with open(cache_path, "wb") as f:
-                f.write(json.dumps(new_cache).encode("utf-8"))
+                f.write(json_text(new_cache).encode("utf-8"))
         except Exception:
             pass
     return out
@@ -1508,6 +2166,240 @@ class Categories(object):
         return hit
 
 
+STEEL_ASSEMBLIES = ("ASGeometryMgd", "ASObjectsMgd", "Autodesk.SteelConnectionsDB")
+
+
+def steel_api():
+    """Revit's steel fabrication types (the Steel tab's Plate), or None when
+    this Revit has no steel connections add-in."""
+    import clr
+    import System
+    loaded = dict((a.GetName().Name, a)
+                  for a in System.AppDomain.CurrentDomain.GetAssemblies())
+    folder = os.path.join(os.path.dirname(
+        System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName),
+        "AddIns", "SteelConnections")
+    try:
+        for name in STEEL_ASSEMBLIES:
+            if name in loaded:
+                clr.AddReference(loaded[name])
+            else:
+                clr.AddReferenceToFileAndPath(os.path.join(folder, name + ".dll"))
+        from Autodesk.AdvanceSteel.Geometry import Point3d, Vector3d
+        from Autodesk.AdvanceSteel.Geometry import Plane as SteelPlane
+        from Autodesk.AdvanceSteel.Modelling import Plate, \
+            InfinitMidScrewBoltPattern, AnchorPattern, PlateFeatContour
+        from Autodesk.AdvanceSteel.Geometry import Point2d, Matrix2d
+        from Autodesk.AdvanceSteel.CADAccess import FilerObject
+        from Autodesk.AdvanceSteel.ConstructionTypes import AtomicElement
+        from Autodesk.SteelConnectionsDB import FabricationTransaction
+    except Exception:
+        return None
+    return {"point": Point3d, "vector": Vector3d, "plane": SteelPlane,
+            "plate": Plate, "bolt": InfinitMidScrewBoltPattern, "anchor": AnchorPattern,
+            "contour": PlateFeatContour, "point2d": Point2d, "matrix2d": Matrix2d,
+            "filer": FilerObject, "location": AtomicElement.eAssemblyLocation,
+            "transaction": FabricationTransaction}
+
+
+class PlateMaker(object):
+    """Native Revit steel plates (Structural Connections > Plates).
+
+    Measured in Revit 2026: a plate made on a plane with normal n and
+    Portioning 1 runs from the outline's plane a thickness along n, which is
+    the IFC extrusion exactly. Coordinates are internal, in millimetres. The
+    new plates come out in the order they were written, which is how each
+    one gets its part's Mark and Comments.
+    """
+
+    def __init__(self, doc, mapper):
+        self.doc = doc
+        self.mapper = mapper
+        self.api = steel_api()
+        self.cuts = 0
+        self.cuts_failed = 0
+
+    def _point(self, p):
+        q = self.mapper.point(p)
+        return self.api["point"](q[0] * MM_PER_FT, q[1] * MM_PER_FT,
+                                 q[2] * MM_PER_FT)
+
+    def make(self, specs, bolts=(), progress=None):
+        """Write plates for [(part, spec)] and bolts (see plan_bolts) inside
+        the open Revit transaction. Returns (made plate parts, [(part, why)]
+        plates that failed, bolts made, [(part, why)] bolts that failed).
+
+        Each plate is found again by its fabrication GUID, so a plate Revit
+        made although WriteToDb complained counts as made (it is not made a
+        second time as a shape), and Mark/Comments land on the right plate.
+        Bolts are written in the same steel transaction so they can connect
+        to the plates they pass through (Revit then drills those plates)."""
+        import System
+        from Autodesk.Revit.DB.Steel import SteelElementProperties
+        api = self.api
+        written = []            # (part, guid or None, error text)
+        plates = {}             # id(part) -> steel plate object
+        bolts_written = []      # (bolt spec, guid or None, error text)
+        fab = api["transaction"](self.doc, False, TITLE + " plates", True)
+        try:
+            for i, (part, spec) in enumerate(specs):
+                if progress is not None and i % SHOW_EVERY == 0:
+                    progress(u"Steel plates", u"{} {:g} mm".format(
+                        part.section or part.name, spec["thickness"]), i)
+                plate = None
+                error = u""
+                try:
+                    outline = drop_inline(spec["outline"])
+                    if len(outline) < 3:
+                        raise ValueError("outline has no area")
+                    pts = [self._point(p) for p in outline]
+                    n = self.mapper.vector(spec["normal"])
+                    plane = api["plane"](pts[0], api["vector"](n[0], n[1], n[2]))
+                    arr = System.Array[api["point"]](pts)
+                    plate = api["plate"](plane, arr, float(spec["thickness"]))
+                    plate.Portioning = 1.0
+                    plate.WriteToDb()
+                except Exception as ex:
+                    error = safe_text(ex)
+                if plate is not None and not error:
+                    for loop in spec.get("cuts") or ():
+                        try:
+                            self._cut(plate, loop)
+                            self.cuts += 1
+                        except Exception:
+                            self.cuts_failed += 1
+                guid = None
+                if plate is not None:
+                    try:
+                        guid = plate.GetUniqueId()
+                    except Exception:
+                        guid = None
+                    if not error:
+                        plates[id(part)] = (plate, float(spec["thickness"]))
+                written.append((part, guid, error))
+            for j, b in enumerate(bolts):
+                if progress is not None and j % SHOW_EVERY == 0:
+                    progress(u"Anchors" if b.get("anchor") else u"Bolts",
+                             u"M{:g} {}".format(b["diameter"], b["grade"]),
+                             len(specs) + j)
+                pattern = None
+                error = u""
+                try:
+                    pattern = self._bolt(b, plates)
+                except Exception as ex:
+                    error = safe_text(ex)
+                guid = None
+                if pattern is not None:
+                    try:
+                        guid = pattern.GetUniqueId()
+                    except Exception:
+                        guid = None
+                bolts_written.append((b, guid, error))
+            fab.Commit()
+        finally:
+            fab.Dispose()
+
+        def element(guid):
+            if guid is None or guid == System.Guid.Empty:
+                return None
+            try:
+                ref = SteelElementProperties.GetReference(self.doc, guid)
+                return self.doc.GetElement(ref) if ref is not None else None
+            except Exception:
+                return None
+
+        made, failed = [], []
+        for part, guid, error in written:
+            el = element(guid)
+            if el is None:
+                failed.append((part, error or u"Revit made no plate"))
+                continue
+            set_param(el, DB.BuiltInParameter.ALL_MODEL_MARK, part.mark or u"")
+            set_param(el, DB.BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS,
+                      comments(part))
+            made.append(part)
+        bolts_made, bolts_failed = [], []
+        for b, guid, error in bolts_written:
+            el = element(guid)
+            if el is None:
+                bolts_failed.append((b["part"], error or u"Revit made no bolt"))
+                continue
+            part = b["part"]
+            set_param(el, DB.BuiltInParameter.ALL_MODEL_MARK, part.mark or u"")
+            set_param(el, DB.BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS,
+                      u"{} | {}M{:g} {} | {} | {}".format(
+                          ifc_class(part.ifc_type),
+                          u"anchor " if b.get("anchor") else u"",
+                          b["diameter"], b["grade"],
+                          u"length {:.0f}".format(b["length"]) if b.get("anchor")
+                          else u"grip {:.0f}".format(b["grip"]),
+                          part.assembly or part.name))
+            bolts_made.append(b)
+        return made, failed, bolts_made, bolts_failed
+
+    def _cut(self, plate, loop):
+        """A contour cut through a plate (the Steel tab's Contour Cut): a hole
+        where the outline is inside the plate, a notch where it crosses the
+        edge. Its points are in the plate's own system (measured in Revit
+        2026: origin on the plate's first corner), so world points go through
+        the inverse of the plate's CS."""
+        import System
+        api = self.api
+        inv = plate.CS.GetInverse()
+        pts = []
+        for q in loop:
+            p = self._point(q)
+            moved = p.TransformBy(inv)
+            if moved is not None:
+                p = moved
+            pts.append(api["point2d"](p.x, p.y))
+        feat = api["contour"](api["matrix2d"](),
+                              System.Array[api["point2d"]](pts))
+        plate.AddFeature(feat)
+
+    def _bolt(self, b, plates):
+        """One bolt: a 1 x 1 bolt pattern centred on the head-side face of the
+        joint, its normal pointing out of the joint (measured in Revit 2026;
+        a circle pattern will not take radius 0 and puts the bolt 100 mm off),
+        connected to the native plates it passes through. Revit works the
+        grip out from those plates; the rest of the IFC grip (plies that are
+        members or shapes) goes in as Grip Length Increase."""
+        import System
+        api = self.api
+        n = _unit(self.mapper.vector(b["normal"]))
+        ref = (1.0, 0.0, 0.0) if abs(n[0]) < 0.9 else (0.0, 1.0, 0.0)
+        vx = _unit(_cross(n, ref))
+        vy = _cross(n, vx)
+        kind = "anchor" if b.get("anchor") else "bolt"
+        pattern = api[kind](self._point(b["head"]),
+                            api["vector"](vx[0], vx[1], vx[2]),
+                            api["vector"](vy[0], vy[1], vy[2]))
+        pattern.Nx = 1
+        pattern.Ny = 1
+        if kind == "bolt":
+            pattern.Standard = BOLT_STANDARD
+            pattern.Grade = b["grade"]
+        pattern.ScrewDiameter = float(b["diameter"])
+        if kind == "anchor" and b.get("length"):
+            pattern.ScrewLength = float(b["length"])
+        pattern.WriteToDb()
+        hit = [plates[id(p)] for p in b["crossed"] if id(p) in plates]
+        if hit:
+            loc = api["location"].kOnSite if b["site"] else api["location"].kInShop
+            pattern.Connect(System.Array[api["filer"]]([o for o, t in hit]), loc)
+            if kind == "anchor":
+                return pattern      # its length is its own, not the grip
+            # Revit sets the grip from the connected plates only; plies that
+            # are members or shapes are added as Grip Length Increase
+            extra = float(b["grip"]) - sum(t for o, t in hit)
+        elif kind == "bolt":
+            pattern.BindingLength = float(b["grip"])
+            extra = 0.0
+        if extra > 0.5:
+            pattern.BindingLengthAddition = extra
+        return pattern
+
+
 # ── IMPORT ──────────────────────────────────────────────────────────────────
 
 def ifc_class(t):
@@ -1609,6 +2501,12 @@ class Importer(object):
         self.fallback = []      # natives that became shapes
         self.cats = Categories(doc)
         self.maker = ShapeMaker(doc, mapper)
+        self.plates = 0
+        self.plate_failed = []  # (part, why) made as shapes instead
+        self.bolts = 0
+        self.anchors = 0
+        self.shape_families = None  # _shape_families.ShapeFamilyResult
+        self.bolt_failed = []   # (fastener part, why)
 
     # -- levels -----------------------------------------------------------------
 
@@ -1716,7 +2614,11 @@ class Importer(object):
             batch = plans[start:start + BATCH]
             t = start_transaction(self.doc, TITLE)
             made = []
-            for plan in batch:
+            for k, plan in enumerate(batch):
+                if k % SHOW_EVERY == 0:
+                    show_progress(pb, u"Native members", u"{} as {}".format(
+                        plan.part.section, plan.entry.type_name),
+                        done + start + k, total)
                 try:
                     self.create(plan)
                     made.append(plan)
@@ -1757,6 +2659,40 @@ class Importer(object):
                 pb.update_progress(done + start + len(batch), total)
         return True
 
+    # -- plates -----------------------------------------------------------------
+
+    def steel_of(self, specs, bolts, maker, pb=None, done=0, total=1):
+        """Native plates for [(part, spec)] and native bolts, in one steel
+        transaction so bolts can connect to the plates. Plate failures go to
+        plate_failed (they become shapes), bolt failures to bolt_failed."""
+        if pb is not None and pb.cancelled:
+            return False
+        t = start_transaction(self.doc, TITLE + " plates and bolts")
+
+        def progress(stage, what, i):
+            show_progress(pb, stage, what, done + i, total)
+
+        try:
+            made, failed, bmade, bfailed = maker.make(specs, bolts, progress)
+        except Exception as ex:
+            made, bmade = [], []
+            failed = [(p, safe_text(ex)) for p, s in specs]
+            bfailed = [(b["part"], safe_text(ex)) for b in bolts]
+        if t.Commit() == DB.TransactionStatus.Committed:
+            self.plates += len(made)
+            self.plate_failed.extend(failed)
+            self.bolts += len([b for b in bmade if not b.get("anchor")])
+            self.anchors += len([b for b in bmade if b.get("anchor")])
+            self.bolt_failed.extend(bfailed)
+        else:
+            self.plate_failed.extend((p, u"Revit rolled the plates back")
+                                     for p, s in specs)
+            self.bolt_failed.extend((b["part"], u"Revit rolled the bolts back")
+                                    for b in bolts)
+        if pb is not None:
+            pb.update_progress(done + len(specs) + len(bolts), total)
+        return True
+
     # -- shapes -----------------------------------------------------------------
 
     def shapes_of(self, parts, pb=None, done=0, total=1):
@@ -1767,9 +2703,11 @@ class Importer(object):
             batch = parts[start:start + BATCH]
             t = start_transaction(self.doc, TITLE)
             made = 0
-            for part in batch:
+            for k, part in enumerate(batch):
                 ds = None
                 label = part.section or part.name or ifc_class(part.ifc_type)
+                if k % SHOW_EVERY == 0:
+                    show_progress(pb, u"Shapes", label, done + start + k, total)
                 try:
                     geo = self.maker.geometry(part)
                     if not geo:
@@ -1804,6 +2742,28 @@ class Importer(object):
             if pb is not None:
                 pb.update_progress(done + start + len(batch), total)
         return True
+
+
+SHOW_EVERY = 5              # progress bar updates every this many items
+
+
+def show_progress(pb, stage, what, value, total):
+    """Progress bar title that says what is being made, e.g.
+    'Native members: 180PFC20.9 (131 of 415)'."""
+    if pb is None:
+        return
+    text = safe_text(what or u"").strip()
+    # the title is a format string: braces in names ({WG} marks) would break it
+    text = text.replace(u"{", u"(").replace(u"}", u")")
+    pb.title = u"{}{} ({{value}} of {{max_value}})".format(
+        stage, u": " + text if text else u"")
+    pb.update_progress(value, max(total, 1))
+
+
+def _part_marks(inst, part):
+    set_param(inst, DB.BuiltInParameter.ALL_MODEL_MARK, part.mark or u"")
+    set_param(inst, DB.BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS,
+              comments(part))
 
 
 def _clean_name(name):
@@ -1893,6 +2853,7 @@ def run(doc, ifc_path, source_name=None):
         return False
     mapper = make_mapper(doc, model, placement)
 
+
     with forms.ProgressBar(title="Reading family types...") as pb:
         pb.update_progress(1, 3)
         entries = loaded_entries(doc)
@@ -1942,6 +2903,63 @@ def run(doc, ifc_path, source_name=None):
                 plans.append(Plan(part, use, cat, mode, res, how))
         natives_by_key[key] = (res, how, len(groups[key]["parts"]))
 
+    # flat plates can be Revit's own steel plates instead of shapes
+    plate_specs = []
+    plate_maker = None
+    candidates = [(p, plate_spec(p)) for p in shape_parts]
+    candidates = [(p, s) for p, s in candidates if s is not None]
+    kept = []
+    for p, s in candidates:
+        cuts = plate_cuts(s, p.openings) if p.openings else []
+        if cuts is None:                # an opening a contour cut cannot make
+            continue
+        s["cuts"] = cuts
+        kept.append((p, s))
+    candidates = kept
+    if candidates:
+        plate_maker = PlateMaker(doc, mapper)
+        if plate_maker.api is not None:
+            choice = forms.CommandSwitchWindow.show(
+                [PLATES_NATIVE, PLATES_SHAPE],
+                message="Make the {} flat plates as".format(len(candidates)))
+            if not choice:
+                return False
+            if choice == PLATES_NATIVE:
+                plate_specs = candidates
+                taken = set(id(p) for p, s in candidates)
+                shape_parts = [p for p in shape_parts if id(p) not in taken]
+
+    # bolts can be Revit's own steel bolts
+    bolt_specs = []
+    bolt_skipped = []
+    fasteners = [p for p in model.parts
+                 if p.ifc_type in ("IFCMECHANICALFASTENER", "IFCFASTENER")]
+    if fasteners:
+        if plate_maker is None:
+            plate_maker = PlateMaker(doc, mapper)
+        if plate_maker.api is not None:
+            choice = forms.CommandSwitchWindow.show(
+                [BOLTS_NATIVE, BOLTS_SKIP],
+                message="The IFC has {} bolt assemblies".format(len(fasteners)))
+            if not choice:
+                return False
+            if choice == BOLTS_NATIVE:
+                index = SolidIndex(model.parts, plate_specs)
+                bolt_specs, bolt_skipped = plan_bolts(fasteners, index)
+
+    # repeated custom shapes can be one family each, placed at every copy
+    shape_groups = []
+    repeats = repeated_shapes(shape_parts)
+    if repeats:
+        choice = forms.CommandSwitchWindow.show(
+            [REPEATS_FAMILY, REPEATS_SHAPE],
+            message="{} parts are custom shapes ({} different ones)".format(
+                sum(len(g[3]) for g in repeats), len(repeats)))
+        if not choice:
+            return False
+        if choice == REPEATS_FAMILY:
+            shape_groups = repeats
+
     group = DB.TransactionGroup(doc, TITLE)
     group.Start()
     try:
@@ -1973,14 +2991,32 @@ def run(doc, ifc_path, source_name=None):
                 wanted.append((plan.entry.symbol, plan.mode))
         importer.probes = probe_symbols(doc, wanted, importer.levels[0])
 
-        total = len(plans) + len(shape_parts)
-        with forms.ProgressBar(title="Importing... ({value} of {max_value})",
+        total = len(plans) + len(plate_specs) + len(bolt_specs) + len(shape_parts)
+        with forms.ProgressBar(title="Starting... ({value} of {max_value})",
                                cancellable=True) as pb:
             ok = importer.natives(plans, pb, 0, total)
             shape_parts.extend(p.part for p, why in importer.fallback)
-            total = len(plans) + len(shape_parts)
+            total = len(plans) + len(plate_specs) + len(bolt_specs) + len(shape_parts)
+            if ok and (plate_specs or bolt_specs):
+                importer.plate_maker = plate_maker
+                ok = importer.steel_of(plate_specs, bolt_specs, plate_maker, pb,
+                                       len(plans), total)
+                importer.bolt_failed[:0] = bolt_skipped
+                shape_parts.extend(p for p, why in importer.plate_failed)
+                total = len(plans) + len(plate_specs) + len(bolt_specs) + len(shape_parts)
+            if ok and shape_groups:
+                done = len(plans) + len(plate_specs) + len(bolt_specs)
+                taken = set(id(p) for g in shape_groups for p, f in g[3])
+                importer.shape_families = make_shape_families(
+                    doc, mapper, shape_groups, start_transaction, _part_marks,
+                    lambda i, n, part: show_progress(
+                        pb, u"Shape families", part.section or part.name,
+                        done + i, total))
+                placed = importer.shape_families.placed
+                shape_parts = [q for q in shape_parts if id(q) not in placed]
             if ok:
-                ok = importer.shapes_of(shape_parts, pb, len(plans), total)
+                ok = importer.shapes_of(shape_parts, pb, len(plans) +
+                                        len(plate_specs) + len(bolt_specs), total)
             cancelled = pb.cancelled
         if cancelled:
             group.RollBack()
@@ -2005,9 +3041,43 @@ def report(out, path, model, placement, imp, by_key, plans, bolts):
     natives = sum(imp.made.values())
     bits = [u"{} {}".format(v, k + ("es" if k == "brace" else "s"))
             for k, v in sorted(imp.made.items())]
-    out.print_md(u"**{}** native members ({}), **{}** shapes, **{}** bolt "
-                 u"parts skipped.".format(natives, u", ".join(bits) or u"none",
-                                          imp.shapes, bolts))
+    out.print_md(u"**{}** native members ({}), **{}** steel plates, **{}** "
+                 u"steel bolts, **{}** anchors, **{}** shapes. {} bolt, nut "
+                 u"and washer parts were not made as shapes.".format(
+                     natives, u", ".join(bits) or u"none", imp.plates,
+                     imp.bolts, imp.anchors, imp.shapes, bolts))
+    if imp.anchors:
+        out.print_md(u"Anchors use Revit's default anchor standard and snap "
+                     u"to its stock lengths; check them against the drawings.")
+    maker = getattr(imp, "plate_maker", None)
+    if maker is not None and (maker.cuts or maker.cuts_failed):
+        out.print_md(u"**{}** contour cuts made on plates from the IFC "
+                     u"openings{}.".format(maker.cuts, u", {} failed".format(
+                         maker.cuts_failed) if maker.cuts_failed else u""))
+    sf = imp.shape_families
+    if sf is not None:
+        out.print_md(u"**{}** repeated custom shapes made as **{}** Generic "
+                     u"Model families ({} as solids, {} as meshes), placed "
+                     u"**{}** times. Open a family to remodel all its "
+                     u"copies at once.".format(
+                         sf.families, sf.families, sf.solid, sf.mesh,
+                         sf.instances))
+        for e in sf.errors[:10]:
+            out.print_md(u"- {}".format(e))
+    if imp.plates or imp.bolts:
+        out.print_md(u"Revit draws steel plates and bolts only at the Fine "
+                     u"detail level. Bolts are {} with the IFC grade; their "
+                     u"grip comes from the IFC geometry.".format(BOLT_STANDARD))
+    if imp.bolt_failed:
+        out.print_md(u"### Bolts not made ({})".format(len(imp.bolt_failed)))
+        for part, why in imp.bolt_failed[:100]:
+            out.print_md(u"- {} {}: {}".format(
+                part.name or ifc_class(part.ifc_type), part.assembly, why))
+    if imp.plate_failed:
+        out.print_md(u"### Plates made as shapes instead ({})".format(
+            len(imp.plate_failed)))
+        for part, why in imp.plate_failed[:100]:
+            out.print_md(u"- {} {}: {}".format(part.section, part.mark, why))
 
     out.print_md(u"### Sections")
     lines = [u"| Section | Category | Count | Revit type | How |",

@@ -44,16 +44,47 @@ def is_bolt_name(text):
 
 _SHAPE_WORDS = ["PFC", "TFB", "SHS", "RHS", "CHS", "UB", "UC", "WB", "WC",
                 "EA", "UA", "BT", "CT", "FL", "FB", "PL", "RB", "SB", "ROD",
-                "DHS", "C", "Z"]
+                "REB", "TR", "DHS", "C", "Z"]
 _NUM = re.compile(r"\d+(?:\.\d+)?")
+
+# Placeholder profile names some exporters give every part (ProStructures
+# calls every member's profile "SHAPE"); they say nothing about the section.
+GENERIC_NAMES = {"SHAPE", "BENDSHAPE", "BENDSPLINESHAPE", "PLATE", "PROFILE",
+                 "3D SOLID", "SOLID", "BEAM", "COLUMN", "MEMBER", "UNNAMED",
+                 "DUMMY", "NONE"}
+
+# Nominal-bore pipe (AS 1074 / AS/NZS 1163 sizes): outside diameter, and the
+# wall thickness of light, medium and heavy pipe, all mm.
+NB_PIPES = {
+    15: (21.3, 2.0, 2.6, 3.2), 20: (26.9, 2.3, 2.6, 3.2),
+    25: (33.7, 2.6, 3.2, 4.0), 32: (42.4, 2.6, 3.2, 4.0),
+    40: (48.3, 2.9, 3.2, 4.0), 50: (60.3, 2.9, 3.6, 4.5),
+    65: (76.1, 3.2, 3.6, 4.5), 80: (88.9, 3.2, 4.0, 5.0),
+    90: (101.6, 3.6, 4.0, 5.0), 100: (114.3, 3.6, 4.5, 5.4),
+    125: (139.7, 5.0, 5.0, 5.4), 150: (165.1, 5.0, 5.0, 5.4),
+}
+_NB = re.compile(r"(\d+)\s*NB\b(?:\s*(LIGHT|LT|MEDIUM|MED|HEAVY|HVY|HY))?")
+
+
+def is_generic_name(text):
+    return not text or text.strip().upper() in GENERIC_NAMES
 
 
 def name_key(name):
     """(shape word, rounded numbers) from a section name, so Tekla's
-    'UB180*18', '180UB18.1' and 'UB 180x18' all give ('UB', (180, 18))."""
+    'UB180*18', '180UB18.1' and 'UB 180x18' all give ('UB', (180, 18)).
+    Nominal-bore pipe ('25NB MED BLK') gives its CHS size, ('CHS', (34, 3)),
+    and threaded rod / reinforcing bar names (TR16, REB12) a round bar."""
     if not name:
         return None
     up = re.sub(r"\(.*?\)", " ", name.upper())
+    m = _NB.search(up)
+    if m and int(m.group(1)) in NB_PIPES:
+        od, light, medium, heavy = NB_PIPES[int(m.group(1))]
+        grade = (m.group(2) or "MED")[:2]
+        t = {"LI": light, "LT": light, "HE": heavy, "HV": heavy,
+             "HY": heavy}.get(grade, medium)
+        return ("CHS", (int(round(od)), int(round(t))))
     word = None
     for w in _SHAPE_WORDS:
         if re.search(r"(?<![A-Z])" + w + r"(?![A-Z])", up) or \
@@ -64,7 +95,7 @@ def name_key(name):
     nums = tuple(int(round(float(n))) for n in _NUM.findall(up))
     if word is None or not nums:
         return None
-    if word in ("ROD", "RB"):
+    if word in ("ROD", "RB", "REB", "TR"):
         word = "ROD"
     if word in ("FL", "FB"):
         word = "FL"
@@ -624,6 +655,9 @@ class Part(object):
         self.mark = u""
         self.assembly = u""
         self.bolt = False
+        self.props = None       # fasteners only: their property values
+        self.openings = []      # solids the IFC cuts out of this part
+        self.assembly_id = None     # the IFC assembly's entity id, if any
         self.solids = []
         self.member = None
 
@@ -633,12 +667,19 @@ class Part(object):
 
     @property
     def section(self):
-        """The section name to match: profile name, else ObjectType, else Name."""
-        if self.member is not None and self.member.profile.name.strip():
-            return self.member.profile.name.strip()
-        for v in (self.object_type, self.name):
-            if v and name_key(v):
-                return v.strip()
+        """The section name to match: the profile name, ObjectType or Name,
+        the first that reads as a section; placeholder names such as
+        ProStructures' "SHAPE" are passed over."""
+        names = []
+        if self.member is not None:
+            names.append(self.member.profile.name)
+        names.extend([self.object_type, self.name])
+        names = [v.strip() for v in names if v and not is_generic_name(v)]
+        for v in names:
+            if name_key(v):
+                return v
+        if names:
+            return names[0]
         return (self.object_type or self.name or u"").strip()
 
 
@@ -735,6 +776,12 @@ def read_steel(path_or_ifc, progress=None):
         a = ifc.args(rel)
         for o in a[4] or []:
             psets.setdefault(o, []).append(a[5])
+    # openings that cut parts (ProStructures writes holes, notches and copes
+    # this way; Tekla puts its cuts in the body instead)
+    voids = {}
+    for rel in ifc.by_type("IFCRELVOIDSELEMENT"):
+        a = ifc.args(rel)
+        voids.setdefault(a[4], []).append(a[5])
 
     profiles = ProfileReader(ifc)
     bodies = BodyReader(ifc, profiles)
@@ -756,6 +803,7 @@ def read_steel(path_or_ifc, progress=None):
         part.mark = _find_mark(ifc, psets.get(eid, ()))
         if p is not None:
             pa = ifc.args(p)
+            part.assembly_id = p
             part.assembly = _text(pa[2]) or _text(pa[7] if len(pa) > 7 else None)
             if not part.material:
                 part.material = materials.get(p, u"")
@@ -763,6 +811,13 @@ def read_steel(path_or_ifc, progress=None):
                 part.mark = _find_mark(ifc, psets.get(p, ()))
         part.bolt = t in FASTENER_TYPES or \
             (p is not None and ifc.type_of(p) in FASTENER_TYPES)
+        if t in FASTENER_TYPES:
+            # what a native bolt needs: size, length, grade, site or shop
+            part.props = _flat_props(ifc, psets.get(eid, ()))
+            part.props[u"_Description"] = _text(a[3])
+            for i, key in ((8, u"_NominalDiameter"), (9, u"_NominalLength")):
+                if len(a) > i and isinstance(a[i], float):
+                    part.props[key] = a[i] * ifc.mm
         try:
             world = ifc.placement(a[5])
             part.solids = bodies.body(a, world)
@@ -771,6 +826,12 @@ def read_steel(path_or_ifc, progress=None):
             part.solids = []
         if not part.solids and t == "IFCELEMENTASSEMBLY":
             continue
+        for op in voids.get(eid, ()):
+            try:
+                oa = ifc.args(op)
+                part.openings.extend(bodies.body(oa, ifc.placement(oa[5])))
+            except Exception as ex:
+                bodies._skip("opening error: {}".format(ex))
         part.member = member_of(part.solids)
         if not part.bolt:
             names = [part.name, part.object_type]
@@ -817,6 +878,22 @@ def _material_name(ifc, ref):
     if t == "IFCMATERIALPROFILE":
         return _material_name(ifc, a[2])
     return u""
+
+
+def _flat_props(ifc, pset_refs):
+    """Every single-value property of a product, name -> value."""
+    out = {}
+    for ref in pset_refs:
+        if ifc.type_of(ref) != "IFCPROPERTYSET":
+            continue
+        for prop in ifc.args(ref)[4] or []:
+            if ifc.type_of(prop) != "IFCPROPERTYSINGLEVALUE":
+                continue
+            pa = ifc.args(prop)
+            v = pa[2][1] if isinstance(pa[2], tuple) else pa[2]
+            if v is not None:
+                out[_text(pa[0]).strip()] = v
+    return out
 
 
 def _find_mark(ifc, pset_refs):

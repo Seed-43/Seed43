@@ -5,14 +5,14 @@ tooltip: >
 
   Description:
 
-  Imports a Seed43 Studio .seed file into the model as DirectShapes, one
-  per element, in its own category with its name in Mark and its place
-  in the Studio tree in Comments. Reads the files made by 3D Seed and by
-  Navisworks' Export to Studio. Pick the file, untick any categories you
-  do not want, then choose where to place it and whether to make solids
-  or meshes. Shapes are not editable like native Revit elements. A .seed
-  made from an IFC is imported as with Steel IFC; one made from StruCad
-  or STEP has to be opened in Studio instead.
+  Imports a model into Revit, working out what to do from the file. A
+  steel fabrication IFC (Tekla Structures, ProStructures) becomes native
+  framing, braces and columns, Revit steel plates, bolts and anchors,
+  with sections matched to your family types and anything unmatched put
+  to you to map; your choices are remembered. A .seed from 3D Seed or
+  Navisworks' Export to Studio comes in as shapes, one per element, and
+  a .seed that holds an IFC is imported as that IFC. A report lists what
+  became what and anything that needs checking.
 
   __________________________________________________________________
 min_revit_ver: 2022

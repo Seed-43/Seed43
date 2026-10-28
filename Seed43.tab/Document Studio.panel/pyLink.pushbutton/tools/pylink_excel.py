@@ -56,7 +56,8 @@ from pylink_shared import (
     hb, Row, VIEW_TYPES, SRC_COLOURS, STATUS_COLOURS,
     _run_export_script, _confirm, _alert, set_view_pylink_data,
     load_excel_font_settings, _is_font_installed,
-    resolve_row_text_sizes,
+    resolve_row_text_sizes, NATIVE_SCALE_OPTIONS, DEFAULT_NATIVE_SCALE,
+    card_native_scale, native_text_type_mm,
 )
 
 _sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'format'))
@@ -96,6 +97,7 @@ class TableRow(object):
         self.sheet_name  = ''
         self.view_type   = VIEW_TYPE_SCHEDULE
         self.view_scale  = 1
+        self.native_scale = DEFAULT_NATIVE_SCALE   # card's schedule scale
         self.file_path   = ''
         self.auto_sync   = False
         self.font        = 'Arial'    # used for pyLink text type lookup
@@ -1153,12 +1155,20 @@ def apply_row(row):
     # Resolved here rather than inside each export script so the user is
     # asked once per row kind per project, whichever view type they
     # build first, and every later build finds the answer already given.
+    #
+    # Schedules no longer ask: they are built at Excel's own sizes times
+    # the card's scale (see NATIVE_SCALE_OPTIONS), so create_schedule.py
+    # works their text heights out itself.
     all_rows_for_size = [fields] + list(records)
-    try:
-        row_size_mm = resolve_row_text_sizes(doc, all_rows_for_size, cell_styles)
-    except Exception as ex:
-        logger.warning('text size resolve failed, using Excel sizes: {}'.format(ex))
+    if row.view_type == VIEW_TYPE_SCHEDULE:
         row_size_mm = {}
+    else:
+        try:
+            row_size_mm = resolve_row_text_sizes(doc, all_rows_for_size,
+                                                 cell_styles)
+        except Exception as ex:
+            logger.warning('text size resolve failed, using Excel sizes: {}'.format(ex))
+            row_size_mm = {}
     if row_size_mm:
         # A drafting view and a legend carry two text types, header and
         # data, so they take the answer for row 0 and the answer for the
@@ -1195,11 +1205,20 @@ def apply_row(row):
     # applied afterwards as instance-level formatting (view-specific
     # graphic override for colour, FormattedText for bold/italic/
     # underline) rather than by creating a new Type per combination.
+    #
+    # A schedule draws every cell at its own text type's size until Revit
+    # is made to redraw it, whatever size the cell itself was given - so
+    # its types are made at the size the scaled cells really draw at.
+    tt_hdr_mm, tt_dat_mm = size_hdr_mm, size_dat_mm
+    if row.view_type == VIEW_TYPE_SCHEDULE:
+        _scale = getattr(row, 'native_scale', DEFAULT_NATIVE_SCALE)
+        tt_hdr_mm = native_text_type_mm(hdr_pt or 10.0, _scale)
+        tt_dat_mm = native_text_type_mm(dat_pt or 10.0, _scale)
     hdr_tt = get_or_create_text_type(
-        font=font_name, size_mm=size_hdr_mm
+        font=font_name, size_mm=tt_hdr_mm
     )
     dat_tt = get_or_create_text_type(
-        font=font_name, size_mm=size_dat_mm
+        font=font_name, size_mm=tt_dat_mm
     )
     hdr_tt_id = hdr_tt.Id if hdr_tt else DB.ElementId.InvalidElementId
     dat_tt_id = dat_tt.Id if dat_tt else DB.ElementId.InvalidElementId
@@ -1225,6 +1244,7 @@ def apply_row(row):
         'hdr_tt_id':          hdr_tt_id,
         'dat_tt_id':          dat_tt_id,
         'view_scale':         row.view_scale,
+        'native_scale':       getattr(row, 'native_scale', DEFAULT_NATIVE_SCALE),
         'cell_styles':        cell_styles,
         'merges':             fmt.get('merges', []),
         'row_heights':        fmt.get('row_heights', {}),
@@ -1329,6 +1349,17 @@ def _hash_range(file_path, named_range, sheet_name):
 class ExcelCardMixin(object):
     """Excel-specific card/row UI methods, mixed into
     PyLinkWindow. Everything here assumes fd.get('source_type') == 'xl'."""
+
+    def _native_scale_changed(self, sender, e):
+        """Card scale dropdown -> remember the new scale for this card."""
+        fd = self._file_data.get(sender.Tag)
+        if fd is None or sender.SelectedItem is None:
+            return
+        try:
+            fd['native_scale'] = float(str(sender.SelectedItem))
+        except Exception:
+            return
+        self._save_persisted_state()
 
     def _make_excel_card(self, path):
         """Build the flat, single-card layout Excel cards use --
@@ -1446,6 +1477,22 @@ class ExcelCardMixin(object):
         lm_text.VerticalAlignment = VerticalAlignment.Center
         lm_text.Margin           = Thickness(10, 0, 0, 0)
         header_left.Children.Add(lm_text)
+
+        # Schedule scale - every schedule this card builds is drawn at
+        # Excel's own text, column and row sizes times this, so it keeps
+        # the sheet's proportions. Takes effect on the next Apply.
+        scale_combo = ComboBox()
+        self._combo_style(scale_combo, 64)
+        scale_combo.Margin = Thickness(6, 0, 0, 0)
+        scale_combo.ToolTip = ('Schedule scale: Excel text, column and row '
+                               'sizes multiplied by this')
+        for opt in NATIVE_SCALE_OPTIONS:
+            scale_combo.Items.Add(u'{:g}'.format(opt))
+        scale_combo.SelectedItem = u'{:g}'.format(card_native_scale(fd))
+        fd['native_scale'] = card_native_scale(fd)
+        scale_combo.Tag = path
+        scale_combo.SelectionChanged += self._native_scale_changed
+        header_right.Children.Add(scale_combo)
 
         # Quick Add — same action as the control-row Add button below,
         # placed here too for one-click access without scrolling past

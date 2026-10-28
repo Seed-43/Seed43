@@ -67,6 +67,20 @@ PT_TO_FT = 1.0 / 864.0  # points -> feet  (72pt/in, 12in/ft = 864)
 # requiring taller rows to maintain the same visual padding as Excel.
 ROW_H_FACTOR = 1.1339
 
+# TEST SWITCH. True builds the schedule at Excel's own sizes: the text at
+# its Excel point size, every column and row at its Excel width/height,
+# no autofit, no refit and none of the remembered Schedule Text Size
+# answers. For checking what the sheet looks like before pyLink adjusts
+# anything. False is normal behaviour.
+NATIVE_EXCEL_SIZES = True
+# With NATIVE_EXCEL_SIZES, the whole schedule - text, columns and rows -
+# is scaled by this, so it keeps Excel's proportions at a size that suits
+# the sheet. 1.0 is Excel's own size. Chosen per card in the pyLink window
+# (the dropdown beside + Add Row).
+NATIVE_SCALE = float(_p.get('native_scale') or 0.7)
+# Excel point size -> Revit text size; see pylink_shared.
+from pylink_shared import EXCEL_TO_REVIT_TEXT
+
 # Excel's default text colour. Used when a cell's font states no colour
 # of its own, which is what most writers emit for ordinary black text -
 # openpyxl, for one, writes <font><b/><sz val="10"/><name val="Arial"/></font>
@@ -415,14 +429,28 @@ from pylink_shared import (resolve_row_text_sizes, autofit_table,
 
 
 def _excel_row_font_pt(ri):
-    """The Excel point size a row was formatted at, or None."""
-    for (r, _c), style in cell_styles.items():
-        if r == ri and style.get('font_size'):
-            try:
-                return float(style['font_size'])
-            except (TypeError, ValueError):
-                continue
-    return None
+    """The Excel point size a row's TEXT is set in, or None.
+
+    Only cells that hold text count. The empty cells inside a merged
+    title or group heading still carry a font - openpyxl's default
+    Calibri 11 - and whichever cell the dict happened to yield first used
+    to set the whole row, so a 14pt title could come out at 11pt. The
+    largest size among the filled cells wins.
+    """
+    row_vals = all_rows[ri] if 0 <= ri < len(all_rows) else []
+    best = None
+    for (r, c), style in cell_styles.items():
+        if r != ri or not style.get('font_size'):
+            continue
+        if c >= len(row_vals) or not unicode(row_vals[c] or u'').strip():
+            continue
+        try:
+            pt = float(style['font_size'])
+        except (TypeError, ValueError):
+            continue
+        if best is None or pt > best:
+            best = pt
+    return best
 
 
 all_rows = [fields] + list(records)
@@ -431,7 +459,7 @@ all_rows = [fields] + list(records)
 # back keeps this script runnable on its own.
 row_size_mm = _p.get('row_size_mm') or {}
 row_size_mm = dict((int(k), float(v)) for k, v in row_size_mm.items())
-if not row_size_mm:
+if not row_size_mm and not NATIVE_EXCEL_SIZES:
     row_size_mm = resolve_row_text_sizes(doc, all_rows, cell_styles)
 logger.debug('row text sizes (mm): {}'.format(row_size_mm))
 # (the record is written once the row overrides below are known)
@@ -440,6 +468,20 @@ default_col_w_ft = max(20.0, 190.0 / n_cols) / 304.8
 col_w_ft = {}
 row_h_ft = {}
 row_overrides_mm = {}   # row heights the spreadsheet asked for, kept for Reset
+col_overrides_mm = {}   # column widths the spreadsheet asked for, likewise
+
+
+def _text_scale(ri):
+    """How much smaller this row's Revit text is than its Excel text."""
+    excel_pt = _excel_row_font_pt(ri)
+    chosen_mm = row_size_mm.get(ri)
+    if excel_pt and chosen_mm:
+        excel_mm = excel_pt * 25.4 / 72.0
+        if excel_mm > 0:
+            return chosen_mm / excel_mm
+    return 1.0
+
+
 try:
     fit_cols, fit_rows = autofit_table(
         all_rows, cell_styles, row_size_mm, n_cols,
@@ -449,10 +491,20 @@ try:
     for ri in fit_rows:
         row_h_ft[ri] = fit_rows[ri] / 304.8
 
-    # A size the user chose in Excel wins over the measured one.
+    # A width the user chose in Excel wins over the measured one, scaled
+    # by the body text the same way the row heights below are - a column
+    # sized around 10pt Excel text, copied literally around 2.5mm Revit
+    # text, is far too wide, and left to autofit it shrinks to the text
+    # and the schedule stops looking like the sheet. The Excel width is
+    # the real one (col_widths_excel), not the Revit-calibrated one. It
+    # never goes below the measured fit, so the text still can't clip.
+    _excel_col_mm = _p.get('col_widths_excel') or col_widths
+    col_scale = _text_scale(len(all_rows) - 1)
     for ci in custom_cols:
-        if ci in col_widths and 0 <= ci < n_cols:
-            col_w_ft[ci] = col_widths[ci] / 304.8
+        if ci in _excel_col_mm and 0 <= ci < n_cols:
+            w_mm = max(_excel_col_mm[ci] * col_scale, fit_cols[ci])
+            col_w_ft[ci] = w_mm / 304.8
+            col_overrides_mm[ci] = w_mm
 
     # Row heights are scaled by how much smaller the Revit text is than
     # Excel's. A 70pt row drawn around 10pt Excel text is "twice the text
@@ -464,13 +516,7 @@ try:
     for ri in custom_rows:
         if ri not in row_heights:
             continue
-        scale = 1.0
-        excel_pt = _excel_row_font_pt(ri)
-        chosen_mm = row_size_mm.get(ri)
-        if excel_pt and chosen_mm:
-            excel_mm = excel_pt * 25.4 / 72.0
-            if excel_mm > 0:
-                scale = chosen_mm / excel_mm
+        scale = _text_scale(ri)
         scaled_ft = row_heights[ri] * PT_TO_FT * ROW_H_FACTOR * scale
         row_h_ft[ri] = max(scaled_ft, fit_rows.get(ri, 0.0) / 304.8)
         row_overrides_mm[ri] = row_h_ft[ri] * 304.8
@@ -484,6 +530,26 @@ except Exception as ex:
     for ci in range(n_cols):
         w_mm = col_widths.get(ci)
         col_w_ft[ci] = (w_mm / 304.8) if w_mm else default_col_w_ft
+
+if NATIVE_EXCEL_SIZES:
+    # Throw away everything measured above and take Excel's numbers as
+    # they are: point size for the text, its real column widths (not the
+    # Revit-calibrated ones) and row heights straight from points.
+    for ri in range(len(all_rows)):
+        _pt = _excel_row_font_pt(ri)
+        row_size_mm[ri] = ((_pt or 10.0) * 25.4 / 72.0) \
+            * NATIVE_SCALE * EXCEL_TO_REVIT_TEXT
+    _native_col_mm = _p.get('col_widths_excel') or col_widths
+    for ci in range(n_cols):
+        if ci in _native_col_mm:
+            col_w_ft[ci] = _native_col_mm[ci] * NATIVE_SCALE / 304.8
+    _default_row_pt = _p.get('default_row_height') or DEFAULT_ROW_H_PT
+    for ri in range(len(all_rows)):
+        row_h_ft[ri] = (row_heights.get(ri, _default_row_pt) * PT_TO_FT
+                        * NATIVE_SCALE)
+    row_overrides_mm = {}
+    col_overrides_mm = {}
+    logger.debug('NATIVE_EXCEL_SIZES: text mm {}'.format(row_size_mm))
 
 # Cells the spreadsheet wrapped. Refit needs them because a Revit
 # TableCellStyle has no wrap flag to read back, and without them RESET
@@ -562,7 +628,8 @@ def _prewrapped(ri, ci, text):
 # Cell Sizes" returns the schedule to exactly how this import left it.
 try:
     store_schedule_row_sizes(doc, view_name, row_size_mm, row_overrides_mm,
-                             wrap_cells=wrap_cells)
+                             wrap_cells=wrap_cells,
+                             col_overrides_mm=col_overrides_mm)
 except Exception as ex:
     logger.debug('store_schedule_row_sizes: {}'.format(ex))
 
@@ -661,13 +728,6 @@ sched_def  = sched.Definition
 if _saved_params:
     logger.debug('Restored {}/{} view parameter(s)'.format(
         _restore_view_params(sched, _saved_params), len(_saved_params)))
-
-# ── Restore sheet placement(s) recorded above ─────────────────────────────────
-for _sheet_id, _point in _saved_placements:
-    try:
-        DB.ScheduleSheetInstance.Create(doc, _sheet_id, sched.Id, _point)
-    except Exception as _re:
-        logger.error('Could not restore schedule placement on sheet: {}'.format(_re))
 
 # ── Assembly Code field + two impossible filters = body always empty ──────────
 FIELD_ID_ASM_CODE = -1002500
@@ -784,8 +844,20 @@ for r1, c1, r2, c2 in merges:
         )
 
 # ── Input + Revit state report ───────────────────────────────────────────────
-from pyrevit import output as _out_mod
-_out = _out_mod.get_output()
+class _NoReport(object):
+    """Stand-in for the output window while SHOW_REPORT is off."""
+    def print_md(self, *args, **kwargs):
+        pass
+
+
+# The report below is for debugging pyLink itself. Printing it opens
+# pyRevit's output window on every build, so it stays off unless needed.
+SHOW_REPORT = False
+if SHOW_REPORT:
+    from pyrevit import output as _out_mod
+    _out = _out_mod.get_output()
+else:
+    _out = _NoReport()
 
 _out.print_md('---')
 _out.print_md('## pyLink Report: `{}`'.format(view_name))
@@ -924,8 +996,9 @@ for r1, c1, r2, c2 in merges:
 # are handed over so it doesn't have to infer them from the cells.
 try:
     from pylink_shared import refit_schedule, REFIT_RESET
-    refit_schedule(doc, sched, mode=REFIT_RESET, row_size_mm=row_size_mm,
-                   wrap_cells=wrap_cells)
+    if not NATIVE_EXCEL_SIZES:
+        refit_schedule(doc, sched, mode=REFIT_RESET,
+                       row_size_mm=row_size_mm, wrap_cells=wrap_cells)
 
     # The body section's single empty column was sized from the total
     # width worked out BEFORE this refit. Left alone it holds the whole
@@ -939,6 +1012,37 @@ try:
         _fitted_ft * 304.8))
 except Exception as ex:
     logger.warning('final refit failed, keeping autofit sizes: {}'.format(ex))
+
+# ── Schedule text types ───────────────────────────────────────────────────────
+# Revit draws a schedule's cells at the schedule's own text type size and
+# only switches to each cell's TextSize once something makes it redraw -
+# editing any one cell by hand did it, deleting and re-placing the
+# schedule did not. Left on the template's 2.5mm "Schedule Title" type,
+# the table showed text far bigger than it was set to. These types were
+# made at the size the cells draw at (see native_text_type_mm), so the
+# schedule looks right before and after any redraw. All of pyLink's
+# content sits in the Header section, which uses the title type; the
+# header and body types are set too so nothing falls back to 2.5mm.
+if NATIVE_EXCEL_SIZES and dat_tt_id and dat_tt_id != ElementId.InvalidElementId:
+    for _prop in ('TitleTextTypeId', 'HeaderTextTypeId', 'BodyTextTypeId'):
+        try:
+            setattr(sched, _prop, dat_tt_id)
+        except Exception as _tte:
+            logger.debug('{}: {}'.format(_prop, _tte))
+
+# ── Restore sheet placement(s) recorded above ─────────────────────────────────
+# Last, once the schedule is built. Placed straight after CreateSchedule,
+# the sheet kept drawing the empty schedule it was given - just the view
+# name as its title - even though the schedule itself filled in fine.
+try:
+    doc.Regenerate()
+except Exception as _rg:
+    logger.debug('Regenerate before placement: {}'.format(_rg))
+for _sheet_id, _point in _saved_placements:
+    try:
+        DB.ScheduleSheetInstance.Create(doc, _sheet_id, sched.Id, _point)
+    except Exception as _re:
+        logger.error('Could not restore schedule placement on sheet: {}'.format(_re))
 
 logger.debug('create_schedule complete: "{}" {}r x {}c'.format(
     view_name, hdr.NumberOfRows, hdr.NumberOfColumns

@@ -240,7 +240,7 @@ def store_project_text_size(doc, signature, size_mm):
 
 
 def store_schedule_row_sizes(doc, view_name, row_size_mm, row_overrides_mm=None,
-                             wrap_cells=None):
+                             wrap_cells=None, col_overrides_mm=None):
     """Record the text height actually used for each row of a schedule.
 
     Refit needs to know how tall the text is to work out how much room
@@ -270,6 +270,9 @@ def store_schedule_row_sizes(doc, view_name, row_size_mm, row_overrides_mm=None,
         # left it, rather than to something the import never produced.
         'rows': dict((str(ri), mm)
                      for ri, mm in (row_overrides_mm or {}).items()),
+        # Column widths the spreadsheet asked for, for the same reason.
+        'cols': dict((str(ci), mm)
+                     for ci, mm in (col_overrides_mm or {}).items()),
         # Cells the spreadsheet wrapped, as "row,col".
         'wrap': ['%d,%d' % (r, c) for r, c in sorted(wrap_cells or ())],
     }
@@ -304,6 +307,11 @@ def get_schedule_row_sizes(doc, view_name):
 def get_schedule_row_overrides(doc, view_name):
     """The row heights the spreadsheet asked for, {row: mm}."""
     return _schedule_record(doc, view_name, 'rows')
+
+
+def get_schedule_col_overrides(doc, view_name):
+    """The column widths the spreadsheet asked for, {col: mm}."""
+    return _schedule_record(doc, view_name, 'cols')
 
 
 def get_schedule_wrap_cells(doc, view_name):
@@ -946,10 +954,23 @@ def refit_schedule(doc, schedule, default_font='Arial', mode=REFIT_RESET,
         else:
             col_mm[c] = max(col_mm.get(c, 0.0), need)
 
+    # RESET puts the schedule back to how the import left it, so a column
+    # width the spreadsheet asked for is a floor here, just like the row
+    # heights below. Without it this pass shrank every column to its text
+    # and the schedule looked nothing like the sheet it came from.
+    if mode == REFIT_RESET:
+        try:
+            col_overrides = get_schedule_col_overrides(doc, schedule.Name)
+        except Exception:
+            col_overrides = {}
+    else:
+        col_overrides = {}
+
     for c in range(n_cols):
         col_mm[c] = min(REFIT_MAX_COL_MM,
                         max(AUTOFIT_MIN_COL_MM,
-                            col_mm.get(c, 0.0) + AUTOFIT_PAD_W_MM))
+                            col_mm.get(c, 0.0) + AUTOFIT_PAD_W_MM,
+                            col_overrides.get(c, 0.0)))
 
     for c, span, need in merged_needs:
         span_cols = list(range(c, min(c + span, n_cols)))
@@ -1379,18 +1400,20 @@ def save_pylink_state(file_data):
             pass
         cl = '1' if fd.get('collapsed') else '0'
         cv = '1' if fd.get('combine_views') else '0'
+        sc = card_native_scale(fd)
         if ss:
-            lines.append('CARD_SS-{}|CC-{}|VN-{}|VT-{}|RP-{}|UL-{}|PM-{}|LM-{}|AVN-{}|CAT-{}|CL-{}|CV-{}'.format(
-                ss, cc, vn, vt, rp_stored, ul, pm, lm, avn, card_at, cl, cv))
+            lines.append('CARD_SS-{}|CC-{}|VN-{}|VT-{}|RP-{}|UL-{}|PM-{}|LM-{}|AVN-{}|CAT-{}|CL-{}|CV-{}|SC-{}'.format(
+                ss, cc, vn, vt, rp_stored, ul, pm, lm, avn, card_at, cl, cv, sc))
         elif (rp != path or fd.get('unlinked') or pm != 'absolute'
                 or lm != 'manual' or avn or fd.get('collapsed')
-                or fd.get('combine_views')):
+                or fd.get('combine_views')
+                or sc != DEFAULT_NATIVE_SCALE):
             # Excel duplicate/unlinked cards have no sheet_size line,
             # still need real_path (and now unlink/path-mode/layout
             # mode/applied view name) recorded so they round-trip on
             # reload.
-            lines.append('CARD_RP-{}|UL-{}|PM-{}|LM-{}|AVN-{}|CAT-{}|CL-{}|CV-{}'.format(
-                rp_stored, ul, pm, lm, avn, card_at, cl, cv))
+            lines.append('CARD_RP-{}|UL-{}|PM-{}|LM-{}|AVN-{}|CAT-{}|CL-{}|CV-{}|SC-{}'.format(
+                rp_stored, ul, pm, lm, avn, card_at, cl, cv, sc))
     text = '\n'.join(lines)
     try:
         p = _get_pylink_param()
@@ -1404,6 +1427,55 @@ def save_pylink_state(file_data):
                 'cleared' if not text else 'saved', len(text)))
     except Exception as ex:
         logger.warning('pyLink save failed: {}'.format(ex))
+
+# ── Schedule scale ───────────────────────────────────────────────────────────
+# A schedule is built at Excel's own text, column and row sizes, all
+# multiplied by one scale chosen per card (the dropdown beside + Add Row).
+# It replaces the old per-row-kind "Excel Text Size" answers for schedules:
+# one number keeps every proportion of the sheet, where separate text and
+# cell sizes drifted apart.
+NATIVE_SCALE_OPTIONS = (0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
+DEFAULT_NATIVE_SCALE = 0.7
+
+# Excel's point size is the font's full em height; Revit's text size is
+# close to the height of a CAPITAL letter (0.716 em in Arial), so Excel
+# sizes copied straight across read about a quarter too large. Theory
+# says ~0.81. Set by eye on a sheet once the schedules drew at their
+# real size: 0.9 puts 10pt body text at 2.0mm in Revit at scale 0.7.
+EXCEL_TO_REVIT_TEXT = 0.9
+
+# A cell's TextSize is written as mm * 72/25.4 * 1.1812, and Revit then
+# reports - and draws - that cell at this fraction of the mm asked for
+# (10pt asked for, 3.1253mm shown against 3.528mm).
+REVIT_CELL_DRAW_RATIO = 0.8858
+
+
+def native_text_type_mm(excel_pt, scale):
+    """The TextNoteType size that draws the same as a schedule cell set
+    from `excel_pt` at `scale`. A schedule draws its cells at its own
+    text type's size until something makes Revit redraw them, so that
+    type has to match the cells or the schedule shows the wrong size."""
+    return (excel_pt * 25.4 / 72.0 * scale * EXCEL_TO_REVIT_TEXT
+            * REVIT_CELL_DRAW_RATIO)
+
+
+def _parse_native_scale(value):
+    """A stored SC- value, snapped to one of NATIVE_SCALE_OPTIONS."""
+    # NOTE: checked rather than caught - IronPython's float(None) raises a
+    # .NET NullReferenceException, not the TypeError CPython would.
+    if value is None or value == '':
+        return DEFAULT_NATIVE_SCALE
+    try:
+        value = float(value)
+    except Exception:
+        return DEFAULT_NATIVE_SCALE
+    return min(NATIVE_SCALE_OPTIONS, key=lambda o: abs(o - value))
+
+
+def card_native_scale(fd):
+    """The schedule scale a card is set to."""
+    return _parse_native_scale(fd.get('native_scale', DEFAULT_NATIVE_SCALE))
+
 
 def clear_pylink_state():
     """Blank pyLink's stored link list on Project Information.
@@ -1518,6 +1590,7 @@ def load_pylink_state():
                     current['applied_at'] = float(cat) if cat else None
                     current['collapsed'] = parts.get('CL') == '1'
                     current['combine_views'] = parts.get('CV') == '1'
+                    current['native_scale'] = _parse_native_scale(parts.get('SC'))
                     continue
                 if 'CARD_RP' in parts:
                     # Excel duplicate card, no sheet_size line, just the
@@ -1531,6 +1604,7 @@ def load_pylink_state():
                     current['applied_at'] = float(cat) if cat else None
                     current['collapsed'] = parts.get('CL') == '1'
                     current['combine_views'] = parts.get('CV') == '1'
+                    current['native_scale'] = _parse_native_scale(parts.get('SC'))
                     continue
                 mt = parts.get('MT', '')
                 at = parts.get('AT', '')

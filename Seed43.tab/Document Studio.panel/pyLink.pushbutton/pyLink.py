@@ -87,6 +87,7 @@ from pylink_shared import (
     load_excel_font_settings, save_excel_font_settings,
     get_installed_font_names,
     REFIT_RESET as _REFIT_RESET, REFIT_CURRENT as _REFIT_CURRENT,
+    DEFAULT_NATIVE_SCALE, card_native_scale,
 )
 from pylink_excel import (
     TableRow, get_named_ranges_from_workbook, apply_row, _hash_range,
@@ -1140,8 +1141,6 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             lambda s, ev: self._open_group_settings_editor()))
         panel.Children.Add(item(u'Word Text Size\u2026',
             lambda s, ev: self._open_word_text_settings_editor()))
-        panel.Children.Add(item(u'Excel Text Size\u2026',
-            lambda s, ev: self._open_schedule_text_settings_editor()))
         panel.Children.Add(item(u'Default Font\u2026',
             lambda s, ev: self._open_default_font_editor()))
         panel.Children.Add(self._make_menu_separator())
@@ -1539,6 +1538,18 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             self._progress_bar.Visibility = Visibility.Visible
         results = []
         total_run = len(run_rows)
+        _popup = self._progress_open(total_run)
+        try:
+            self._apply_run_rows(run_rows, results, total_run, _popup,
+                                 unchecked_cards)
+        finally:
+            self._progress_close(_popup)
+
+    def _apply_run_rows(self, run_rows, results, total_run, _popup,
+                        unchecked_cards):
+        """The body of Apply, split out so the processing popup is
+        always closed however it ends."""
+        _done = [0]
 
         # Group word rows by owning CARD, not by file — two duplicate
         # cards can point at the same underlying .docx but must still
@@ -1564,6 +1575,8 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             view_type  = wrows[0].ViewType
             sheet_size = fd.get('sheet_size', 'A3')
             col_count  = fd.get('col_count', 2)
+            self._progress_step(_popup, _done[0], total_run, view_name)
+            _done[0] += len(wrows)
             raw_sections = read_word_sections(real_path)
             labels       = get_word_headings(real_path)
             # Map display label -> section dict
@@ -1624,6 +1637,8 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         for i, row in enumerate(_xl_rows):
             self._set_status('Processing {} of {}...'.format(
                 i + 1, len(_xl_rows)))
+            self._progress_step(_popup, _done[0], total_run, row.ViewName)
+            _done[0] += 1
             if self._progress_bar is not None:
                 self._progress_bar.Value = int(
                     (i / float(total_run)) * 100)
@@ -1633,6 +1648,7 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             tr.sheet_name  = row.Sheet
             tr.view_type   = row.ViewType
             tr.view_scale  = getattr(row, 'ViewScale', 1)
+            tr.native_scale = self._row_native_scale(row)
             tr.file_path   = row.FilePath
             tr.auto_sync   = False
             tr.stack_index = _stack.get(id(row), 0)
@@ -1985,6 +2001,7 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                     'layout_mode':     card.get('layout_mode', 'manual'),
                     '_applied_view_name': card.get('applied_view_name', ''),
                     '_applied_at':     card.get('applied_at'),
+                    'native_scale':    card.get('native_scale'),
                 }
                 self._make_card(path)
 
@@ -2287,13 +2304,16 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                 _run = self._run_siblings(row)
                 _stack2 = self._stack_indices(_run)
                 result = None
-                for _r in _run:
+                _popup2 = self._progress_open(len(_run))
+                for _ri, _r in enumerate(_run):
+                    self._progress_step(_popup2, _ri, len(_run), _r.ViewName)
                     tr             = TableRow()
                     tr.view_name   = _r.ViewName
                     tr.named_range = _r.NamedRange
                     tr.sheet_name  = _r.Sheet
                     tr.view_type   = _r.ViewType
                     tr.view_scale  = getattr(_r, 'ViewScale', 1)
+                    tr.native_scale = self._row_native_scale(_r)
                     tr.file_path   = _r.FilePath
                     tr.auto_sync   = False
                     tr.stack_index = _stack2.get(id(_r), 0)
@@ -2301,7 +2321,11 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                         tr.view_name = self._combine_target(_r)
                     tr.applied_view_name = _r._applied_view_name
                     tr.applied_view_id   = getattr(_r, '_applied_view_id', None)
-                    _res = apply_row(tr)
+                    try:
+                        _res = apply_row(tr)
+                    except Exception:
+                        self._progress_close(_popup2)
+                        raise
                     if _r is row:
                         result = _res
                     _r.Status = _res.get('status', 'error')
@@ -2321,6 +2345,7 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                     if _r is not row and _r._dot is not None:
                         _r._dot.Fill = hb(STATUS_COLOURS.get(
                             _r.Status, '#3A4A3A'))
+                self._progress_close(_popup2)
                 if result is None:
                     result = {'status': row.Status, 'message': ''}
             if row._dot is not None:
@@ -2590,6 +2615,54 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         popup_panel.Children.Add(item('Remove view',
             lambda s, ev: self._card_remove_views(path)))
         popup.IsOpen = True
+
+    # ── Processing popup ──
+    # The window's own status line and progress bar can't repaint while
+    # Apply holds the UI thread, so a separate pyRevit progress window
+    # says what is being built instead.
+
+    def _progress_open(self, total):
+        try:
+            pb = forms.ProgressBar(title=u'pyLink - Processing...',
+                                   cancellable=False)
+            pb.__enter__()
+            pb.update_progress(0, max(1, total))
+            return pb
+        except Exception as ex:
+            logger.debug('progress popup: {}'.format(ex))
+            return None
+
+    def _progress_step(self, pb, done, total, name):
+        if pb is None:
+            return
+        # The title is a format string, so braces in a view name are
+        # escaped before it is filled in.
+        safe = unicode(name or u'').replace(u'{', u'{{').replace(u'}', u'}}')
+        title = u'pyLink - Processing {}  ({} of {})'.format(
+            safe, done + 1, total)
+        try:
+            pb.title = title
+        except Exception:
+            pb._title = title
+        try:
+            pb.update_progress(done, max(1, total))
+        except Exception as ex:
+            logger.debug('progress popup: {}'.format(ex))
+
+    def _progress_close(self, pb):
+        if pb is None:
+            return
+        try:
+            pb.__exit__(None, None, None)
+        except Exception as ex:
+            logger.debug('progress popup close: {}'.format(ex))
+
+    def _row_native_scale(self, row):
+        """The schedule scale of the card a row belongs to."""
+        for fd in self._file_data.values():
+            if row in fd.get('rows', ()):
+                return card_native_scale(fd)
+        return DEFAULT_NATIVE_SCALE
 
     def _toggle_combine_views(self, path):
         """Card menu -> Combine onto one view.

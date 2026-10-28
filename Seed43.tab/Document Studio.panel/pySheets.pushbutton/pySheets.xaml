@@ -1634,6 +1634,12 @@
                                     Style="{StaticResource PillBtn}"
                                     Margin="0,0,4,0"
                                     Click="fmt_pill_clicked"/>
+                            <Button x:Name="fmt_3dpdf_btn"
+                                    Content="3D PDF"
+                                    Tag=""
+                                    Style="{StaticResource PillBtn}"
+                                    Margin="0,0,4,0"
+                                    Click="fmt_pill_clicked"/>
                             <Button x:Name="fmt_img_btn"
                                     Content="IMG"
                                     Tag=""
@@ -1930,6 +1936,12 @@
                                     Margin="0,0,4,0"/>
                             <Button x:Name="exp_ifc_btn"
                                     Content="IFC"
+                                    Tag=""
+                                    Style="{StaticResource PillBtn}"
+                                    Click="exp_subtab_clicked"
+                                    Margin="0,0,4,0"/>
+                            <Button x:Name="exp_3dpdf_btn"
+                                    Content="3D PDF"
                                     Tag=""
                                     Style="{StaticResource PillBtn}"
                                     Click="exp_subtab_clicked"
@@ -2489,6 +2501,23 @@
                                                Foreground="{DynamicResource BrushTextPrimary}"
                                                Opacity="0.5" FontSize="10"
                                                TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- 3D PDF Settings Panel -->
+                        <StackPanel x:Name="pdf3d_settings_panel" Visibility="Collapsed" MaxWidth="420" HorizontalAlignment="Left">
+                            <Border Background="{DynamicResource BrushCardBg}"
+                                    BorderBrush="{DynamicResource BrushBorderMuted}" BorderThickness="1"
+                                    CornerRadius="6" Padding="10" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="3D PDF"
+                                               Style="{StaticResource SectionLabel}"
+                                               FontSize="13" FontWeight="Bold" Opacity="0.9" Margin="0,0,0,8"/>
+                                    <TextBlock Text="Each selected 3D view exports to its own 3D PDF, made by the 3D PDF tool: what the view shows (visibility, filters, section box, links), a model tree by category, Revit material colours, and the view's camera plus Top, Front, Back, Left, Right and Isometric views."
+                                               Foreground="{DynamicResource BrushTextPrimary}"
+                                               Opacity="0.5" FontSize="10"
+                                               TextWrapping="Wrap"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

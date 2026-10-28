@@ -96,6 +96,29 @@ try:
 except ImportError:
     _img_settings = None
 
+
+def _find_3dpdf_dir():
+    # The 3D PDF button's folder, on whichever panel of the tab it sits:
+    # its pdf3d_export module is what the 3D PDF format runs.
+    tab = op.dirname(op.dirname(op.dirname(op.abspath(__file__))))
+    try:
+        for panel in os.listdir(tab):
+            cand = op.join(tab, panel, '3D PDF.pushbutton')
+            if op.isdir(cand):
+                return cand
+    except Exception:
+        pass
+    return None
+
+
+try:
+    _pdf3d_dir = _find_3dpdf_dir()
+    if _pdf3d_dir and _pdf3d_dir not in _sys.path:
+        _sys.path.append(_pdf3d_dir)
+    import pdf3d_export as _pdf3d
+except ImportError:
+    _pdf3d = None
+
 get_elementid_value = get_elementid_value_func()
 logger = script.get_logger()
 config = script.get_config()
@@ -103,8 +126,9 @@ config = script.get_config()
 
 # ── CONSTANTS ──
 # Format pill names — must match XAML Button x:Name suffixes
-ALL_FORMATS   = ['PDF', 'DWG', 'DGN', 'NWC', 'IFC', 'IMG', 'XLS']
-VIEWS_ONLY_FORMATS = {'NWC', 'IFC'}   # these can only export 3D views, never sheets
+ALL_FORMATS   = ['PDF', 'DWG', 'DGN', 'NWC', 'IFC', '3D PDF', 'IMG', 'XLS']
+# these can only export 3D views, never sheets
+VIEWS_ONLY_FORMATS = {'NWC', 'IFC', '3D PDF'}
 # XLS is the mirror image: schedules and nothing else. Revit refuses to
 # print or export a schedule to any of the other formats ("some of the views
 # are not printable (exportable)"), and on a combined PDF one schedule fails
@@ -114,7 +138,7 @@ SCHEDULES_ONLY_FORMATS = {'XLS'}
 SCHEDULE_TYPE_LABEL    = 'Schedule'   # ViewItem.paper_size for a schedule
 CSV_EOL = u'\r\n'                     # RFC 4180 record separator
 FILE_EXT      = {'PDF': '.pdf', 'DWG': '.dwg', 'DGN': '.dgn',
-                 'NWC': '.nwc', 'IFC': '.ifc', 'IMG': '.png',
+                 'NWC': '.nwc', 'IFC': '.ifc', '3D PDF': '.pdf', 'IMG': '.png',
                  'XLS': '.xlsx'}
 
 # Tab indices — tabs renamed: Select | Settings | Export
@@ -1895,6 +1919,7 @@ class PrintSheetsWindow(forms.WPFWindow):
             'DGN': self.fmt_dgn_btn,
             'NWC': self.fmt_nwc_btn,
             'IFC': self.fmt_ifc_btn,
+            '3D PDF': self.fmt_3dpdf_btn,
             'IMG': self.fmt_img_btn,
             'XLS': self.fmt_xls_btn,
         }
@@ -1908,6 +1933,7 @@ class PrintSheetsWindow(forms.WPFWindow):
             'DGN': self.exp_dgn_btn,
             'NWC': self.exp_nwc_btn,
             'IFC': self.exp_ifc_btn,
+            '3D PDF': self.exp_3dpdf_btn,
             'IMG': self.exp_img_btn,
             'XLS': self.exp_xls_btn,
         }
@@ -2316,7 +2342,8 @@ class PrintSheetsWindow(forms.WPFWindow):
 
         exporters = {'PDF': self._export_pdf, 'DWG': self._export_dwg,
                      'DGN': self._export_dgn, 'NWC': self._export_nwc,
-                     'IFC': self._export_ifc, 'IMG': self._export_img,
+                     'IFC': self._export_ifc, '3D PDF': self._export_3dpdf,
+                     'IMG': self._export_img,
                      'XLS': self._export_xls}
 
         try:
@@ -3018,6 +3045,30 @@ class PrintSheetsWindow(forms.WPFWindow):
                 tick(qi, 'Done')
             except Exception as ex:
                 logger.error('IFC %s failed: %s', qi.filename, ex)
+                tick(qi, 'Failed')
+
+    # ── 3D PDF ──
+    def _export_3dpdf(self, qitems, folder, tick):
+        """Each 3D view through the 3D PDF tool's own export
+        (pdf3d_export): what the view shows, in a PDF with a model tree."""
+        doc = self._selected_doc
+        if _pdf3d is None:
+            dlg.message('The 3D PDF tool was not found on the Seed43 tab.\n'
+                        '3D PDF items will be skipped.')
+            for qi in qitems:
+                tick(qi, 'Skipped')
+            return
+        for qi in qitems:
+            qi.status = 'Exporting'
+            self._pump()
+            try:
+                path = op.join(folder, qi.fname_noext + '.pdf')
+                result = _pdf3d.export_view(doc, qi.source.revit_sheet, path)
+                if result != _pdf3d.OK:
+                    logger.warning('3D PDF %s: %s', qi.filename, result)
+                tick(qi, 'Done' if result == _pdf3d.OK else 'Skipped')
+            except Exception as ex:
+                logger.error('3D PDF %s failed: %s', qi.filename, ex)
                 tick(qi, 'Failed')
 
     # ── IMG ──
@@ -4560,6 +4611,7 @@ class PrintSheetsWindow(forms.WPFWindow):
                    'DGN': self.dgn_settings_panel,
                    'NWC': self.nwc_settings_panel,
                    'IFC': self.ifc_settings_panel,
+                   '3D PDF': self.pdf3d_settings_panel,
                    'IMG': self.img_settings_panel,
                    'XLS': self.xls_settings_panel}
         for f, pnl in pnl_map.items():

@@ -91,6 +91,24 @@ snippets:
       loop_points:   Return a profile loop as a point list (circles become polygons).
       signed_area:   Return the signed area of a 2D point loop.
 
+  _bsw_steel.py:
+    description: >
+      Steel parts out of a StruCad .bsw (the binary model StruCad and Seed43
+      Studio read): members, plates, components, bolt groups and grid lines,
+      skipping a record that does not read as Studio does. read_bsw depends
+      on nothing else; to_steel_model turns the records into the same
+      SteelModel of Parts _ifc_steel.read_steel makes (straight members get
+      a Member, cut members keep their real shape as a Brep, plates are
+      swept outlines with their bolt holes as openings, bolts get a round
+      shank along their line), so _steel_import can place them as it does
+      an IFC. Millimetres, file world coordinates, no Revit types. Tested
+      under CPython in tests/test_bsw_steel.py.
+    functions:
+      read_bsw:        Read a .bsw into a BswModel (entities, grids, warnings).
+      to_steel_model:  Return the BswModel as an _ifc_steel.SteelModel for _steel_import.
+      read_steel_bsw:  Read a .bsw straight into a SteelModel (read_bsw then to_steel_model).
+      is_bsw:          Return True when a file starts the way a .bsw does.
+
   _steel_import.py:
     description: >
       The Revit side of steel IFC import: members whose section matches a

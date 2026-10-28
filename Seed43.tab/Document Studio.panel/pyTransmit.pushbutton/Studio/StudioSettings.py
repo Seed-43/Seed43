@@ -490,6 +490,7 @@ class StudioSettingsWindow(WPFWindow):
         self._wire_blocks_panel()
         self._wire_structure_panel()
         self._wire_quick_access()
+        self._wire_modify_tab()
         self._wire_templates()
         self._wire_logos()
 
@@ -527,20 +528,6 @@ class StudioSettingsWindow(WPFWindow):
         self._update_zoom_label()
         if getattr(self, '_startup_notice', None):
             self.status_label.Text = self._startup_notice
-        # ContentRendered, not __init__: the notice is about this window, so
-        # it should appear over a drawn Studio rather than in front of an
-        # empty rectangle. Fires once - it is not re-raised on redraws.
-        self.ContentRendered += self._on_first_shown
-
-    def _on_first_shown(self, sender, args):
-        self.ContentRendered -= self._on_first_shown
-        _alert(
-            'pyTransmit Studio is under development.\n\n'
-            'It is safe to use - it only ever reads the Revit model, and '
-            'layouts are saved as templates of their own - but expect rough '
-            'edges, and check anything you publish from a new layout before '
-            'sending it out.',
-            title='pyTransmit Studio - under development')
 
     def _on_grid_scroll_changed(self, sender, args):
         self._sync_header_scroll()
@@ -1376,6 +1363,16 @@ class StudioSettingsWindow(WPFWindow):
     def _logo_path(self, name):
         return os.path.join(LOGOS_DIR, name)
 
+    def _resolve_logo_path(self):
+        """Point a layout's logo at this user's library when the saved path
+        is from someone else's PC (or is a bare file name, as the shipped
+        templates store it) - the library entry of the same name wins."""
+        lp = self._grid.logo_path or ''
+        if lp and not os.path.isfile(lp):
+            local = self._logo_path(os.path.basename(lp))
+            if os.path.isfile(local):
+                self._grid.logo_path = local
+
     def _logo_sources(self):
         return self._read_json(os.path.join(LOGOS_DIR, self.LOGO_SOURCES_FILE))
 
@@ -2191,18 +2188,86 @@ class StudioSettingsWindow(WPFWindow):
         item.Child = dock
 
         item.MouseLeftButtonUp += lambda s, a, row=r: self._on_structure_row_click(row)
+        # Right-click: the row-number menu itself. Tag + ContextMenuOpening
+        # is how the row headers do it, so the menu is built against the
+        # selection at the moment it opens. A placeholder menu has to be
+        # there for WPF to raise the event at all.
+        item.Tag = ('rowhdr', r)
+        item.ContextMenu = _themed_menu()
+        item.ContextMenuOpening += self._on_header_ctx_opening
         self._structure_rows[r] = item
         return item
 
     def _on_structure_row_click(self, r):
-        """Select the whole row on the grid, the way clicking its number does."""
+        """Select the whole row on the grid, the way clicking its number does.
+        Shift+click extends a row selection to it, for multi-row commands."""
         if not (0 <= r < self._grid.n_rows):
             return
+        shift = ((_SWI.Keyboard.Modifiers & _SWI.ModifierKeys.Shift)
+                 == _SWI.ModifierKeys.Shift)
+        if shift and self._sel_mode == 'row':
+            anchor = self._sel[0]
+            self._sel = (anchor, 0, r, self._grid.n_cols - 1)
+        else:
+            self._sel = (r, 0, r, self._grid.n_cols - 1)
         self._sel_mode = 'row'
-        self._sel = (r, 0, r, self._grid.n_cols - 1)
         self._move_overlay_to_selection()
         self._update_formula_bar()
         self._scroll_into_view(r, 0)
+
+    # --- Modify Rows tab ---
+    def _wire_modify_tab(self):
+        """The row right-click commands as ribbon buttons. Each passes the
+        top selected row as the 'clicked' row, which is inside the selection,
+        so the _ctx_* commands act on the whole selected run."""
+        def first_row():
+            return self._sel_rect()[0]
+        wiring = [
+            ('mod_insert_above_btn', lambda: self._ctx_insert_row(first_row(), True)),
+            ('mod_insert_below_btn', lambda: self._ctx_insert_row(first_row(), False)),
+            ('mod_delete_btn',       lambda: self._ctx_delete_row(first_row())),
+            ('mod_move_up_btn',      lambda: self._ctx_move_rows(first_row(), -1)),
+            ('mod_move_down_btn',    lambda: self._ctx_move_rows(first_row(), 1)),
+            ('mod_height_btn',       lambda: self._ctx_row_height(first_row())),
+            ('mod_sec_top_btn',      lambda: self._ctx_set_section(
+                first_row(), studio_grid.SECTION_REPEAT_TOP)),
+            ('mod_sec_body_btn',     lambda: self._ctx_set_section(
+                first_row(), studio_grid.SECTION_BODY)),
+            ('mod_sec_bottom_btn',   lambda: self._ctx_set_section(
+                first_row(), studio_grid.SECTION_REPEAT_BOTTOM)),
+        ]
+        for name, fn in wiring:
+            try:
+                getattr(self, name).Click += lambda s, a, f=fn: f()
+            except Exception:
+                pass
+        # Section buttons carry the gutter colour, like the menu's dots.
+        for name, section in (('mod_sec_top_btn', studio_grid.SECTION_REPEAT_TOP),
+                              ('mod_sec_bottom_btn', studio_grid.SECTION_REPEAT_BOTTOM)):
+            try:
+                getattr(self, name).BorderBrush = _brush(studio_grid.SECTION_COLORS[section])
+                getattr(self, name).BorderThickness = _SW.Thickness(0, 0, 0, 3)
+            except Exception:
+                pass
+
+    def _sync_modify_tab(self):
+        """Offer Modify Rows only while whole rows are selected, and label
+        and grey its buttons the way the right-click menu would."""
+        if not hasattr(self, '_tab_available'):
+            return
+        rows = self._selection_kind() == 'row'
+        self._set_tab_available('modify', rows)
+        if not rows:
+            return
+        try:
+            r0, _c0, r1, _c1 = self._sel_rect()
+            n = r1 - r0 + 1
+            self.mod_rows_caption.Text = ('Row {}'.format(r0 + 1) if n == 1
+                                          else 'Rows {}-{}'.format(r0 + 1, r1 + 1))
+            self.mod_move_up_btn.IsEnabled = self._grid.can_move_rows(r0, r1, -1)
+            self.mod_move_down_btn.IsEnabled = self._grid.can_move_rows(r0, r1, 1)
+        except Exception:
+            pass
 
     def _highlight_structure(self):
         rows = getattr(self, '_structure_rows', None)
@@ -2235,6 +2300,7 @@ class StudioSettingsWindow(WPFWindow):
         except Exception:
             pass
         self._highlight_structure()
+        self._sync_modify_tab()
 
     def _build_section_legend(self, panel):
         """Colour key for the row-section stripes, so the gutter colours
@@ -2398,12 +2464,13 @@ class StudioSettingsWindow(WPFWindow):
         ('layout', 'tab_layout_btn', 'tab_layout_panel'),
         ('data',   'tab_data_btn',   'tab_data_panel'),
         ('list',   'tab_list_btn',   'tab_list_panel'),
+        ('modify', 'tab_modify_btn', 'tab_modify_panel'),
     ]
 
     # Tabs that only appear when the selection calls for them, the way Excel
     # shows Table Design only while a table cell is selected. They start
     # hidden and _set_tab_available() decides from then on.
-    CONTEXTUAL_TABS = ('list',)
+    CONTEXTUAL_TABS = ('list', 'modify')
 
     def _wire_ribbon_tabs(self):
         self._tab_available = dict(
@@ -4096,6 +4163,7 @@ class StudioSettingsWindow(WPFWindow):
         if getattr(self, '_cell_editor', None) is not None:
             self._end_cell_edit(commit=True)
             return
+        self._resolve_logo_path()
         self._record_undo_state()
         try:
             self.margin_box.Text = str(self._grid.margin_mm)
@@ -4345,6 +4413,16 @@ class StudioSettingsWindow(WPFWindow):
                 _SWC.Grid.SetRowSpan(hdr, n_v)
             rowhdr_grid.Children.Add(hdr)
 
+        # Which column writes the group header on each sheet-list row - the
+        # Sheet Number block's. On a group row that cell spans to the right
+        # edge, as the exporters merge it, rather than clipping the label to
+        # its own column width.
+        sn_col = {}
+        for (rr, cc), _cell in grid.cells.items():
+            if ((_cell.get('block') or {}).get('type') == 'sheet_number'
+                    and 'covered_by' not in _cell):
+                sn_col[rr] = min(cc, sn_col.get(rr, cc))
+
         # Content cells (skip covered cells; draw merge origins with spans)
         for r in range(grid.n_rows):
             for c in range(grid.n_cols):
@@ -4386,6 +4464,12 @@ class StudioSettingsWindow(WPFWindow):
                     # too, and the preview would stop matching the workbook.
                     band = (self._band_kind(row_plan, item)
                             if repeats and vdomains.get(r) == 'sheet' else None)
+                    span_c = col_span
+                    if band and r in sn_col:
+                        if c > sn_col[r]:
+                            continue        # under the spanning header cell
+                        if c == sn_col[r]:
+                            span_c = grid.n_cols - c
                     # ONE line per edge, in ONE colour.
                     #
                     # Two things used to double it up. Every cell drew all
@@ -4425,7 +4509,7 @@ class StudioSettingsWindow(WPFWindow):
                     # everywhere else the cell below or to the right draws
                     # that same edge as its own top or left.
                     _at_last_row = (v_row + v_span - 1) >= (len(self._vrows) - 1)
-                    _at_last_col = (c + col_span - 1) >= (grid.n_cols - 1)
+                    _at_last_col = (c + span_c - 1) >= (grid.n_cols - 1)
                     _draw = (True, _at_last_row, True, _at_last_col)
                     _is_rule = (top, bot, lef, rig)
 
@@ -4480,8 +4564,8 @@ class StudioSettingsWindow(WPFWindow):
                     _SWC.Grid.SetColumn(border, c)
                     if v_span > 1:
                         _SWC.Grid.SetRowSpan(border, v_span)
-                    if col_span > 1:
-                        _SWC.Grid.SetColumnSpan(border, col_span)
+                    if span_c > 1:
+                        _SWC.Grid.SetColumnSpan(border, span_c)
                     cells_grid.Children.Add(border)
 
         # Selection overlay - a non-hit-testable Border spanning the selected

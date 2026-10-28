@@ -98,15 +98,11 @@ FIELD_ID_ASM_CODE = -1002500     # Assembly Code, the field the body is filtered
 TITLE = 'pyTransmit Studio - Schedule'
 SCHEDULE_NAME_FMT = 'pyTransmit Schedule {:02d}-{:02d}'
 
-# Studio stores font sizes in mm, TableCellStyle.TextSize wants points.
-#
-# NOTE: script_create_schedule.py uses (size_mm / 0.75) * (72 / 25.4), which is
-# this conversion times 4/3 - a stray px-to-pt factor that makes Layout Builder
-# schedules print a third larger than the millimetres they name. Studio's
-# canvas draws true millimetres and its templates were sized against it, so
-# the true conversion is the right one here. Change this one constant if
-# Studio schedules ever need to match the older ones rather than the layout.
-PT_PER_MM = 72.0 / 25.4
+# Studio stores font sizes in mm. TableCellStyle.TextSize is NOT points: Revit
+# reads it as 1/96" (a screen pixel). Measured 2026-10-27: TextSize 6 printed
+# 1.5875mm and 7 printed 1.8521mm - both 0.26458mm (1/96") per unit. So mm
+# converts at 96 per inch, which makes a 6pt (2.12mm) cell print 2.12mm.
+PX_PER_MM = 96.0 / 25.4
 
 _DEFAULT_SIZE_MM = 9.0 * studio_publish.MM_PER_PT
 
@@ -121,8 +117,9 @@ try:
 except ValueError:
     # Guarded in pyTransmit too, but a script that can be run directly should
     # not depend on its caller having checked.
-    _alert('"{}" is not a pyTransmit Studio layout.\n\nUse '
-           'script_create_schedule.py for Layout Builder templates.'.format(
+    _alert('"{}" is not a pyTransmit Studio layout.\n\nLayout Builder '
+           'templates are no longer supported - assign a Layout Studio '
+           'template in Export Format.'.format(
                os.path.basename(_layout_path)),
            title=TITLE, exitscript=True)
 except Exception as _e:
@@ -310,7 +307,7 @@ def _cell_style(placement, borders):
 
     style.IsFontBold = bold
     style.IsFontItalic = bool(block.get('italic'))
-    style.TextSize = float(block.get('size_mm') or _DEFAULT_SIZE_MM) * PT_PER_MM
+    style.TextSize = float(block.get('size_mm') or _DEFAULT_SIZE_MM) * PX_PER_MM
     try:
         style.FontName = block.get('font') or 'Arial'
     except Exception:

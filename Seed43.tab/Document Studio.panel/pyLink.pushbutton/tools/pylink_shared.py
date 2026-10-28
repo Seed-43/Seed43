@@ -91,13 +91,8 @@ PYLINK_PARAM_FILE = os.path.join(
 # ── Default text font (shared infra, not Excel-reading logic - the
 # Excel side just asks "is this font installed / what's the fallback",
 # it doesn't own the setting) ──
-# Stored in .user so an update cannot overwrite it. The old userdata/ folder
-# beside the tool is migrated across on first run; the extra folder level is
-# dropped, since .user/pyLink/ is already the userdata folder.
-EXCEL_FONT_SETTINGS_PATH = _userdata.migrate(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), '..',
-                 'userdata', 'excel_font_settings.json'),
-    _userdata.user_path('pyLink', 'excel_font_settings.json'))
+# Stored in .user so an update cannot overwrite it.
+EXCEL_FONT_SETTINGS_PATH = _userdata.user_path('pyLink', 'excel_font_settings.json')
 
 DEFAULT_EXCEL_FONT_SETTINGS = {'fallback_font': 'Arial', 'force_fallback': False}
 

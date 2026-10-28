@@ -76,12 +76,11 @@ def get_templates_folder():
     """
     The user's templates folder, under .user so updates cannot touch it.
 
-    Does three things, each at most once:
+    Does two things, each at most once:
       1. resolves .user/pyFilter/templates/
-      2. carries across templates saved beside the tool by older versions
-      3. seeds the shipped demos into an EMPTY folder, and only then
+      2. seeds the shipped demos into an EMPTY folder, and only then
 
-    Step 3 stops the moment the user has templates of their own. Once the
+    Step 2 stops the moment the user has templates of their own. Once the
     folder holds anything, defaults/ is never consulted again - not to add a
     missing name, not to refresh an edited one - so an update can never put a
     file back over someone's work. A demo they delete stays deleted. "Load
@@ -90,7 +89,6 @@ def get_templates_folder():
     it or removed from it.
     """
     folder = _userdata.user_dir("pyFilter", "templates")
-    _userdata.migrate_dir(os.path.join(SCRIPT_DIR, "templates"), folder)
     try:
         has_own = any(n.lower().endswith(".json") for n in os.listdir(folder))
     except Exception:
@@ -2027,7 +2025,7 @@ class pyFilterWindow(WPFWindow):
     def _on_load_demo(self, sender, e):
         """Copy the shipped example templates in, on request.
 
-        The way back from seed_once(): those only ever install on first run,
+        The way back from first-run seeding: demos only ever install then,
         so a demo the user deleted is otherwise gone for good. Additive and
         never overwrites, so pressing it twice, or after editing a demo, is
         harmless.

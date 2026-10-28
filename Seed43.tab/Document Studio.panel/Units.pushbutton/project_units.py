@@ -11,12 +11,8 @@ from Snippets import _userdata
 
 doc = revit.doc
 
-# Settings live in .user so the updater can never overwrite them. Any file
-# saved by an older version, back when it sat beside this script, is moved
-# across on first run.
-JSON_PATH = _userdata.migrate(
-    os.path.join(os.path.dirname(__file__), "project_units.json"),
-    _userdata.user_path("Units", "project_units.json"))
+# Settings live in .user so the updater can never overwrite them.
+JSON_PATH = _userdata.user_path("Units", "project_units.json")
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 

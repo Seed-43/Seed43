@@ -24,7 +24,7 @@ import os
 import sys
 
 from pytransmit_paths import (
-    SETTINGS_DIR, LAYOUTS_DIR, STUDIO_LAYOUTS_DIR, LAYOUT_CONFIG, SYNC_FILE,
+    SETTINGS_DIR, STUDIO_LAYOUTS_DIR, STUDIO_CONFIG, SYNC_FILE,
     USER_DIR, settings_file,
 )
 
@@ -249,7 +249,7 @@ class RevTableWindow(Window):
         except:
             pass
 
-        # Populate layout template dropdowns from Layout/Layouts/ folder
+        # Populate layout template dropdowns from the Studio layouts folder
         try:
             self._populate_layout_combos()
         except:
@@ -1114,38 +1114,14 @@ class RevTableWindow(Window):
     # ── Styling / Branding panel ──────────────────────────────────────────────
     # All logic lives in Settings/BrandingSettings.py (BrandingSettingsController)
 
-    def menu_styling_click(self, sender, args):
-        """Legacy, Branding panel removed; redirects to Document Layout."""
-        self.menu_layout_click(sender, args)
-
-    def menu_layout_click(self, sender, args):
-        """☰ → Document Layout: open the Layout Builder in a separate window."""
-        self.OptionsPopup.IsOpen = False
-        try: self.options_btn.IsChecked = False
-        except: pass
-        try:
-            _layout_dir = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)), 'Layout')
-            if not os.path.isdir(_layout_dir):
-                os.makedirs(_layout_dir)
-            if _layout_dir not in sys.path:
-                sys.path.insert(0, _layout_dir)
-            from LayoutSettings import LayoutSettingsWindow
-            win = LayoutSettingsWindow(_layout_dir)
-            win.ShowDialog()
-        except Exception as e:
-            _alert(
-                'Could not open Layout Builder:\n{}'.format(str(e)),
-                title='Document Layout')
-
     def styling_back_click(self, sender, args):
         """Styling X, legacy handler kept for safety."""
         self._show_panel("main")
 
     # ── Layout Studio (Excel-style layout builder) ────────────────────────────
-    # Separate from Document Layout above: its own module in Studio/, its own
-    # JSON format under Studio/studio_layouts/ - does not read or write
-    # anything the Layout Builder (Layout/LayoutSettings.py) uses.
+    # The only layout editor: its own module in Studio/, templates in
+    # .user/pyTransmit/studio_layouts/. The older Layout Builder was removed
+    # 2026-10-27.
 
     def menu_layout_studio_click(self, sender, args):
         """☰ → Layout Studio: open the Excel-style layout builder in a separate window."""
@@ -2048,7 +2024,8 @@ class RevTableWindow(Window):
             self._export_layouts()
 
     def _export_layouts(self):
-        """Copy Layout/Layouts/*.json to the export folder alongside other settings."""
+        """Copy the Studio layouts (and studio_config.json) to the export
+        folder alongside the other settings."""
         try:
             export_path = ''
             tb = getattr(self, 'export_path_tb', None)
@@ -2056,21 +2033,19 @@ class RevTableWindow(Window):
             if not export_path or not os.path.isdir(export_path):
                 return  # no valid export path, skip silently
 
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            src_layouts = LAYOUTS_DIR
+            src_layouts = STUDIO_LAYOUTS_DIR
             if not os.path.isdir(src_layouts):
                 return  # no layouts to export
 
             dest_settings = os.path.join(export_path, 'pyTransmit Settings')
-            dest_layouts  = os.path.join(dest_settings, 'Layouts')
+            dest_layouts  = os.path.join(dest_settings, 'studio_layouts')
             if not os.path.isdir(dest_layouts):
                 os.makedirs(dest_layouts)
 
-            # Also copy layout_config.json
-            src_config = LAYOUT_CONFIG
-            if os.path.isfile(src_config):
+            # Also copy studio_config.json
+            if os.path.isfile(STUDIO_CONFIG):
                 import shutil
-                shutil.copy2(src_config, os.path.join(dest_settings, 'layout_config.json'))
+                shutil.copy2(STUDIO_CONFIG, os.path.join(dest_settings, 'studio_config.json'))
 
             # Copy all template JSONs
             import shutil
@@ -2090,50 +2065,42 @@ class RevTableWindow(Window):
         """Called when any layout combo selection changes, save immediately."""
         self._save_layout_assignments()
 
-    def _layouts_dir(self):
-        return LAYOUTS_DIR
-
-    # Both builders keep their own templates, in their own folders, and both
-    # can hold one called "Excel". The dropdowns therefore say which builder
-    # each entry came from rather than listing two identical-looking names.
-    LB_PREFIX = 'LB - '
+    # The "Studio - " prefix stays on the dropdown labels so assignments saved
+    # while the old Layout Builder still existed ("Studio - Excel") still match.
     STUDIO_PREFIX = 'Studio - '
 
     def _layout_template_map(self):
-        """OrderedDict of {dropdown label: full path to the template JSON},
-        covering the Layout Builder's folder and Studio's.
+        """OrderedDict of {dropdown label: full path to the template JSON}.
 
-        A plain directory listing of each, so saving a new layout in either
-        builder makes it appear in the format dropdowns with nothing else to
-        update.
+        A plain listing of the Studio layouts folder, so saving a new layout
+        makes it appear in the format dropdowns with nothing else to update.
         """
         from collections import OrderedDict
         out = OrderedDict()
-        for prefix, folder in ((self.LB_PREFIX, self._layouts_dir()),
-                               (self.STUDIO_PREFIX, STUDIO_LAYOUTS_DIR)):
-            if not os.path.isdir(folder):
-                continue
-            for f in sorted(os.listdir(folder)):
+        if os.path.isdir(STUDIO_LAYOUTS_DIR):
+            for f in sorted(os.listdir(STUDIO_LAYOUTS_DIR)):
                 if f.lower().endswith('.json'):
-                    out[prefix + os.path.splitext(f)[0]] = os.path.join(folder, f)
+                    out[self.STUDIO_PREFIX + os.path.splitext(f)[0]] = (
+                        os.path.join(STUDIO_LAYOUTS_DIR, f))
         return out
 
     def _layout_templates(self):
-        """Dropdown labels for every template, both builders."""
+        """Dropdown labels for every Studio template."""
         return list(self._layout_template_map().keys())
 
     def _resolve_layout_label(self, saved, default):
         """Which dropdown entry a stored assignment means.
 
-        Assignments saved before Studio templates were listed hold a bare
-        name ("Excel") - those were always Layout Builder templates, so they
-        resolve to the LB entry. Falls back to the format's default name,
-        then to '(none)'.
+        A saved label may be bare ("Excel") or an old "LB - Excel" from the
+        removed Layout Builder - both resolve to the Studio template of that
+        name. Falls back to the format's default name, then to '(none)'.
         """
         labels = self._layout_templates()
-        for candidate in (saved, self.LB_PREFIX + str(saved or ''),
-                          self.STUDIO_PREFIX + str(saved or ''),
-                          self.LB_PREFIX + default, self.STUDIO_PREFIX + default):
+        bare = str(saved or '')
+        if bare.startswith('LB - '):
+            bare = bare[len('LB - '):]
+        for candidate in (saved, self.STUDIO_PREFIX + bare,
+                          self.STUDIO_PREFIX + default):
             if candidate and candidate in labels:
                 return candidate
         return '(none)'
@@ -2302,9 +2269,8 @@ class RevTableWindow(Window):
         """Return the full path to the selected layout JSON for a given output type.
         output_type: 'excel', 'pdf', 'schedule', 'drafting', 'legend'
 
-        Resolved through _layout_template_map() rather than by joining a name
-        onto the Layouts folder, since the label now says which builder the
-        template belongs to and Studio's live somewhere else entirely.
+        Resolved through _layout_template_map(), since the label carries the
+        "Studio - " prefix the file name does not.
         """
         cb_map = {'excel': 'layout_excel_cb', 'pdf': 'layout_pdf_cb',
                   'schedule': 'layout_schedule_cb', 'drafting': 'layout_drafting_cb',
@@ -2315,8 +2281,8 @@ class RevTableWindow(Window):
             return None
         path = self._layout_template_map().get(label)
         if not path:
-            # Legacy assignment, or a template deleted since it was chosen.
-            path = os.path.join(self._layouts_dir(), label + '.json')
+            # A template deleted since it was chosen.
+            path = os.path.join(STUDIO_LAYOUTS_DIR, label + '.json')
         return path if os.path.isfile(path) else None
 
     def _current_meta_rows(self):
@@ -2356,23 +2322,6 @@ class RevTableWindow(Window):
                 rows.append((label, value))
         return rows
 
-    def is_studio_layout(self, path):
-        """Is this a Studio template rather than a Layout Builder one?
-
-        The two schemas are unmistakable - Layout Builder has 'rows', Studio
-        has 'cells' - and each has its own writer, so the caller uses this to
-        pick between them. Unreadable files answer False so the Layout
-        Builder writer reports the read error, which it already does well.
-        """
-        if not path or not os.path.isfile(path):
-            return False
-        try:
-            with open(path, 'r') as f:
-                data = _json.load(f)
-        except Exception:
-            return False
-        return 'cells' in data and 'rows' not in data
-
     # ── Import panel handlers ─────────────────────────────────────────────
 
     def import_browse_click(self, sender, args):
@@ -2389,29 +2338,28 @@ class RevTableWindow(Window):
             pass
 
     def _import_layouts(self):
-        """Copy Layouts/*.json from import folder into Layout/Layouts/."""
+        """Copy studio_layouts/*.json (and studio_config.json) from the import
+        folder into the user's Studio layouts. An old export's Layouts folder
+        held Layout Builder templates, which nothing reads any more."""
         try:
             import_path = ''
             tb = getattr(self, 'import_path_tb', None)
             if tb and tb.Text: import_path = tb.Text.strip()
             if not import_path or not os.path.isdir(import_path):
                 return
-            src_layouts = os.path.join(import_path, 'pyTransmit Settings', 'Layouts')
+            src_layouts = os.path.join(import_path, 'pyTransmit Settings', 'studio_layouts')
             if not os.path.isdir(src_layouts):
                 return
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            dest_layouts = LAYOUTS_DIR
-            if not os.path.isdir(dest_layouts):
-                os.makedirs(dest_layouts)
+            if not os.path.isdir(STUDIO_LAYOUTS_DIR):
+                os.makedirs(STUDIO_LAYOUTS_DIR)
             import shutil as _shutil
             for fn in os.listdir(src_layouts):
                 if fn.lower().endswith('.json'):
                     _shutil.copy2(os.path.join(src_layouts, fn),
-                                  os.path.join(dest_layouts, fn))
-            # Also import layout_config.json
-            src_cfg = os.path.join(import_path, 'pyTransmit Settings', 'layout_config.json')
+                                  os.path.join(STUDIO_LAYOUTS_DIR, fn))
+            src_cfg = os.path.join(import_path, 'pyTransmit Settings', 'studio_config.json')
             if os.path.isfile(src_cfg):
-                _shutil.copy2(src_cfg, LAYOUT_CONFIG)
+                _shutil.copy2(src_cfg, STUDIO_CONFIG)
         except Exception:
             pass
 
@@ -2817,9 +2765,6 @@ class RevTableWindow(Window):
                 # reason.json/method.json from it. legend and pdf resolve the
                 # code folder themselves, for sys.path.
                 '_settings_dir':     SETTINGS_DIR,
-                # So the Publish scripts' convention-search fallback
-                # looks in .user too, not just beside the tool.
-                '_layouts_dir':      LAYOUTS_DIR,
                 '_user_dir':         USER_DIR,
                 'script_dir':        script_dir,
                 'rev_numbering_type': getattr(self, '_rev_numbering_type', ''),
@@ -2934,28 +2879,14 @@ class RevTableWindow(Window):
             # ── Dispatch each selected output type ────────────────────────────
             for output_type in output_types:
 
-                # Each layout schema has its own writer, chosen from the
-                # assigned template rather than from a setting - the two
-                # cannot read each other's files, so the template itself is
-                # the only honest thing to decide on.
+                # Every output runs its Studio writer; the Layout Builder
+                # writers were removed with it. PDF has no writer of its own
+                # and gets there by building the Excel workbook and
+                # converting it.
                 _assigned = self.get_layout_for_output(output_type)
-                _is_studio = self.is_studio_layout(_assigned)
 
-                # Every output has a writer for both schemas now. The Layout
-                # Builder scripts read 'rows' and a Studio layout has 'cells',
-                # so before the Studio writers existed a Studio template ran
-                # through them and quietly produced an empty schedule and an
-                # empty drafting view rather than saying why - which is why
-                # the template, not a setting, picks the script.
-                #
-                # PDF is the exception: it has no writer of its own either
-                # way, and gets there by building a workbook and converting
-                # it. _layout_is_studio below tells it which Excel writer to
-                # run.
                 if output_type == 'excel':
-                    target_script = os.path.join(
-                        publish_dir, 'script_create_excel_studio.py' if _is_studio
-                        else 'script_create_excel.py')
+                    target_script = os.path.join(publish_dir, 'script_create_excel_studio.py')
                     script_name   = 'excel_export'
                     err_label     = 'Excel script'
                 elif output_type == 'pdf':
@@ -2963,21 +2894,15 @@ class RevTableWindow(Window):
                     script_name   = 'pdf_export'
                     err_label     = 'PDF script'
                 elif output_type == 'drafting':
-                    target_script = os.path.join(
-                        publish_dir, 'script_create_drafting_view_studio.py' if _is_studio
-                        else 'script_create_drafting_view.py')
+                    target_script = os.path.join(publish_dir, 'script_create_drafting_view_studio.py')
                     script_name   = 'drafting_export'
                     err_label     = 'Drafting View script'
                 elif output_type == 'legend':
-                    target_script = os.path.join(
-                        publish_dir, 'script_create_legend_studio.py' if _is_studio
-                        else 'script_create_legend.py')
+                    target_script = os.path.join(publish_dir, 'script_create_legend_studio.py')
                     script_name   = 'legend_export'
                     err_label     = 'Legend script'
                 else:
-                    target_script = os.path.join(
-                        publish_dir, 'script_create_schedule_studio.py' if _is_studio
-                        else 'script_create_schedule.py')
+                    target_script = os.path.join(publish_dir, 'script_create_schedule_studio.py')
                     script_name   = 'revit_schedule_export'
                     err_label     = 'Schedule script'
 
@@ -2988,9 +2913,7 @@ class RevTableWindow(Window):
 
                 payload['output_type']      = output_type
                 payload['layout_json_path'] = _assigned
-                # PDF builds its workbook by running the Excel writer, so it
-                # has to be told which one to run.
-                payload['_layout_is_studio'] = _is_studio
+                payload['_layout_is_studio'] = True   # read by script_create_pdf.py
                 ns = {
                     '__name__':    script_name,
                     '__file__':    target_script,

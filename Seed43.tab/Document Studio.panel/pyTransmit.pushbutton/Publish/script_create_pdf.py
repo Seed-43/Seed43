@@ -61,26 +61,10 @@ _temp_dir  = tempfile.gettempdir()
 _temp_xlsx = os.path.join(_temp_dir, "{}_TEMP.xlsx".format(_safe_base))
 
 # ── Step 1: Generate temp Excel ───────────────────────────────────────────────
-# The PDF is the Excel workbook converted, so it runs whichever Excel writer
-# matches the assigned layout. pyTransmit sets _layout_is_studio; when this
-# script is run on its own, fall back to reading the layout's schema, since a
-# Studio layout handed to the Layout Builder writer produces a blank PDF.
+# The PDF is the Excel workbook converted, so it runs the Studio Excel writer
+# (the only one since the Layout Builder was removed).
 _script_dir = os.path.dirname(os.path.abspath(__file__))
-_is_studio = _p.get('_layout_is_studio')
-if _is_studio is None:
-    _is_studio = False
-    _lp = _p.get('layout_json_path')
-    if _lp and os.path.isfile(_lp):
-        try:
-            import json as _json_probe
-            with open(_lp, 'r') as _lf:
-                _ld = _json_probe.load(_lf)
-            _is_studio = ('cells' in _ld and 'rows' not in _ld)
-        except Exception:
-            pass
-_excel_path = os.path.join(
-    _script_dir,
-    'script_create_excel_studio.py' if _is_studio else 'script_create_excel.py')
+_excel_path = os.path.join(_script_dir, 'script_create_excel_studio.py')
 
 import sys as _sys
 _settings_dir = os.path.join(os.path.dirname(_script_dir), 'Settings')

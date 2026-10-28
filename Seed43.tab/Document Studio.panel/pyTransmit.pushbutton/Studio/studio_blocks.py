@@ -120,8 +120,10 @@ def mm_to_pt(mm):
     return float(mm) / MM_PER_PT
 
 
-# Excel's own font-size dropdown list.
-FONT_SIZES_PT = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48, 72]
+# Excel's own font-size dropdown list, extended down to 1pt in whole points
+# for small drawing-sheet text (the ribbon note shows each size in mm).
+FONT_SIZES_PT = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20, 24,
+                 28, 36, 48, 72]
 
 DEFAULT_FONT = {'font': 'Arial', 'size_mm': pt_to_mm(9), 'bold': False,
                 'italic': False, 'underline': False, 'color': '#000000'}

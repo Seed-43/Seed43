@@ -755,28 +755,18 @@ def _find_pysheets_dir():
 
 _PYSHEETS_DIR = _find_pysheets_dir()
 
-# pySheets keeps its settings in .user now (see Snippets/_userdata.py). The
-# path is built here rather than imported, to keep startup's import cost at
-# zero - if the layout there ever changes, this has to change with it.
-#
-# The legacy location is still checked as a fallback: a schedule armed before
-# pySheets first migrated sits beside the tool, and the move only happens when
-# the user next opens the window - which may be after this fires.
-_SCHEDULE_FILE_NEW = os.path.join(
+# pySheets keeps its settings in .user (see Snippets/_userdata.py). The path
+# is built here rather than imported, to keep startup's import cost at zero -
+# if the layout there ever changes, this has to change with it.
+_SCHEDULE_FILE = os.path.join(
     EXTENSION_DIR, ".user", "pySheets", "settings", "scheduled_print.json")
-_SCHEDULE_FILE_OLD = (
-    os.path.join(_PYSHEETS_DIR, "userdata", "settings", "scheduled_print.json")
-    if _PYSHEETS_DIR else None
-)
 
 
 def _schedule_file():
-    """Return whichever schedule file exists, preferring the .user one."""
+    """Return the schedule file if one has been armed, else None."""
     try:
-        if os.path.isfile(_SCHEDULE_FILE_NEW):
-            return _SCHEDULE_FILE_NEW
-        if _SCHEDULE_FILE_OLD and os.path.isfile(_SCHEDULE_FILE_OLD):
-            return _SCHEDULE_FILE_OLD
+        if os.path.isfile(_SCHEDULE_FILE):
+            return _SCHEDULE_FILE
     except Exception:
         pass
     return None
@@ -824,7 +814,7 @@ def _write_schedule(data):
     """Write the armed cards back — used when retiring a card that missed
     its slot, so it doesn't sit stale forever."""
     sched = _schedule_mod()
-    path  = _schedule_file() or _SCHEDULE_FILE_NEW
+    path  = _schedule_file() or _SCHEDULE_FILE
     if not sched or not path:
         return
     try:
@@ -984,7 +974,7 @@ def _find_batch_upgrade_dir():
 _BATCH_UPGRADE_DIR = _find_batch_upgrade_dir()
 
 # Batch Upgrade's job files live under .user, same convention pySheets
-# uses for its own settings (see _SCHEDULE_FILE_NEW above). Kept
+# uses for its own settings (see _SCHEDULE_FILE above). Kept
 # independent of _BATCH_UPGRADE_DIR (which can be None) since this path
 # doesn't depend on where the pushbutton itself lives - must also be kept
 # in step with tools/job_io.py's own _ROOT, which derives the same path

@@ -10,9 +10,7 @@ Layout on disk:
 
     .user/pyTransmit/
         Settings/          vocabularies + branding + pytransmit_setup
-        Layouts/           Layout Builder templates
         studio_layouts/    Layout Studio templates
-        layout_config.json
         studio_config.json
         pytransmit_sync.json
 
@@ -21,8 +19,10 @@ Nothing here lives beside the tool any more, so an update cannot touch it.
 The app folder keeps its own copies for good:
 
     Settings/            the six vocabularies, shipped
-    Layout/Layouts/      Layout Builder templates, shipped
     Studio/studio_layouts/  Studio templates, shipped
+
+The old Layout Builder (Layout/, .user/pyTransmit/Layouts/) was removed
+2026-10-27; Layout Studio is the only layout editor.
     Logos/               the stock logo, shipped
 
 Those are the app's content - read-only, identical for every user, and never
@@ -34,7 +34,7 @@ seeded from the shipped folder ONLY while the user's own is empty; the moment
 it holds anything, the shipped folder is never consulted again. That is what
 stops an update putting a file back on top of someone's work.
 
-Importing this module performs the migration and seeding. That is deliberate:
+Importing this module performs the seeding. That is deliberate:
 it happens once, before any caller reads a path, and no module has to remember
 to call an init function.
 """
@@ -44,9 +44,9 @@ import os
 from Snippets import _userdata
 
 __all__ = [
-    "USER_DIR", "SETTINGS_DIR", "LAYOUTS_DIR", "STUDIO_LAYOUTS_DIR",
+    "USER_DIR", "SETTINGS_DIR", "STUDIO_LAYOUTS_DIR",
     "LOGOS_DIR",
-    "LAYOUT_CONFIG", "STUDIO_CONFIG", "SYNC_FILE", "SETUP_FILE", "LOGO_FILE",
+    "STUDIO_CONFIG", "SYNC_FILE", "SETUP_FILE", "LOGO_FILE",
     "settings_file", "restore_defaults",
 ]
 
@@ -57,7 +57,6 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 # ── SHIPPED DEFAULTS (read-only at runtime - nothing loads from here) ───────
 
 _SHIPPED_SETTINGS = os.path.join(_HERE, "Settings")
-_SHIPPED_LAYOUTS = os.path.join(_HERE, "Layout", "Layouts")
 _SHIPPED_STUDIO_LAYOUTS = os.path.join(_HERE, "Studio", "studio_layouts")
 # The stock logo lives in a folder of its own rather than loose beside the
 # script, so it sits alongside the other shipped content and the user's Logos
@@ -76,7 +75,6 @@ TEMPLATE_SETTINGS = [
 
 USER_DIR = _userdata.user_dir(TOOL)
 SETTINGS_DIR = _userdata.user_dir(TOOL, "Settings")
-LAYOUTS_DIR = _userdata.user_dir(TOOL, "Layouts")
 STUDIO_LAYOUTS_DIR = _userdata.user_dir(TOOL, "studio_layouts")
 
 # The user's own logo library, added when Studio grew a logo picker. Nothing
@@ -87,7 +85,6 @@ STUDIO_LAYOUTS_DIR = _userdata.user_dir(TOOL, "studio_layouts")
 # left on someone's Desktop breaks the moment the layout is opened elsewhere.
 LOGOS_DIR = _userdata.user_dir(TOOL, "Logos")
 
-LAYOUT_CONFIG = _userdata.user_path(TOOL, "layout_config.json")
 STUDIO_CONFIG = _userdata.user_path(TOOL, "studio_config.json")
 SYNC_FILE = _userdata.user_path(TOOL, "pytransmit_sync.json")
 
@@ -113,7 +110,7 @@ def settings_file(name):
     return os.path.join(SETTINGS_DIR, name)
 
 
-# ── MIGRATION (runs once, on first import after the update) ─────────────────
+# ── SEEDING (runs on import; only ever fills an empty collection) ───────────
 
 def _has_content(folder, suffix=".json"):
     """Does the user already own files in this collection?"""
@@ -149,27 +146,11 @@ def _init_collections():
     """Give a new install something to start from; never touch an old one.
 
     Templates and the stock logo are COPIED out of the app folder into .user
-    the first time, and only while .user has nothing of its own. Settings that
-    are genuinely the user's - the configs below - are still migrated out of
-    the old beside-the-script locations, because there the shipped file and
-    the user's file really were the same file and leaving a copy behind lets
-    the two drift.
+    the first time, and only while .user has nothing of its own.
     """
     _seed_collection(_SHIPPED_SETTINGS, SETTINGS_DIR, names=TEMPLATE_SETTINGS)
-    _seed_collection(_SHIPPED_LAYOUTS, LAYOUTS_DIR)
     _seed_collection(_SHIPPED_STUDIO_LAYOUTS, STUDIO_LAYOUTS_DIR)
     _seed_collection(_SHIPPED_LOGOS, LOGOS_DIR, suffix=".png")
-
-    # Single configs, not templates: migrate() already skips when the user
-    # has their own, and nobody deletes these deliberately. These are the only
-    # remaining moves, and their sources are legacy beside-the-script paths,
-    # not shipped content - on a current install they no longer exist.
-    _userdata.migrate(os.path.join(_HERE, "Layout", "layout_config.json"),
-                      LAYOUT_CONFIG)
-    _userdata.migrate(os.path.join(_HERE, "Studio", "studio_config.json"),
-                      STUDIO_CONFIG)
-    _userdata.migrate(os.path.join(_HERE, "pytransmit_sync.json"), SYNC_FILE)
-    _userdata.migrate(os.path.join(_HERE, "pytransmit_setup.json"), SETUP_FILE)
 
     # The fallback logo, copied rather than moved for the same reason as the
     # templates - and only when the user has no logo of their own.
@@ -200,12 +181,10 @@ def restore_defaults(which="all"):
     to be MOVED into .user on first run, which left this function copying from
     an empty folder and restoring nothing.
 
-    which: 'settings', 'layouts', 'studio', 'logos', or 'all'. Returns files
-    copied.
+    which: 'settings', 'studio', 'logos', or 'all'. Returns files copied.
     """
     jobs = {
         "settings": (_SHIPPED_SETTINGS, SETTINGS_DIR, TEMPLATE_SETTINGS, ".json"),
-        "layouts": (_SHIPPED_LAYOUTS, LAYOUTS_DIR, None, ".json"),
         "studio": (_SHIPPED_STUDIO_LAYOUTS, STUDIO_LAYOUTS_DIR, None, ".json"),
         "logos": (_SHIPPED_LOGOS, LOGOS_DIR, None, ".png"),
     }

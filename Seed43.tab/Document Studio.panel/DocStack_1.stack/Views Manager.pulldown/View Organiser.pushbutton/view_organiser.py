@@ -25,11 +25,7 @@ def eid_int(element_id):
 # ── Config (folder parameter mapping) ───────────────────────────────────────
 # Stored in .user so an update can never overwrite it. Organiser Reset reads
 # the same file and resolves it the same way - keep the two in step.
-# A config saved by an older version, back when it sat beside this script, is
-# moved across on first run.
-CONFIG_PATH = _userdata.migrate(
-    os.path.join(os.path.dirname(__file__), "view_organiser_config.json"),
-    _userdata.user_path("ViewOrganiser", "view_organiser_config.json"))
+CONFIG_PATH = _userdata.user_path("ViewOrganiser", "view_organiser_config.json")
 NONE_LABEL  = "- None -"
 
 def get_text_param_names(elements):

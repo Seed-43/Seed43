@@ -59,11 +59,8 @@ ABOUT_URL = "https://seed43.org/"
 SUPPORT_URL = "https://buymeacoffee.com/seed43"
 
 # The library path is one user's own, not a shipped default: it lives in
-# .user so an update cannot overwrite it. migrate() carries across a copy
-# left beside the script by an earlier version.
-SETTINGS_FILE = _userdata.migrate(
-    os.path.join(SCRIPT_DIR, "Settings", "library.json"),
-    _userdata.user_path(TOOL_NAME, "library.json"))
+# .user so an update cannot overwrite it.
+SETTINGS_FILE = _userdata.user_path(TOOL_NAME, "library.json")
 
 DEFAULT_LIBRARY = os.path.join(
     os.path.expanduser("~"), "Documents", "Seed43 Connection Library.rvt")

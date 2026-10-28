@@ -65,10 +65,7 @@ from pylink_odt import read_odt_sections
 
 
 # Stored in .user so an update cannot overwrite it - see pylink_shared.py.
-SECTION_GROUPS_PATH = _userdata.migrate(
-    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                 'userdata', 'section_groups.json'),
-    _userdata.user_path('pyLink', 'section_groups.json'))
+SECTION_GROUPS_PATH = _userdata.user_path('pyLink', 'section_groups.json')
 
 DEFAULT_SECTION_GROUPS = {'groups': []}
 
@@ -117,10 +114,7 @@ def match_section_group(text, groups_data=None):
                 return g.get('name', '')
     return ''
 
-WORD_TEXT_SETTINGS_PATH = _userdata.migrate(
-    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                 'userdata', 'word_text_settings.json'),
-    _userdata.user_path('pyLink', 'word_text_settings.json'))
+WORD_TEXT_SETTINGS_PATH = _userdata.user_path('pyLink', 'word_text_settings.json')
 
 DEFAULT_WORD_TEXT_SETTINGS = {
     'mode': 'auto', 'size_mm': 2.0, 'text_type_name': 'pyLink Notes 2.0 Arial',

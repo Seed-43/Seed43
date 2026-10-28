@@ -65,7 +65,7 @@ from System.Windows.Threading import DispatcherPriority
 from Snippets._dialogs import choice, confirm, message, save_file_as
 from Snippets._icons import make_icon, make_icon_with_label, set_header_icon
 from Snippets._support import github_issue_url, open_url, support_mailto
-from Snippets._userdata import migrate, user_path, user_root
+from Snippets._userdata import user_path
 from Snippets.seed43_theme import (apply_seed43_dimensions,
                                    apply_seed43_palette, get_color)
 
@@ -84,14 +84,10 @@ import sp_file  # noqa: E402
 # ── CONSTANTS ───────────────────────────────────────────────────────────────
 
 TOOL_NAME = "pyRameters"
-# The name before October 2026. .user is keyed by tool name, so the two
-# files below are carried across from it once rather than forgotten.
-LEGACY_NAME = "Shared Params"
 ABOUT_URL = "https://seed43.org/"
 SUPPORT_URL = "https://buymeacoffee.com/seed43"
 def _user_file(name):
-    return migrate(os.path.join(user_root(), LEGACY_NAME, name),
-                   user_path(TOOL_NAME, name))
+    return user_path(TOOL_NAME, name)
 
 
 GUIDE_FILE = _user_file("guide_shown.json")

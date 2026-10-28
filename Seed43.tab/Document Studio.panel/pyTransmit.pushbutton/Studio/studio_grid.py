@@ -551,15 +551,10 @@ class Grid(object):
         g.page_h_mm = d.get('page_h_mm', g.page_h_mm)
         g._recompute_page_size()
         g.logo_path = d.get('logo_path', '')
-        # Layouts saved with the earlier single pair carry that setting
-        # into BOTH states, so they keep the spacing they were designed
-        # with whichever way the text toggle is set.
-        _legacy_first = bool(d.get('space_first_group', False))
-        _legacy_between = bool(d.get('space_between_groups', False))
-        g.space_first_on = bool(d.get('space_first_on', _legacy_first))
-        g.space_between_on = bool(d.get('space_between_on', _legacy_between))
-        g.space_first_off = bool(d.get('space_first_off', _legacy_first))
-        g.space_between_off = bool(d.get('space_between_off', _legacy_between))
+        g.space_first_on = bool(d.get('space_first_on', False))
+        g.space_between_on = bool(d.get('space_between_on', False))
+        g.space_first_off = bool(d.get('space_first_off', False))
+        g.space_between_off = bool(d.get('space_between_off', False))
         g.cells = {}
         for r in range(g.n_rows):
             for c in range(g.n_cols):

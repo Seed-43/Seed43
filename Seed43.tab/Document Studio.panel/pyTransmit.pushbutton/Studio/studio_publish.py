@@ -22,6 +22,7 @@
 # moved onto this module.
 
 import json
+import os
 
 import studio_rows
 
@@ -127,6 +128,13 @@ class StudioLayout(object):
             self.cells[(entry.get('r'), entry.get('c'))] = entry
 
         self.logo_path = (layout.get('logo_path', '') or '').strip()
+        if self.logo_path and not os.path.isfile(self.logo_path):
+            # Saved on another PC, or a shipped template naming the logo by
+            # file name only: use this user's library copy of the same name.
+            local = os.path.join(self._p.get('_user_dir') or '', 'Logos',
+                                 os.path.basename(self.logo_path))
+            if os.path.isfile(local):
+                self.logo_path = local
         if not self.logo_path:
             # A layout saved before Studio grew its logo picker has no logo of
             # its own; Branding's is better than printing nothing.
@@ -192,11 +200,9 @@ class StudioLayout(object):
 
         # The layout stores a gap pair for each group-text state; the state in
         # force chooses which pair applies, so one template covers both.
-        legacy_first = bool(self.layout.get('space_first_group', False))
-        legacy_between = bool(self.layout.get('space_between_groups', False))
         suffix = 'on' if group_label else 'off'
-        gap_first = bool(self.layout.get('space_first_' + suffix, legacy_first))
-        gap_between = bool(self.layout.get('space_between_' + suffix, legacy_between))
+        gap_first = bool(self.layout.get('space_first_' + suffix, False))
+        gap_between = bool(self.layout.get('space_between_' + suffix, False))
 
         # condense=False always: Condense Rows shortens the PREVIEW so a
         # 2000-sheet layout stays workable on screen. The transmittal must

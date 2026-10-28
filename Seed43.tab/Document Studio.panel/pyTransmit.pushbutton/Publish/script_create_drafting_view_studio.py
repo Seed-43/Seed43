@@ -116,9 +116,9 @@ try:
 except ValueError:
     # Guarded in pyTransmit too, but a script that can be run directly should
     # not depend on its caller having checked.
-    _alert('"{}" is not a pyTransmit Studio layout.\n\nUse '
-           'script_create_drafting_view.py for Layout Builder '
-           'templates.'.format(os.path.basename(_layout_path)),
+    _alert('"{}" is not a pyTransmit Studio layout.\n\nLayout Builder '
+           'templates are no longer supported - assign a Layout Studio '
+           'template in Export Format.'.format(os.path.basename(_layout_path)),
            title=TITLE, exitscript=True)
 except Exception as _e:
     _alert('Could not read the Studio layout:\n{}\n\n{}'.format(_layout_path, _e),

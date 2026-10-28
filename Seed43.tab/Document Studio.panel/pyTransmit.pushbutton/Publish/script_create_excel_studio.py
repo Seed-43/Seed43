@@ -135,8 +135,9 @@ except Exception as _e:
 if 'cells' not in LAYOUT:
     # Guarded in pyTransmit too, but a script that can be run directly should
     # not depend on its caller having checked.
-    _alert('"{}" is not a pyTransmit Studio layout.\n\nUse '
-           'script_create_excel.py for Layout Builder templates.'.format(
+    _alert('"{}" is not a pyTransmit Studio layout.\n\nLayout Builder '
+           'templates are no longer supported - assign a Layout Studio '
+           'template in Export Format.'.format(
                os.path.basename(_layout_path)),
            title='pyTransmit Studio - Excel', exitscript=True)
 
@@ -228,11 +229,9 @@ GROUP_LABEL = bool(_p.get('group_label', True))
 # layout stays workable on screen. The transmittal must list every sheet.
 # The layout stores a gap pair for each group-text state; the state in force
 # chooses which pair applies, so one template covers both.
-_legacy_first = bool(LAYOUT.get('space_first_group', False))
-_legacy_between = bool(LAYOUT.get('space_between_groups', False))
 _suffix = 'on' if GROUP_LABEL else 'off'
-_gap_first = bool(LAYOUT.get('space_first_' + _suffix, _legacy_first))
-_gap_between = bool(LAYOUT.get('space_between_' + _suffix, _legacy_between))
+_gap_first = bool(LAYOUT.get('space_first_' + _suffix, False))
+_gap_between = bool(LAYOUT.get('space_between_' + _suffix, False))
 
 ROW_PLAN = studio_rows.sheet_row_plan(
     DATA, GROUP_PARAMS, GROUP_LABEL, condense=False,

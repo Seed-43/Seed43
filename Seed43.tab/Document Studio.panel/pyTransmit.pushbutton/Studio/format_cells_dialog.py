@@ -99,7 +99,12 @@ def open_format_cells_dialog(win):
     for sz in studio_blocks.FONT_SIZES_PT:
         size_combo.Items.Add(str(sz))
     cur_size = block.get('size_mm')
-    cur_pt = str(int(round(studio_blocks.mm_to_pt(cur_size)))) if cur_size else '9'
+    # Nearest size on the list, so an odd converted size still selects one.
+    if cur_size:
+        _pt = studio_blocks.mm_to_pt(cur_size)
+        cur_pt = str(min(studio_blocks.FONT_SIZES_PT, key=lambda p: abs(p - _pt)))
+    else:
+        cur_pt = '9'
     size_combo.SelectedItem = cur_pt if cur_pt in list(size_combo.Items) else '9'
     font_row.Children.Add(family_combo)
     font_row.Children.Add(size_combo)

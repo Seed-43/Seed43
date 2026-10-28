@@ -12,18 +12,4 @@
 #       - from: OldSubFolder
 #         to:   NewSubFolder
 
-migrations:
-
-  # 2026-07-30: PyTables renamed to pyLink (carries userdata/section_groups.json).
-  - from: Document Studio.panel/PyTables.pushbutton
-    to:   Document Studio.panel/pyLink.pushbutton
-    subfolders:
-      - from: userdata
-        to:   userdata
-
-  # 2026-07-30: pyFilter moved out of the Filter Manager pulldown to the panel root.
-  - from: Document Studio.panel/DocStack_1.stack/Filter Manager.pulldown/pyFilter.pushbutton
-    to:   Document Studio.panel/pyFilter.pushbutton
-    subfolders:
-      - from: templates
-        to:   templates
+migrations: []

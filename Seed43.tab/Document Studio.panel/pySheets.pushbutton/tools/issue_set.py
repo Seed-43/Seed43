@@ -43,7 +43,6 @@ from datetime import datetime
 
 # ── CONSTANTS ──────────────────────────────────────────────────────────────
 REGISTER_NAME = 'issue register.pysheets'   # JSON inside
-LEGACY_REGISTER_NAME = '_pySheets issue register.json'   # read once, then removed
 ARCHIVE_DIR   = 'Archived'
 DATE_FMT      = '%Y-%m-%d'   # same as pyrevit coreutils.current_date()
 
@@ -150,12 +149,9 @@ class IssueRegister(object):
     # --- construction ---
     def __init__(self, base_folder):
         self.path   = op.join(base_folder, REGISTER_NAME)
-        self.legacy = op.join(base_folder, LEGACY_REGISTER_NAME)
         self.data = {'version': 1, 'items': {}, 'sets': {}}
-        source = (self.path if op.isfile(self.path) else
-                  self.legacy if op.isfile(self.legacy) else None)
-        if source:
-            with io.open(source, 'r', encoding='utf-8') as f:
+        if op.isfile(self.path):
+            with io.open(self.path, 'r', encoding='utf-8') as f:
                 loaded = json.load(f)
             self.data['items'] = loaded.get('items') or {}
             self.data['sets']  = loaded.get('sets') or {}
@@ -193,9 +189,6 @@ class IssueRegister(object):
         if op.isfile(self.path):
             os.remove(self.path)
         os.rename(tmp, self.path)
-        # Its contents now live in REGISTER_NAME, so the old name can go.
-        if op.isfile(self.legacy):
-            os.remove(self.legacy)
 
 
 # ── RUN ────────────────────────────────────────────────────────────────────

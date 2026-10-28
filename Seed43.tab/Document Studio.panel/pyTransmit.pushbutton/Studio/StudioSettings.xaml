@@ -693,6 +693,11 @@ Body: row/column headers + free grid on the left, collapsible Blocks panel on th
                          anywhere else. Python drives the visibility. -->
                     <ToggleButton x:Name="tab_list_btn"   Content="List Rows"  Style="{StaticResource RibbonTab}"
                                   Visibility="Collapsed"/>
+                    <!-- Contextual: shown while whole rows are selected (a row
+                         number or a Structure entry), with the same commands
+                         as the row right-click menu. -->
+                    <ToggleButton x:Name="tab_modify_btn" Content="Modify Rows" Style="{StaticResource RibbonTab}"
+                                  Visibility="Collapsed"/>
                 </StackPanel>
 
                 <ScrollViewer Style="{StaticResource MacScrollViewerXY}"
@@ -948,6 +953,42 @@ Body: row/column headers + free grid on the left, collapsible Blocks panel on th
                                     </Popup>
                                 </StackPanel>
                                 <TextBlock x:Name="group_header_caption" Text="Group Headers" Style="{StaticResource RibbonGroupCaption}"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- Modify Rows (contextual). The row right-click menu as
+                             ribbon buttons; each acts on the selected rows.
+                             Labels and enabled states set in _sync_modify_tab. -->
+                        <StackPanel x:Name="tab_modify_panel" Orientation="Horizontal" Margin="10,2"
+                                    VerticalAlignment="Stretch" Visibility="Collapsed">
+                            <StackPanel VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button x:Name="mod_insert_above_btn" Content="Insert Above" Style="{StaticResource PBtn}" Padding="8,2"/>
+                                    <Button x:Name="mod_insert_below_btn" Content="Insert Below" Style="{StaticResource PBtn}" Padding="8,2" Margin="4,0,0,0"/>
+                                    <Button x:Name="mod_delete_btn"       Content="Delete"       Style="{StaticResource PBtn}" Padding="8,2" Margin="4,0,0,0"/>
+                                </StackPanel>
+                                <TextBlock x:Name="mod_rows_caption" Text="Rows" Style="{StaticResource RibbonGroupCaption}"/>
+                            </StackPanel>
+                            <Rectangle Width="1" Fill="{DynamicResource BrushPillOffBorder}" Margin="10,2,10,2"/>
+                            <StackPanel VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button x:Name="mod_move_up_btn"   Content="▲ Up"   Style="{StaticResource PBtn}" Padding="8,2"/>
+                                    <Button x:Name="mod_move_down_btn" Content="▼ Down" Style="{StaticResource PBtn}" Padding="8,2" Margin="4,0,0,0"/>
+                                    <Button x:Name="mod_height_btn"    Content="Row Height…" Style="{StaticResource PBtn}" Padding="8,2" Margin="10,0,0,0"/>
+                                </StackPanel>
+                                <TextBlock Text="Order &amp; Size" Style="{StaticResource RibbonGroupCaption}"/>
+                            </StackPanel>
+                            <Rectangle Width="1" Fill="{DynamicResource BrushPillOffBorder}" Margin="10,2,10,2"/>
+                            <StackPanel VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button x:Name="mod_sec_top_btn"    Content="Repeat at Top"    Style="{StaticResource PBtn}" Padding="8,2"
+                                            ToolTip="Repeat at Top of Every Page"/>
+                                    <Button x:Name="mod_sec_body_btn"   Content="Body"             Style="{StaticResource PBtn}" Padding="8,2" Margin="4,0,0,0"
+                                            ToolTip="Body (no repeat)"/>
+                                    <Button x:Name="mod_sec_bottom_btn" Content="Anchor to Bottom" Style="{StaticResource PBtn}" Padding="8,2" Margin="4,0,0,0"
+                                            ToolTip="Anchor to Bottom of Every Page"/>
+                                </StackPanel>
+                                <TextBlock Text="Page Section" Style="{StaticResource RibbonGroupCaption}"/>
                             </StackPanel>
                         </StackPanel>
 

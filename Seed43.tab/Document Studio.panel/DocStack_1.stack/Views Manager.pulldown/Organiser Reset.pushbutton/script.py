@@ -6,13 +6,8 @@ from Snippets import _userdata
 
 # ── LOCATE CONFIG ─────────────────────────────────────────────────────────────
 # Shared with View Organiser, which owns this file - both must resolve it the
-# same way. The legacy path is the sibling pushbutton folder, two levels up:
-#   .../Views Manager.pulldown/Organiser Reset.pushbutton/script.py
-# Whichever tool the user opens first performs the move.
-_split      = os.path.dirname(os.path.dirname(__file__))
-CONFIG_PATH = _userdata.migrate(
-    os.path.join(_split, "View Organiser.pushbutton", "view_organiser_config.json"),
-    _userdata.user_path("ViewOrganiser", "view_organiser_config.json"))
+# same way.
+CONFIG_PATH = _userdata.user_path("ViewOrganiser", "view_organiser_config.json")
 
 NONE_LABEL = "- None -"
 

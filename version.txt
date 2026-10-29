@@ -7,23 +7,32 @@ Last update:
   - Seed43 tools are under active development and provided as-is.
 
   New
-  - pyRameters - the model's parameters and shared parameter files in
-    one place (replaces Shared Params)
-  - Connections and Connection Library - clone and reuse steel
-    connections
-  - Param Map, 3D PDF, Trim Column, Link Display, pyRename,
-    Rotate To Element, Bake All Caps, Reset Background Calcs
+  - 3D Import - one button for every 3D format: steel IFCs (Tekla,
+    ProStructures) and StruCad .bsw files come in as native framing,
+    columns and braces, Revit steel plates with their cuts, and bolts
+    and anchors; .seed files from Seed43 Studio, 3D Seed and Navisworks
+    too. Grids and levels come with them (replaces Steel IFC)
+  - Section Map - match a file's sections to your family types, import
+    them as shapes or plates, and keep the choices for later imports
+  - 3D Seed - exports a smart model for Seed43 Studio: an IFC with every
+    Revit parameter
+  - Sheet Scale - writes viewport scales onto "As indicated" sheets
 
   General
-  - New 2D Tools panel; Family Tools moved into Document Studio
-  - More windows on the standard Seed43 layout, and more toolbar icons
-    follow the accent colour
+  - 3D PDF, 3D Seed and 3D Import moved to the 3D Tools panel slide-out
+  - Repeated custom steel parts become editable Generic Model families
+  - Saved settings fully moved to .user; the old migration code is gone
 
   Updated
-  - pySheets, pyTransmit, pyLink, Duplicate Sheets, View Placer, Filters
+  - pySheets - new 3D PDF format for 3D views
+  - pyTransmit - Schedule Pages card (ignore page height, distribution
+    on every page, split after sheets); Studio gets a Structure panel,
+    Undo/Redo buttons, a status readout and font sizes in mm/in; the
+    old Layout Builder is removed
+  - pyLink - schedules built at Excel's own sizes, with a scale per card
 
   Fixes
-  - pyTransmit demo lists missing on new installs
-  - pyLink reading only Column A from some ranges
-  - Duplicate Sheets placing views offset on the new sheet
+  - pyTransmit Studio: short rows clipping their text
+  - pyLink: merged titles losing their text size, and column widths
+    lost on refit
 _____________________________________________________________________

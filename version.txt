@@ -1,4 +1,4 @@
-26.10.19
+26.10.29
 
 _____________________________________________________________________
 Last update:
@@ -24,6 +24,8 @@ Last update:
   - 3D PDF, 3D Seed and 3D Import moved to the 3D Tools panel slide-out
   - Repeated custom steel parts become editable Generic Model families
   - Saved settings fully moved to .user; the old migration code is gone
+  - New icons for 3D Import, 3D Seed and pyRename; toolbar icons
+    re-drawn in the green accent
 
   Updated
   - pySheets - new 3D PDF format for 3D views

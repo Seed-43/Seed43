@@ -2,15 +2,14 @@
 # "Sheet Scale"
 # "Seed43"
 # """
-# Writes the view scales of each As indicated sheet into A1_Scale / A3_Scale
-# and turns the title block's scale override on; clears them and turns it off
-# on every other sheet. Based on the XRT Scale Finder, fixed for title blocks
-# that are natively A3.
+# Writes the view scales of each As indicated sheet into Scale_Override and
+# turns the title block's Override Scale on; clears it and turns the switch
+# off on every other sheet. Title blocks get the label and switch from Set Up
+# Title Blocks (title_blocks.py). Based on the XRT Scale Finder.
 # """
 
 # ── IMPORTS ────────────────────────────────────────────────────────────────
 
-import re
 from collections import defaultdict
 
 from Autodesk.Revit.DB import (
@@ -21,8 +20,8 @@ from pyrevit import forms, script
 
 # ── CONSTANTS ──────────────────────────────────────────────────────────────
 
-A1_PARAM      = "A1_Scale"
-A3_PARAM      = "A3_Scale"
+OVERRIDE_TEXT = "Scale_Override"   # sheet parameter the title block shows
+TOGGLE        = "Override Scale"   # title block switch (see title_blocks.py)
 NO_SCALE_TEXT = "N.T.S"
 SEPARATOR     = " "
 # NOTE: a viewport type whose name holds any of these shows no scale on the
@@ -31,39 +30,14 @@ SEPARATOR     = " "
 SKIP_VP_TEXT  = ("no scale", "n.t.s", "no title", "none")
 SKIP_VIEWS    = (ViewType.Legend,)
 
-FT_TO_MM      = 304.8
-A3_LONG_MM    = 420.0
-A1_LONG_MM    = 841.0
-SIZE_TOL_MM   = 15.0            # borders are rarely drawn to the exact ISO size
-
 AS_INDICATED  = "as indicated"  # Revit's sheet Scale text when views differ
-
-# NOTE: matches "A3 Scale Overide" (the spelling in the Nagel A3 border) as well
-# as "A1 Scale Override", so either family's toggle is found.
-TOGGLE_RE = re.compile(r"^\s*(A\d)\s*Scale\s*Overr?ide\s*$", re.IGNORECASE)
+NOT_SET_UP    = "title block not set up - run Set Up Title Blocks"
 
 # ── HELPERS ────────────────────────────────────────────────────────────────
 
 uidoc  = __revit__.ActiveUIDocument
 doc    = uidoc.Document
 output = script.get_output()
-
-
-# --- Sheet size ---
-def sheet_size_name(titleblock):
-    """Return 'A1', 'A3' or '' from the title block's sheet width/height."""
-    if titleblock is None:
-        return ""
-    w = titleblock.get_Parameter(BuiltInParameter.SHEET_WIDTH)
-    h = titleblock.get_Parameter(BuiltInParameter.SHEET_HEIGHT)
-    if w is None or h is None:
-        return ""
-    long_mm = max(w.AsDouble(), h.AsDouble()) * FT_TO_MM
-    if abs(long_mm - A3_LONG_MM) <= SIZE_TOL_MM:
-        return "A3"
-    if abs(long_mm - A1_LONG_MM) <= SIZE_TOL_MM:
-        return "A1"
-    return ""
 
 
 # --- Scales ---
@@ -108,32 +82,18 @@ def sheet_revit_scale(sheet):
     return ((p.AsString() if p else "") or "").strip()
 
 
-# --- Title block toggle ---
-def find_toggle(titleblock, size):
-    """The Yes/No scale override toggle, preferring the one named for this size."""
-    fallback = None
-    for p in titleblock.Parameters:
-        if p.StorageType != StorageType.Integer or p.IsReadOnly:
-            continue
-        m = TOGGLE_RE.match(p.Definition.Name)
-        if not m:
-            continue
-        if m.group(1).upper() == size:
-            return p
-        fallback = fallback or p
-    return fallback
-
-
-def set_toggle(titleblock, size, on):
-    """Set the override toggle. Returns (label for the report, changed)."""
-    p = find_toggle(titleblock, size) if titleblock else None
-    if p is None:
-        return "-", False
+# --- Title block switch ---
+def set_override(titleblock, on):
+    """Set the title block's Override Scale. Returns (label for the report,
+    changed), or None when the title block is not set up."""
+    p = titleblock.LookupParameter(TOGGLE) if titleblock else None
+    if p is None or p.IsReadOnly or p.StorageType != StorageType.Integer:
+        return None
     want = 1 if on else 0
     changed = p.AsInteger() != want
     if changed:
         p.Set(want)
-    return "{} = {}".format(p.Definition.Name, "Yes" if on else "No"), changed
+    return "{} = {}".format(TOGGLE, "Yes" if on else "No"), changed
 
 
 def set_text(element, name, value):
@@ -181,27 +141,24 @@ def update_sheets(sheets):
     try:
         for sheet in sheets:
             tb     = tb_by_sheet.get(sheet.Id)
-            size   = sheet_size_name(tb)
             scales = sheet_scales(vps_by_sheet.get(sheet.Id, []), vp_type_cache)
 
-            # NOTE: only sheets where Revit's own Scale reads As indicated get a
-            # value and the override on - every other sheet is cleared and the
-            # override goes off, so the title block shows Revit's Scale. The
-            # family can't do this itself: its formulas can't read sheet
-            # parameters or test text. Scales are written 1:1 into the
-            # parameter for the sheet's own size; a sheet of unknown size gets
-            # both. The other size's parameter is cleared - old XRT runs left
-            # stale A1_Scale values (e.g. 1:20 on 1:10 A3 sheets).
+            # NOTE: only sheets where Revit's own Scale reads As indicated get
+            # the scales and Override Scale on - every other sheet is cleared
+            # and the switch goes off, so the title block shows Revit's Scale.
+            # The family can't do this itself: its formulas can't read sheet
+            # parameters or test text.
             revit_scale  = sheet_revit_scale(sheet)
             as_indicated = AS_INDICATED in revit_scale.lower()
             text = scale_string(scales) if as_indicated else ""
-            changed = False
-            changed |= set_text(sheet, A1_PARAM, "" if size == "A3" else text)
-            changed |= set_text(sheet, A3_PARAM, "" if size == "A1" else text)
-            toggle_text, toggled = set_toggle(tb, size, as_indicated)
-            changed |= toggled
-
-            rows.append([sheet.SheetNumber, sheet.Name, size or "?", revit_scale,
+            override = set_override(tb, as_indicated)
+            if override is None:
+                rows.append([sheet.SheetNumber, sheet.Name, revit_scale,
+                             "-", NOT_SET_UP, ""])
+                continue
+            toggle_text, changed = override
+            changed |= set_text(sheet, OVERRIDE_TEXT, text)
+            rows.append([sheet.SheetNumber, sheet.Name, revit_scale,
                          text or "-", toggle_text, "Yes" if changed else ""])
         t.Commit()
     except Exception:
@@ -211,10 +168,38 @@ def update_sheets(sheets):
 
 # ── UI / ENTRY POINT ───────────────────────────────────────────────────────
 
+SET_UP = "Set Up Title Blocks"
+
+
+def run_setup():
+    from title_blocks import DONOR_VERSION, set_up_title_blocks
+    if int(doc.Application.VersionNumber) < DONOR_VERSION:
+        forms.alert("Setting up title blocks needs Revit {} or later: the "
+                    "Scale_Override label is copied from Sheet Scale.rfa, "
+                    "saved in {}.".format(DONOR_VERSION, DONOR_VERSION))
+        return
+    if not forms.alert(
+            "Every title block family placed on a sheet gets a Scale_Override "
+            "label on its scale label and an Override Scale switch, and is "
+            "loaded back into the project (the families are not saved). "
+            "Scale_Override is added to the project's sheets if missing.\n\n"
+            "Save the project first. Continue?", yes=True, no=True):
+        return
+    # NOTE: no progress bar - opening and closing family documents loses
+    # pyRevit's handle on the Revit window, and its updates then fail.
+    rows, added = set_up_title_blocks(doc)
+    output.print_table(
+        [list(r) for r in rows], columns=["Title block", "Result"],
+        title="Sheet Scale - title blocks{}".format(
+            ", Scale_Override added to sheets" if added else ""))
+
+
 if __name__ == "__main__":
-    choice = forms.CommandSwitchWindow.show(["Current Sheet", "All Sheets"],
-                                            message="Sheet Scale")
-    if choice:
+    choice = forms.CommandSwitchWindow.show(
+        ["Current Sheet", "All Sheets", SET_UP], message="Sheet Scale")
+    if choice == SET_UP:
+        run_setup()
+    elif choice:
         sheets = pick_sheets(choice)
         if not sheets:
             forms.alert("Open a sheet or select sheets in the Project Browser first.")
@@ -222,7 +207,7 @@ if __name__ == "__main__":
             rows = update_sheets(sorted(sheets, key=lambda s: s.SheetNumber))
             output.print_table(
                 rows,
-                columns=["Sheet", "Name", "Size", "Revit Scale", "Written",
-                         "Override", "Changed"],
+                columns=["Sheet", "Name", "Revit Scale", "Scale_Override",
+                         "Override Scale", "Changed"],
                 title="Sheet Scale - {} sheet(s), {} changed".format(
-                    len(rows), sum(1 for r in rows if r[6])))
+                    len(rows), sum(1 for r in rows if r[5])))

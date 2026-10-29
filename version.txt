@@ -16,7 +16,9 @@ Last update:
     them as shapes or plates, and keep the choices for later imports
   - 3D Seed - exports a smart model for Seed43 Studio: an IFC with every
     Revit parameter
-  - Sheet Scale - writes viewport scales onto "As indicated" sheets
+  - Sheet Scale - writes viewport scales onto "As indicated" sheets;
+    Set Up Title Blocks adds a Scale_Override label and an Override
+    Scale switch to the title blocks in use
 
   General
   - 3D PDF, 3D Seed and 3D Import moved to the 3D Tools panel slide-out

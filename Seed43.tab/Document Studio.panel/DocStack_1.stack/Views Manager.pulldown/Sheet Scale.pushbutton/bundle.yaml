@@ -5,15 +5,25 @@ tooltip: >
 
   Description:
 
-  Writes the view scales of sheets whose Scale reads As indicated into
-  the A1_Scale and A3_Scale sheet parameters and turns the title block's
-  scale override on so it shows them. Every other sheet has those
-  parameters cleared and the override turned off. Run it and pick
-  Current Sheet, which also takes sheets selected in the Project Browser,
-  or All Sheets. Scales are written 1:1 as the viewports show them,
-  smallest first, into A3_Scale on an A3 title block and A1_Scale on an
-  A1 title block, and the other size's parameter is cleared. Legends are left out, and so are viewports whose type
-  name holds No Scale, N.T.S, No Title or None.
+  Shows the real view scales on sheets whose Scale reads As indicated.
+
+  Current Sheet / All Sheets: the view scales on each As indicated sheet
+  are written 1:1, smallest first, into the sheet's Scale_Override and
+  the title block's Override Scale is turned on, so the title block shows
+  them in place of "As indicated". Every other sheet has Scale_Override
+  cleared and Override Scale turned off, so it shows Revit's own scale.
+  Current Sheet also takes sheets selected in the Project Browser.
+  Legends are left out, and so are viewports whose type name holds
+  No Scale, N.T.S, No Title or None.
+
+  Set Up Title Blocks (Revit 2026): run once per project. Every title
+  block family in use gets a Scale_Override label laid exactly over its
+  scale label, an Override Scale switch, and Bool 01 (not Override Scale)
+  on the scale label, so only one of the two shows. The family is loaded
+  back into the project and closed without saving. Scale_Override is
+  added to the project's sheets if missing. Title blocks already set up,
+  or with no scale label, are skipped. Sheets whose title block is not
+  set up are left alone and listed in the report.
 
   __________________________________________________________________
 min_revit_ver: 2022

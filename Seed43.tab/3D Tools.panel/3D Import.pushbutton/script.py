@@ -380,8 +380,11 @@ class ImportWindow(forms.WPFWindow):
             getattr(self, name).IsChecked = bool(self.options.get(key, True))
         for key, name in self.PLACES:
             getattr(self, name).IsChecked = self.options.get("placement") == key
-        path = self.options.get("path") or u""
-        self._set_path(path if path and os.path.isfile(path) else u"")
+        # the file box starts empty every time; the last file only decides
+        # where Browse opens
+        last = self.options.get("path") or u""
+        self.last_dir = os.path.dirname(last) if last else u""
+        self._set_path(u"")
         for parent, child in self.FOLLOWS:
             getattr(self, parent).Checked += self._follow
             getattr(self, parent).Unchecked += self._follow
@@ -418,7 +421,8 @@ class ImportWindow(forms.WPFWindow):
             self._follow(None, None)
 
     def _on_browse(self, sender, args):
-        start = os.path.dirname(self.path_tb.Text) if self.path_tb.Text else u""
+        start = os.path.dirname(self.path_tb.Text) if self.path_tb.Text \
+            else self.last_dir
         path = forms.pick_file(files_filter=FILE_FILTER, init_dir=start or u"",
                                title=TITLE)
         if path:

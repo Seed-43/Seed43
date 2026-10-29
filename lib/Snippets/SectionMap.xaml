@@ -29,6 +29,79 @@
 
     <Window.Resources>
 
+        <!-- ── SCROLLBAR (Seed43Styles.xaml's Mac scrollbar) ──────────── -->
+        <Style x:Key="MacScrollBarThumb" TargetType="Thumb">
+            <Setter Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border x:Name="thumb" Background="{TemplateBinding Background}"
+                                CornerRadius="3" Margin="2,2,2,2"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="MacScrollBar" TargetType="ScrollBar">
+            <Setter Property="Orientation" Value="Vertical"/>
+            <Setter Property="Width"       Value="8"/>
+            <Setter Property="MinWidth"    Value="8"/>
+            <Setter Property="Background"  Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid x:Name="GridRoot" Width="8">
+                            <Track x:Name="PART_Track" Orientation="Vertical" IsDirectionReversed="True">
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource MacScrollBarThumb}"/>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="GridRoot" Property="Width" Value="10"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="MacScrollViewer" TargetType="ScrollViewer">
+            <Setter Property="VerticalScrollBarVisibility"   Value="Auto"/>
+            <Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollViewer">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <ScrollContentPresenter Grid.Column="0"
+                                                    Margin="{TemplateBinding Padding}"
+                                                    HorizontalAlignment="Stretch"
+                                                    CanContentScroll="{TemplateBinding CanContentScroll}"/>
+                            <ScrollBar x:Name="PART_VerticalScrollBar" Grid.Column="1" Orientation="Vertical"
+                                       Style="{StaticResource MacScrollBar}"
+                                       Value="{TemplateBinding VerticalOffset}"
+                                       Maximum="{TemplateBinding ScrollableHeight}"
+                                       ViewportSize="{TemplateBinding ViewportHeight}"
+                                       Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- ── TEXT ──────────────────────────────────────────────────── -->
         <Style x:Key="Hint" TargetType="TextBlock">
             <Setter Property="Foreground"   Value="{DynamicResource BrushTextMuted}"/>
@@ -174,7 +247,7 @@
                                         MinWidth="{TemplateBinding ActualWidth}"
                                         MaxHeight="{TemplateBinding MaxDropDownHeight}"
                                         Padding="4">
-                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <ScrollViewer Style="{StaticResource MacScrollViewer}">
                                         <ItemsPresenter/>
                                     </ScrollViewer>
                                 </Border>
@@ -348,9 +421,8 @@
                            Text="No section choices are saved yet. They are saved when you map a section during an import."/>
                 <!-- column heads and rows get the same column widths from
                      _section_map.py -->
-                <Grid x:Name="head_grid" DockPanel.Dock="Top" Margin="0,0,18,0"/>
-                <ScrollViewer VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled">
+                <Grid x:Name="head_grid" DockPanel.Dock="Top" Margin="0,0,10,0"/>
+                <ScrollViewer Style="{StaticResource MacScrollViewer}">
                     <Grid x:Name="rows_grid"/>
                 </ScrollViewer>
             </DockPanel>

@@ -10,6 +10,8 @@ logger = script.get_logger()
 
 _sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from pylink_shared import _col_letter_to_index
+_sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from pylink_numfmt import BUILTIN_FORMATS, format_value
 
 # Excel's hidden name for a sheet's print area, and how pyLink lists it.
 PRINT_AREA_NAME = '_xlnm.Print_Area'
@@ -180,13 +182,16 @@ def read_xlsx_range_data(file_path, named_range, sheet_name):
             ws_xml = XmlDocument()
             ws_xml.LoadXml(z.read(sheet_file).decode('utf-8'))
 
+            num_formats = _read_number_formats(z, XmlDocument)
+
         # Parse cell bounds from range reference
         min_col, min_row, max_col, max_row = _parse_range_bounds(range_ref)
 
         # Extract and return rows
         return _extract_rows(
             ws_xml, shared_strings,
-            min_col, min_row, max_col, max_row
+            min_col, min_row, max_col, max_row,
+            num_formats
         )
 
     except Exception as e:
@@ -196,6 +201,54 @@ def read_xlsx_range_data(file_path, named_range, sheet_name):
             )
         )
         return []
+
+
+def _read_number_formats(z, XmlDocument):
+    """The number format code of every cellXfs entry, by xf index - what
+    a cell's s attribute points at. Custom codes come from <numFmts>,
+    the rest are Excel's built-ins. Empty if the workbook has no styles,
+    which leaves every number in General."""
+    try:
+        if 'xl/styles.xml' not in z.namelist():
+            return []
+        st = XmlDocument()
+        st.LoadXml(z.read('xl/styles.xml').decode('utf-8'))
+    except Exception as e:
+        logger.debug('number formats unreadable: {}'.format(e))
+        return []
+    NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+
+    def _tag(tag):
+        nodes = st.GetElementsByTagName(tag)
+        return nodes if nodes.Count else st.GetElementsByTagName(tag, NS)
+
+    custom = {}
+    fmt_nodes = _tag('numFmt')
+    for i in range(fmt_nodes.Count):
+        a_id = fmt_nodes[i].Attributes.GetNamedItem('numFmtId')
+        a_code = fmt_nodes[i].Attributes.GetNamedItem('formatCode')
+        if a_id and a_code:
+            try:
+                custom[int(a_id.Value)] = a_code.Value
+            except ValueError:
+                pass
+
+    codes = []
+    xfs = _tag('cellXfs')
+    if xfs.Count == 0:
+        return codes
+    children = xfs[0].ChildNodes
+    for i in range(children.Count):
+        node = children[i]
+        if node.Attributes is None:
+            continue
+        a = node.Attributes.GetNamedItem('numFmtId')
+        try:
+            fmt_id = int(a.Value) if a else 0
+        except ValueError:
+            fmt_id = 0
+        codes.append(custom.get(fmt_id, BUILTIN_FORMATS.get(fmt_id)))
+    return codes
 
 
 def _read_shared_strings(z, XmlDocument):
@@ -1116,6 +1169,35 @@ def _parse_xfs(xml_doc):
             return None   # absent = not set by this record, inherit from parent
         return a.Value not in ('0', 'false')
 
+    def _alignment(node):
+        """align/valign/wrap/rotation from an <xf>'s <alignment> child,
+        or None when it has none."""
+        align_nodes = node.GetElementsByTagName('alignment')
+        if align_nodes.Count == 0:
+            align_nodes = node.GetElementsByTagName('alignment', NS)
+        if align_nodes.Count == 0:
+            return None
+        attrs = align_nodes[0].Attributes
+        h = attrs.GetNamedItem('horizontal')
+        # Excel's own default vertical alignment (when the attribute
+        # is absent) is 'bottom' - matches Demo.xlsx's D/G/J columns
+        # (v=None in openpyxl) which visually sit at the cell bottom.
+        v = attrs.GetNamedItem('vertical')
+        w = attrs.GetNamedItem('wrapText')
+        # textRotation: 0-90 = counter-clockwise from horizontal,
+        # 91-180 = clockwise (stored as 90 + actual angle), 255 = stacked/vertical.
+        r = attrs.GetNamedItem('textRotation')
+        try:
+            rotation = int(r.Value) if r else 0
+        except Exception:
+            rotation = 0
+        return {
+            'align':    h.Value if h else '',
+            'valign':   v.Value if v else 'bottom',
+            'wrap':     w is not None and w.Value in ('1', 'true', 'True'),
+            'rotation': rotation,
+        }
+
     # --- parse cellStyleXfs (parent / named styles) ---
     style_xfs = []
     sxfs_nodes = _get_xf_nodes('cellStyleXfs')
@@ -1131,6 +1213,7 @@ def _parse_xfs(xml_doc):
                 'fontId':   _int_attr_node(node, 'fontId'),
                 'fillId':   _int_attr_node(node, 'fillId'),
                 'borderId': _int_attr_node(node, 'borderId'),
+                'alignment': _alignment(node),
             })
 
     # --- parse cellXfs (per-cell formats) ---
@@ -1197,34 +1280,25 @@ def _parse_xfs(xml_doc):
             'rotation': 0,
         }
 
-        align_nodes = node.GetElementsByTagName('alignment')
-        if align_nodes.Count == 0:
-            align_nodes = node.GetElementsByTagName('alignment', NS)
-        if align_nodes.Count > 0:
-            h = align_nodes[0].Attributes.GetNamedItem('horizontal')
-            xf['align'] = h.Value if h else ''
-            # Excel's own default vertical alignment (when the attribute
-            # is absent) is 'bottom' - matches Demo.xlsx's D/G/J columns
-            # (v=None in openpyxl) which visually sit at the cell bottom.
-            v = align_nodes[0].Attributes.GetNamedItem('vertical')
-            xf['valign'] = v.Value if v else 'bottom'
-            w = align_nodes[0].Attributes.GetNamedItem('wrapText')
-            if w:
-                xf['wrap'] = w.Value in ('1', 'true', 'True')
-            # textRotation: 0-90 = counter-clockwise from horizontal,
-            # 91-180 = clockwise (stored as 90 + actual angle), 255 = stacked/vertical.
-            r = align_nodes[0].Attributes.GetNamedItem('textRotation')
-            if r:
-                try:
-                    xf['rotation'] = int(r.Value)
-                except Exception:
-                    xf['rotation'] = 0
+        # Alignment, rotation included, can live on the named cell style
+        # alone: a cell styled "Heading - rotated" may carry no <alignment>
+        # of its own, or applyAlignment="0" to say the style's one wins.
+        own = _alignment(node)
+        apply_align = _bool_attr(node, 'applyAlignment')
+        if own is None or apply_align is False:
+            own = parent.get('alignment') or own
+        if own:
+            xf.update(own)
 
         xfs.append(xf)
     return xfs
 
 def _extract_rows(ws_xml, shared_strings,
-                  min_col, min_row, max_col, max_row):
+                  min_col, min_row, max_col, max_row,
+                  num_formats=None):
+    """Cell text as Excel displays it: numbers go through the cell's
+    number format (num_formats, by xf index), so 97.15000000000001 under
+    0.00" m²" comes out as 97.15 m², not the stored float."""
     row_nodes = ws_xml.GetElementsByTagName('row')
     if row_nodes.Count == 0:
         row_nodes = ws_xml.GetElementsByTagName(
@@ -1309,8 +1383,21 @@ def _extract_rows(ws_xml, shared_strings,
                     shared_strings[idx]
                     if idx < len(shared_strings) else ''
                 )
-            else:
+            elif t_attr and t_attr.Value == 'b':
+                col_vals[col_idx] = 'TRUE' if raw == '1' else 'FALSE'
+            elif t_attr and t_attr.Value in ('str', 'e'):
                 col_vals[col_idx] = raw
+            else:
+                s_attr = cell.Attributes.GetNamedItem('s')
+                code = None
+                if s_attr and num_formats:
+                    try:
+                        xf_idx = int(s_attr.Value)
+                    except ValueError:
+                        xf_idx = 0
+                    if xf_idx < len(num_formats):
+                        code = num_formats[xf_idx]
+                col_vals[col_idx] = format_value(raw, code)
 
         if not col_vals:
             continue

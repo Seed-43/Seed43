@@ -750,17 +750,18 @@ sched_def.AddFilter(ScheduleFilter(
     field_asm.FieldId, ScheduleFilterType.Equal, 'ALL VALUES FOUND'
 ))
 
-# ShowGridLines is Revit's blanket gridline layer, drawn underneath and
-# independent of per-cell border overrides, so any cell without a successful
-# override still fell back to it - which is why data cells with no Excel
-# border rendered bordered anyway. Off, so borders come only from real
-# per-cell TableCellStyle overrides.
+# ShowGridLines ON. Revit draws a cell's border overrides only while grid
+# lines are on - with them off, every Excel border vanished from the sheet
+# (checked in Revit 2027). Every header cell sets all four sides itself,
+# black for an Excel border and the white 'pyT Off' style for none, so no
+# cell falls back to the plain grid.
 #
-# NOTE: do NOT set ShowHeaders=False or ShowTitle=False on ScheduleDefinition.
+# NOTE: do NOT set ShowHeaders=False or ShowTitle=False here, before the build.
 # They collapse whole table sections and break Header rendering, and
-# SectionType.Header is where all custom content lives.
+# SectionType.Header is where all custom content lives. ShowHeaders is
+# switched off at the very end instead, once the header is filled.
 try:
-    sched_def.ShowGridLines = False
+    sched_def.ShowGridLines = True
 except Exception as ex:
     logger.debug('ShowGridLines: {}'.format(ex))
 
@@ -787,6 +788,7 @@ try:
     if off_id is not None:
         _bs = TableCellStyle()
         _bo = _bs.GetCellStyleOverrideOptions()
+        _bo.BorderLineStyle       = True   # master flag, as in _apply_style
         _bo.BorderTopLineStyle    = True;  _bs.BorderTopLineStyle    = off_id
         _bo.BorderBottomLineStyle = True;  _bs.BorderBottomLineStyle = off_id
         _bo.BorderLeftLineStyle   = True;  _bs.BorderLeftLineStyle   = off_id
@@ -906,6 +908,26 @@ for _ri, _row in enumerate(_all_input):
             )
         )
 
+def _shared_edge(cs, ri, ci, side, nr, nc, nside):
+    """(style, colour) for one side of a cell, taking the neighbour's
+    border when this cell has none there.
+
+    Excel draws a shared edge if EITHER cell sets it, and usually only one
+    does: a data row with a bottom rule and no top. Revit gives each cell
+    its own four sides, and the white "off" style on the empty top was
+    drawn over the row above's black bottom, so every rule between rows
+    vanished. Both cells now carry the same line on the edge they share.
+    """
+    style = cs.get('border_' + side, '')
+    if style and style != 'none':
+        return style, cs.get('border_' + side + '_color', None)
+    other = cell_styles.get((nr, nc), {})
+    style = other.get('border_' + nside, '')
+    if style and style != 'none':
+        return style, other.get('border_' + nside + '_color', None)
+    return '', None
+
+
 # ── Fill cells: text + per-cell Excel styling ─────────────────────────────────
 # all_rows and row_size_mm were settled before the grid was sized.
 for ri, row_data in enumerate(all_rows):
@@ -922,7 +944,16 @@ for ri, row_data in enumerate(all_rows):
         # schedule. Excel's own size still decides which rows share an
         # answer - see row_style_signature in pylink_shared.
         fs_pt    = row_size_mm.get(ri, size_dat_mm) * (72.0 / 25.4)
-        bold     = cs.get('bold',   ri == 0)
+        if NATIVE_EXCEL_SIZES and cs.get('font_size'):
+            # At Excel's sizes each cell keeps its OWN size. The row's size
+            # is its largest font, so one 14pt bullet column pushed every
+            # 9pt cell beside it up to 14pt.
+            try:
+                fs_pt = (float(cs['font_size']) * NATIVE_SCALE
+                         * EXCEL_TO_REVIT_TEXT)
+            except (TypeError, ValueError):
+                pass
+        bold    = cs.get('bold',   ri == 0)
         italic   = cs.get('italic', False)
         underline = cs.get('underline', False)
         halign   = cs.get('halign', 'Center' if ri == 0 else 'Left')
@@ -943,10 +974,10 @@ for ri, row_data in enumerate(all_rows):
         # ri == 0 test discarded, so those rows lost their rules and any
         # rotation. Rows Excel left unformatted still come back empty here,
         # so plain sheets are unaffected.
-        bt, bt_c = cs.get('border_top', ''),    cs.get('border_top_color', None)
-        bb, bb_c = cs.get('border_bottom', ''), cs.get('border_bottom_color', None)
-        bl, bl_c = cs.get('border_left', ''),   cs.get('border_left_color', None)
-        br, br_c = cs.get('border_right', ''),  cs.get('border_right_color', None)
+        bt, bt_c = _shared_edge(cs, ri, ci, 'top',    ri - 1, ci, 'bottom')
+        bb, bb_c = _shared_edge(cs, ri, ci, 'bottom', ri + 1, ci, 'top')
+        bl, bl_c = _shared_edge(cs, ri, ci, 'left',   ri, ci - 1, 'right')
+        br, br_c = _shared_edge(cs, ri, ci, 'right',  ri, ci + 1, 'left')
         _apply_style(
             hdr, ri, ci,
             bold=bold,
@@ -1012,6 +1043,15 @@ try:
         _fitted_ft * 304.8))
 except Exception as ex:
     logger.warning('final refit failed, keeping autofit sizes: {}'.format(ex))
+
+# The body section's empty column-header row is the last thing left under
+# the table, and with grid lines on it draws as an empty boxed strip. Hidden
+# only now, after every header cell is filled: switching headers off before
+# the build collapses the sections (see the ShowHeaders note above).
+try:
+    sched_def.ShowHeaders = False
+except Exception as ex:
+    logger.debug('ShowHeaders off: {}'.format(ex))
 
 # ── Schedule text types ───────────────────────────────────────────────────────
 # Revit draws a schedule's cells at the schedule's own text type size and

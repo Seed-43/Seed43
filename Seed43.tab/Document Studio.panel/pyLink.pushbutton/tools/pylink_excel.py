@@ -56,7 +56,7 @@ from pylink_shared import (
     hb, Row, VIEW_TYPES, SRC_COLOURS, STATUS_COLOURS,
     _run_export_script, _confirm, _alert, set_view_pylink_data,
     load_excel_font_settings, _is_font_installed,
-    resolve_row_text_sizes, NATIVE_SCALE_OPTIONS, DEFAULT_NATIVE_SCALE,
+    NATIVE_SCALE_OPTIONS, DEFAULT_NATIVE_SCALE,
     card_native_scale, native_text_type_mm,
 )
 
@@ -1144,37 +1144,18 @@ def apply_row(row):
     size_hdr_mm = (hdr_pt * PT_MM) if hdr_pt else row.size_hdr_mm
     size_dat_mm = (dat_pt * PT_MM) if dat_pt else row.size_dat_mm
 
-    # The project's own answers beat Excel's point size, for EVERY view
-    # type. They were only ever read by the schedule builder, so a
-    # drafting view or legend went out at whatever Excel's font happened
-    # to be - 10pt landing as 3.5mm text next to a schedule the same
-    # settings had put at 2mm. The menu calls them "Schedule Text Size"
-    # because that is where they started; they are really this tool's
-    # Excel-to-Revit text heights and now apply as such.
-    #
-    # Resolved here rather than inside each export script so the user is
-    # asked once per row kind per project, whichever view type they
-    # build first, and every later build finds the answer already given.
-    #
-    # Schedules no longer ask: they are built at Excel's own sizes times
-    # the card's scale (see NATIVE_SCALE_OPTIONS), so create_schedule.py
-    # works their text heights out itself.
-    all_rows_for_size = [fields] + list(records)
-    if row.view_type == VIEW_TYPE_SCHEDULE:
-        row_size_mm = {}
-    else:
-        try:
-            row_size_mm = resolve_row_text_sizes(doc, all_rows_for_size,
-                                                 cell_styles)
-        except Exception as ex:
-            logger.warning('text size resolve failed, using Excel sizes: {}'.format(ex))
-            row_size_mm = {}
-    if row_size_mm:
-        # A drafting view and a legend carry two text types, header and
-        # data, so they take the answer for row 0 and the answer for the
-        # first data row. A schedule uses the full per-row map.
-        size_hdr_mm = row_size_mm.get(0, size_hdr_mm)
-        size_dat_mm = row_size_mm.get(1, size_dat_mm)
+    # Every view type is built at Excel's own sizes times the card's scale
+    # (see NATIVE_SCALE_OPTIONS), so the same card comes out the same size
+    # as a schedule, a drafting view or a legend. Schedules work their
+    # per-row heights out in create_schedule.py; a drafting view and a
+    # legend carry two text types, header and data, set here at the size
+    # a schedule cell really draws (native_text_type_mm). The old
+    # per-project "Schedule Text Size" answers are no longer asked for.
+    row_size_mm = {}
+    _scale = getattr(row, 'native_scale', DEFAULT_NATIVE_SCALE)
+    if row.view_type != VIEW_TYPE_SCHEDULE:
+        size_hdr_mm = native_text_type_mm(hdr_pt or 10.0, _scale)
+        size_dat_mm = native_text_type_mm(dat_pt or 10.0, _scale)
 
     # Same idea for font NAME - use Excel's own font (e.g. 'Aptos
     # Narrow') if it's actually installed on this machine, otherwise
@@ -1211,7 +1192,6 @@ def apply_row(row):
     # its types are made at the size the scaled cells really draw at.
     tt_hdr_mm, tt_dat_mm = size_hdr_mm, size_dat_mm
     if row.view_type == VIEW_TYPE_SCHEDULE:
-        _scale = getattr(row, 'native_scale', DEFAULT_NATIVE_SCALE)
         tt_hdr_mm = native_text_type_mm(hdr_pt or 10.0, _scale)
         tt_dat_mm = native_text_type_mm(dat_pt or 10.0, _scale)
     hdr_tt = get_or_create_text_type(
@@ -1478,14 +1458,15 @@ class ExcelCardMixin(object):
         lm_text.Margin           = Thickness(10, 0, 0, 0)
         header_left.Children.Add(lm_text)
 
-        # Schedule scale - every schedule this card builds is drawn at
-        # Excel's own text, column and row sizes times this, so it keeps
-        # the sheet's proportions. Takes effect on the next Apply.
+        # Card scale - every schedule, drafting view and legend this card
+        # builds is drawn at Excel's own text, column and row sizes times
+        # this, so it keeps the sheet's proportions. Takes effect on the
+        # next Apply.
         scale_combo = ComboBox()
         self._combo_style(scale_combo, 64)
         scale_combo.Margin = Thickness(6, 0, 0, 0)
-        scale_combo.ToolTip = ('Schedule scale: Excel text, column and row '
-                               'sizes multiplied by this')
+        scale_combo.ToolTip = ('Scale: Excel text, column and row sizes '
+                               'multiplied by this, for every view type')
         for opt in NATIVE_SCALE_OPTIONS:
             scale_combo.Items.Add(u'{:g}'.format(opt))
         scale_combo.SelectedItem = u'{:g}'.format(card_native_scale(fd))

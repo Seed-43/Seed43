@@ -78,6 +78,14 @@ col_widths    = _p.get('col_widths',    {})
 # clears whatever was there, higher numbers stack below.
 stack_index   = int(_p.get('stack_index', 0) or 0)
 default_row_height = float(_p.get('default_row_height', 14.0))
+# The card's scale. Columns and rows are Excel's own sizes times this,
+# the text was set to Excel's point size times it by the caller - the
+# same rule schedules follow, so a card comes out the same size whichever
+# view type it builds.
+native_scale  = float(_p.get('native_scale') or 0.7)
+# Excel's real column widths, not the Revit-calibrated ones; absent for
+# .ods, which falls back to col_widths.
+col_widths_excel = _p.get('col_widths_excel') or col_widths
 fill_type_id  = _p.get('fill_type_id', ElementId.InvalidElementId)
 # Legend mode: if set, use this name for the temp view
 _temp_name  = _p.get('_legend_temp_view_name', None)
@@ -270,7 +278,33 @@ def _excel_rotation_to_radians(excel_rot):
 
 
 _TEXT_MARGIN = 1.5 * MM
+# Gap between flat text and the cell's left and right edges, like the one
+# a schedule leaves inside its cells. Without it left-aligned text sat on
+# the border line.
+_CELL_PAD = 0.8 * MM
 _TAB_MM = 1.0 * MM  # matches TEXT_TAB_SIZE forced on every pyLink text
+
+
+def _note_layout(w, h, rotation_rad, halign, valign):
+    """(width, alignment) a cell's TextNote is created with.
+
+    Flat text: the cell width less its side padding, aligned as Excel's
+    horizontal alignment says.
+
+    Rotated text runs along the cell's HEIGHT, so Excel's VERTICAL
+    alignment decides where along the note it sits: a bottom-aligned
+    header starts at the foot of the cell, as Excel draws it. The note
+    spans the cell height less its margins and is justified within that.
+    Reading upwards (+90) the note's left end is at the bottom; reading
+    downwards (-90) it is at the top.
+    """
+    if not rotation_rad:
+        return w - 2 * _CELL_PAD, halign
+    if rotation_rad > 0:
+        align = {'Bottom': 'Left', 'Top': 'Right'}.get(valign, 'Center')
+    else:
+        align = {'Bottom': 'Right', 'Top': 'Left'}.get(valign, 'Center')
+    return h - 2 * _TEXT_MARGIN, align
                      # type (see get_or_create_text_type in
                      # pylink_excel.py) - used here as the Top/Bottom
                      # edge padding in the Middle-Align-always vertical
@@ -377,12 +411,14 @@ def _batch_measure_probes(cell_specs):
         text = spec['text']
         if not str(text).strip():
             continue
-        width = spec['h'] if spec['rotation_rad'] else spec['w']
+        width, halign = _note_layout(spec['w'], spec['h'],
+                                     spec['rotation_rad'], spec['halign'],
+                                     spec['valign'])
         if width <= 0:
             continue
 
-        tt_id, halign, bold, is_header = (
-            spec['tt_id'], spec['halign'], spec['bold'], spec['is_header']
+        tt_id, bold, is_header = (
+            spec['tt_id'], spec['bold'], spec['is_header']
         )
         key = _probe_key(tt_id, width, halign, bold, text, is_header)
         if key in _probe_cache or key in seen_keys:
@@ -469,19 +505,23 @@ def _draw_text(view, x, y, w, h, text, tt_id, color_rgb,
     if not str(text).strip():
         return
     try:
-        opts = TextNoteOptions(tt_id)
-        opts.HorizontalAlignment = getattr(
-            HorizontalTextAlignment, halign, HorizontalTextAlignment.Left
-        )
-        width = h if rotation_rad else w
+        width, note_align = _note_layout(w, h, rotation_rad, halign, valign)
         if width <= 0:
             return
+        opts = TextNoteOptions(tt_id)
+        opts.HorizontalAlignment = getattr(
+            HorizontalTextAlignment, note_align, HorizontalTextAlignment.Left
+        )
+        # Flat text is laid out inside the cell less its side padding, so
+        # it both starts off the border and wraps short of the far one.
+        if not rotation_rad:
+            x, w = x + _CELL_PAD, w - 2 * _CELL_PAD
 
         # ── Probe: measure exactly where Revit puts this box for
         # these exact settings, relative to a scratch origin - cached
         # per (type, width, halign, bold) so repeat cells (most of a
         # table) skip the expensive doc.Regenerate() entirely.
-        probe_result = _measure_probe(tt_id, width, halign, text, bold=bold, is_header=is_header)
+        probe_result = _measure_probe(tt_id, width, note_align, text, bold=bold, is_header=is_header)
         if probe_result is None:
             logger.debug('TextNote bbox None for "{}" - skipped'.format(text))
             return
@@ -495,9 +535,9 @@ def _draw_text(view, x, y, w, h, text, tt_id, color_rgb,
         if rotation_rad == 0:
             box_h = bmaxy - bminy
             box_w = bmaxx - bminx
-            # Full cell width (x, w), not the margin-inset mx/mw: the frame is
-            # declared at width=w above, so the target must match or the two
-            # disagree by the margin. Margin applies to the vertical axis only.
+            # The padded width (x, w), not the margin-inset mx/mw: the frame
+            # is declared at width=w above, so the target must match or the
+            # two disagree by the margin.
             target_left = {
                 'Left':   x,
                 'Center': x + (w - box_w) / 2.0,
@@ -529,16 +569,10 @@ def _draw_text(view, x, y, w, h, text, tt_id, color_rgb,
                 'Center': mx + (mw - box_h) / 2.0,
                 'Right':  mx + mw - box_h,
             }.get(halign, mx)
-            # Same Middle-Align-always technique as the unrotated case,
-            # just along the row-height axis (box_w here, since that's
-            # what maps to "reading-direction extent" once rotated).
-            half_text = box_w / 2.0
-            target_center_y = {
-                'Top':    y - _TAB_MM - half_text,
-                'Center': y - h / 2.0,
-                'Bottom': y - h + _TAB_MM + half_text,
-            }.get(valign, y - h / 2.0)
-            target_y_min = target_center_y - half_text
+            # The note spans the cell height less its margins and is
+            # justified inside itself (see _note_layout), so the box is
+            # simply centred on the cell.
+            target_y_min = y - h / 2.0 - box_w / 2.0
             ox = target_x_min + bmaxy
             oy = target_y_min - bminx
         else:
@@ -552,13 +586,10 @@ def _draw_text(view, x, y, w, h, text, tt_id, color_rgb,
                 'Center': mx + (mw - box_h) / 2.0,
                 'Right':  mx + mw - box_h,
             }.get(halign, mx)
-            half_text = box_w / 2.0
-            target_center_y = {
-                'Top':    y - _TAB_MM - half_text,
-                'Center': y - h / 2.0,
-                'Bottom': y - h + _TAB_MM + half_text,
-            }.get(valign, y - h / 2.0)
-            target_y_min = target_center_y - half_text
+            # The note spans the cell height less its margins and is
+            # justified inside itself (see _note_layout), so the box is
+            # simply centred on the cell.
+            target_y_min = y - h / 2.0 - box_w / 2.0
             ox = target_x_min - bminy
             oy = target_y_min + bmaxx
 
@@ -703,8 +734,9 @@ n_total_rows = 1 + n_rows  # header row + data rows
 # Same rule the schedule builder follows, and for the same reason:
 # wrapping can only break at a space, so a column narrower than the
 # longest word is a column that clips or splits it.
-default_col_w_mm = max(25.0, 180.0 / n_cols)
-col_w_mm = [col_widths.get(c, default_col_w_mm) for c in range(n_cols)]
+default_col_w_mm = max(25.0, 180.0 / n_cols) * native_scale
+col_w_mm = [col_widths_excel[c] * native_scale if c in col_widths_excel
+            else default_col_w_mm for c in range(n_cols)]
 
 _all_rows = [fields] + list(records)
 _merge_span = {}
@@ -733,7 +765,7 @@ try:
             else:
                 _word_need[_ci] = max(_word_need.get(_ci, 0.0), _need)
 
-    _pad = 1.5
+    _pad = 1.5 + 2 * _CELL_PAD / MM   # text slack plus the side padding
     for _c in range(n_cols):
         if _c in _word_need:
             col_w_mm[_c] = max(col_w_mm[_c], _word_need[_c] + _pad)
@@ -783,16 +815,15 @@ def _dv_prewrapped(ri, ci, text, available_mm):
     return CELL_LINE_BREAK.join(lines) if len(lines) > 1 else text
 
 # ── Row y positions/heights, from Excel's own row heights ──────────────
-# Still floored to a minimum so the chosen font size never gets clipped,
-# even if Excel's row was set shorter than what pyLink's font needs.
-min_row_h_mm = [
-    (max(6.0, size_hdr_mm * 3.0) if r == 0 else max(5.0, size_dat_mm * 2.5))
-    for r in range(n_total_rows)
-]
+# Excel's height times the card's scale, like a schedule's rows. Floored
+# at a line and a half of text so a row Excel set too short for its font
+# still can't clip it.
+min_row_h_mm = [(size_hdr_mm if r == 0 else size_dat_mm) * 1.5
+                for r in range(n_total_rows)]
 row_h_mm = []
 for r in range(n_total_rows):
     pts = row_heights.get(r, default_row_height)
-    row_h_mm.append(max(pts * PT_MM, min_row_h_mm[r]))
+    row_h_mm.append(max(pts * PT_MM * native_scale, min_row_h_mm[r]))
 row_y_mm = [0.0] * (n_total_rows + 1)
 for r in range(n_total_rows):
     row_y_mm[r + 1] = row_y_mm[r] + row_h_mm[r]
@@ -961,7 +992,9 @@ for r in range(n_total_rows):
         # are Revit internal units (feet) by this point, and the wrap
         # measures in millimetres - without the conversion every word
         # was wider than the cell and each one took its own line.
-        text = _dv_prewrapped(r, c, text, (h if _rot_rad else w) / MM)
+        text = _dv_prewrapped(r, c, text,
+                              (h - 2 * _TEXT_MARGIN if _rot_rad
+                               else w - 2 * _CELL_PAD) / MM)
         cell_specs.append({
             'x': x, 'y': y, 'w': w, 'h': h,
             'text':  text,

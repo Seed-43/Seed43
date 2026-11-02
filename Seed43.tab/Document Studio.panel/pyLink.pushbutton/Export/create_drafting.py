@@ -724,12 +724,11 @@ n_total_rows = 1 + n_rows  # header row + data rows
 
 # ── Column x positions/widths ──────────────────────────────────────────
 # Excel's own widths are the starting point, but they cannot be the last
-# word. A sheet autofitted around ROTATED headers has columns barely
-# wider than a three-digit number, and this view draws those same
-# headers flat - so "Thickness (ti)" was handed 5mm of column and Revit
-# broke it wherever it ran out, mid-word, into the row below. Hence the
-# floor: every column ends up at least as wide as the widest unbreakable
-# word it has to show, at the text size this view is actually using.
+# word: a column narrower than a word it shows has Revit break that word
+# wherever it runs out, mid-word, into the line below. Hence the floor:
+# every column ends up at least as wide as the widest unbreakable word it
+# has to show flat, at the text size this view is actually using. A
+# rotated header only needs one line of text across the column.
 #
 # Same rule the schedule builder follows, and for the same reason:
 # wrapping can only break at a space, so a column narrower than the
@@ -757,8 +756,15 @@ try:
             if not _text:
                 continue
             _st = cell_styles.get((_ri, _ci), {})
-            _need = longest_word_mm(_text, _st.get('font_name', font),
-                                    _size, _st.get('bold'), _st.get('italic'))
+            if _ri == 0 and _st.get('rotation'):
+                # A rotated header runs up the cell, so across the column
+                # it needs one line of text, not its longest word. Measured
+                # flat it widened every rotated column to a different size.
+                _need = _size * 1.2
+            else:
+                _need = longest_word_mm(_text, _st.get('font_name', font),
+                                        _size, _st.get('bold'),
+                                        _st.get('italic'))
             if (_ri, _ci) in _merge_span:
                 _last = min(_merge_span[(_ri, _ci)][1], n_cols - 1)
                 _span_need.append((_need, list(range(_ci, _last + 1))))

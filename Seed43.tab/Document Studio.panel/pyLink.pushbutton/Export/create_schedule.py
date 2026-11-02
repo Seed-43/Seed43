@@ -79,7 +79,7 @@ NATIVE_EXCEL_SIZES = True
 # (the dropdown beside + Add Row).
 NATIVE_SCALE = float(_p.get('native_scale') or 0.7)
 # Excel point size -> Revit text size; see pylink_shared.
-from pylink_shared import EXCEL_TO_REVIT_TEXT
+from pylink_shared import EXCEL_TO_REVIT_TEXT, native_text_type_mm
 
 # Excel's default text colour. Used when a cell's font states no colour
 # of its own, which is what most writers emit for ordinary black text -
@@ -615,6 +615,18 @@ def _prewrapped(ri, ci, text):
     if available <= 0:
         return text
     size_mm = float(st.get('font_size', 10.0)) * 25.4 / 72.0
+    if NATIVE_EXCEL_SIZES:
+        # Measured as Revit will draw it: the cell at the card's scale and
+        # the text at the size a cell really draws, which is about a fifth
+        # smaller against the cell than Excel's. Measured at Excel's own
+        # size, "STEEL FLOAT CONCRETE SURFACE BED" overran a header Excel
+        # fits it in and lost "BED" to a second line. The drafting view
+        # wraps the same way, so the two agree.
+        available = (available + 1.5) * NATIVE_SCALE - 1.5
+        size_mm = native_text_type_mm(float(st.get('font_size', 10.0)),
+                                      NATIVE_SCALE)
+        if available <= 0:
+            return text
     lines = wrap_text_to_lines(text, st.get('font_name', font), size_mm,
                                available, st.get('bold'), st.get('italic'))
     if len(lines) < 2:

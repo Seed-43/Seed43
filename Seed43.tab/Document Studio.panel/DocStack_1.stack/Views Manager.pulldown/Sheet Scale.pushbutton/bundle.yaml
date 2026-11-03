@@ -14,7 +14,7 @@ tooltip: >
   cleared and Override Scale turned off, so it shows Revit's own scale.
   Current Sheet also takes sheets selected in the Project Browser.
   Legends are left out, and so are viewports whose type name holds
-  No Scale, N.T.S, No Title or None.
+  No Scale or N.T.S. Views with no title (No Title, None) still count.
 
   Set Up Title Blocks (Revit 2026): run once per project. Every title
   block family in use gets a Scale_Override label laid exactly over its

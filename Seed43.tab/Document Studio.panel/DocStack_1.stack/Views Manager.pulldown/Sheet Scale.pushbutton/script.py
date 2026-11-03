@@ -24,10 +24,12 @@ OVERRIDE_TEXT = "Scale_Override"   # sheet parameter the title block shows
 TOGGLE        = "Override Scale"   # title block switch (see title_blocks.py)
 NO_SCALE_TEXT = "N.T.S"
 SEPARATOR     = " "
-# NOTE: a viewport type whose name holds any of these shows no scale on the
-# sheet (View Title - A3 Plan No Scale, A3 Auto Line (N.T.S), No Title,
-# View Title - None), so its view is left out.
-SKIP_VP_TEXT  = ("no scale", "n.t.s", "no title", "none")
+# NOTE: a viewport type whose name holds any of these marks its view as not
+# to scale (View Title - A3 Plan No Scale, A3 Auto Line (N.T.S)), so the view
+# is left out. Untitled types (No Title, View Title - None) still count: the
+# view has a real scale, and with its title hidden the title block is the
+# only place that scale shows.
+SKIP_VP_TEXT  = ("no scale", "n.t.s")
 SKIP_VIEWS    = (ViewType.Legend,)
 
 AS_INDICATED  = "as indicated"  # Revit's sheet Scale text when views differ

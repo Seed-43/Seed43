@@ -33,10 +33,18 @@ Last update:
     on every page, split after sheets); Studio gets a Structure panel,
     Undo/Redo buttons, a status readout and font sizes in mm/in; the
     old Layout Builder is removed
-  - pyLink - schedules built at Excel's own sizes, with a scale per card
+  - pyLink - schedules, drafting views and legends built at Excel's own
+    sizes, with a scale per card; numbers come through in Excel's own
+    number format (decimals, units such as m2)
 
   Fixes
   - pyTransmit Studio: short rows clipping their text
   - pyLink: merged titles losing their text size, and column widths
     lost on refit
+  - pyLink: rotated headers set through a cell style coming in flat;
+    schedule borders not showing; one large font in a row resizing the
+    whole row; schedule headers wrapping early; uneven rotated columns
+    and text against the cell edges in drafting views and legends
+  - Sheet Scale: views on untitled viewports (View Title - None) were
+    left out, so a sheet could read N.T.S
 _____________________________________________________________________

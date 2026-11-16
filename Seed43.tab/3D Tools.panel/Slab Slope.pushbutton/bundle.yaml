@@ -1,0 +1,23 @@
+title: "Slab Slope"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Applies a fall to a floor or slab through shape editing, from a slope you
+  type as 1:100, 1%, or 1 deg. Pick every top edge, which stays at the
+  current slab level, then finish, then pick the low edges and finish. The
+  slab falls from the top edges to the low line whatever its outline, and
+  anything behind a top edge, like a notch, stays flat. Straight or curved
+  edges can be picked.
+
+  When top edges sit on both sides of the low line, as in a valley, you
+  choose to keep the slope on both sides, with one top moving off the slab
+  level, or keep both tops level, with the other side's slope changing to
+  suit. A slab that already has shape editing is reset first, after you
+  confirm, and one undo reverses the change.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

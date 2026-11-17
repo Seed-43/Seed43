@@ -1,0 +1,2617 @@
+{
+ "source": "3488 - King and Queen Hotel Suites_R26",
+ "units": "mm",
+ "bars": [
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 97.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 97.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 97.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Deformed Bar - Grade 300E",
+   "nominal": 10.0,
+   "bend": 50.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Deformed",
+   "name": "D10",
+   "hook_bend": 50.0,
+   "tie_bend": 40.0,
+   "model": 12.0,
+   "description": "D10"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 109.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 109.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 190.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 109.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 190.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Deformed Bar - Grade 300E",
+   "nominal": 12.0,
+   "bend": 60.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Deformed",
+   "name": "D12",
+   "hook_bend": 60.0,
+   "tie_bend": 50.0,
+   "model": 14.0,
+   "description": "D12"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 123.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 123.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 255.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 123.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 255.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Deformed Bar - Grade 300E",
+   "nominal": 16.0,
+   "bend": 80.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Deformed",
+   "name": "D16",
+   "hook_bend": 80.0,
+   "tie_bend": 70.0,
+   "model": 18.0,
+   "description": "D16"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 320.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 320.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Deformed Bar - Grade 300E",
+   "nominal": 20.0,
+   "bend": 100.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Deformed",
+   "name": "D20",
+   "hook_bend": 100.0,
+   "tie_bend": 80.0,
+   "model": 23.0,
+   "description": "D20"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 436.0
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": false,
+     "offset": 200.0,
+     "allowed": true,
+     "length": 282.177
+    },
+    "Hook - 180 deg.": {
+     "auto": false,
+     "offset": 200.0,
+     "allowed": true,
+     "length": 286.844
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": false,
+     "offset": 207.48,
+     "allowed": true,
+     "length": 326.633
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": false,
+     "offset": 207.48,
+     "allowed": true,
+     "length": 326.633
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 380.0
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": false,
+     "offset": 200.0,
+     "allowed": true,
+     "length": 282.177
+    }
+   },
+   "material": null,
+   "nominal": 28.0,
+   "bend": 144.0,
+   "max_bend_radius": 18000.0,
+   "deformation": "Deformed",
+   "name": "D24",
+   "hook_bend": 144.0,
+   "tie_bend": 144.0,
+   "model": 28.0,
+   "description": ""
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 320.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 320.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Deformed Bar - Grade 300E",
+   "nominal": 25.0,
+   "bend": 150.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Deformed",
+   "name": "D25",
+   "hook_bend": 150.0,
+   "tie_bend": 150.0,
+   "model": 28.0,
+   "description": "D25"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 500.0
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": false,
+     "offset": 232.0,
+     "allowed": true,
+     "length": 326.159
+    },
+    "Hook - 180 deg.": {
+     "auto": false,
+     "offset": 232.0,
+     "allowed": true,
+     "length": 331.493
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": false,
+     "offset": 237.622,
+     "allowed": true,
+     "length": 375.619
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": false,
+     "offset": 237.622,
+     "allowed": true,
+     "length": 375.619
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 436.0
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": false,
+     "offset": 232.0,
+     "allowed": true,
+     "length": 326.159
+    }
+   },
+   "material": null,
+   "nominal": 32.0,
+   "bend": 168.0,
+   "max_bend_radius": 18000.0,
+   "deformation": "Deformed",
+   "name": "D28",
+   "hook_bend": 168.0,
+   "tie_bend": 168.0,
+   "model": 32.0,
+   "description": ""
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 320.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 320.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Deformed Bar - Grade 300E",
+   "nominal": 32.0,
+   "bend": 200.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Deformed",
+   "name": "D32",
+   "hook_bend": 200.0,
+   "tie_bend": 200.0,
+   "model": 36.0,
+   "description": "D32"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 320.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 320.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Deformed Bar - Grade 300E",
+   "nominal": 40.0,
+   "bend": 240.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Deformed",
+   "name": "D40",
+   "hook_bend": 240.0,
+   "tie_bend": 240.0,
+   "model": 45.0,
+   "description": "D40"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 97.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 97.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 97.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Deformed Bar - Grade 500E",
+   "nominal": 10.0,
+   "bend": 50.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Deformed",
+   "name": "HD10",
+   "hook_bend": 50.0,
+   "tie_bend": 40.0,
+   "model": 12.0,
+   "description": "HD10"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 109.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 109.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 190.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 109.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 190.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Deformed Bar - Grade 500E",
+   "nominal": 12.0,
+   "bend": 60.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Deformed",
+   "name": "HD12",
+   "hook_bend": 60.0,
+   "tie_bend": 50.0,
+   "model": 14.0,
+   "description": "HD12"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 123.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 123.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 255.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 123.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 200.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Deformed Bar - Grade 500E",
+   "nominal": 16.0,
+   "bend": 80.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Deformed",
+   "name": "HD16",
+   "hook_bend": 80.0,
+   "tie_bend": 70.0,
+   "model": 18.0,
+   "description": "HD16"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 320.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 320.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Deformed Bar - Grade 500E",
+   "nominal": 20.0,
+   "bend": 100.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Deformed",
+   "name": "HD20",
+   "hook_bend": 100.0,
+   "tie_bend": 80.0,
+   "model": 23.0,
+   "description": "HD20"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 225.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 225.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 450.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 225.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 450.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Deformed Bar - Grade 500E",
+   "nominal": 25.0,
+   "bend": 150.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Deformed",
+   "name": "HD25",
+   "hook_bend": 150.0,
+   "tie_bend": 150.0,
+   "model": 28.0,
+   "description": "HD25"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 255.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 255.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 515.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 255.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 255.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Deformed Bar - Grade 500E",
+   "nominal": 32.0,
+   "bend": 200.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Deformed",
+   "name": "HD32",
+   "hook_bend": 200.0,
+   "tie_bend": 200.0,
+   "model": 36.0,
+   "description": "HD32"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 190.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 190.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 385.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 190.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 385.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Deformed Bar - Grade 500E",
+   "nominal": 40.0,
+   "bend": 240.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Deformed",
+   "name": "HD40",
+   "hook_bend": 240.0,
+   "tie_bend": 240.0,
+   "model": 45.0,
+   "description": "HD40"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 97.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 97.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 97.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Plain Bar - Grade 500E",
+   "nominal": 10.0,
+   "bend": 50.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Plain",
+   "name": "HR10",
+   "hook_bend": 50.0,
+   "tie_bend": 32.0,
+   "model": 10.0,
+   "description": "HR10"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 97.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 97.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 97.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Plain Bar - Grade 500E",
+   "nominal": 12.0,
+   "bend": 60.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Plain",
+   "name": "HR12",
+   "hook_bend": 60.0,
+   "tie_bend": 40.0,
+   "model": 12.0,
+   "description": "HR12"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 97.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 97.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 97.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Plain Bar - Grade 500E",
+   "nominal": 16.0,
+   "bend": 80.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Plain",
+   "name": "HR16",
+   "hook_bend": 80.0,
+   "tie_bend": 60.0,
+   "model": 16.0,
+   "description": "HR16"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 97.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 97.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 97.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Plain Bar - Grade 500E",
+   "nominal": 20.0,
+   "bend": 100.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Plain",
+   "name": "HR20",
+   "hook_bend": 100.0,
+   "tie_bend": 70.0,
+   "model": 20.0,
+   "description": "HR20"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 109.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 109.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 190.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 109.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 190.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Deformed Bar - Grade 500E",
+   "nominal": 9.0,
+   "bend": 60.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Deformed",
+   "name": "Mesh SE102",
+   "hook_bend": 60.0,
+   "tie_bend": 50.0,
+   "model": 9.0,
+   "description": "Mesh SE92"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 109.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 109.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 190.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 109.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 190.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Deformed Bar - Grade 500E",
+   "nominal": 6.1,
+   "bend": 60.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Deformed",
+   "name": "Mesh SE62",
+   "hook_bend": 60.0,
+   "tie_bend": 50.0,
+   "model": 6.1,
+   "description": "Mesh SE92"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 109.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 109.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 190.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 109.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 190.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Deformed Bar - Grade 500E",
+   "nominal": 7.0,
+   "bend": 60.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Deformed",
+   "name": "Mesh SE72",
+   "hook_bend": 60.0,
+   "tie_bend": 50.0,
+   "model": 7.0,
+   "description": "Mesh SE92"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 109.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 109.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 190.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 109.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 190.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Deformed Bar - Grade 500E",
+   "nominal": 8.0,
+   "bend": 60.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Deformed",
+   "name": "Mesh SE82",
+   "hook_bend": 60.0,
+   "tie_bend": 50.0,
+   "model": 8.0,
+   "description": "Mesh SE92"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 109.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 109.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 190.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 109.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 190.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Deformed Bar - Grade 500E",
+   "nominal": 9.0,
+   "bend": 60.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Deformed",
+   "name": "Mesh SE92",
+   "hook_bend": 60.0,
+   "tie_bend": 50.0,
+   "model": 9.0,
+   "description": "Mesh SE92"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 85.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 85.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 150.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 85.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 150.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Plain Bar - Grade 300E",
+   "nominal": 10.0,
+   "bend": 50.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Plain",
+   "name": "R10",
+   "hook_bend": 50.0,
+   "tie_bend": 32.0,
+   "model": 10.0,
+   "description": "R10"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 90.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 90.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 150.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 90.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 150.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Plain Bar - Grade 300E",
+   "nominal": 12.0,
+   "bend": 60.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Plain",
+   "name": "R12",
+   "hook_bend": 60.0,
+   "tie_bend": 40.0,
+   "model": 12.0,
+   "description": "R12"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 95.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 95.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 95.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Plain Bar - Grade 300E",
+   "nominal": 16.0,
+   "bend": 80.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Plain",
+   "name": "R16",
+   "hook_bend": 80.0,
+   "tie_bend": 60.0,
+   "model": 16.0,
+   "description": "R16"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 95.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 95.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 95.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Plain Bar - Grade 300E",
+   "nominal": 20.0,
+   "bend": 100.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Plain",
+   "name": "R20",
+   "hook_bend": 100.0,
+   "tie_bend": 70.0,
+   "model": 20.0,
+   "description": "R20"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 95.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 95.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 95.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 160.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Plain Bar - Grade 300E",
+   "nominal": 25.0,
+   "bend": 150.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Plain",
+   "name": "R25",
+   "hook_bend": 150.0,
+   "tie_bend": 150.0,
+   "model": 25.0,
+   "description": "R25"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 406.0
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": false,
+     "offset": 140.0,
+     "allowed": true,
+     "length": 217.929
+    },
+    "Hook - 180 deg.": {
+     "auto": false,
+     "offset": 140.0,
+     "allowed": true,
+     "length": 222.596
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": false,
+     "offset": 198.693,
+     "allowed": true,
+     "length": 285.947
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": false,
+     "offset": 198.693,
+     "allowed": true,
+     "length": 285.947
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 350.0
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": false,
+     "offset": 140.0,
+     "allowed": true,
+     "length": 217.929
+    }
+   },
+   "material": null,
+   "nominal": 28.0,
+   "bend": 84.0,
+   "max_bend_radius": 18000.0,
+   "deformation": "Deformed",
+   "name": "R28",
+   "hook_bend": 84.0,
+   "tie_bend": 84.0,
+   "model": 28.0,
+   "description": ""
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 464.0
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": false,
+     "offset": 160.0,
+     "allowed": true,
+     "length": 249.062
+    },
+    "Hook - 180 deg.": {
+     "auto": false,
+     "offset": 160.0,
+     "allowed": true,
+     "length": 254.395
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": false,
+     "offset": 227.078,
+     "allowed": true,
+     "length": 326.796
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": false,
+     "offset": 227.078,
+     "allowed": true,
+     "length": 326.796
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 400.0
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": false,
+     "offset": 160.0,
+     "allowed": true,
+     "length": 249.062
+    }
+   },
+   "material": null,
+   "nominal": 32.0,
+   "bend": 96.0,
+   "max_bend_radius": 18000.0,
+   "deformation": "Deformed",
+   "name": "R32",
+   "hook_bend": 96.0,
+   "tie_bend": 96.0,
+   "model": 32.0,
+   "description": ""
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 580.0
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": false,
+     "offset": 200.0,
+     "allowed": true,
+     "length": 311.327
+    },
+    "Hook - 180 deg.": {
+     "auto": false,
+     "offset": 200.0,
+     "allowed": true,
+     "length": 317.994
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": false,
+     "offset": 283.848,
+     "allowed": true,
+     "length": 408.496
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": false,
+     "offset": 283.848,
+     "allowed": true,
+     "length": 408.496
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 500.0
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": false,
+     "offset": 200.0,
+     "allowed": true,
+     "length": 311.327
+    }
+   },
+   "material": null,
+   "nominal": 40.0,
+   "bend": 120.0,
+   "max_bend_radius": 18000.0,
+   "deformation": "Deformed",
+   "name": "R40",
+   "hook_bend": 120.0,
+   "tie_bend": 120.0,
+   "model": 40.0,
+   "description": ""
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 85.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 85.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 150.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 85.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 150.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Plain Bar - Grade 300E",
+   "nominal": 6.0,
+   "bend": 30.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Plain",
+   "name": "R6",
+   "hook_bend": 30.0,
+   "tie_bend": 22.0,
+   "model": 6.0,
+   "description": "R6"
+  },
+  {
+   "hooks": {
+    "Stirrup/Tie Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 80.0
+    },
+    "Stirrup/Tie Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 80.0
+    },
+    "Standard - 90 deg.": {
+     "auto": false,
+     "allowed": true,
+     "length": 150.0
+    },
+    "Stirrup/Tie Seismic Hook - 135 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Seismic - 135 deg.": {
+     "auto": false,
+     "offset": 77.741,
+     "allowed": true,
+     "length": 80.0
+    },
+    "Standard - 180 deg.": {
+     "auto": false,
+     "offset": 101.6,
+     "allowed": true,
+     "length": 150.0
+    },
+    "Standard - 20 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Standard Hook - 90 deg.": {
+     "auto": true,
+     "allowed": true
+    },
+    "Stirrup/Tie Hook - 180 deg.": {
+     "auto": true,
+     "allowed": true
+    }
+   },
+   "material": "Rebar, Plain Bar - Grade 300E",
+   "nominal": 8.0,
+   "bend": 40.0,
+   "max_bend_radius": 18288.0,
+   "deformation": "Plain",
+   "name": "R8",
+   "hook_bend": 40.0,
+   "tie_bend": 28.0,
+   "model": 8.0,
+   "description": "R8"
+  }
+ ],
+ "note": "NZ bar types (D, HD, HR, R and Mesh SE) as set up in 3488 King and Queen, 17 Nov 2026. mm."
+}

@@ -1,0 +1,340 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="pyRecent"
+        Height="720"
+        Width="1000"
+        MinHeight="480"
+        MinWidth="760"
+        ShowInTaskbar="False"
+        WindowStyle="None"
+        ResizeMode="CanResize"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource BrushWindowBg}"
+        TextElement.FontFamily="Segoe UI"
+        PreviewMouseDown="window_preview_mouse_down">
+
+    <!-- Styles come from lib/Snippets/Seed43Styles.xaml, merged in by
+         pyRecent's script.py after this file loads, and the colours and sizes
+         they use from seed43_palette.json. Every Style below is therefore a
+         DynamicResource: a StaticResource would be looked up while this file
+         parses, before the merge, and fail. -->
+
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="56"
+                             CornerRadius="10"
+                             GlassFrameThickness="0"
+                             ResizeBorderThickness="12"
+                             UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="56"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="30"/>
+        </Grid.RowDefinitions>
+
+        <!-- ═══════════════════════════════════════════════════════════
+             ROW 0 — HEADER
+        ═══════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource BrushHeaderBg}"
+                CornerRadius="10,10,12,12">
+            <Border.Effect>
+                <DropShadowEffect Color="Black" Opacity="0.3" ShadowDepth="2" BlurRadius="8"/>
+            </Border.Effect>
+            <Grid Margin="20,0">
+                <StackPanel Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            HorizontalAlignment="Left">
+                    <Image x:Name="header_icon"
+                           Width="{DynamicResource SizeTopBarLogo}"
+                           Height="{DynamicResource SizeTopBarLogo}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,10,0"/>
+                    <TextBlock Text="py"
+                               Foreground="{DynamicResource BrushPrimaryGreen}"
+                               FontWeight="Bold" FontSize="26"
+                               VerticalAlignment="Center"/>
+                    <TextBlock Text="Recent"
+                               Foreground="{DynamicResource BrushTextPrimary}"
+                               FontWeight="Bold" FontSize="26"
+                               VerticalAlignment="Center"/>
+                    <TextBlock x:Name="header_subtitle_tb"
+                               Text="| Files"
+                               Foreground="{DynamicResource BrushTextPrimary}"
+                               FontSize="18" FontWeight="SemiBold" Opacity="0.55"
+                               Margin="10,0,0,0"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- RIGHT, Options open: one close button that goes back to
+                     the files, the way pyTransmit's panels work -->
+                <StackPanel x:Name="options_header_btns"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            HorizontalAlignment="Right"
+                            Visibility="Collapsed"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button Content="&#x2715;"
+                            Style="{DynamicResource CloseButtonStyle}"
+                            ToolTip="Close Options"
+                            Click="options_back_clicked"/>
+                </StackPanel>
+
+                <!-- RIGHT, files: menu + close -->
+                <StackPanel x:Name="header_normal_btns"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            HorizontalAlignment="Right"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Grid>
+                        <ToggleButton x:Name="menu_toggle_btn"
+                                      Style="{DynamicResource IconToggleButtonStyle}"
+                                      ToolTip="Menu"
+                                      Click="menu_toggle_clicked">
+                            <Path Data="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z"
+                                  Fill="{DynamicResource BrushTextPrimary}"
+                                  Stretch="Uniform" Width="18" Height="18"/>
+                        </ToggleButton>
+                        <Popup x:Name="menu_popup"
+                               PlacementTarget="{Binding ElementName=menu_toggle_btn}"
+                               Placement="Bottom"
+                               AllowsTransparency="True"
+                               StaysOpen="True">
+                            <Border x:Name="menu_border"
+                                    Background="{DynamicResource BrushCardBg}"
+                                    BorderBrush="{DynamicResource BrushPrimaryGreen}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    MinWidth="240">
+                                <Border.Effect>
+                                    <DropShadowEffect Color="Black" Opacity="0.25" ShadowDepth="2" BlurRadius="8"/>
+                                </Border.Effect>
+                                <StackPanel>
+                                    <Button Content="&#x1F527;  Options" Style="{DynamicResource MenuItemStyle}"
+                                            Click="menu_options_clicked"/>
+                                    <Rectangle Fill="{DynamicResource BrushSecondaryBg}" Height="1" Margin="0,2"/>
+                                    <Button Content="Remove missing files" Style="{DynamicResource MenuItemStyle}"
+                                            Click="remove_missing_clicked"/>
+                                    <Button Content="Remove files outside tracked folders" Style="{DynamicResource MenuItemStyle}"
+                                            Click="remove_untracked_clicked"/>
+                                    <Rectangle Fill="{DynamicResource BrushSecondaryBg}" Height="1" Margin="0,2"/>
+                                    <Button Content="&#x2709;  Email support" Style="{DynamicResource MenuItemStyle}"
+                                            Click="help_clicked"/>
+                                    <Button Content="Report an issue on GitHub" Style="{DynamicResource MenuItemStyle}"
+                                            Click="issue_clicked"/>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <Button x:Name="win_close_btn"
+                            Content="&#x2715;"
+                            Margin="12,0,0,0"
+                            Style="{DynamicResource CloseButtonStyle}"
+                            ToolTip="Close"
+                            Click="win_close_clicked"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ═══════════════════════════════════════════════════════════
+             ROW 1 — PAGE: FILES
+        ═══════════════════════════════════════════════════════════ -->
+        <Grid x:Name="page_files" Grid.Row="1" Margin="16,14,16,8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" Margin="0,0,0,10">
+                <!-- Multi-select mode: shown in place of the normal buttons -->
+                <StackPanel x:Name="multi_tools"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Left"
+                            Visibility="Collapsed">
+                    <Button Content="Done"
+                            Margin="0,0,8,0"
+                            Style="{DynamicResource PrimaryButtonStyle}"
+                            ToolTip="Remove the ticked files from the list"
+                            Click="multi_done_clicked"/>
+                    <Button Content="Cancel"
+                            Margin="0,0,16,0"
+                            Style="{DynamicResource SecondaryButtonStyle}"
+                            Click="multi_cancel_clicked"/>
+                    <CheckBox x:Name="tick_all_cb"
+                              Content="Select all"
+                              VerticalAlignment="Center"
+                              Margin="0,0,16,0"
+                              Style="{DynamicResource CheckBoxStyle}"
+                              Click="tick_all_clicked"/>
+                    <TextBlock x:Name="multi_count_tb"
+                               VerticalAlignment="Center"
+                               Opacity="0.7"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                </StackPanel>
+
+                <StackPanel x:Name="normal_tools" Orientation="Horizontal" HorizontalAlignment="Left">
+                    <Button x:Name="open_btn"
+                            Content="Open"
+                            Margin="0,0,8,0"
+                            Style="{DynamicResource PrimaryButtonStyle}"
+                            ToolTip="Open the selected file (double-clicking a file does the same)"
+                            Click="open_clicked"/>
+                    <Button x:Name="remove_btn"
+                            Content="Remove"
+                            Margin="0,0,8,0"
+                            Style="{DynamicResource SecondaryButtonStyle}"
+                            ToolTip="Take files off the list (the files themselves are not touched)"
+                            Click="remove_clicked"/>
+                    <Button x:Name="regen_btn"
+                            Content="New Thumbnail"
+                            Style="{DynamicResource SecondaryButtonStyle}"
+                            ToolTip="Make a new picture of the selected file. A closed file is opened in the background and closed again, without being added to the list"
+                            Click="regen_clicked"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <CheckBox x:Name="show_ref_cb"
+                              Content="Show Reference"
+                              IsChecked="True"
+                              VerticalAlignment="Center"
+                              Margin="0,0,16,0"
+                              Style="{DynamicResource CheckBoxStyle}"
+                              Click="show_ref_clicked"/>
+                    <TextBox x:Name="search_tb"
+                             Width="240"
+                             Style="{DynamicResource TextBoxStyle}"
+                             ToolTip="Search by name or folder"
+                             TextChanged="search_changed"/>
+                </StackPanel>
+            </Grid>
+
+            <ScrollViewer Grid.Row="1"
+                          Style="{DynamicResource MacScrollViewer}">
+                <StackPanel x:Name="list_panel"/>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- ═══════════════════════════════════════════════════════════
+             ROW 1 — PAGE: OPTIONS
+        ═══════════════════════════════════════════════════════════ -->
+        <ScrollViewer x:Name="page_options"
+                      Grid.Row="1"
+                      Margin="16,14,16,8"
+                      Visibility="Collapsed"
+                      Style="{DynamicResource MacScrollViewer}">
+            <StackPanel Margin="0,0,8,0">
+
+                <!-- Tracked folders -->
+                <Border Style="{DynamicResource CardStyle}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Tracked folders" Style="{DynamicResource SectionLabelStyle}"/>
+                        <CheckBox x:Name="filter_cb"
+                                  Content="Only track files in these folder structures"
+                                  Style="{DynamicResource CheckBoxStyle}"
+                                  Click="filter_clicked"/>
+                        <ListBox x:Name="folders_lb"
+                                 Height="96"
+                                 Margin="0,10,0,8"
+                                 Background="{DynamicResource BrushInputBg}"
+                                 Foreground="{DynamicResource BrushTextInput}"
+                                 BorderBrush="{DynamicResource BrushBorderDefault}"
+                                 BorderThickness="1"
+                                 ItemContainerStyle="{DynamicResource ListBoxItemStyle}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <Button Content="Browse to an example folder..."
+                                    Margin="0,0,8,0"
+                                    Style="{DynamicResource PrimaryButtonStyle}"
+                                    ToolTip="Pick one job's folder, for example its DRAWINGS\STRUCTURAL folder"
+                                    Click="browse_folder_clicked"/>
+                            <Button Content="Remove selected"
+                                    Style="{DynamicResource SecondaryButtonStyle}"
+                                    Click="remove_folder_clicked"/>
+                        </StackPanel>
+
+                        <!-- Shown once an example folder is picked -->
+                        <Border x:Name="structure_card"
+                                Visibility="Collapsed"
+                                Margin="0,10,0,0"
+                                Padding="12"
+                                CornerRadius="6"
+                                Background="{DynamicResource BrushInputBg}">
+                            <StackPanel>
+                                <TextBlock Style="{DynamicResource FieldLabelStyle}"
+                                           TextWrapping="Wrap"
+                                           Text="Click the folders that change from job to job. They become 'any folder', and every file with the same structure is tracked."/>
+                                <WrapPanel x:Name="segments_panel" Margin="0,6,0,8"/>
+                                <TextBlock x:Name="pattern_tb"
+                                           TextWrapping="Wrap"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource BrushTextPrimary}"/>
+                                <TextBlock x:Name="pattern_hint_tb"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,10"
+                                           Opacity="0.7"
+                                           Foreground="{DynamicResource BrushTextPrimary}"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="Add this structure"
+                                            Margin="0,0,8,0"
+                                            Style="{DynamicResource PrimaryButtonStyle}"
+                                            Click="add_structure_clicked"/>
+                                    <Button Content="Cancel"
+                                            Style="{DynamicResource SecondaryButtonStyle}"
+                                            Click="cancel_structure_clicked"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Reference files -->
+                <Border Style="{DynamicResource CardStyle}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Reference files" Style="{DynamicResource SectionLabelStyle}"/>
+                        <CheckBox x:Name="auto_ref_cb"
+                                  Content="Mark a file as Reference when it is opened and closed without being saved"
+                                  Style="{DynamicResource CheckBoxStyle}"
+                                  Click="option_clicked"/>
+                        <TextBlock TextWrapping="Wrap"
+                                   Margin="0,6,0,0"
+                                   Opacity="0.7"
+                                   Foreground="{DynamicResource BrushTextPrimary}"
+                                   Text="Checked each time a file closes, so a file you later work on and save goes back to a normal file. A save with nothing changed does not count."/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Thumbnails -->
+                <Border Style="{DynamicResource CardStyle}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Thumbnails" Style="{DynamicResource SectionLabelStyle}"/>
+                        <CheckBox x:Name="thumb_cb"
+                                  Content="Make a thumbnail the first time a file opens"
+                                  Style="{DynamicResource CheckBoxStyle}"
+                                  Click="option_clicked"/>
+                        <TextBlock TextWrapping="Wrap"
+                                   Margin="0,6,0,0"
+                                   Opacity="0.7"
+                                   Foreground="{DynamicResource BrushTextPrimary}"
+                                   Text="Adds a few seconds to the first open of each file. The model is left exactly as it was."/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- ═══════════════════════════════════════════════════════════
+             ROW 2 — STATUS
+        ═══════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="2"
+                Background="{DynamicResource BrushHeaderBg}"
+                CornerRadius="0,0,10,10">
+            <TextBlock x:Name="status_tb"
+                       Margin="20,0"
+                       FontSize="12"
+                       Opacity="0.7"
+                       Foreground="{DynamicResource BrushTextPrimary}"
+                       VerticalAlignment="Center"/>
+        </Border>
+    </Grid>
+</Window>

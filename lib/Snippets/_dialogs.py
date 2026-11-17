@@ -423,6 +423,14 @@ def choice(text, options, title='', detail_text=''):
         row.Children.Add(btn)
     root.Children.Add(row)
 
+    # Widen the window when the buttons need more than its fixed width:
+    # three long labels clipped the first button (Cancel) off the left edge.
+    # 72 = the card's 24 padding and 12 margin, each side.
+    row.Measure(Windows.Size(float('inf'), float('inf')))
+    needed = row.DesiredSize.Width + 72
+    if needed > w.Width:
+        w.Width = needed
+
     if detail_text:
         panel = Windows.Controls.Border()
         panel.Background = _res(w, 'BrushHeaderBg', HEADER)

@@ -1,0 +1,16 @@
+title: "Load NZ Rebar Sizes"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Loads the NZ rebar bar types into the open model: D, HD, HR and R bars
+  and the Mesh SE sizes, set up as in 3488 King and Queen with their
+  diameters, bend diameters, deformation, material, description and hook
+  lengths. Pick which sizes to load; sizes already in the model can be left
+  alone or updated to match. A missing material is made by name.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

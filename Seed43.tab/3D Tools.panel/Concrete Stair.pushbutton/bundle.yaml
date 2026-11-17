@@ -1,0 +1,27 @@
+title: "Concrete Stair"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Builds a native Revit concrete stair, an Assembled Stair with a Monolithic
+  Run, from the sizes you type in. Set the top and base from levels and
+  offsets or by clicking a surface, and the width, riser and going by size
+  or by clicking two points; the risers are made equal and no taller than
+  the riser you give. Press Place stair, click the foot of the first riser
+  on the centreline, then a point up the stair. A short top landing is
+  added so the soffit meets the underside of the landing slab, and the
+  landing slab itself can be made from picked lines.
+
+  Each size set gets its own stair type, named like Concrete Stair - SR180
+  SG300 SD100 LD100, made the first time it is needed and reused after.
+
+  The Rebar tab adds Revit rebar hosted on the stair, set out from its
+  sizes: main bars down the soffit hooked into a footing beam under the
+  first step and turned into the landing, bars across up the slope, and an
+  optional top landing mesh. Stair, footing and bars are one undo.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

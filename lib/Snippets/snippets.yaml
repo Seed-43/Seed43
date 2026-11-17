@@ -384,3 +384,37 @@ snippets:
       mark_reported:     Record that the guide for a column and direction has been shown.
       forget_reports:    Drop the record of which guides have been shown, so they show again.
       report:            Return the message to put in front of the user, or None to stay quiet.
+
+  _recent.py:
+    description: >
+      pyRecent's history, Options settings and document tracking, all under
+      .user/pyRecent. startup.py subscribes it to the open, save and close
+      events; the pyRecent button reads and edits the list. Handlers go
+      through a trampoline so a pyRevit reload swaps in new code without
+      subscribing twice.
+    functions:
+      load_settings:      Return the Options tab settings, with defaults for anything missing.
+      save_settings:      Write the Options tab settings.
+      in_tracked_folders: Check a file path against the folder filter, full or partial folders.
+      load_history:       Return the history dict of tracked files, newest first.
+      save_history:       Write the history dict.
+      find_project:       Find a file's entry in the history by path.
+      record_open:        Record an open, merging opens on the same day.
+      record_close:       Stamp an open's duration and set Reference from whether it was saved.
+      set_reference:      Set or clear a file's Reference flag.
+      set_thumbnail:      Point a file at a new thumbnail, deleting the old one.
+      thumbnail_path:     Return the full path of a file's thumbnail, or None.
+      remove_project:     Take one file off the list.
+      remove_where:       Take every file matching a test off the list.
+      set_skip:           Stop recording while pyRecent opens a file itself.
+      skipping:           Return whether recording is paused.
+      subscribe:          Hook the document events once per Revit session.
+
+  _recent_thumb.py:
+    description: >
+      pyRecent thumbnails: a temporary isometric 3D view cropped to the model,
+      exported to PNG inside a TransactionGroup that is rolled back, so the
+      model is left exactly as it was. Raw Revit API only, for use from
+      startup.py's event handlers.
+    functions:
+      generate: Make and record a thumbnail for an open document, or return None.

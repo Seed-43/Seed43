@@ -6,11 +6,12 @@ tooltip: >
   Description:
 
   A set of tools for working with rebar - assign rebar to a workset, toggle
-  visibility between obscured and unobscured, or update a tag parameter
-  across every element that shares its value.
+  visibility between obscured and unobscured, update a tag parameter
+  across every element that shares its value, or load the NZ bar sizes.
 
   __________________________________________________________________
 layout:
   - Set Workset
   - Toggle Concealment
   - Update Tag Value To All Elements
+  - Load NZ Rebar Sizes

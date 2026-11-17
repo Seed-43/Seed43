@@ -1228,7 +1228,23 @@ def main():
     t.Start()
 
     _subscribe_idling()
+    _subscribe_recent()
     _rebuild_stale_icons()
+
+
+def _subscribe_recent():
+    """Hook pyRecent's open/save/close tracking (Snippets._recent).
+
+    Cheap: _recent imports only os/json/System, and its thumbnail module is
+    loaded on the first file open that needs a picture, not here."""
+    try:
+        import sys as _sys
+        if _LIB_DIR and os.path.isdir(_LIB_DIR) and _LIB_DIR not in _sys.path:
+            _sys.path.insert(0, _LIB_DIR)
+        from Snippets import _recent
+        _recent.subscribe(__revit__.Application)
+    except Exception:
+        _log_error("_subscribe_recent")
 
 
 def _rebuild_stale_icons():

@@ -1,5 +1,6 @@
 
 layout:
+  - pyRecent
   - pySheets
   - pyTransmit
   - pyLink

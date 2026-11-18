@@ -1,0 +1,22 @@
+title: "Reference Other View"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Replaces a section, detail callout or elevation with a Reference Other
+  View marker that points at a view you already have. Pick the marker in the
+  plan, section or elevation it is drawn in, or select the view in the
+  Project Browser first, then choose the view to reference from a list where
+  typing filters by name. The new marker takes the old one's position and
+  size, and the old view is deleted in the same step, so everything drawn in
+  it goes too and it comes off its sheet. You are shown what will be lost
+  and asked before anything is deleted, and if the new marker cannot be
+  created nothing changes. Revit only lets reference markers point at
+  sections, details and drafting views, plus plans and elevations for
+  callouts.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

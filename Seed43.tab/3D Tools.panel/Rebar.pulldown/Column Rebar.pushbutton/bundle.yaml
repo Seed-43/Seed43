@@ -1,0 +1,24 @@
+title: "Column Rebar"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Places concrete piles and columns with their reinforcing, or adds the
+  reinforcing to columns already in the model. Choose a rebar layout (a
+  bored pile with a spiral and bars hooked in at the toe, a square column
+  with perimeter and inner ties and starter bars, or a round column with
+  circular ties and bars hooked out into the cap), the column type, size,
+  level, top and length, the bars, covers, ties and the top, middle and
+  bottom distribution zones. Apply: click a point for each new pile; a type
+  of that size is made if the family has none. Reinforce existing columns:
+  pick columns already in the model. The section and elevation show the
+  setout; their dimensions and bar callouts can be typed in directly.
+
+  Update reads a column's type, levels and the bars already in it back
+  into the dialogue; Apply then rebuilds it where it stands. One undo.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

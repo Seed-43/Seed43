@@ -1,0 +1,705 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="Column Rebar"
+        Width="1240"
+        Height="820"
+        ShowInTaskbar="False"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource BrushWindowBg}"
+        TextElement.FontFamily="Segoe UI">
+
+    <!-- Styles come from lib/Snippets/Seed43Styles.xaml, merged in by
+         script.py after this file loads, so every Style here is a
+         DynamicResource. Same look as the Concrete Stair tool. -->
+
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="56"
+                             CornerRadius="10"
+                             GlassFrameThickness="0"
+                             ResizeBorderThickness="0"
+                             UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <!-- A row label in the left panel -->
+        <Style x:Key="RowLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+        </Style>
+
+        <!-- The unit sitting inside the right end of an input -->
+        <Style x:Key="Unit" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="Opacity" Value="0.5"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,9,0"/>
+            <Setter Property="IsHitTestVisible" Value="False"/>
+        </Style>
+
+        <!-- One row of the left panel: label left, input right -->
+        <Style x:Key="Row" TargetType="Grid">
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+
+        <!-- Thin line between the sections of the left panel -->
+        <Style x:Key="Divider" TargetType="Border">
+            <Setter Property="Height" Value="1"/>
+            <Setter Property="Background" Value="{DynamicResource BrushBorderMuted}"/>
+            <Setter Property="Opacity" Value="0.45"/>
+            <Setter Property="Margin" Value="0,6,0,12"/>
+        </Style>
+
+        <!-- On / off switch with its label on the left -->
+        <Style x:Key="SwitchStyle" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="FontSize"   Value="12"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+            <Setter Property="Margin"     Value="0,0,0,8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <Grid Background="Transparent" Height="26">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <ContentPresenter VerticalAlignment="Center"/>
+                            <Border x:Name="Track" Grid.Column="1" Width="40" Height="20" CornerRadius="10"
+                                    Background="{DynamicResource BrushToggleOffBg}">
+                                <Ellipse x:Name="Knob" Width="16" Height="16" Margin="2,0,0,0"
+                                         HorizontalAlignment="Left"
+                                         Fill="{DynamicResource BrushToggleKnob}"/>
+                            </Border>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+                                <Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right"/>
+                                <Setter TargetName="Knob" Property="Margin" Value="0,0,2,0"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- One line of the Calculations card -->
+        <Style x:Key="CalcLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="Opacity" Value="0.8"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+        <Style x:Key="CalcValue" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+
+        <!-- A card's title: a dot in the accent and the name -->
+        <Style x:Key="CardTitle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="56"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- HEADER -->
+        <Border Grid.Row="0" Background="{DynamicResource BrushHeaderBg}" CornerRadius="10,10,12,12">
+            <Grid Margin="20,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Image x:Name="header_icon"
+                           Width="{DynamicResource SizeTopBarLogo}"
+                           Height="{DynamicResource SizeTopBarLogo}"
+                           Margin="0,0,10,0"/>
+                    <TextBlock Text="Column " Foreground="{DynamicResource BrushPrimaryGreen}"
+                               FontWeight="Bold" FontSize="24" VerticalAlignment="Center"/>
+                    <TextBlock Text="Rebar" Foreground="{DynamicResource BrushTextPrimary}"
+                               FontWeight="Bold" FontSize="24" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="header_subtitle_tb" Text="| New piles / columns" MinWidth="110"
+                               Foreground="{DynamicResource BrushTextPrimary}"
+                               FontSize="16" FontWeight="SemiBold" Opacity="0.55"
+                               Margin="10,0,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
+                <Button Content="&#x2715;" HorizontalAlignment="Right"
+                        Style="{DynamicResource CloseButtonStyle}"
+                        shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                        Click="close_clicked"/>
+            </Grid>
+        </Border>
+
+        <!-- BODY: inputs on the left, the views and the numbers on the right -->
+        <Grid Grid.Row="1" Margin="16,12,16,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="352"/>
+                <ColumnDefinition Width="14"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- ============================ LEFT PANEL ============================ -->
+            <Border Grid.Column="0" Style="{DynamicResource CardStyle}" Padding="12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- the layout: which bars, ties and details -->
+                    <StackPanel Grid.Row="0" Margin="0,0,10,6">
+                        <TextBlock Text="Rebar layout" Style="{DynamicResource FieldLabelStyle}"/>
+                        <ComboBox x:Name="layout_cb" SelectionChanged="layout_changed"
+                                  ToolTip="How the bars are arranged. Choosing a layout fills in its standard bars and ties. More layouts can be added to the tool (column_engine.LAYOUTS)."
+                                  Style="{DynamicResource ComboBoxStyle}"/>
+                        <Button Content="Reinforce existing columns..." HorizontalAlignment="Stretch" Margin="0,8,0,0"
+                                Height="30" Style="{DynamicResource SecondaryButtonStyle}"
+                                ToolTip="Select columns or piles already in the model and add these bars to them (their own size is used; bars already in them are replaced)"
+                                Click="reinforce_existing_clicked"/>
+                    </StackPanel>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                                  Style="{DynamicResource MacScrollViewer}">
+                        <StackPanel Margin="0,4,10,0">
+
+                            <!-- PILE / COLUMN -->
+                            <TextBlock Text="Pile / Column" Style="{DynamicResource SectionLabelStyle}"/>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="170"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Pile name" Style="{StaticResource RowLabel}"/>
+                                <TextBox x:Name="name_tb" Grid.Column="1" Text="P1" TextChanged="inputs_changed"
+                                         ToolTip="Written to each new pile's Mark (numbered -1, -2... when several are placed at once); shown on the elevation"
+                                         Style="{DynamicResource TextBoxStyle}"/>
+                            </Grid>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="200"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Column type" Style="{StaticResource RowLabel}"/>
+                                <ComboBox x:Name="column_type_cb" Grid.Column="1" SelectionChanged="type_changed"
+                                          ToolTip="The concrete column family type placed by Apply. Its size fills the boxes below; type another size and a new type of the same family is made for it (e.g. 750 Round Column)."
+                                          Style="{DynamicResource ComboBoxStyle}"/>
+                            </Grid>
+                            <Grid x:Name="diameter_row" Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Diameter" Style="{StaticResource RowLabel}"/>
+                                <Grid Grid.Column="1">
+                                    <TextBox x:Name="diameter_tb" Text="600" Padding="0,0,30,0" TextChanged="inputs_changed"
+                                             ToolTip="For the drawings and calculations. The bars are set out from the picked pile's own size."
+                                             Style="{DynamicResource TextBoxStyle}"/>
+                                    <TextBlock Text="mm" Style="{StaticResource Unit}"/>
+                                </Grid>
+                            </Grid>
+                            <Grid x:Name="b_row" Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Width b" Style="{StaticResource RowLabel}"/>
+                                <Grid Grid.Column="1">
+                                    <TextBox x:Name="b_tb" Text="500" Padding="0,0,30,0" TextChanged="inputs_changed"
+                                             ToolTip="Along the family's width. The bars are set out from the picked column's own size."
+                                             Style="{DynamicResource TextBoxStyle}"/>
+                                    <TextBlock Text="mm" Style="{StaticResource Unit}"/>
+                                </Grid>
+                            </Grid>
+                            <Grid x:Name="h_row" Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Depth h" Style="{StaticResource RowLabel}"/>
+                                <Grid Grid.Column="1">
+                                    <TextBox x:Name="h_tb" Text="500" Padding="0,0,30,0" TextChanged="inputs_changed"
+                                             ToolTip="Along the family's depth"
+                                             Style="{DynamicResource TextBoxStyle}"/>
+                                    <TextBlock Text="mm" Style="{StaticResource Unit}"/>
+                                </Grid>
+                            </Grid>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Length" Style="{StaticResource RowLabel}"/>
+                                <Grid Grid.Column="1">
+                                    <TextBox x:Name="length_tb" Text="7000" Padding="0,0,30,0" TextChanged="inputs_changed"
+                                             ToolTip="Bottom to top of the pile / column, for the calculations"
+                                             Style="{DynamicResource TextBoxStyle}"/>
+                                    <TextBlock Text="mm" Style="{StaticResource Unit}"/>
+                                </Grid>
+                            </Grid>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Number of piles" Style="{StaticResource RowLabel}"/>
+                                <TextBox x:Name="piles_tb" Grid.Column="1" Text="1" TextChanged="inputs_changed"
+                                         ToolTip="How many of these, for the calculations' totals (Apply places one at each point you click)"
+                                         Style="{DynamicResource TextBoxStyle}"/>
+                            </Grid>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="170"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Level" Style="{StaticResource RowLabel}"/>
+                                <ComboBox x:Name="level_cb" Grid.Column="1" SelectionChanged="inputs_changed"
+                                          ToolTip="The level the top (and the bottom) of each new pile or column is set from"
+                                          Style="{DynamicResource ComboBoxStyle}"/>
+                            </Grid>
+                            <Grid Style="{StaticResource Row}" Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Top (cap), from the level" Style="{StaticResource RowLabel}"/>
+                                <Grid Grid.Column="1">
+                                    <TextBox x:Name="top_offset_tb" Text="0" Padding="0,0,30,0" TextChanged="inputs_changed"
+                                             ToolTip="Top of the pile or column as an offset from the level (e.g. -600 for the underside of a cap on Foundations). The bottom is the length below it."
+                                             Style="{DynamicResource TextBoxStyle}"/>
+                                    <TextBlock Text="mm" Style="{StaticResource Unit}"/>
+                                </Grid>
+                            </Grid>
+                            <TextBlock x:Name="rl_tb" Margin="0,0,0,10" Opacity="0.6" FontSize="11" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource BrushTextPrimary}"/>
+
+                            <Border Style="{StaticResource Divider}" Margin="0,8,0,12"/>
+
+                            <!-- COVER -->
+                            <TextBlock Text="Cover" Style="{DynamicResource SectionLabelStyle}"/>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Sides" Style="{StaticResource RowLabel}"/>
+                                <Grid Grid.Column="1">
+                                    <TextBox x:Name="cover_side_tb" Text="75" Padding="0,0,30,0" TextChanged="inputs_changed"
+                                             ToolTip="From the face to the outside of the ties or spiral; set on the column as its cover"
+                                             Style="{DynamicResource TextBoxStyle}"/>
+                                    <TextBlock Text="mm" Style="{StaticResource Unit}"/>
+                                </Grid>
+                            </Grid>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Top" Style="{StaticResource RowLabel}"/>
+                                <Grid Grid.Column="1">
+                                    <TextBox x:Name="cover_top_tb" Text="50" Padding="0,0,30,0" TextChanged="inputs_changed"
+                                             ToolTip="From the top to the top of the bars (when they do not lap up past it)"
+                                             Style="{DynamicResource TextBoxStyle}"/>
+                                    <TextBlock Text="mm" Style="{StaticResource Unit}"/>
+                                </Grid>
+                            </Grid>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Bottom" Style="{StaticResource RowLabel}"/>
+                                <Grid Grid.Column="1">
+                                    <TextBox x:Name="cover_bottom_tb" Text="130" Padding="0,0,30,0" TextChanged="inputs_changed"
+                                             ToolTip="From the toe to the bottom of the bars, hook included (when they do not run on into a cap below)"
+                                             Style="{DynamicResource TextBoxStyle}"/>
+                                    <TextBlock Text="mm" Style="{StaticResource Unit}"/>
+                                </Grid>
+                            </Grid>
+
+                            <Border Style="{StaticResource Divider}" Margin="0,8,0,12"/>
+
+                            <!-- LONGITUDINAL BARS -->
+                            <TextBlock Text="Longitudinal Bars" Style="{DynamicResource SectionLabelStyle}"/>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="170"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Bar" Style="{StaticResource RowLabel}"/>
+                                <ComboBox x:Name="main_bar_cb" Grid.Column="1" SelectionChanged="inputs_changed"
+                                          ToolTip="The longitudinal bars' type" Style="{DynamicResource ComboBoxStyle}"/>
+                            </Grid>
+                            <Grid x:Name="count_row" Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Quantity" Style="{StaticResource RowLabel}"/>
+                                <TextBox x:Name="main_count_tb" Grid.Column="1" Text="8" TextChanged="inputs_changed"
+                                         ToolTip="Number of bars round the pile, equally spaced"
+                                         Style="{DynamicResource TextBoxStyle}"/>
+                            </Grid>
+                            <Grid x:Name="arrangement_row" Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="170"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Arrangement" Style="{StaticResource RowLabel}"/>
+                                <ComboBox x:Name="arrangement_cb" Grid.Column="1" SelectionChanged="inputs_changed"
+                                          ToolTip="A bar on each of the column's axes, or the bars set off half a space so the axes run between them"
+                                          Style="{DynamicResource ComboBoxStyle}">
+                                    <ComboBoxItem Content="On the axes"/>
+                                    <ComboBoxItem Content="Between the axes"/>
+                                </ComboBox>
+                            </Grid>
+                            <Grid x:Name="bars_b_row" Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Bars per face, along b" Style="{StaticResource RowLabel}"/>
+                                <TextBox x:Name="bars_b_tb" Grid.Column="1" Text="4" TextChanged="inputs_changed"
+                                         ToolTip="Bars on each face along the width, the corner bars included"
+                                         Style="{DynamicResource TextBoxStyle}"/>
+                            </Grid>
+                            <Grid x:Name="bars_h_row" Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Bars per face, along h" Style="{StaticResource RowLabel}"/>
+                                <TextBox x:Name="bars_h_tb" Grid.Column="1" Text="4" TextChanged="inputs_changed"
+                                         ToolTip="Bars on each face along the depth, the corner bars included"
+                                         Style="{DynamicResource TextBoxStyle}"/>
+                            </Grid>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="170"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Hook at the bottom" Style="{StaticResource RowLabel}"/>
+                                <ComboBox x:Name="main_hook_cb" Grid.Column="1" SelectionChanged="inputs_changed"
+                                          ToolTip="The hook type at the bars' bottom end" Style="{DynamicResource ComboBoxStyle}"/>
+                            </Grid>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="170"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Hook turns" Style="{StaticResource RowLabel}"/>
+                                <ComboBox x:Name="hook_dir_cb" Grid.Column="1" SelectionChanged="inputs_changed"
+                                          ToolTip="In toward the middle (a pile toe), or out into the cap or footing below"
+                                          Style="{DynamicResource ComboBoxStyle}">
+                                    <ComboBoxItem Content="In, to the middle"/>
+                                    <ComboBoxItem Content="Out, into the cap"/>
+                                </ComboBox>
+                            </Grid>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Hook leg" Style="{StaticResource RowLabel}"/>
+                                <Grid Grid.Column="1">
+                                    <TextBox x:Name="hook_leg_tb" Text="0" Padding="0,0,30,0" TextChanged="inputs_changed"
+                                             ToolTip="The hook's straight leg (Override Hook Lengths). 0: the hook type's own"
+                                             Style="{DynamicResource TextBoxStyle}"/>
+                                    <TextBlock Text="mm" Style="{StaticResource Unit}"/>
+                                </Grid>
+                            </Grid>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Lap splice above the top" Style="{StaticResource RowLabel}"/>
+                                <Grid Grid.Column="1">
+                                    <TextBox x:Name="lap_tb" Text="0" Padding="0,0,30,0" TextChanged="inputs_changed"
+                                             ToolTip="How far the bars run on up past the top, to lap with the bars above. 0: they stop at the top cover"
+                                             Style="{DynamicResource TextBoxStyle}"/>
+                                    <TextBlock Text="mm" Style="{StaticResource Unit}"/>
+                                </Grid>
+                            </Grid>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Into the cap below" Style="{StaticResource RowLabel}"/>
+                                <Grid Grid.Column="1">
+                                    <TextBox x:Name="bottom_ext_tb" Text="0" Padding="0,0,30,0" TextChanged="inputs_changed"
+                                             ToolTip="How far the bars run on down past the bottom, into a cap or footing. 0: they stop at the bottom cover"
+                                             Style="{DynamicResource TextBoxStyle}"/>
+                                    <TextBlock Text="mm" Style="{StaticResource Unit}"/>
+                                </Grid>
+                            </Grid>
+
+                            <Border Style="{StaticResource Divider}" Margin="0,8,0,12"/>
+
+                            <!-- TIES / SPIRAL -->
+                            <TextBlock x:Name="ties_title_tb" Text="Spiral" Style="{DynamicResource SectionLabelStyle}"/>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="170"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Bar (stirrup diameter)" Style="{StaticResource RowLabel}"/>
+                                <ComboBox x:Name="tie_bar_cb" Grid.Column="1" SelectionChanged="inputs_changed"
+                                          ToolTip="The ties' or spiral's bar type" Style="{DynamicResource ComboBoxStyle}"/>
+                            </Grid>
+                            <Grid x:Name="tie_hook_row" Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="170"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Tie hooks" Style="{StaticResource RowLabel}"/>
+                                <ComboBox x:Name="tie_hook_cb" Grid.Column="1" SelectionChanged="inputs_changed"
+                                          ToolTip="The hooks at both ends of each tie" Style="{DynamicResource ComboBoxStyle}"/>
+                            </Grid>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="First, above the bottom" Style="{StaticResource RowLabel}"/>
+                                <Grid Grid.Column="1">
+                                    <TextBox x:Name="tie_first_tb" Text="165" Padding="0,0,30,0" TextChanged="inputs_changed"
+                                             ToolTip="Height of the first tie (the spiral's start) above the bottom; below 0 runs down into a cap"
+                                             Style="{DynamicResource TextBoxStyle}"/>
+                                    <TextBlock Text="mm" Style="{StaticResource Unit}"/>
+                                </Grid>
+                            </Grid>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Last, below the top" Style="{StaticResource RowLabel}"/>
+                                <Grid Grid.Column="1">
+                                    <TextBox x:Name="tie_last_tb" Text="85" Padding="0,0,30,0" TextChanged="inputs_changed"
+                                             ToolTip="Depth of the last tie (the spiral's end) below the top"
+                                             Style="{DynamicResource TextBoxStyle}"/>
+                                    <TextBlock Text="mm" Style="{StaticResource Unit}"/>
+                                </Grid>
+                            </Grid>
+                            <Grid x:Name="turns_row" Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Finishing turns, each end" Style="{StaticResource RowLabel}"/>
+                                <TextBox x:Name="turns_tb" Grid.Column="1" Text="3" TextChanged="inputs_changed"
+                                         ToolTip="Flat turns at the bottom and the top of the spiral"
+                                         Style="{DynamicResource TextBoxStyle}"/>
+                            </Grid>
+                            <CheckBox x:Name="inner_ties_cb" Content="Inner ties round the middle bars" IsChecked="True"
+                                      Click="inputs_changed" Style="{StaticResource SwitchStyle}"
+                                      ToolTip="With 4 or more bars on a face, a tie each way round the bars between the corners"/>
+
+                            <Border Style="{StaticResource Divider}" Margin="0,8,0,12"/>
+
+                            <!-- DISTRIBUTION ZONES -->
+                            <TextBlock Text="Distribution Zones" Style="{DynamicResource SectionLabelStyle}"/>
+                            <Grid x:Name="zone_top_row" Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="82"/><ColumnDefinition Width="6"/><ColumnDefinition Width="82"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Top: length @" Style="{StaticResource RowLabel}"/>
+                                <Grid Grid.Column="1">
+                                    <TextBox x:Name="zone_top_len_tb" Text="0" Padding="0,0,26,0" TextChanged="inputs_changed"
+                                             ToolTip="Length of the top zone, down from the last tie. 0: no top zone"
+                                             Style="{DynamicResource TextBoxStyle}"/>
+                                    <TextBlock Text="mm" Style="{StaticResource Unit}"/>
+                                </Grid>
+                                <Grid Grid.Column="3">
+                                    <TextBox x:Name="zone_top_sp_tb" Text="75" Padding="0,0,26,0" TextChanged="inputs_changed"
+                                             ToolTip="Tie spacing in the top zone (a maximum: Revit spaces them evenly)"
+                                             Style="{DynamicResource TextBoxStyle}"/>
+                                    <TextBlock Text="crs" Style="{StaticResource Unit}"/>
+                                </Grid>
+                            </Grid>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="82"/></Grid.ColumnDefinitions>
+                                <TextBlock x:Name="zone_mid_lbl" Text="Middle: spacing" Style="{StaticResource RowLabel}"/>
+                                <Grid Grid.Column="1">
+                                    <TextBox x:Name="zone_mid_sp_tb" Text="150" Padding="0,0,26,0" TextChanged="inputs_changed"
+                                             ToolTip="Tie spacing between the zones, or the spiral's pitch (a maximum for ties: Revit spaces them evenly)"
+                                             Style="{DynamicResource TextBoxStyle}"/>
+                                    <TextBlock Text="crs" Style="{StaticResource Unit}"/>
+                                </Grid>
+                            </Grid>
+                            <Grid x:Name="zone_bottom_row" Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="82"/><ColumnDefinition Width="6"/><ColumnDefinition Width="82"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Bottom: length @" Style="{StaticResource RowLabel}"/>
+                                <Grid Grid.Column="1">
+                                    <TextBox x:Name="zone_bottom_len_tb" Text="0" Padding="0,0,26,0" TextChanged="inputs_changed"
+                                             ToolTip="Length of the bottom zone, up from the first tie. 0: no bottom zone"
+                                             Style="{DynamicResource TextBoxStyle}"/>
+                                    <TextBlock Text="mm" Style="{StaticResource Unit}"/>
+                                </Grid>
+                                <Grid Grid.Column="3">
+                                    <TextBox x:Name="zone_bottom_sp_tb" Text="75" Padding="0,0,26,0" TextChanged="inputs_changed"
+                                             ToolTip="Tie spacing in the bottom zone (a maximum: Revit spaces them evenly)"
+                                             Style="{DynamicResource TextBoxStyle}"/>
+                                    <TextBlock Text="crs" Style="{StaticResource Unit}"/>
+                                </Grid>
+                            </Grid>
+
+                            <!-- STARTER BARS -->
+                            <StackPanel x:Name="starters_panel">
+                                <Border Style="{StaticResource Divider}" Margin="0,8,0,12"/>
+                                <CheckBox x:Name="starters_cb" Content="Starter bars from the footing" Click="inputs_changed"
+                                          Style="{StaticResource SwitchStyle}"
+                                          ToolTip="An L bar beside each main bar: its foot in the footing, its leg lapping up into the column"/>
+                                <Grid Style="{StaticResource Row}" IsEnabled="{Binding IsChecked, ElementName=starters_cb}">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="170"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="Bar" Style="{StaticResource RowLabel}"/>
+                                    <ComboBox x:Name="starter_bar_cb" Grid.Column="1" SelectionChanged="inputs_changed"
+                                              Style="{DynamicResource ComboBoxStyle}"/>
+                                </Grid>
+                                <Grid Style="{StaticResource Row}" IsEnabled="{Binding IsChecked, ElementName=starters_cb}">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="Lap above the bottom" Style="{StaticResource RowLabel}"/>
+                                    <Grid Grid.Column="1">
+                                        <TextBox x:Name="starter_lap_tb" Text="1300" Padding="0,0,30,0" TextChanged="inputs_changed"
+                                                 ToolTip="How far the starters run up into the column" Style="{DynamicResource TextBoxStyle}"/>
+                                        <TextBlock Text="mm" Style="{StaticResource Unit}"/>
+                                    </Grid>
+                                </Grid>
+                                <Grid Style="{StaticResource Row}" IsEnabled="{Binding IsChecked, ElementName=starters_cb}">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="Foot below the bottom" Style="{StaticResource RowLabel}"/>
+                                    <Grid Grid.Column="1">
+                                        <TextBox x:Name="starter_embed_tb" Text="480" Padding="0,0,30,0" TextChanged="inputs_changed"
+                                                 ToolTip="Depth of the foot's centreline below the column's bottom" Style="{DynamicResource TextBoxStyle}"/>
+                                        <TextBlock Text="mm" Style="{StaticResource Unit}"/>
+                                    </Grid>
+                                </Grid>
+                                <Grid Style="{StaticResource Row}" IsEnabled="{Binding IsChecked, ElementName=starters_cb}">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="82"/><ColumnDefinition Width="6"/><ColumnDefinition Width="82"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="Foot length, turns" Style="{StaticResource RowLabel}"/>
+                                    <Grid Grid.Column="1">
+                                        <TextBox x:Name="starter_foot_tb" Text="320" Padding="0,0,26,0" TextChanged="inputs_changed"
+                                                 ToolTip="The foot's length past the bend" Style="{DynamicResource TextBoxStyle}"/>
+                                        <TextBlock Text="mm" Style="{StaticResource Unit}"/>
+                                    </Grid>
+                                    <ComboBox x:Name="starter_dir_cb" Grid.Column="3" SelectionChanged="inputs_changed"
+                                              ToolTip="The foot runs out, away from the column, or in under it"
+                                              Style="{DynamicResource ComboBoxStyle}">
+                                        <ComboBoxItem Content="Out"/>
+                                        <ComboBoxItem Content="In"/>
+                                    </ComboBox>
+                                </Grid>
+                            </StackPanel>
+
+                            <Border Style="{StaticResource Divider}" Margin="0,8,0,12"/>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="170"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Steel grade" Style="{StaticResource RowLabel}"/>
+                                <ComboBox x:Name="grade_cb" Grid.Column="1" SelectionChanged="inputs_changed" IsEditable="True"
+                                          ToolTip="For the calculations card (the bar types carry their own material)"
+                                          Style="{DynamicResource ComboBoxStyle}">
+                                    <ComboBoxItem Content="500E"/>
+                                    <ComboBoxItem Content="300E"/>
+                                </ComboBox>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- a reason the bars cannot be made yet -->
+                    <TextBlock x:Name="status_tb" Grid.Row="2" TextWrapping="Wrap" Margin="0,8,0,0"
+                               FontSize="12" Foreground="{DynamicResource BrushDanger}"/>
+
+                    <!-- UPDATE / RESET / APPLY -->
+                    <Grid Grid.Row="3" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="1.25*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="update_pick_btn" Grid.Column="0" Content="Update" Height="38"
+                                Style="{DynamicResource SecondaryButtonStyle}"
+                                ToolTip="Select a column or pile in the model: its size and its bars fill this window, and Apply then replaces its bars"
+                                Click="update_pick_clicked"/>
+                        <Button x:Name="reset_btn" Grid.Column="2" Content="Reset" Height="38"
+                                Style="{DynamicResource SecondaryButtonStyle}"
+                                ToolTip="Back to the layout's standard settings, or to what the selected column has now"
+                                Click="reset_clicked"/>
+                        <Button x:Name="apply_btn" Grid.Column="4" Content="Apply" Height="38"
+                                Style="{DynamicResource PrimaryButtonStyle}"
+                                ToolTip="Click a point for each new pile or column (ESC when done): each is placed with these bars. After Update: rebuilds that column."
+                                Click="apply_clicked"/>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <!-- ============================ RIGHT SIDE ============================ -->
+            <Grid Grid.Column="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="330"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="12"/>
+                    <RowDefinition Height="262"/>
+                </Grid.RowDefinitions>
+
+                <!-- a reason the drawings cannot be drawn yet -->
+                <TextBlock x:Name="note_tb" Grid.ColumnSpan="3" Grid.RowSpan="3" Panel.ZIndex="5"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           TextWrapping="Wrap" TextAlignment="Center" MaxWidth="520" FontSize="14"
+                           Foreground="{DynamicResource BrushTextPrimary}"/>
+
+                <!-- SECTION A-A -->
+                <Border Grid.Row="0" Grid.Column="0" Style="{DynamicResource CardStyle}" Padding="12,10,12,10">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                            <Ellipse Width="10" Height="10" Fill="{DynamicResource BrushPrimaryGreen}"
+                                     VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="Section A-A" Style="{StaticResource CardTitle}"/>
+                        </StackPanel>
+                        <Canvas x:Name="section_canvas" Grid.Row="1" Width="476" Height="376"
+                                HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="True"/>
+                        <Canvas x:Name="section_edit" Grid.Row="1" Width="476" Height="376"
+                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- ELEVATION, full height -->
+                <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="2" Style="{DynamicResource CardStyle}" Padding="12,10,12,10">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                            <Ellipse Width="10" Height="10" Fill="{DynamicResource BrushPrimaryGreen}"
+                                     VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="Elevation" Style="{StaticResource CardTitle}"/>
+                        </StackPanel>
+                        <Canvas x:Name="elev_canvas" Grid.Row="1" Width="306" Height="660"
+                                HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="True"/>
+                        <Canvas x:Name="elev_edit" Grid.Row="1" Width="306" Height="660"
+                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- 3D / CALCULATIONS -->
+                <Grid Grid.Row="2" Grid.Column="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="250"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Style="{DynamicResource CardStyle}" Padding="12,10,12,10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                                <Ellipse Width="10" Height="10" Fill="{DynamicResource BrushPrimaryGreen}"
+                                         VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Text="3D View" Style="{StaticResource CardTitle}"/>
+                            </StackPanel>
+                            <Canvas x:Name="view3d_canvas" Grid.Row="1" Width="236" Height="204"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="True"/>
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Column="2" Style="{DynamicResource CardStyle}" Padding="14,10,14,8">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <Ellipse Width="10" Height="10" Fill="{DynamicResource BrushPrimaryGreen}"
+                                         VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Text="Calculations" Style="{StaticResource CardTitle}"/>
+                            </StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="Main bars" Style="{StaticResource CalcLabel}"/>
+                                <TextBlock x:Name="calc_bars_tb" Grid.Row="0" Grid.Column="1" Style="{StaticResource CalcValue}"/>
+                                <TextBlock Grid.Row="1" Text="Steel area, ratio" Style="{StaticResource CalcLabel}"/>
+                                <TextBlock x:Name="calc_ratio_tb" Grid.Row="1" Grid.Column="1" Style="{StaticResource CalcValue}"/>
+                                <TextBlock x:Name="calc_ties_lbl" Grid.Row="2" Text="Ties" Style="{StaticResource CalcLabel}"/>
+                                <TextBlock x:Name="calc_ties_tb" Grid.Row="2" Grid.Column="1" Style="{StaticResource CalcValue}"/>
+                                <TextBlock Grid.Row="3" Text="Steel, each" Style="{StaticResource CalcLabel}"/>
+                                <TextBlock x:Name="calc_steel_tb" Grid.Row="3" Grid.Column="1" Style="{StaticResource CalcValue}"/>
+                                <TextBlock Grid.Row="4" Text="Concrete, each" Style="{StaticResource CalcLabel}"/>
+                                <TextBlock x:Name="calc_conc_tb" Grid.Row="4" Grid.Column="1" Style="{StaticResource CalcValue}"/>
+                                <TextBlock Grid.Row="5" Text="Steel rate" Style="{StaticResource CalcLabel}"/>
+                                <TextBlock x:Name="calc_rate_tb" Grid.Row="5" Grid.Column="1" Style="{StaticResource CalcValue}"/>
+                                <TextBlock x:Name="calc_total_lbl" Grid.Row="6" Text="Steel, all" FontWeight="SemiBold" FontSize="12"
+                                           Margin="0,0,0,6" Foreground="{DynamicResource BrushPrimaryGreen}"/>
+                                <TextBlock x:Name="calc_total_steel_tb" Grid.Row="6" Grid.Column="1" FontWeight="Bold" FontSize="13"
+                                           Margin="0,0,0,6" HorizontalAlignment="Right" Foreground="{DynamicResource BrushPrimaryGreen}"/>
+                                <TextBlock Grid.Row="7" Text="Concrete, all" FontWeight="SemiBold" FontSize="12"
+                                           Foreground="{DynamicResource BrushPrimaryGreen}"/>
+                                <TextBlock x:Name="calc_total_conc_tb" Grid.Row="7" Grid.Column="1" FontWeight="Bold" FontSize="13"
+                                           HorizontalAlignment="Right" Foreground="{DynamicResource BrushPrimaryGreen}"/>
+                            </Grid>
+                            <TextBlock x:Name="calc_note_tb" Margin="0,6,0,0" Opacity="0.55" FontSize="10" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource BrushTextPrimary}"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>

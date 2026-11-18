@@ -599,7 +599,7 @@ class ColumnWindow(forms.WPFWindow):
             self.status_tb.Text = unicode(err)
             self.note_tb.Text = unicode(err)
             self.apply_btn.IsEnabled = False
-            for canvas in (self.section_canvas, self.elev_canvas, self.view3d_canvas):
+            for canvas in (self.section_canvas, self.elev_canvas):
                 canvas.Children.Clear()
             for box in list(self._editors.values()) + list(self._callouts.values()):
                 box.Visibility = Visibility.Collapsed
@@ -623,7 +623,6 @@ class ColumnWindow(forms.WPFWindow):
         self._placed, self._shown = set(), set()
         self._draw_section(o, plan)
         self._draw_elevation(o, plan)
-        self._draw_3d(o, plan)
         for key, box in self._editors.items():
             if key not in self._placed:
                 box.Visibility = Visibility.Collapsed
@@ -1230,104 +1229,6 @@ class ColumnWindow(forms.WPFWindow):
                           [u"{0} -".format(len(starters["pts"]))])
         if starters:
             self._place_editor("e_starter", 38.0, y_bot - 75.0, -90.0)
-
-    # --- 3D: the pile as typed, see-through, its bars and ties inside ---
-    def _draw_3d(self, o, plan):
-        canvas = self.view3d_canvas
-        canvas.Children.Clear()
-        cw, ch = canvas.Width, canvas.Height
-        L = o["L"]
-        z_lo = min(0.0, plan["main"]["z0"], plan["ties"]["zs"][0] if plan["ties"]["zs"] else 0.0)
-        z_hi = max(L, plan["main"]["z1"])
-        # not to scale across: the pile is drawn at least a quarter as wide as it is tall
-        span = z_hi - z_lo
-        height = ch - 36.0
-        k = height / span
-        wide = max(o["b"] * k, 0.5 * height)
-        sx = wide / o["b"]                                      # px per mm across
-        cx, base_y = cw / 2.0, ch - 18.0 + z_lo * k
-
-        def P(x, y, z):
-            """Axonometric: x to the right and down, y to the left and down, z up."""
-            return (cx + (x - y) * 0.8660 * sx * 0.75,
-                    base_y + (x + y) * 0.5 * sx * 0.75 - z * k)
-
-        ink = self.TryFindResource("BrushTextPrimary")
-        fill, edge = self._bar_brushes()
-        ghost = SolidColorBrush(Color.FromArgb(0x55, 0xC4, 0xC6, 0xC8))
-        rnd = o["shape"] == u"round"
-        hb, hh = o["b"] / 2.0, o["h"] / 2.0
-
-        def outline(z):
-            if rnd:
-                return [P(hb * math.cos(t * math.pi / 18.0), hb * math.sin(t * math.pi / 18.0), z)
-                        for t in range(37)]
-            return [P(-hb, -hh, z), P(hb, -hh, z), P(hb, hh, z), P(-hb, hh, z), P(-hb, -hh, z)]
-
-        def poly(pts, stroke, w, op=1.0, fill_=None):
-            if fill_ is not None:
-                pg = Polygon()
-                pg.Points = PointCollection([Point(x, y) for x, y in pts])
-                pg.Fill = fill_
-                pg.Stroke = stroke
-                pg.StrokeThickness = w
-                pg.Opacity = op
-                canvas.Children.Add(pg)
-                return
-            pl = Polyline()
-            pl.Points = PointCollection([Point(x, y) for x, y in pts])
-            pl.Stroke = stroke
-            pl.StrokeThickness = w
-            pl.Opacity = op
-            canvas.Children.Add(pl)
-
-        # the body: its silhouette, see-through
-        bottom, top = outline(0.0), outline(L)
-        xs = [p[0] for p in bottom]
-        left, right = min(xs), max(xs)
-        lo = [p for p in bottom if abs(p[0] - left) < 0.5][0]
-        ro = [p for p in bottom if abs(p[0] - right) < 0.5][0]
-        lt = [p for p in top if abs(p[0] - left) < 0.5][0]
-        rt = [p for p in top if abs(p[0] - right) < 0.5][0]
-        body = [lt, lo] + [p for p in bottom if p[1] >= min(lo[1], ro[1]) - 0.1] + [ro, rt]
-        poly([lt, lo, ro, rt], CONCRETE_EDGE, 0.8, 1.0, ghost)
-        poly(bottom, CONCRETE_EDGE, 0.8, 0.5)
-        # the ties (a sample when there are many) and the bars, then the top face over them
-        zs = plan["ties"]["zs"]
-        step = max(1, len(zs) // 24)
-        if plan["ties"]["kind"] == u"spiral":
-            z_a, z_b, pitch, _f = plan["ties"]["sets"][0]
-            r = plan["ties"]["r"]
-            turns = (z_b - z_a) / pitch
-            pts = [P(r * math.cos(t * math.pi / 8.0), r * math.sin(t * math.pi / 8.0),
-                     z_a + (z_b - z_a) * t / (16.0 * turns))
-                   for t in range(int(16 * turns) + 1)]
-            poly(pts, fill, 1.0, 0.9)
-        else:
-            for z in zs[::step]:
-                if plan["ties"]["kind"] == u"circle":
-                    r = plan["ties"]["r"]
-                    poly([P(r * math.cos(t * math.pi / 12.0), r * math.sin(t * math.pi / 12.0), z)
-                          for t in range(25)], fill, 1.0, 0.9)
-                else:
-                    for bx0, by0, bx1, by1 in plan["ties"]["boxes"]:
-                        poly([P(bx0, by0, z), P(bx1, by0, z), P(bx1, by1, z), P(bx0, by1, z), P(bx0, by0, z)],
-                             fill, 1.0, 0.9)
-        m = plan["main"]
-        for (x, y), a in zip(m["pts"], m["ang"]):
-            pts = [P(x, y, m["z1"]), P(x, y, m["z0"])]
-            if m["hook"]:
-                d = -1.0 if m["hook"] == u"in" else 1.0
-                pts.append(P(x + d * math.cos(a) * 150.0, y + d * math.sin(a) * 150.0, m["z0"]))
-            back = (x + y) < 0
-            poly(pts, edge, 2.6, 0.35 if back else 1.0)
-            poly(pts, fill, 1.6, 0.45 if back else 1.0)
-        if plan["starters"]:
-            s = plan["starters"]
-            for x, y, fx, fy in s["pts"]:
-                poly([P(x, y, s["z_top"]), P(x, y, s["z_foot"]),
-                      P(x + fx * s["foot"], y + fy * s["foot"], s["z_foot"])], fill, 1.2, 0.5)
-        poly(top, CONCRETE_EDGE, 0.8, 1.0, SolidColorBrush(Color.FromArgb(0x88, 0xDE, 0xE1, 0xE4)))
 
     # --- buttons: each pick hides the window and is done by main() ---
     def _hide_for(self, action):

@@ -5,15 +5,13 @@ tooltip: >
 
   Description:
 
-  A set of tools for working with rebar - reinforce columns and piles,
-  assign rebar to a workset, toggle visibility between obscured and
-  unobscured, update a tag parameter across every element that shares its
-  value, or load the NZ bar sizes.
+  Places reinforced concrete with its rebar: a concrete stair with its
+  footing, main bars, bars across and landing mesh, or piles and columns
+  with their bars, spirals and ties. Each tool can also reinforce or
+  rebuild elements already in the model.
 
   __________________________________________________________________
 layout:
+  - Concrete Stair
   - Column Rebar
-  - Set Workset
-  - Toggle Concealment
-  - Update Tag Value To All Elements
-  - Load NZ Rebar Sizes
+  - Beam Rebar

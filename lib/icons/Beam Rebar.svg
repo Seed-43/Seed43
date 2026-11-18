@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Beam Rebar: a beam's section under a slab, its stirrup and bars. Same frame as the other Seed43 icons. -->
+<svg version="1.1" width="96" height="96" viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg">
+  <rect x="1.5" y="1.5" width="93" height="93" rx="12" ry="12" style="fill:#1f893c;stroke:none"/>
+  <path d="M 94.5,31 V 14 C 94.5,6.8 88.7,1.5 81.5,1.5 H 14.5 C 7.3,1.5 1.5,6.8 1.5,14 V 54 A 92,36 0 0 0 94.5,31 Z"
+        style="fill:#1faa3c;stroke:none"/>
+  <rect x="1.5" y="1.5" width="93" height="93" rx="12" ry="12" style="fill:none;stroke:#000000;stroke-width:3"/>
+  <path d="M 10,18 H 86 V 32 H 70 V 80 H 26 V 32 H 10 Z" style="fill:#ffffff;stroke:#000000;stroke-width:3;stroke-linejoin:round"/>
+  <rect x="33" y="27" width="30" height="46" rx="4" ry="4" style="fill:none;stroke:#000000;stroke-width:3"/>
+  <path d="M 35,29 L 43,37" style="fill:none;stroke:#000000;stroke-width:3;stroke-linecap:round"/>
+  <circle cx="39" cy="33" r="4.2" style="fill:#000000"/>
+  <circle cx="57" cy="33" r="4.2" style="fill:#000000"/>
+  <circle cx="39" cy="67" r="4.2" style="fill:#000000"/>
+  <circle cx="48" cy="67" r="4.2" style="fill:#000000"/>
+  <circle cx="57" cy="67" r="4.2" style="fill:#000000"/>
+</svg>

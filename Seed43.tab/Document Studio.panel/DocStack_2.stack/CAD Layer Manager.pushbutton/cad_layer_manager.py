@@ -7,6 +7,8 @@ clr.AddReference("PresentationCore")
 clr.AddReference("WindowsBase")
 
 from pyrevit import revit, DB, forms, script
+from Autodesk.Revit.UI.Selection import ObjectType, ISelectionFilter
+from Autodesk.Revit.Exceptions import OperationCanceledException
 
 from System.Windows.Controls import CheckBox, ListBoxItem
 from System.Windows.Markup import XamlReader
@@ -38,25 +40,7 @@ else:
 
 # ── RESOLVE CAD AND LAYERS ────────────────────────────────────────────────────
 
-cad_instance = resolve_cad_instance(uidoc, doc, revit, forms, script)
-
-if not isinstance(cad_instance, DB.ImportInstance):
-    forms.alert("Selected element is not a CAD Import or Link.", exitscript=True)
-
-cad_category  = cad_instance.Category
-subcategories = list(cad_category.SubCategories)
-
-if not subcategories:
-    forms.alert("No layers found in this CAD file.", exitscript=True)
-
-subcategories.sort(key=lambda sc: sc.Name)
-
-original_visibility = {}
-for sc in subcategories:
-    try:
-        original_visibility[sc.Id] = target_view.GetCategoryHidden(sc.Id)
-    except Exception:
-        original_visibility[sc.Id] = False
+import cad_relink
 
 # ── LAYER DATA MODEL ──────────────────────────────────────────────────────────
 
@@ -71,7 +55,33 @@ class LayerItem(object):
             self.visible  = True
             self.can_hide = False
 
-layer_items = [LayerItem(sc) for sc in subcategories]
+
+def _load(instance):
+    """Point the window at a CAD instance: its layers and how the view
+    shows them now. Called at start, and again after a relink (the new link
+    has new layer ids)."""
+    global cad_instance, cad_category, subcategories, original_visibility, layer_items
+    cad_instance  = instance
+    cad_category  = instance.Category
+    subcategories = sorted(cad_category.SubCategories, key=lambda sc: sc.Name)
+    original_visibility = {}
+    for sc in subcategories:
+        try:
+            original_visibility[sc.Id] = target_view.GetCategoryHidden(sc.Id)
+        except Exception:
+            original_visibility[sc.Id] = False
+    layer_items = [LayerItem(sc) for sc in subcategories]
+
+
+cad_instance = resolve_cad_instance(uidoc, doc, revit, forms, script)
+
+if not isinstance(cad_instance, DB.ImportInstance):
+    forms.alert("Selected element is not a CAD Import or Link.", exitscript=True)
+
+_load(cad_instance)
+
+if not subcategories:
+    forms.alert("No layers found in this CAD file.", exitscript=True)
 
 # ── WINDOW CONTROLLER ─────────────────────────────────────────────────────────
 
@@ -89,6 +99,11 @@ class LayerManagerWindow(object):
         self.layer_count_lbl    = self.window.FindName("layer_count_lbl")
         self.show_all_btn       = self.window.FindName("show_all_btn")
         self.hide_all_btn       = self.window.FindName("hide_all_btn")
+        self.pick_btn           = self.window.FindName("pick_btn")
+        self.colour_btns        = {"bw": self.window.FindName("bw_btn"),
+                                   "invert": self.window.FindName("invert_btn"),
+                                   "preserve": self.window.FindName("preserve_btn")}
+        self.colour_note_lbl    = self.window.FindName("colour_note_lbl")
         self.apply_btn          = self.window.FindName("apply_btn")
         self.header_close_btn   = self.window.FindName("header_close_btn")
         self.modal_overlay      = self.window.FindName("modal_overlay")
@@ -101,6 +116,14 @@ class LayerManagerWindow(object):
         self.confirm_no_btn     = self.window.FindName("confirm_no_btn")
 
         self._result = None
+        self.colour_mode = None
+
+        ok, why = cad_relink.can_relink(doc, cad_instance)
+        for btn in self.colour_btns.values():
+            btn.IsEnabled = ok
+        self.colour_note_lbl.Text = (
+            "Links this DWG again with these colours, in every view it is "
+            "placed in, at the same place." if ok else why)
 
         if os.path.exists(ICON_PATH):
             img       = self.window.FindName("header_icon")
@@ -128,6 +151,9 @@ class LayerManagerWindow(object):
         self.window.Closing         += self._on_window_closing
         self.show_all_btn.Click     += self._on_show_all
         self.hide_all_btn.Click     += self._on_hide_all
+        self.pick_btn.Click         += self._on_pick
+        for mode, btn in self.colour_btns.items():
+            btn.Click += self._colour_handler(mode)
         self.search_tb.TextChanged  += self._on_search
         self.search_tb.GotFocus     += lambda s, e: self._set_placeholder(False)
         self.search_tb.LostFocus    += lambda s, e: self._set_placeholder(
@@ -218,6 +244,28 @@ class LayerManagerWindow(object):
     def _on_hide_all(self, sender, e):
         self._set_all(False)
 
+    # ── Pick on model ─────────────────────────────────────────────────────────
+
+    def _on_pick(self, sender, e):
+        # NOTE: picking can't happen while this modal window is up, so it
+        # closes with "pick" (which skips the revert) and the launch loop
+        # below runs pick_layers_to_hide, then opens the window again.
+        self._result = "pick"
+        self.window.Close()
+
+    # ── Relink with other colours ─────────────────────────────────────────────
+
+    def _colour_handler(self, mode):
+        # NOTE: like Pick, the relink runs once this window is closed: the
+        # link's layers are replaced, so the window reopens on the new link.
+        # Layer changes made so far are kept (the relink carries each view's
+        # layer visibility across).
+        def clicked(sender, e):
+            self.colour_mode = mode
+            self._result = "relink"
+            self.window.Close()
+        return clicked
+
     # ── Apply ─────────────────────────────────────────────────────────────────
 
     def _on_apply(self, sender, e):
@@ -276,7 +324,87 @@ class LayerManagerWindow(object):
         self.window.ShowDialog()
         return self._result
 
+# ── PICK ON MODEL ─────────────────────────────────────────────────────────────
+
+class _CadOnlyFilter(ISelectionFilter):
+    """Only lines of the CAD file this window manages can be picked."""
+    def AllowElement(self, element):
+        return element.Id == cad_instance.Id
+
+    def AllowReference(self, reference, position):
+        return True
+
+
+def _layer_of(reference):
+    """The LayerItem a picked CAD line belongs to, or None. The picked
+    geometry's GraphicsStyle carries its layer as a subcategory."""
+    try:
+        geo = cad_instance.GetGeometryObjectFromReference(reference)
+        style = doc.GetElement(geo.GraphicsStyleId) if geo else None
+        cat = style.GraphicsStyleCategory if style else None
+    except Exception:
+        return None
+    if cat is None:
+        return None
+    for layer in layer_items:
+        if layer.subcat.Id == cat.Id:
+            return layer
+    return None
+
+
+def pick_layers_to_hide():
+    """Hide the layer of each line picked, until Esc."""
+    hidden = []
+    with forms.WarningBar(title="Pick CAD lines to hide their layer. "
+                                "Esc to go back to the Layer Manager.") as bar:
+        while True:
+            try:
+                ref = uidoc.Selection.PickObject(
+                    ObjectType.PointOnElement, _CadOnlyFilter(),
+                    "Pick a line to hide its layer")
+            except OperationCanceledException:
+                break
+            layer = _layer_of(ref)
+            if layer is None or not layer.can_hide or not layer.visible:
+                continue
+            with revit.Transaction("CAD Layer Manager - Pick to Hide"):
+                try:
+                    target_view.SetCategoryHidden(layer.subcat.Id, True)
+                    layer.visible = False
+                    hidden.append(layer.name)
+                except Exception:
+                    layer.can_hide = False
+            try:
+                bar.message_tb.Text = "Hidden: {}. Pick the next line, "                                       "or Esc to go back.".format(layer.name)
+            except Exception:
+                pass
+    return hidden
+
 # ── LAUNCH ────────────────────────────────────────────────────────────────────
 
-ui = LayerManagerWindow()
-ui.show()
+def relink_colours(mode):
+    """Relink the CAD file with other colours and point the window at the
+    new link placed in the active view. One undo."""
+    view_id = cad_instance.OwnerViewId
+    try:
+        with revit.Transaction("CAD Layer Manager - Relink Colours"):
+            made, notes = cad_relink.relink(doc, cad_instance, mode)
+    except Exception as err:
+        forms.alert("The CAD file could not be relinked, nothing was changed.\n\n{}".format(err))
+        return
+    new = made.get(view_id) or list(made.values())[0]
+    _load(new)
+    if notes:
+        forms.alert("Relinked. Some layer settings could not be carried across:\n\n"
+                    + "\n".join(notes[:12]))
+
+
+while True:
+    ui = LayerManagerWindow()
+    result = ui.show()
+    if result == "pick":
+        pick_layers_to_hide()
+    elif result == "relink":
+        relink_colours(ui.colour_mode)
+    else:
+        break

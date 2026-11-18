@@ -628,30 +628,9 @@
                     </Grid>
                 </Border>
 
-                <!-- 3D / CALCULATIONS -->
+                <!-- CALCULATIONS -->
                 <Grid Grid.Row="2" Grid.Column="0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="10"/>
-                        <ColumnDefinition Width="250"/>
-                    </Grid.ColumnDefinitions>
-                    <Border Grid.Column="0" Style="{DynamicResource CardStyle}" Padding="12,10,12,10">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                            </Grid.RowDefinitions>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
-                                <Ellipse Width="10" Height="10" Fill="{DynamicResource BrushPrimaryGreen}"
-                                         VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Text="3D View" Style="{StaticResource CardTitle}"/>
-                            </StackPanel>
-                            <Canvas x:Name="view3d_canvas" Grid.Row="1" Width="236" Height="204"
-                                    HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="True"/>
-                        </Grid>
-                    </Border>
-
-                    <Border Grid.Column="2" Style="{DynamicResource CardStyle}" Padding="14,10,14,8">
+                    <Border Style="{DynamicResource CardStyle}" Padding="14,10,14,8">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                 <Ellipse Width="10" Height="10" Fill="{DynamicResource BrushPrimaryGreen}"

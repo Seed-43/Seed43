@@ -1,0 +1,18 @@
+title: "Rebar Settings"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Settings and housekeeping for rebar already in the model: assign rebar
+  to a workset, toggle visibility between obscured and unobscured, update
+  a tag parameter across every element that shares its value, or load the
+  NZ bar sizes.
+
+  __________________________________________________________________
+layout:
+  - Set Workset
+  - Toggle Concealment
+  - Update Tag Value To All Elements
+  - Load NZ Rebar Sizes

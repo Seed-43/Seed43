@@ -9,6 +9,7 @@ tooltip: >
   in, without digging through Visibility/Graphics. Layer visibility updates
   live as you tick each one, and Cancel reverts everything. Works with
   imported and linked CAD files, applying to the view template automatically
-  when one is in use.
+  when one is in use. Pick on Model hides a layer by clicking one of its
+  lines in the view; keep clicking, then Esc to return to the list.
 
   __________________________________________________________________

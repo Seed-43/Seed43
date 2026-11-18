@@ -14,7 +14,7 @@ from Autodesk.Revit.DB.Architecture import (Stairs, StairsRun, StairsLanding,
                                             StairsType, StairsRunType,
                                             StairsLandingType, StairsRunJustification)
 
-__all__ = ["plan", "type_name", "ensure_type", "build", "remove_railings",
+__all__ = ["plan", "profile", "clip_half_plane", "clip_polyline", "volume", "type_name", "ensure_type", "build", "remove_railings",
            "chain_loop", "landing_slab", "set_material", "stair_material"]
 
 # ── CONSTANTS ───────────────────────────────────────────────────────────────
@@ -105,6 +105,102 @@ def plan(rise, riser_max, going, waist, landing, risers=None, top_landing=None):
     }
 
 
+def profile(s):
+    """The stair's section as (x, z) points in mm, x along the run from the
+    foot of the first riser, z up from the base: up the steps, along the
+    landing, back along the landing's underside and down the soffit. The
+    soffit is parallel to the steps, so it meets the landing underside at
+    x_meet; a landing longer than the least runs flat beyond that."""
+    N, r, g = s["risers"], s["riser"], s["going"]
+    x_end = s["run_length"] + s["xyz"]
+    foot = min(s["soffit_foot"], x_end)
+    under = s["rise"] - s["landing"]
+    x_meet = min(foot + under * g / r, x_end)
+    pts = [(0.0, 0.0)]
+    for k in range(1, N + 1):
+        pts.append(((k - 1) * g, k * r))
+        if k < N:
+            pts.append((k * g, k * r))
+    pts += [(x_end, s["rise"]), (x_end, under)]
+    if x_end - x_meet > 0.01:
+        pts.append((x_meet, under))
+    pts.append((foot, 0.0))
+    return pts
+
+
+def _area(points):
+    """Area of a closed polygon (shoelace), whatever its winding."""
+    total = 0.0
+    for i, (x1, z1) in enumerate(points):
+        x2, z2 = points[(i + 1) % len(points)]
+        total += x1 * z2 - x2 * z1
+    return abs(total) / 2.0
+
+
+def clip_half_plane(points, f, keep_positive):
+    """The part of a closed polygon on one side of a line. `f(point)` is
+    negative on one side of the line and positive on the other; the side kept
+    is where it is >= 0 (keep_positive) or <= 0. Used to cut the drawn stair
+    where a break goes. A polygon cut into two separate pieces by the line is
+    not handled (a stair section is not)."""
+    sign = 1.0 if keep_positive else -1.0
+    out = []
+    for i, a in enumerate(points):
+        b = points[(i + 1) % len(points)]
+        fa, fb = sign * f(a), sign * f(b)
+        if fa >= 0:
+            out.append(a)
+        if (fa >= 0) != (fb >= 0):
+            k = fa / (fa - fb)
+            out.append((a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k))
+    return out
+
+
+def clip_polyline(points, f, keep_positive):
+    """The parts of an open polyline on one side of a line, as a list of
+    polylines (a bar crossing the cut once gives one). `f` and `keep_positive`
+    are as for clip_half_plane."""
+    sign = 1.0 if keep_positive else -1.0
+    chains, cur = [], []
+    for a, b in zip(points, points[1:]):
+        fa, fb = sign * f(a), sign * f(b)
+        ina, inb = fa >= 0, fb >= 0
+        if ina and not cur:
+            cur = [a]
+        if ina and inb:
+            cur.append(b)
+        elif ina and not inb:
+            k = fa / (fa - fb)
+            cur.append((a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k))
+            chains.append(cur)
+            cur = []
+        elif inb:
+            k = fa / (fa - fb)
+            cur = [(a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k), b]
+    if cur:
+        chains.append(cur)
+    return [c for c in chains if len(c) >= 2]
+
+
+def volume(s, width, footing=None, fill=None):
+    """Concrete in the stair, in cubic metres: {"stair", "footing", "total"}.
+
+    s        the dict from plan()
+    width    stair width, mm
+    footing  (width, depth) of the Stair Footing in mm, or None
+    fill     (run, rise) of the triangular fill beside the footing in mm,
+             or None; it is counted with the footing
+    """
+    m3 = 1e-9                                  # mm3 -> m3
+    stair = _area(profile(s)) * width * m3
+    foot = 0.0
+    if footing:
+        foot += footing[0] * footing[1] * width * m3
+    if fill:
+        foot += 0.5 * fill[0] * fill[1] * width * m3
+    return {"stair": stair, "footing": foot, "total": stair + foot}
+
+
 # --- Types ---
 def type_name(riser_max, going, waist, landing):
     return u"Concrete Stair - SR{0:g} SG{1:g} SD{2:g} LD{3:g}".format(
@@ -149,6 +245,7 @@ def ensure_type(doc, riser_max, going, waist, landing):
     name = type_name(riser_max, going, waist, landing)
     stair_type = _by_name(doc, StairsType, name)
     if stair_type is not None:
+        _no_nosing(doc, stair_type)
         return stair_type
     base = _base_stair_type(doc)
 
@@ -171,7 +268,21 @@ def ensure_type(doc, riser_max, going, waist, landing):
     stair_type.MinTreadDepth = _ft(going)
     stair_type.RunType = run_type.Id
     stair_type.LandingType = landing_type.Id
+    _no_nosing(doc, stair_type)
     return stair_type
+
+
+def _no_nosing(doc, stair_type):
+    """Nosing Length 0 on the stair type's run and landing types. A cast
+    stair has no nosing, and the Monolithic Landing types Revit ships carry
+    25 mm: the landing then starts 25 short, the top tread comes out 25
+    deeper than the going and the landing 25 shorter than TL. Types made by
+    older versions of this tool are put right here too."""
+    for type_id in (stair_type.RunType, stair_type.LandingType):
+        el = doc.GetElement(type_id)
+        p = el.get_Parameter(DB.BuiltInParameter.STAIRS_TRISERTYPE_NOSING_LENGTH) if el else None
+        if p is not None and not p.IsReadOnly and abs(p.AsDouble()) > 1e-9:
+            p.Set(0.0)
 
 
 def _material_params(element_type):

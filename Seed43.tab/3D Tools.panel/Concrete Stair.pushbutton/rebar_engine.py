@@ -26,6 +26,7 @@ __all__ = ["Frame", "layout", "layout_names", "LAYOUTS", "numbers", "min_waist",
 # ── CONSTANTS ───────────────────────────────────────────────────────────────
 
 MM = 304.8
+HOOK_LENGTH = 120.0     # the footing hook's straight leg (Override Hook Lengths), mm
 
 
 # ── HELPERS (private to this file) ──────────────────────────────────────────
@@ -83,6 +84,17 @@ def _bar(doc, host, bar_type, normal, curves, end_hook=None, end_orient=None):
         doc, RebarStyle.Standard, bar_type, None, end_hook, host, normal,
         _curves(*curves), RebarHookOrientation.Left,
         end_orient or RebarHookOrientation.Left, True, True)
+
+
+def _hook_length(rebar, mm):
+    """Override Hook Lengths on, and the hook's straight leg (E on the
+    hooked shape) set to `mm` instead of the bar type's own length."""
+    rebar.EnableHookLengthOverride(True)
+    for ids in rebar.GetOverridableHookParameters():
+        for pid in ids:
+            for p in rebar.Parameters:
+                if p.Id == pid and not p.IsReadOnly:
+                    p.Set(_ft(mm))
 
 
 def _spread(rebar, spacing, length):
@@ -233,6 +245,7 @@ def _layout_hooked(s, o):
         rh = o["hook_bend"] / 2.0 + dm / 2.0                   # centreline radius
         out["hook_radius"] = rh
         out["hook_centre"] = (x_k + rh, z_end + dm / 2.0 + rh)
+        out["hook_length"] = HOOK_LENGTH
         if dd:
             bends.append(_in_bend((x_k, z_k), (cs, sn), (0.0, -1.0),
                                   o["main_bend"], dm, dd))
@@ -259,6 +272,13 @@ def _layout_hooked(s, o):
             gaps = int(math.ceil(length / o["dist_spacing"] - 1e-6))
             first = 1 if o["footing"] else 0                # the bend bar is the first
             xs = [x_b + (x_t - x_b) * i / float(gaps) for i in range(first, gaps)]
+            if len(xs) > 1:
+                # Revit lays the set out at a maximum spacing (so a tag reads
+                # the spacing), spreading ceil(span / spacing) gaps evenly
+                # between the end bars: draw the same bars it will make
+                span = (xs[-1] - xs[0]) / cs
+                n = int(math.ceil(span / o["dist_spacing"] - 1e-6)) + 1
+                xs = [xs[0] + (xs[-1] - xs[0]) * i / float(n - 1) for i in range(n)]
             out["across"] = [(x, t * x + k2) for x in xs]
 
     # mesh in the stair's own top landing
@@ -358,6 +378,8 @@ def reinforce(doc, stairs, frame, level, opts):
             doc.Delete(main.Id)
             main = _bar(doc, stairs, opts["main_bar"], frame.side, curves, hook,
                         RebarHookOrientation.Right)
+    if hook is not None:
+        _hook_length(main, plan["hook_length"])
     _spread(main, opts["main_spacing"], w - 2 * cs - db)
     made["main"] = main.NumberOfBarPositions
 
@@ -370,8 +392,9 @@ def reinforce(doc, stairs, frame, level, opts):
                       [_line(frame.p(x_s, y0, z_s), frame.p(x_s, y1, z_s))])
         if len(pts_a) > 1:
             x_e, z_e = pts_a[-1]
-            across.GetShapeDrivenAccessor().SetLayoutAsFixedNumber(
-                len(pts_a), _ft(math.hypot(x_e - x_s, z_e - z_s)), True, True, True)
+            # maximum spacing, not a fixed number: the tag reads the spacing.
+            # layout() spreads the same count, so the bars match the drawing.
+            _spread(across, opts["dist_spacing"], math.hypot(x_e - x_s, z_e - z_s))
         made["across"] += across.NumberOfBarPositions
     # the ones below the base are in the footing: host them on it when it can
     for x_c, z_c in plan["bends"]:

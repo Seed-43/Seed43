@@ -21,9 +21,10 @@ clr.AddReference("WindowsBase")
 
 from System.IO import FileStream, FileMode, FileAccess
 from System.Windows import (Point, FontWeights, TextAlignment, Visibility, Size,
-                            Thickness, HorizontalAlignment, GridLength)
+                            Thickness, HorizontalAlignment, VerticalAlignment, GridLength)
 from System.Windows import LogicalTreeHelper
-from System.Windows.Controls import Canvas, TextBlock, TextBox, ComboBox, ComboBoxItem, Button
+from System.Windows.Controls import (Canvas, TextBlock, TextBox, ComboBox, ComboBoxItem, Button,
+                                     StackPanel, Orientation)
 from System.Windows.Controls.Primitives import TextBoxBase, ButtonBase, ScrollBar
 from System.Windows.Input import Keyboard, FocusManager
 from System.Windows.Media import Visual, VisualTreeHelper
@@ -31,7 +32,10 @@ from System.Windows.Markup import XamlReader
 from System.Windows.Media import (PointCollection, RotateTransform, SolidColorBrush,
                                   Color, DoubleCollection, PenLineJoin, LinearGradientBrush)
 from System.Windows.Media.Effects import BlurEffect
-from System.Windows.Shapes import Line, Polygon, Polyline, Ellipse
+from System.Windows.Shapes import Line, Polygon, Polyline, Ellipse, Rectangle
+from System.Windows.Shapes import Path as ShapePath
+from System.Windows.Media import (Geometry, GeometryGroup, TransformGroup, TranslateTransform,
+                                  ScaleTransform, FillRule)
 
 from pyrevit import revit, DB, forms
 from Autodesk.Revit.UI.Selection import ObjectType, ISelectionFilter
@@ -57,6 +61,31 @@ TITLE = u"Concrete Stair"
 MM = 304.8
 LANDING_SHOWN = 1000.0       # a top landing longer than this is drawn this long, with a break
 FLOOR_SHOWN = 400.0          # the floor slab beside the top landing, as far as the top detail shows it
+# The Reinforcement tab's two details are fixed pictures of the layout, like the
+# standard details on a drawing: always this stair, these bars. Only the numbers
+# in their boxes and the callouts' words follow the panel.
+# A traced picture (an SVG of filled shapes, e.g. Inkscape's Trace Bitmap) can
+# stand in for a drawn detail. The file sits next to this script; the boxes and
+# the callouts are placed over its numbers and labels, given as fractions of the
+# drawing's width and height (0, 0 top left). Without the file, the detail is drawn.
+TRACED_DETAILS = {}             # e.g. {"footing": {"file": ..., "boxes": [...], "callouts": [...]}}
+_TRACED_EXAMPLE = {
+    "footing": {"file": u"footing_detail.svg",
+                # (box, x, y, angle in degrees)
+                "boxes": [("corner_clear", 192 / 1038.0, 37 / 687.0, -60.0),
+                          ("cover_soffit", 130 / 1038.0, 370 / 687.0, -60.0)],
+                # (callout, x of its left end, y of its middle)
+                "callouts": [("f_across", 700 / 1038.0, 197 / 687.0),
+                             ("f_main", 700 / 1038.0, 380 / 687.0),
+                             ("f_bend1", 700 / 1038.0, 497 / 687.0),
+                             ("f_bend2", 700 / 1038.0, 595 / 687.0)]},
+}
+DETAIL_STAIR = dict(risers=6, riser=180.0, going=280.0, waist=150.0, landing=200.0, top_landing=900.0)
+DETAIL_BARS = {"layout": u"hooked", "cover_top": 35.0, "cover_soffit": 50.0, "cover_bottom": 50.0,
+               "cover_end": 50.0, "cover_side": 40.0, "corner_clear": 50.0, "lap": 450.0,
+               "main_d": 16.0, "main_dm": 16.0, "main_bend": 96.0, "hook_bend": 96.0,   # bends: inside r = 3 x bar
+               "dist_d": 12.0, "dist_dm": 12.0, "mesh_d": 10.0, "dist_spacing": 300.0,
+               "mesh_spacing": 200.0, "footing": (300.0, 300.0)}
 # Concrete in the drawings: the same greys on a dark or a light theme
 CONCRETE = SolidColorBrush(Color.FromRgb(0xC9, 0xCD, 0xD1))
 CONCRETE_DARK = SolidColorBrush(Color.FromRgb(0xA4, 0xA9, 0xAF))
@@ -64,6 +93,39 @@ CONCRETE_EDGE = SolidColorBrush(Color.FromRgb(0x3A, 0x40, 0x48))
 CONCRETE_TOP = SolidColorBrush(Color.FromRgb(0xDE, 0xE1, 0xE4))
 CONCRETE_RISER = SolidColorBrush(Color.FromRgb(0xBB, 0xC0, 0xC5))
 CONCRETE_SIDE = SolidColorBrush(Color.FromRgb(0x9C, 0xA2, 0xA8))
+BAR_BLUE = SolidColorBrush(Color.FromRgb(0x1F, 0x6F, 0xE5))
+BAR_EDGE = SolidColorBrush(Color.FromRgb(0x0B, 0x2E, 0x6B))
+
+
+def _speckled_concrete():
+    """The grain of concrete as on the section drawings: a fine speckle of
+    darker and lighter grains, tiled, drawn over CONCRETE_BASE. The tile has
+    no background of its own, so its edges never show as seams."""
+    import random
+    from System.Windows import Rect
+    from System.Windows.Media import (DrawingBrush, DrawingGroup, GeometryDrawing,
+                                      EllipseGeometry, TileMode, BrushMappingMode, Stretch)
+    rnd = random.Random(43)                     # the same speckle every time
+    group = DrawingGroup()
+    for shade, count in ((0x9C, 22), (0xAE, 26), (0xDA, 18)):
+        brush = SolidColorBrush(Color.FromRgb(shade, shade + 2, shade + 4))
+        for _ in range(count):
+            size = rnd.uniform(0.5, 1.6)
+            group.Children.Add(GeometryDrawing(brush, None, EllipseGeometry(
+                Point(rnd.uniform(2, 58), rnd.uniform(2, 58)), size, size)))
+    tile = DrawingBrush(group)
+    tile.TileMode = TileMode.Tile
+    tile.Stretch = Stretch.None
+    tile.Viewbox = Rect(0, 0, 60, 60)
+    tile.ViewboxUnits = BrushMappingMode.Absolute
+    tile.Viewport = Rect(0, 0, 60, 60)
+    tile.ViewportUnits = BrushMappingMode.Absolute
+    tile.Freeze()
+    return tile
+
+
+CONCRETE_BASE = SolidColorBrush(Color.FromRgb(0xC4, 0xC6, 0xC8))
+CONCRETE_SPECKLED = _speckled_concrete()
 SETTINGS =_userdata.user_path(u"Concrete Stair", u"settings.json")
 STYLES_XAML = op.join(op.dirname(op.abspath(dlg.__file__)), u"Seed43Styles.xaml")
 
@@ -182,7 +244,7 @@ def _dim_line(canvas, ink, x1, y1, x2, y2):
     if length < 2.0:
         return
     ux, uy = (x2 - x1) / length, (y2 - y1) / length
-    size = min(7.0, length * 0.4)
+    size = min(14.0, length * 0.45)     # arrowheads: 14 px long
     for px, py, dx, dy in ((x1, y1, ux, uy), (x2, y2, -ux, -uy)):
         bx, by = px + dx * size, py + dy * size
         nx, ny = -dy * size * 0.3, dx * size * 0.3
@@ -192,6 +254,87 @@ def _dim_line(canvas, ink, x1, y1, x2, y2):
         head.Fill = ink
         canvas.Children.Add(head)
 
+
+def _round_corners(points, corners, radius):
+    """A polyline with the vertices at `corners` (indices) drawn as arcs of
+    centreline `radius`, as a bent bar looks. Only for the pictures: the bars
+    Revit makes keep their own bend diameters."""
+    out = list(points)
+    for i in sorted(corners, reverse=True):          # from the end, so the indices hold
+        if not 0 < i < len(out) - 1:
+            continue
+        (ax, az), (vx, vz), (bx, bz) = out[i - 1], out[i], out[i + 1]
+        la, lb = math.hypot(ax - vx, az - vz), math.hypot(bx - vx, bz - vz)
+        if la < 1e-6 or lb < 1e-6:
+            continue
+        u1, u2 = ((ax - vx) / la, (az - vz) / la), ((bx - vx) / lb, (bz - vz) / lb)
+        ang = math.acos(max(-1.0, min(1.0, u1[0] * u2[0] + u1[1] * u2[1])))
+        if ang < 1e-3 or ang > math.pi - 1e-3:
+            continue                                  # straight on: nothing to round
+        half = ang / 2.0
+        rad = radius
+        tan_len = rad / math.tan(half)
+        if tan_len > 0.9 * min(la, lb):               # a short leg: a tighter bend
+            tan_len = 0.9 * min(la, lb)
+            rad = tan_len * math.tan(half)
+        bx_, bz_ = u1[0] + u2[0], u1[1] + u2[1]
+        bl = math.hypot(bx_, bz_)
+        cx, cz = vx + bx_ / bl * rad / math.sin(half), vz + bz_ / bl * rad / math.sin(half)
+        t1 = (vx + u1[0] * tan_len, vz + u1[1] * tan_len)
+        t2 = (vx + u2[0] * tan_len, vz + u2[1] * tan_len)
+        a1 = math.atan2(t1[1] - cz, t1[0] - cx)
+        sweep = math.atan2(t2[1] - cz, t2[0] - cx) - a1
+        while sweep > math.pi:
+            sweep -= 2 * math.pi
+        while sweep <= -math.pi:
+            sweep += 2 * math.pi
+        out[i:i + 1] = [(cx + rad * math.cos(a1 + sweep * k / 10.0),
+                         cz + rad * math.sin(a1 + sweep * k / 10.0)) for k in range(11)]
+    return out
+
+
+def _touching(path, point, gap):
+    """`point` moved so it sits `gap` from the polyline `path`, on the side it
+    is already on: the closest point of the path, then out along the line
+    from there through `point`."""
+    best = None
+    for (ax, az), (bx, bz) in zip(path, path[1:]):
+        dx, dz = bx - ax, bz - az
+        seg = dx * dx + dz * dz
+        k = 0.0 if seg < 1e-12 else max(0.0, min(1.0, ((point[0] - ax) * dx + (point[1] - az) * dz) / seg))
+        cx, cz = ax + dx * k, az + dz * k
+        d = math.hypot(point[0] - cx, point[1] - cz)
+        if best is None or d < best[0]:
+            best = (d, cx, cz)
+    if best is None or best[0] < 1e-9:
+        return point
+    d, cx, cz = best
+    return (cx + (point[0] - cx) / d * gap, cz + (point[1] - cz) / d * gap)
+
+
+def _dim_outside(canvas, ink, x1, y1, x2, y2):
+    """A small dimension: the line between the two points, and an arrow at
+    each end coming in from outside (its tail beyond the end, its point on it)."""
+    ln = Line()
+    ln.X1, ln.Y1, ln.X2, ln.Y2 = x1, y1, x2, y2
+    ln.Stroke = ink
+    ln.StrokeThickness = 1
+    ln.Opacity = 0.95
+    canvas.Children.Add(ln)
+    run = math.hypot(x2 - x1, y2 - y1) or 1.0
+    for px, py, ux, uy in ((x1, y1, (x2 - x1) / run, (y2 - y1) / run),
+                           (x2, y2, (x1 - x2) / run, (y1 - y2) / run)):
+        tail = Line()
+        tail.X1, tail.Y1, tail.X2, tail.Y2 = px - ux * 18.0, py - uy * 18.0, px, py
+        tail.Stroke = ink
+        tail.StrokeThickness = 1
+        canvas.Children.Add(tail)
+        bx, by = px - ux * 11.0, py - uy * 11.0
+        head = Polygon()
+        head.Points = PointCollection([Point(px, py), Point(bx - uy * 3.6, by + ux * 3.6),
+                                       Point(bx + uy * 3.6, by - ux * 3.6)])
+        head.Fill = ink
+        canvas.Children.Add(head)
 
 def _ext_line(canvas, ink, x1, y1, x2, y2):
     """A thin extension line from a feature out to its dimension line."""
@@ -320,18 +463,13 @@ class StairWindow(forms.WPFWindow):
         self.page_rebar.Visibility = Visibility.Collapsed if stair else Visibility.Visible
         self.tab_stair_btn.Tag = u"Active" if stair else u""
         self.tab_rebar_btn.Tag = u"" if stair else u"Active"
-        # the big card on the right follows the tab; plan, 3D and numbers stay
-        self.section_card.Visibility = Visibility.Visible if stair else Visibility.Collapsed
-        self.rebar_card.Visibility = Visibility.Collapsed if stair else Visibility.Visible
-        # the row of three cards below: plan, 3D and numbers for the stair; the
-        # footing and the top, zoomed and bigger, for the reinforcement
-        for card in (self.plan_card, self.view3d_card, self.calc_card):
-            card.Visibility = Visibility.Visible if stair else Visibility.Collapsed
-        for card in (self.footing_card, self.top_card):
-            card.Visibility = Visibility.Collapsed if stair else Visibility.Visible
-        self.right_grid.RowDefinitions[2].Height = GridLength(244.0 if stair else 340.0)
-        self.bottom_grid.ColumnDefinitions[3].Width = GridLength(10.0 if stair else 0.0)
-        self.bottom_grid.ColumnDefinitions[4].Width = GridLength(248.0 if stair else 0.0)
+        # The right side follows the tab. Stair: the section above, plan / 3D /
+        # numbers below. Reinforcement: just the footing and the top details,
+        # which drive the setout.
+        shown, hidden = Visibility.Visible, Visibility.Collapsed
+        self.section_card.Visibility = shown if stair else hidden
+        self.bottom_grid.Visibility = shown if stair else hidden
+        self.rebar_row.Visibility = hidden if stair else shown
 
     def tab_stair_clicked(self, sender, args):
         self._show_tab("stair")
@@ -589,10 +727,9 @@ class StairWindow(forms.WPFWindow):
             self._draw_rebar(v["sizes"], self.rebar_options(True))
             self.rebar_note_tb.Text = u""
         except ValueError as err:
-            self.rebar_drawing.Children.Clear()
             self.footing_canvas.Children.Clear()
             self.top_canvas.Children.Clear()
-            for box in self._rb_editors.values():
+            for box in list(self._rb_editors.values()) + list(self._callouts.values()):
                 box.Visibility = Visibility.Collapsed
             self.rebar_note_tb.Text = unicode(err)
         self._calc(v)
@@ -698,7 +835,9 @@ class StairWindow(forms.WPFWindow):
                      ("cover_soffit", "cover_soffit_tb", "footing_edit"),
                      ("corner_clear", "corner_clear_tb", "footing_edit"),
                      ("cover_top", "cover_top_tb", "top_edit"),
-                     ("lap", "lap_tb", "top_edit"))
+                     ("lap", "lap_tb", "top_edit"),
+                     ("cover_soffit_t", "cover_soffit_tb", "top_edit"),
+                     ("corner_clear_t", "corner_clear_tb", "top_edit"))
 
     def _build_editors(self):
         """One small input box for each editable dimension, made once and
@@ -749,6 +888,102 @@ class StairWindow(forms.WPFWindow):
             btn.Click += handler
             self.drawing_edit.Children.Add(btn)
             self._pickers[key] = btn
+        self._build_callouts()
+
+    # the callouts on the two details: (key, canvas, the panel's bar list, the
+    # panel's spacing box or None, words before, words after)
+    CALLOUTS = (("f_main", "footing_edit", "main_bar_cb", "main_spacing_tb", u"", u"mm CRS"),
+                ("f_across", "footing_edit", "dist_bar_cb", "dist_spacing_tb", u"", u"mm CRS"),
+                ("f_bend1", "footing_edit", "dist_bar_cb", None, u"", u""),
+                ("f_bend2", "footing_edit", "dist_bar_cb", None, u"", u""),
+                ("t_main", "top_edit", "main_bar_cb", "main_spacing_tb", u"", u"mm CRS"),
+                ("t_across", "top_edit", "dist_bar_cb", "dist_spacing_tb", u"", u"mm CRS"),
+                ("t_bend", "top_edit", "dist_bar_cb", None, u"", u""),
+                ("t_mesh", "top_edit", "mesh_bar_cb", "mesh_spacing_tb", u"Mesh", u"mm"))
+
+    def _build_callouts(self):
+        """Each callout on the details is a bar list and, for a set of bars, a
+        spacing box (CRS), both writing into the panel's own inputs. Made once
+        and moved by every redraw, like the dimension boxes."""
+        self._callouts = {}
+        self._callout_parts = {}
+        accent = self.TryFindResource("BrushPrimaryGreen")
+        combo_style = self.TryFindResource("ComboBoxStyle")
+        box_style = self.TryFindResource("TextBoxStyle")
+
+        def words(text):
+            tb = TextBlock()
+            tb.Text = text
+            tb.FontSize = 11
+            tb.FontWeight = FontWeights.SemiBold
+            tb.Foreground = self.TryFindResource("BrushTextPrimary")
+            tb.VerticalAlignment = VerticalAlignment.Center
+            tb.Margin = Thickness(3, 0, 3, 0)
+            return tb
+
+        for key, canvas_name, bar_src, spacing_src, before, after in self.CALLOUTS:
+            row = StackPanel()
+            row.Orientation = Orientation.Horizontal
+            if before:
+                row.Children.Add(words(before))
+            combo = ComboBox()
+            combo.Style = combo_style
+            combo.Width = 76
+            combo.Height = 22
+            combo.FontSize = 11
+            combo.ToolTip = getattr(self, bar_src).ToolTip or u"The bar (the same as in the panel)"
+            combo.SelectionChanged += self._callout_bar_handler(bar_src)
+            row.Children.Add(combo)
+            box = None
+            if spacing_src:
+                row.Children.Add(words(u"@"))
+                box = TextBox()
+                box.Style = box_style
+                box.Tag = key
+                box.Width = 42
+                box.Height = 20
+                box.FontSize = 12
+                box.Padding = Thickness(0)
+                box.HorizontalContentAlignment = HorizontalAlignment.Center
+                box.ToolTip = u"Spacing, mm (the same as in the panel)"
+                box.TextChanged += self._editor_handler(key, spacing_src)
+                box.GotKeyboardFocus += self._editor_focused
+                box.LostKeyboardFocus += self._editor_left
+                box.PreviewMouseLeftButtonDown += self._select_on_click
+                self._sources[key] = spacing_src
+                row.Children.Add(box)
+                if after:
+                    row.Children.Add(words(after))
+            row.Visibility = Visibility.Collapsed
+            getattr(self, canvas_name).Children.Add(row)
+            self._callouts[key] = row
+            self._callout_parts[key] = (combo, bar_src, box, spacing_src)
+
+    def _callout_bar_handler(self, source):
+        def changed(sender, args):
+            if not self._syncing and sender.SelectedIndex >= 0:
+                getattr(self, source).SelectedIndex = sender.SelectedIndex
+        return changed
+
+    def _sync_callout(self, key):
+        """Show the panel's bar and spacing in a callout (its list filled from
+        the panel's), unless that part is being changed right now."""
+        combo, bar_src, box, spacing_src = self._callout_parts[key]
+        source = getattr(self, bar_src)
+        self._syncing = True
+        try:
+            if combo.Items.Count != source.Items.Count:
+                combo.Items.Clear()
+                for item in source.Items:
+                    combo.Items.Add(item)
+            if not combo.IsDropDownOpen and combo.SelectedIndex != source.SelectedIndex:
+                combo.SelectedIndex = source.SelectedIndex
+            if box is not None and not box.IsKeyboardFocused:
+                text = getattr(self, spacing_src).Text
+                if box.Text != text:
+                    box.Text = text
+        finally:
+            self._syncing = False
 
     def _editor_handler(self, key, source):
         def changed(sender, args):
@@ -837,9 +1072,12 @@ class StairWindow(forms.WPFWindow):
         picker = self._pickers.get(key)
         if picker is not None:
             # the target sits just above the box (above its end when it is turned up)
-            lift = (box.Width if abs(angle) > 45 else box.Height) / 2.0 + 14.0
-            Canvas.SetLeft(picker, cx - picker.Width / 2.0)
-            Canvas.SetTop(picker, cy - lift - picker.Height / 2.0)
+            if abs(angle) > 45:     # a turned box: the target out to its left
+                Canvas.SetLeft(picker, cx - box.Height / 2.0 - 6.0 - picker.Width)
+                Canvas.SetTop(picker, cy - picker.Height / 2.0)
+            else:                   # a level box: the target above it
+                Canvas.SetLeft(picker, cx - picker.Width / 2.0)
+                Canvas.SetTop(picker, cy - box.Height / 2.0 - 14.0 - picker.Height / 2.0)
             picker.Visibility = Visibility.Visible
         source = self._sources[key]
         text = getattr(self, source).Text
@@ -907,7 +1145,7 @@ class StairWindow(forms.WPFWindow):
 
         canvas.Children.Clear()
         ink = self.TryFindResource("BrushTextPrimary")
-        fill = CONCRETE
+        fill = CONCRETE_BASE
         accent = self.TryFindResource("BrushPrimaryGreen")
 
         def line(x1, y1, x2, y2, opacity=0.7, thick=1.0):
@@ -925,7 +1163,7 @@ class StairWindow(forms.WPFWindow):
             if length < 2.0:
                 return
             ux, uy = (x2 - x1) / length, (y2 - y1) / length
-            size = min(8.0, length * 0.4)
+            size = min(16.0, length * 0.45)
             for px, py, sx_, sy_ in ((x1, y1, ux, uy), (x2, y2, -ux, -uy)):
                 bx, by = px + sx_ * size, py + sy_ * size
                 nx, ny = -sy_ * size * 0.3, sx_ * size * 0.3
@@ -1035,6 +1273,11 @@ class StairWindow(forms.WPFWindow):
             poly.StrokeThickness = 1.5
             poly.StrokeLineJoin = PenLineJoin.Round
             canvas.Children.Add(poly)
+            grain = Polygon()                       # the concrete's speckle, as on the rebar details
+            grain.Points = poly.Points
+            grain.Fill = CONCRETE_SPECKLED
+            grain.IsHitTestVisible = False
+            canvas.Children.Add(grain)
             for side_f, (ga_, gb_) in cuts:
                 # the break line, a little past both faces of the cut
                 on = [p for p in points if abs(side_f(p)) < 1e-6]
@@ -1105,7 +1348,10 @@ class StairWindow(forms.WPFWindow):
         lx = XR(x_end) + 10
         dim(lx, YU(rise_d), lx, YU(rise_d - s["landing"]))
         line(XR(x_end), YU(rise_d - s["landing"]), lx + 5, YU(rise_d - s["landing"]), 0.4)
-        dimbox("landing", lx, YU(rise_d), lx, YU(rise_d - s["landing"]), (17.0, 14.0))
+        # its box in line with it, under its lower end
+        land_mid = (YU(rise_d) + YU(rise_d - s["landing"])) / 2.0
+        dimbox("landing", lx, YU(rise_d), lx, YU(rise_d - s["landing"]),
+               (0.0, YU(rise_d - s["landing"]) + 25.0 - land_mid))
 
         # xyz: over the top landing (the real length, broken or not)
         xy = YU(rise_d) - 40
@@ -1204,7 +1450,7 @@ class StairWindow(forms.WPFWindow):
             if length < 2.0:
                 return
             ux, uy = (x2 - x1) / length, (y2 - y1) / length
-            size = min(7.0, length * 0.4)
+            size = min(14.0, length * 0.45)
             for px, py, sx_, sy_ in ((x1, y1, ux, uy), (x2, y2, -ux, -uy)):
                 bx, by = px + sx_ * size, py + sy_ * size
                 nx, ny = -sy_ * size * 0.3, sx_ * size * 0.3
@@ -1236,10 +1482,15 @@ class StairWindow(forms.WPFWindow):
             body = Polygon()
             body.Points = PointCollection(
                 [Point(px, py) for px, py in [left_edge[0]] + right_edge + left_edge[::-1]])
-            body.Fill = CONCRETE
+            body.Fill = CONCRETE_BASE
             body.Stroke = CONCRETE_EDGE
             body.StrokeThickness = 1.5
             canvas.Children.Add(body)
+            grain = Polygon()                       # the concrete's speckle
+            grain.Points = body.Points
+            grain.Fill = CONCRETE_SPECKLED
+            grain.IsHitTestVisible = False
+            canvas.Children.Add(grain)
             # one line for each riser; the last is where the top landing starts
             for k in range(1, Nd):
                 if a < k * g < b:
@@ -1438,119 +1689,75 @@ class StairWindow(forms.WPFWindow):
 
     # --- the rebar drawing ---
     def _draw_rebar(self, s, opts):
-        """The stair in section with its bars, as reinforce() will place
-        them: main bars as a line, bars across as dots, the footing and the
-        landing slab the top leg runs into, each set labelled."""
+        """The Reinforcement tab: where every bar goes, as reinforce() will place
+        them, drawn as the footing and the top details of the chosen layout."""
         plan = rebar_engine.layout(s, rebar_engine.numbers(opts))
-        N, r, g = s["risers"], s["riser"], s["going"]
-        x_end = s["run_length"] + s["xyz"]
-        foot = min(s["waist"] / math.cos(math.atan2(r, g)) * g / r, x_end)
-        fw, fd = (plan["footing"][1], plan["footing"][3] - plan["footing"][2]) \
-            if plan["footing"] else (0.0, 0.0)
-        x_max = max(x_end, plan["main"][0][0]) + 60.0
-        z_min = -fd if plan["footing"] else 0.0
-        scale = min(620.0 / max(x_max, 1.0), 220.0 / max(s["rise"] - z_min, 1.0))
-        ox = 40.0
-        oy = 48.0 + s["rise"] * scale        # room above for the mesh callout
-
-        def X(x):
-            return ox + x * scale
-
-        def Y(z):
-            return oy - z * scale
-
-        canvas = self.rebar_drawing
-        canvas.Children.Clear()
-        ink = self.TryFindResource("BrushTextPrimary")
-        fill = CONCRETE
-        accent = self.TryFindResource("BrushPrimaryGreen")
-        bar = SolidColorBrush(Color.FromRgb(0x2E, 0x8B, 0xFF))   # Revit's rebar blue
-
-        def poly(points, closed, stroke, thick, fill_brush=None, dash=False, opacity=1.0):
-            shape = Polygon() if closed else Polyline()
-            shape.Points = PointCollection([Point(X(x), Y(z)) for x, z in points])
-            shape.Stroke = stroke
-            shape.StrokeThickness = thick
-            shape.Opacity = opacity
-            if fill_brush is not None:
-                shape.Fill = fill_brush
-            if dash:
-                shape.StrokeDashArray = DoubleCollection([4.0, 3.0])   # floats: ints fail the cast
-            canvas.Children.Add(shape)
-
-        def text(t, x, z, dx=0, dy=0):
-            tb = TextBlock()
-            tb.Text = t
-            tb.FontSize = 12
-            tb.FontWeight = FontWeights.SemiBold
-            tb.Foreground = accent
-            Canvas.SetLeft(tb, X(x) + dx)
-            Canvas.SetTop(tb, Y(z) + dy)
-            canvas.Children.Add(tb)
-
-        # landing slab beyond the stair, which the top leg laps into
-        poly([(x_end, s["rise"]), (x_max, s["rise"]), (x_max, s["rise"] - s["landing"]),
-              (x_end, s["rise"] - s["landing"])], False, ink, 1, dash=True, opacity=0.5)
-        # the stair and its footing, one solid shape like the main section's
-        poly(self._solid_outline(s, fw, fd), True, CONCRETE_EDGE, 1.5, fill)
-
-        # main bars, with the hook drawn as a U turning uphill
-        poly(self._bar_path(plan), False, bar, 2.5)
-
-        # bars across: dots on the main bars, and one in each bend and the hook
-        dot = 6.0
-        for x, z in plan["across"] + plan["bends"]:
-            e = Ellipse()
-            e.Width = e.Height = dot
-            e.Fill = bar
-            Canvas.SetLeft(e, X(x) - dot / 2.0)
-            Canvas.SetTop(e, Y(z) - dot / 2.0)
-            canvas.Children.Add(e)
-
-        # top landing mesh: top bars, and the bottom bars the main bars sit beside
-        if plan["mesh"]:
-            xa, xb, z1 = plan["mesh"]
-            poly([(xa, z1), (xb, z1)], False, bar, 1.5)
-            md = opts["mesh_bar"].BarNominalDiameter * 304.8
-            poly([(xa, z1 - md), (xb, z1 - md)], False, bar, 1.5)
-
-        def name(bar_type):
-            return DB.Element.Name.GetValue(bar_type)
-
-        def callout(number, words, x, z, dx, dy):
-            """A numbered label off to one side, with a leader to the bar."""
-            ax, ay = X(x), Y(z)
-            ln = Line()
-            ln.X1, ln.Y1, ln.X2, ln.Y2 = ax, ay, ax + dx, ay + dy
-            ln.Stroke = accent
-            ln.StrokeThickness = 1
-            canvas.Children.Add(ln)
-            _badge(canvas, number, ax + dx + 9, ay + dy)
-            tb = TextBlock()
-            tb.Text = words
-            tb.FontSize = 12
-            tb.FontWeight = FontWeights.SemiBold
-            tb.Foreground = accent
-            Canvas.SetLeft(tb, ax + dx + 20)
-            Canvas.SetTop(tb, ay + dy - 9)
-            canvas.Children.Add(tb)
-
-        # 6 main bars, 7 bars across: leaders out below the soffit
-        (xa_, za_), (xb_, zb_) = plan["main"][1], plan["main"][2]
-        f = 0.3
-        callout(u"6", u"{0} @ {1:g}".format(name(opts["main_bar"]), opts["main_spacing"]),
-                xb_ + (xa_ - xb_) * f, zb_ + (za_ - zb_) * f, 70, 70)
-        if plan["across"]:
-            x7, z7 = plan["across"][min(len(plan["across"]) - 1, (2 * len(plan["across"])) // 3)]
-            callout(u"7", u"{0} @ {1:g}".format(name(opts["dist_bar"]), opts["dist_spacing"]),
-                    x7, z7, 70, 70)
-        # 8 mesh: above the landing
-        if plan["mesh"]:
-            callout(u"8", u"{0} @ {1:g} both ways".format(name(opts["mesh_bar"]),
-                                                          opts["mesh_spacing"]),
-                    (xa + xb) / 2.0, z1, -40, -34)
-
         self._draw_details(plan, s, opts)
+
+    def _bar_brushes(self):
+        """(fill, edge) for the bars: the theme's accent, and the accent at
+        45% for the edge, so the bars follow the accent picked in About."""
+        accent = self.TryFindResource("BrushPrimaryGreen")
+        c = getattr(accent, "Color", None) or Color.FromRgb(0x20, 0x8A, 0x3C)
+        edge = Color.FromRgb(int(c.R * 0.45), int(c.G * 0.45), int(c.B * 0.45))
+        return SolidColorBrush(c), SolidColorBrush(edge)
+
+    def _draw_traced(self, canvas, spec, placed, shown_callouts):
+        """Draw a traced detail: every path in the SVG, filled black on white
+        paper and fitted to the canvas, with the boxes and the callouts placed
+        over its numbers and labels (spec: see TRACED_DETAILS). False when
+        the file is missing or cannot be read, so the detail is drawn instead."""
+        try:
+            with io.open(op.join(SCRIPT_DIR, spec["file"]), "r", encoding="utf-8") as f:
+                text = f.read()
+        except (IOError, OSError):
+            return False
+        shapes = GeometryGroup()
+        shapes.FillRule = FillRule.EvenOdd
+        for data in re.findall(r"<path\b[^>]*?\sd=\"([^\"]+)\"", text, re.S):
+            try:
+                shapes.Children.Add(Geometry.Parse(data))
+            except Exception:
+                continue
+        bounds = shapes.Bounds
+        if shapes.Children.Count == 0 or bounds.IsEmpty or bounds.Width <= 0 or bounds.Height <= 0:
+            return False
+        canvas.Children.Clear()
+        cw, ch, m = canvas.Width, canvas.Height, 10.0
+        s = min((cw - 2 * m) / bounds.Width, (ch - 2 * m) / bounds.Height)
+        w, h = bounds.Width * s, bounds.Height * s
+        left, top = (cw - w) / 2.0, (ch - h) / 2.0
+        white = SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF))
+        paper = Rectangle()
+        paper.Width, paper.Height = w + 2 * m - 4, h + 2 * m - 4
+        paper.RadiusX = paper.RadiusY = 6
+        paper.Fill = white
+        Canvas.SetLeft(paper, left - m + 2)
+        Canvas.SetTop(paper, top - m + 2)
+        canvas.Children.Add(paper)
+        move = TransformGroup()
+        move.Children.Add(TranslateTransform(-bounds.X, -bounds.Y))
+        move.Children.Add(ScaleTransform(s, s))
+        move.Children.Add(TranslateTransform(left, top))
+        shapes.Transform = move
+        drawing = ShapePath()
+        drawing.Data = shapes
+        drawing.Fill = SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14))
+        canvas.Children.Add(drawing)
+        for key, fx, fy, angle in spec.get("boxes", ()):
+            self._place_editor(key, left + fx * w, top + fy * h, angle, self._rb_editors)
+            placed.add(key)
+        for key, fx, fy in spec.get("callouts", ()):
+            group = self._callouts[key]
+            self._sync_callout(key)
+            group.Background = white        # covers the traced words under it
+            group.Opacity = 1.0
+            group.Visibility = Visibility.Visible
+            group.Measure(Size(1000.0, 200.0))
+            Canvas.SetLeft(group, left + fx * w)
+            Canvas.SetTop(group, top + fy * h - group.DesiredSize.Height / 2.0)
+            shown_callouts.add(key)
+        return True
 
     def _bar_path(self, plan):
         """The main bar as a polyline (section mm), the hook drawn as a U
@@ -1567,13 +1774,35 @@ class StairWindow(forms.WPFWindow):
         return main
 
     def _draw_details(self, plan, s, opts):
-        """The two zoomed details on the Reinforcement tab: the bottom two
+        """The Reinforcement tab's two details (the footing and the top) for
+        the chosen rebar layout. Each layout draws its own pair; to add one,
+        write `_draw_details_<name>` like the one below, add it to this table
+        under the layout's key (the one in rebar_engine.LAYOUTS), and add its
+        dimension boxes to REBAR_EDITORS. A layout without a drawing of its
+        own falls back to the standard one."""
+        drawers = {"hooked": self._draw_details_hooked}
+        drawers.get(opts.get("layout"), self._draw_details_hooked)(plan, s, opts)
+
+    def _draw_details_hooked(self, plan, s, opts):
+        """The Standard Setout (hooked main bars): the two zoomed details on
+        the Reinforcement tab: the bottom two
         steps with the footing, and the top two steps with the landing and a
         piece of the floor slab it meets (dashed, with the floor mesh running
         through it), each cut square to the slope with a break line, so they
         show the setouts large and never rescale with the number of steps.
-        Their dimensions are input boxes, like the stair section's."""
-        o = rebar_engine.numbers(opts)
+        Their dimensions are input boxes, like the stair section's.
+
+        The pictures are fixed (DETAIL_STAIR, DETAIL_BARS), not the stair being
+        made: only the boxes' numbers, the callouts' words and the top step
+        numbers follow it. `plan` and `s` are used for those only."""
+        real_n = s["risers"]
+        # the bars in the theme's accent colour (set in About), edged a darker shade of it
+        BAR_BLUE, BAR_EDGE = self._bar_brushes()
+        d = DETAIL_STAIR
+        s = engine.plan(d["risers"] * d["riser"], d["riser"], d["going"], d["waist"],
+                        d["landing"], d["risers"], d["top_landing"])
+        o = dict(DETAIL_BARS)
+        plan = rebar_engine.layout(s, o)
         N, r, g = s["risers"], s["riser"], s["going"]
         length = math.hypot(g, r)
         tx, tz = g / length, r / length                  # up the slope
@@ -1586,14 +1815,13 @@ class StairWindow(forms.WPFWindow):
         x_end = s["run_length"] + s["xyz"]
         slab_end = x_end + FLOOR_SHOWN                   # the floor slab's piece, past the landing
         rise, thick = s["rise"], s["landing"]
-        bars = [(self._bar_path(plan), 2.5, False)]
+        # (path, bar diameter mm, dashed); the top and footing bends drawn round, inside
+        # radius 3 x the bar (centreline radius 3.5 x): for the look only
+        bars = [(_round_corners(self._bar_path(plan), (1, 2), 3.5 * dm), dm, False)]
         if plan["mesh"]:
             xa, xb, z1 = plan["mesh"]
-            md = opts["mesh_bar"].BarNominalDiameter * MM
-            bars += [([(xa, z1), (xb, z1)], 1.5, False), ([(xa, z1 - md), (xb, z1 - md)], 1.5, False)]
-            # the floor's mesh carries on through the slab piece (dashed: not ours)
-            bars += [([(xb, z1), (slab_end - 40.0, z1)], 1.5, True),
-                     ([(xb, z1 - md), (slab_end - 40.0, z1 - md)], 1.5, True)]
+            md = o["mesh_d"]
+            bars += [([(xa, z1), (xb, z1)], 0.0, False)]     # the mesh: a line (0 = no bar width); its bars across show as ticks
         dots = plan["across"] + plan["bends"]
         ink = self.TryFindResource("BrushTextPrimary")
         blue = SolidColorBrush(Color.FromRgb(0x2E, 0x8B, 0xFF))    # Revit's rebar blue
@@ -1627,7 +1855,7 @@ class StairWindow(forms.WPFWindow):
                    (clips_t + [(ls2, True)], 0.4 * g - (xc2 - xc))]
             cuts_t += [ls1, ls2]
 
-        def render(canvas, regions, cuts, right_top, margins, slab=None):
+        def render(canvas, regions, cuts, right_top, margins, slab=None, mirror=False):
             """Draw the concrete, the bars and the break lines of one detail
             at a scale that fits it, and return the world -> screen functions.
             `slab` is the outline of an existing slab beside it, drawn dashed."""
@@ -1651,13 +1879,15 @@ class StairWindow(forms.WPFWindow):
             mL, mR, mT, mB = margins
             scale = min((cw - mL - mR) / max(max(xs) - min(xs), 1.0),
                         (ch - mT - mB) / max(max(zs) - min(zs), 1.0), 0.9)
-            if right_top:       # the top detail hangs from the top right corner
-                ax, ay = cw - mR - max(xs) * scale, mT + max(zs) * scale
-            else:               # the footing detail stands on the bottom left
-                ax, ay = mL - min(xs) * scale, ch - mB + min(zs) * scale
+            # the footing detail sits to the left and the top detail to the right,
+            # both centred between the top and bottom margins
+            ax = cw - mR - max(xs) * scale if right_top else mL - min(xs) * scale
+            ay = mT + (ch - mT - mB - (max(zs) - min(zs)) * scale) / 2.0 + max(zs) * scale
+            if mirror:          # drawn the other way round: up the stair runs to the left
+                ax = mL + max(xs) * scale
 
             def X(x):
-                return ax + x * scale
+                return ax - x * scale if mirror else ax + x * scale
 
             def Y(z):
                 return ay - z * scale
@@ -1665,11 +1895,16 @@ class StairWindow(forms.WPFWindow):
             for pts, dx in polys:
                 poly = Polygon()
                 poly.Points = PointCollection([Point(X(x + dx), Y(z)) for x, z in pts])
-                poly.Fill = CONCRETE
+                poly.Fill = CONCRETE_BASE
                 poly.Stroke = CONCRETE_EDGE
                 poly.StrokeThickness = 1.5
                 poly.StrokeLineJoin = PenLineJoin.Round
                 canvas.Children.Add(poly)
+                grain = Polygon()                   # the concrete's speckle, over the grey
+                grain.Points = poly.Points
+                grain.Fill = CONCRETE_SPECKLED
+                grain.IsHitTestVisible = False
+                canvas.Children.Add(grain)
                 for f in cuts:
                     # the break line along each cut face, a little past both ends
                     on = [p for p in pts if abs(f(p)) < 1e-6]
@@ -1703,30 +1938,70 @@ class StairWindow(forms.WPFWindow):
                 brk.Stroke = ink
                 brk.StrokeThickness = 1.6
                 canvas.Children.Add(brk)
-            for points, thick, dashed in bars:
+            white = SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF))
+            main_path, main_w = bars[0][0], max(bars[0][1] * scale, 6.0)   # for placing the dots
+            drawn["bar"] = main_w
+            for points, diam, dashed in bars:
+                # a bar is drawn at its own diameter (never thinner than 6 px): solid
+                # blue with a dark edge, as on the section drawings
+                w = max(diam * scale, 6.0)
+                as_line = diam <= 0.0               # drawn as a plain line (the mesh)
                 for clips, dx in regions:
                     chains = [points]
                     for f, keep in clips:
                         chains = [c for chain in chains
                                   for c in engine.clip_polyline(chain, f, keep)]
                     for chain in chains:
-                        line = Polyline()
-                        line.Points = PointCollection([Point(X(x + dx), Y(z)) for x, z in chain])
-                        line.Stroke = blue
-                        line.StrokeThickness = thick
-                        if dashed:
-                            line.StrokeDashArray = DoubleCollection([5.0, 3.0])
-                        canvas.Children.Add(line)
+                        pts_ = PointCollection([Point(X(x + dx), Y(z)) for x, z in chain])
+                        if as_line:
+                            mesh_line = Polyline()
+                            mesh_line.Points = pts_
+                            mesh_line.Stroke = BAR_BLUE
+                            mesh_line.StrokeThickness = 1.6
+                            canvas.Children.Add(mesh_line)
+                            continue
+                        edge = Polyline()
+                        edge.Points = pts_
+                        edge.Stroke = BAR_EDGE
+                        edge.StrokeThickness = w + 2.4
+                        edge.StrokeLineJoin = PenLineJoin.Round
+                        core = Polyline()
+                        core.Points = pts_
+                        core.Stroke = BAR_BLUE
+                        core.StrokeThickness = w
+                        core.StrokeLineJoin = PenLineJoin.Round
+                        if dashed:              # the floor's own mesh: shown faded
+                            edge.Opacity = core.Opacity = 0.4
+                        canvas.Children.Add(edge)
+                        canvas.Children.Add(core)
             for clips, dx in regions:
                 for x, z in dots:
+                    x0, z0 = x, z
                     if all((f((x, z)) >= 0) == keep for f, keep in clips):
+                        # a bar seen end-on: a solid dot at its diameter (at least 9 px),
+                        # sitting against the main bar as drawn: touching its side, never
+                        # on top of it (the bars are drawn fatter than to scale)
+                        size = max((dd or dm) * scale, 9.0)
+                        x, z = _touching(main_path, (x, z),
+                                         (main_w / 2.0 + size / 2.0 + 0.4) / scale)
+                        dot_shown[(x0, z0)] = (x, z)        # where the callouts must point
+                        drawn["dot"] = size
                         e = Ellipse()
-                        e.Width = e.Height = 6.0
-                        e.Fill = blue
-                        Canvas.SetLeft(e, X(x + dx) - 3.0)
-                        Canvas.SetTop(e, Y(z) - 3.0)
+                        e.Width = e.Height = size
+                        e.Fill = BAR_BLUE
+                        e.Stroke = BAR_EDGE
+                        e.StrokeThickness = 1.2
+                        Canvas.SetLeft(e, X(x + dx) - size / 2.0)
+                        Canvas.SetTop(e, Y(z) - size / 2.0)
                         canvas.Children.Add(e)
             return X, Y
+
+        # where each end-on bar was drawn (moved to sit against the main bar), and
+        # how big the bars came out, so the callouts point right at them
+        dot_shown, drawn = {}, {"dot": 9.0, "bar": 6.0}
+
+        def at_dot(p):
+            return dot_shown.get((p[0], p[1]), p)
 
         placed = set()
 
@@ -1740,78 +2015,232 @@ class StairWindow(forms.WPFWindow):
                                self._rb_editors)
             placed.add(key)
 
-        # ---- the footing: the bottom three steps ----
-        canvas = self.footing_canvas
-        mapped = render(canvas, bottom, cuts_b, False, (58.0, 58.0, 40.0, 36.0))
-        if mapped is not None:
-            X, Y = mapped
-            if plan["footing"]:
-                leg_x = plan["main"][-1][0]
-                hx, hz = plan["hook_centre"]
-                # footing end (the first riser's face) to the hooked leg; its box
-                # sits out to the left of the footing, clear of the bar
-                mid_x = (X(0.0) + X(leg_x - dm / 2.0)) / 2.0
-                dimension(canvas, "cover_end", (0.0, hz), (leg_x - dm / 2.0, hz),
-                          (X(0.0) - 26.0 - mid_x, 0.0), X, Y)
-                # footing bottom to the bottom of the hook: the line and its box
-                # out to the right of the footing
-                bottom_z = hz - plan["hook_radius"] - dm / 2.0
-                xl = X(fw) + 16.0
-                for zz, xz in ((bottom_z, X(hx)), (-fd, X(fw))):
-                    _ext_line(canvas, ink, xz, Y(zz), xl + 4.0, Y(zz))
-                _dim_line(canvas, ink, xl, Y(bottom_z), xl, Y(-fd))
-                self._place_editor("cover_bottom", xl + 17.0, (Y(bottom_z) + Y(-fd)) / 2.0, -90.0,
-                                   self._rb_editors)
-                placed.add("cover_bottom")
-            # soffit to the underside of the main bars, square to the slope
-            k = plan["main_k"]
-            xs_ = (plan["across"][0][0] if plan["across"]
-                   else (plan["main"][1][0] + plan["main"][2][0]) / 2.0)
-            under = (xs_ + sn * dm / 2.0, t * xs_ + k - cs * dm / 2.0)
-            gap = s["waist"] - o["corner_clear"] - dd - dm
-            soffit = (under[0] + sn * gap, under[1] - cs * gap)
-            beyond = math.hypot(X(soffit[0]) - X(under[0]), Y(soffit[1]) - Y(under[1])) / 2.0 + 24.0
-            dimension(canvas, "cover_soffit", soffit, under, (sn * beyond, cs * beyond), X, Y)
-            # a step's inside corner to the top of the bars across, square to the slope
-            n = 2 if N >= 3 else 1
-            corner = (n * g, n * r)
-            cc = o["corner_clear"]
-            dimension(canvas, "corner_clear", corner,
-                      (corner[0] + sn * cc, corner[1] - cs * cc), (-26.0, -12.0), X, Y)
+        # ---- the callouts: each one's bar and spacing can be changed right on it ----
+        accent = self.TryFindResource("BrushPrimaryGreen")
+        across_on = bool(self.dist_cb.IsChecked)
+        shown_callouts = set()
 
-        # ---- the top: the top three steps and the landing ----
-        canvas = self.top_canvas
-        slab = [(x_end, rise), (slab_end - 0.25 * thick, rise), (slab_end + 0.25 * thick, rise - thick),
-                (x_end, rise - thick)]
-        mapped = render(canvas, top, cuts_t, True, (24.0, 28.0, 64.0, 30.0), slab)
+        def callout(canvas, X, Y, point, dx, dy, key, side=1, stop=0.0):
+            """A callout off to one side, joined to the bar by a leader with an
+            arrowhead on the bar. Its words are a bar list and a spacing box
+            (see _build_callouts). side 1: it runs right from the end of the
+            leader, -1: it ends there."""
+            group = self._callouts[key]
+            self._sync_callout(key)
+            group.Background = None             # (a traced detail gives it a white one)
+            group.Visibility = Visibility.Visible
+            group.Opacity = 0.55 if key == "t_mesh" and not self.mesh_cb.IsChecked else 1.0
+            group.Measure(Size(1000.0, 200.0))
+            width, height = group.DesiredSize.Width, group.DesiredSize.Height
+            ax, ay = X(point[0]), Y(point[1])
+            ex, ey = ax + dx, ay + dy
+            # keep it inside the frame: slide the end of the leader in if it would run off
+            if side > 0 and ex > canvas.Width - 24.0 - width:
+                ex = canvas.Width - 24.0 - width
+            if side < 0 and ex < width + 24.0:
+                ex = width + 24.0
+            ey = max(min(ey, canvas.Height - 14.0), 14.0)
+            # the arrow's tip stops on the edge of the bar it points at (`stop` px short
+            # of the bar's middle), so the bar shows
+            reach = math.hypot(ex - ax, ey - ay) or 1.0
+            ax, ay = ax + (ex - ax) / reach * stop, ay + (ey - ay) / reach * stop
+            tail = ex + side * 14.0
+            leader = Polyline()
+            leader.Points = PointCollection([Point(ax, ay), Point(ex, ey), Point(tail, ey)])
+            leader.Stroke = ink
+            leader.StrokeThickness = 1
+            canvas.Children.Add(leader)
+            length_ = math.hypot(ex - ax, ey - ay) or 1.0
+            ux, uy = (ax - ex) / length_, (ay - ey) / length_
+            bx, by = ax - ux * 14.0, ay - uy * 14.0
+            head = Polygon()
+            head.Points = PointCollection([Point(ax, ay), Point(bx - uy * 5.2, by + ux * 5.2),
+                                           Point(bx + uy * 5.2, by - ux * 5.2)])
+            head.Fill = ink
+            canvas.Children.Add(head)
+            Canvas.SetLeft(group, tail + 4.0 if side > 0 else tail - 4.0 - width)
+            Canvas.SetTop(group, ey - height / 2.0)
+            shown_callouts.add(key)
+
+        def step_label(canvas, X, Y, k, shown, flip=False):
+            """The step's real number on its tread, as on the stair tab."""
+            tb = TextBlock()
+            tb.Text = unicode(k)
+            tb.FontSize = 12
+            tb.Foreground = CONCRETE_EDGE
+            Canvas.SetLeft(tb, X((shown - 1) * g) + (-18.0 if flip else 4.0))
+            Canvas.SetTop(tb, Y(shown * r) + 2.0)
+            canvas.Children.Add(tb)
+
+        def soffit_and_corner(canvas, X, Y, soffit_key, corner_key, xs_, n, flip=False):
+            """The two setout dimensions on the slope, square to it, to the bars
+            as drawn: the soffit to the underside of the main bar, and a step's
+            inside corner to the top of the bars across. Small dimensions, so
+            their arrows come in from outside; the corner's is set off down the
+            slope on extension lines, clear of the bars."""
+            ppm = abs(X(1.0) - X(0.0))                       # px per mm
+            def screen_dir(wx, wz):
+                vx, vy = X(wx) - X(0.0), Y(wz) - Y(0.0)
+                ln = math.hypot(vx, vy) or 1.0
+                return vx / ln, vy / ln
+            nd = screen_dir(sn, -cs)                         # square to the slope, downwards
+            down = screen_dir(-cs, -sn)                      # down the slope
+            k = plan["main_k"]
+            # soffit to the underside of the main bar
+            cx_, cy_ = X(xs_), Y(t * xs_ + k)                # on the main bar's middle
+            gap = s["waist"] - o["corner_clear"] - dd - dm
+            under_ = (cx_ + nd[0] * drawn["bar"] / 2.0, cy_ + nd[1] * drawn["bar"] / 2.0)
+            soffit_ = (cx_ + nd[0] * (gap + dm / 2.0) * ppm, cy_ + nd[1] * (gap + dm / 2.0) * ppm)
+            outside_dimension(canvas, soffit_key, soffit_, under_)
+            # the step's inside corner to the top of the bars across (as drawn)
+            corner = (X(n * g), Y(n * r))
+            reach_ = ((o["corner_clear"] + dd + dm / 2.0) * ppm
+                      - (drawn["bar"] / 2.0 + drawn["dot"] + 0.4))
+            top_ = (corner[0] + nd[0] * reach_, corner[1] + nd[1] * reach_)
+            off = 26.0                                        # down the slope, clear of the bar
+            c2 = (corner[0] + down[0] * off, corner[1] + down[1] * off)
+            t2 = (top_[0] + down[0] * off, top_[1] + down[1] * off)
+            for p0, p1 in ((corner, c2), (top_, t2)):
+                _ext_line(canvas, ink, p0[0] + down[0] * 3.0, p0[1] + down[1] * 3.0,
+                          p1[0] + down[0] * 5.0, p1[1] + down[1] * 5.0)
+            outside_dimension(canvas, corner_key, c2, t2)
+
+        def outside_dimension(canvas, key, a, b):
+            """A small dimension from screen point a to b, the arrows coming in
+            from outside, and its box in line with it past a."""
+            _dim_outside(canvas, ink, a[0], a[1], b[0], b[1])
+            run_ = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
+            ux_, uy_ = (b[0] - a[0]) / run_, (b[1] - a[1]) / run_
+            out_ = 18.0 + 19.0 + 4.0                         # the arrow's tail, half the box, a gap
+            self._place_editor(key, a[0] - ux_ * out_, a[1] - uy_ * out_,
+                               _dim_angle(a[0], a[1], b[0], b[1]), self._rb_editors)
+            placed.add(key)
+
+        def on_bar(x):
+            """A point on the main bar's sloping part, at section x."""
+            return (x, t * x + plan["main_k"])
+
+        def nearest_across(x):
+            return min(plan["across"], key=lambda p: abs(p[0] - x)) if plan["across"] else None
+
+        # ---- the footing: the bottom two steps, as the standard detail ----
+        # drawn mirrored like it: the footing on the right, the stair rising to the left,
+        # every callout in one column out to the right
+        canvas = self.footing_canvas
+        traced = ("footing" in TRACED_DETAILS
+                  and self._draw_traced(canvas, TRACED_DETAILS["footing"], placed, shown_callouts))
+        mapped = None if traced else render(canvas, bottom, cuts_b, False, (40.0, 250.0, 40.0, 30.0),
+                                            mirror=True)
         if mapped is not None:
             X, Y = mapped
+            for k in (1, 2):
+                if k <= N:
+                    step_label(canvas, X, Y, k, k, True)
+            # the two setouts on the slope, up by the second step
+            soffit_and_corner(canvas, X, Y, "cover_soffit", "corner_clear", 1.45 * g,
+                              2 if N >= 3 else 1, True)
+            col = X(0.0) + 34.0                      # the leaders end here, past the footing
+            bend_y = None
+            if plan["footing"] and across_on:
+                # the bars in the bend and in the hook: straight out to the right
+                last_y = None
+                for i, dot_ in enumerate(sorted((at_dot(b) for b in plan["bends"][-2:]),
+                                                key=lambda p: -p[1])):
+                    dy_ = 0.0
+                    if last_y is not None and abs(Y(dot_[1]) - last_y) < 30.0:
+                        dy_ = 30.0 - abs(Y(dot_[1]) - last_y)
+                    callout(canvas, X, Y, dot_, col - X(dot_[0]), dy_, "f_bend%d" % (i + 1),
+                            stop=drawn["dot"] / 2.0)
+                    last_y = Y(dot_[1]) + dy_
+                    if bend_y is None:
+                        bend_y = last_y
+            if bend_y is None:
+                bend_y = Y(plan["main"][2][1])
+            # the main bars, just above the bend, and the bars across above that
+            point = on_bar(plan["main"][2][0] + 0.45 * g)
+            main_row = bend_y - 80.0
+            callout(canvas, X, Y, point, col - X(point[0]), main_row - Y(point[1]), "f_main",
+                    stop=drawn["bar"] / 2.0)
+            dot_ = nearest_across(1.2 * g)
+            if dot_ is not None and across_on:
+                dot_ = at_dot(dot_)
+                callout(canvas, X, Y, dot_, col - X(dot_[0]), main_row - 120.0 - Y(dot_[1]), "f_across",
+                        stop=drawn["dot"] / 2.0)
+
+        # ---- the top: the top two steps and the landing, as the standard detail ----
+        # drawn mirrored, as the standard detail is: the landing on the left
+        canvas = self.top_canvas
+        mapped = render(canvas, top, cuts_t, True, (76.0, 24.0, 84.0, 30.0), mirror=True)
+        if mapped is not None:
+            X, Y = mapped
+            px_mm = X(1.0) - X(0.0)
+            for k in (N - 1, N):            # the real stair's top two numbers
+                if 1 <= real_n - N + k:
+                    step_label(canvas, X, Y, real_n - N + k, k, True)
             x_top, z_top = plan["main"][1]
             lap_end = plan["main"][0][0]
-            # the leg into the landing, dimensioned above the slab
+            # LAP: the leg into the landing, dimensioned above the slab
             up = Y(s["rise"]) - 26.0
             for ex_ in (X(x_top), X(lap_end)):
-                ext = Line()
-                ext.X1, ext.Y1, ext.X2, ext.Y2 = ex_, Y(z_top) - 4.0, ex_, up - 4.0
-                ext.Stroke = ink
-                ext.StrokeThickness = 1
-                ext.Opacity = 0.5
-                canvas.Children.Add(ext)
+                _ext_line(canvas, ink, ex_, Y(z_top) - 4.0, ex_, up - 4.0)
             _dim_line(canvas, ink, X(x_top), up, X(lap_end), up)
             self._place_editor("lap", (X(x_top) + X(lap_end)) / 2.0, up - 14.0, 0.0, self._rb_editors)
             placed.add("lap")
-            # the top of the landing to the top of the mesh (or of the top leg)
+            # the mesh's bars across, end on: small ticks on top of its bar
             if plan["mesh"]:
                 xa, xb, z1 = plan["mesh"]
-                top_z = z1 + opts["mesh_bar"].BarNominalDiameter * MM / 2.0
+                strip = 1.6                          # the mesh is drawn as a line
+                x_t = xa + 25.0
+                while x_t < xb - 10.0:
+                    tick = Line()
+                    tick.X1 = tick.X2 = X(x_t)
+                    tick.Y1, tick.Y2 = Y(z1) - strip / 2.0 - 1.0, Y(z1) - strip / 2.0 - 5.0
+                    tick.Stroke = BAR_BLUE
+                    tick.StrokeThickness = 1.6
+                    canvas.Children.Add(tick)
+                    x_t += o["mesh_spacing"]
+                top_z = z1 + o["mesh_d"] / 2.0
             else:
                 top_z = z_top + dm / 2.0
-            x5 = (x_top + lap_end) / 2.0                 # on the slab, over the top leg
-            dimension(canvas, "cover_top", (x5, s["rise"]), (x5, top_z), (17.0, 0.0), X, Y)
+            # top cover: out past the end of the landing, from its top to the top of the mesh
+            x_end_ = s["run_length"] + s["xyz"]
+            xl = X(x_end_) - 22.0
+            for zz in (s["rise"], top_z):
+                _ext_line(canvas, ink, X(x_end_) - 3.0, Y(zz), xl - 6.0, Y(zz))
+            _dim_line(canvas, ink, xl, Y(s["rise"]), xl, Y(top_z))
+            self._place_editor("cover_top", xl - 17.0, (Y(s["rise"]) + Y(top_z)) / 2.0, -90.0,
+                               self._rb_editors)
+            placed.add("cover_top")
+            # the same two setouts on the slope, near the top
+            soffit_and_corner(canvas, X, Y, "cover_soffit_t", "corner_clear_t",
+                              (N - 1.85) * g, max(N - 1, 1), True)
+            # callouts, as on the standard detail: the mesh from above; under the
+            # landing, one column of labels: the bar in the bend, the bars
+            # across, then the main bars
+            if plan["mesh"]:
+                xm = lap_end + 0.5 * (xb - lap_end)
+                callout(canvas, X, Y, (xm, z1), 0.0, (up - 44.0) - Y(z1), "t_mesh", stop=1.5)
+            bend = plan["bends"][0] if plan["bends"] else (x_top, z_top)
+            col = X(bend[0])                                 # the leaders end here
+            row = Y(s["rise"] - s["landing"]) + 40.0
+            if plan["bends"] and across_on:
+                bend = at_dot(bend)
+                callout(canvas, X, Y, bend, 0.0, row - Y(bend[1]), "t_bend", -1, stop=drawn["dot"] / 2.0)
+            dot_ = nearest_across(x_top - 0.9 * g)
+            if dot_ is not None and across_on:
+                dot_ = at_dot(dot_)
+                callout(canvas, X, Y, dot_, col - X(dot_[0]), row + 40.0 - Y(dot_[1]), "t_across", -1,
+                        stop=drawn["dot"] / 2.0)
+            point = on_bar(x_top - 1.5 * g)
+            callout(canvas, X, Y, point, col - X(point[0]), row + 80.0 - Y(point[1]), "t_main", -1,
+                    stop=drawn["bar"] / 2.0)
 
         for key, box in self._rb_editors.items():
             if key not in placed:
                 box.Visibility = Visibility.Collapsed
+        for key, group in self._callouts.items():
+            if key not in shown_callouts:
+                group.Visibility = Visibility.Collapsed
 
     def pick_level_clicked(self, sender, args):
         self._hide_for("level")

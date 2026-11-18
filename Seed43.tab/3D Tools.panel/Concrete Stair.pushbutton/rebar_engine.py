@@ -296,7 +296,7 @@ def _layout_hooked(s, o):
 # from the plan alone, so a new layout only needs a function and a line in
 # LAYOUTS: (key saved in settings, name shown in the Layout list, function).
 LAYOUTS = [
-    (u"hooked", u"Main bars hooked into the footing", _layout_hooked),
+    (u"hooked", u"Standard Setout - hooked main bars", _layout_hooked),
 ]
 
 

@@ -192,6 +192,13 @@
                                Foreground="{DynamicResource BrushTextPrimary}"
                                FontSize="16" FontWeight="SemiBold" Opacity="0.55"
                                Margin="10,0,0,0" VerticalAlignment="Center"/>
+                    <!-- Stair / Reinforcement tabs, in the title bar -->
+                    <Button x:Name="tab_stair_btn" Content="Stair" Tag="Active" Width="158" Margin="20,0,8,0"
+                            Style="{StaticResource SegTab}" Click="tab_stair_clicked"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True"/>
+                    <Button x:Name="tab_rebar_btn" Content="Reinforcement" Tag="" Width="158"
+                            Style="{StaticResource SegTab}" Click="tab_rebar_clicked"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True"/>
                 </StackPanel>
                 <Button Content="&#x2715;" HorizontalAlignment="Right"
                         Style="{DynamicResource CloseButtonStyle}"
@@ -217,19 +224,6 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-
-                    <!-- tabs -->
-                    <Grid Grid.Row="0" Margin="0,0,0,12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="8"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Button x:Name="tab_stair_btn" Grid.Column="0" Content="Stair" Tag="Active"
-                                Style="{StaticResource SegTab}" Click="tab_stair_clicked"/>
-                        <Button x:Name="tab_rebar_btn" Grid.Column="2" Content="Reinforcement" Tag=""
-                                Style="{StaticResource SegTab}" Click="tab_rebar_clicked"/>
-                    </Grid>
 
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
                                   Style="{DynamicResource MacScrollViewer}">
@@ -547,7 +541,7 @@
                                         Style="{DynamicResource SecondaryButtonStyle}"
                                         ToolTip="Click an existing straight concrete stair and reinforce it with these settings"
                                         Click="rebar_existing_clicked"/>
-                                <TextBlock Text="Layout" Style="{DynamicResource FieldLabelStyle}"/>
+                                <TextBlock Text="Rebar layout" Style="{DynamicResource FieldLabelStyle}"/>
                                 <ComboBox x:Name="rebar_layout_cb" SelectionChanged="inputs_changed" Margin="0,0,0,4"
                                           ToolTip="How the bars are arranged. More layouts can be added to the tool as they are needed."
                                           Style="{DynamicResource ComboBoxStyle}"/>
@@ -556,7 +550,6 @@
 
                                 <!-- MAIN BARS -->
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                    <Border Style="{StaticResource Badge}"><TextBlock Text="6" Style="{StaticResource BadgeText}"/></Border>
                                     <TextBlock Text="Main bars, down the soffit" Style="{DynamicResource SectionLabelStyle}" Margin="0"/>
                                 </StackPanel>
                                 <TextBlock Text="Bar" Style="{DynamicResource FieldLabelStyle}"/>
@@ -575,7 +568,6 @@
 
                                 <!-- BARS ACROSS -->
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                    <Border Style="{StaticResource Badge}"><TextBlock Text="7" Style="{StaticResource BadgeText}"/></Border>
                                     <CheckBox x:Name="dist_cb" Click="inputs_changed" Content="Bars across, up the slope" IsChecked="True"
                                               Style="{DynamicResource CheckBoxStyle}" Margin="0"/>
                                 </StackPanel>
@@ -589,7 +581,6 @@
 
                                 <!-- MESH -->
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                    <Border Style="{StaticResource Badge}"><TextBlock Text="8" Style="{StaticResource BadgeText}"/></Border>
                                     <CheckBox x:Name="mesh_cb" Click="inputs_changed" Content="Mesh in the top landing, both ways"
                                               Style="{DynamicResource CheckBoxStyle}" Margin="0"/>
                                 </StackPanel>
@@ -705,23 +696,56 @@
                     </Grid>
                 </Border>
 
-                <!-- REBAR SECTION (Reinforcement tab) -->
-                <Border x:Name="rebar_card" Grid.Row="0" Style="{DynamicResource CardStyle}" Padding="12,10,12,10"
-                        Visibility="Collapsed">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-                        <TextBlock Text="Reinforcement section" Style="{DynamicResource SectionLabelStyle}" Margin="0,0,0,2"/>
-                        <Canvas x:Name="rebar_drawing" Grid.Row="1" Width="770" Height="286"
-                                HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="True"/>
-                        <TextBlock x:Name="rebar_note_tb" Grid.Row="2" Opacity="0.7" TextWrapping="Wrap"
-                                   Foreground="{DynamicResource BrushTextPrimary}"/>
-                    </Grid>
-                </Border>
+                <!-- REINFORCEMENT TAB: the footing and the top, zoomed, drive the setout -->
+                <Grid x:Name="rebar_row" Grid.Row="0" Grid.RowSpan="3" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="10"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
 
+                    <!-- a reason the setout cannot be drawn yet -->
+                    <TextBlock x:Name="rebar_note_tb" Grid.RowSpan="3" Panel.ZIndex="5"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               TextWrapping="Wrap" TextAlignment="Center" MaxWidth="560" FontSize="14"
+                               Foreground="{DynamicResource BrushTextPrimary}"/>
+                    <Border x:Name="footing_card" Grid.Row="0" Style="{DynamicResource CardStyle}" Padding="12,10,12,10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                                <Ellipse Width="10" Height="10" Fill="{DynamicResource BrushPrimaryGreen}"
+                                         VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Text="Footing Detail" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource BrushTextPrimary}"/>
+                            </StackPanel>
+                            <Canvas x:Name="footing_canvas" Grid.Row="1" Width="758" Height="300"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="True"/>
+                            <Canvas x:Name="footing_edit" Grid.Row="1" Width="758" Height="300"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+                    <Border x:Name="top_card" Grid.Row="2" Style="{DynamicResource CardStyle}" Padding="12,10,12,10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                                <Ellipse Width="10" Height="10" Fill="{DynamicResource BrushPrimaryGreen}"
+                                         VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Text="Top Detail" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource BrushTextPrimary}"/>
+                            </StackPanel>
+                            <Canvas x:Name="top_canvas" Grid.Row="1" Width="758" Height="300"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="True"/>
+                            <Canvas x:Name="top_edit" Grid.Row="1" Width="758" Height="300"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+                </Grid>
                 <!-- PLAN / 3D / CALCULATIONS -->
                 <Grid x:Name="bottom_grid" Grid.Row="2">
                     <Grid.ColumnDefinitions>
@@ -731,37 +755,6 @@
                         <ColumnDefinition Width="10"/>
                         <ColumnDefinition Width="248"/>
                     </Grid.ColumnDefinitions>
-
-                    <!-- Reinforcement tab: the footing and the top, zoomed, in place of plan / 3D / numbers -->
-                    <Border x:Name="footing_card" Grid.Column="0" Style="{DynamicResource CardStyle}" Padding="12,10,12,10"
-                            Visibility="Collapsed">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                            </Grid.RowDefinitions>
-                            <TextBlock Text="Footing Detail" Style="{DynamicResource SectionLabelStyle}" Margin="0,0,0,2"/>
-                            <Canvas x:Name="footing_canvas" Grid.Row="1" Width="340" Height="284"
-                                    HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="True"/>
-                            <Canvas x:Name="footing_edit" Grid.Row="1" Width="340" Height="284"
-                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Grid>
-                    </Border>
-                    <Border x:Name="top_card" Grid.Column="2" Style="{DynamicResource CardStyle}" Padding="12,10,12,10"
-                            Visibility="Collapsed">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                            </Grid.RowDefinitions>
-                            <TextBlock Text="Top Detail" Style="{DynamicResource SectionLabelStyle}" Margin="0,0,0,2"/>
-                            <Canvas x:Name="top_canvas" Grid.Row="1" Width="394" Height="284"
-                                    HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="True"/>
-                            <Canvas x:Name="top_edit" Grid.Row="1" Width="394" Height="284"
-                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Grid>
-                    </Border>
-
                     <Border x:Name="plan_card" Grid.Column="0" Style="{DynamicResource CardStyle}" Padding="12,10,12,10">
                         <Grid>
                             <Grid.RowDefinitions>

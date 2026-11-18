@@ -10,6 +10,8 @@ tooltip: >
   live as you tick each one, and Cancel reverts everything. Works with
   imported and linked CAD files, applying to the view template automatically
   when one is in use. Pick on Model hides a layer by clicking one of its
-  lines in the view; keep clicking, then Esc to return to the list.
+  lines in the view; keep clicking, then Esc to return to the list. The
+  Colours buttons link a DWG again in black and white, inverted or in its
+  own colours, every placement and layer setting kept where it was.
 
   __________________________________________________________________

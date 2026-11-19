@@ -2116,6 +2116,34 @@ class StairWindow(forms.WPFWindow):
                                _dim_angle(a[0], a[1], b[0], b[1]), self._rb_editors)
             placed.add(key)
 
+        def footing_covers(canvas, X, Y):
+            """The U-bar's two covers in the footing, as drawn: (1) the side
+            cover, the footing's outer face to the U's outer leg, and (2) the
+            bottom cover, the footing's underside to the bottom of the U. Small
+            dimensions, so their arrows come in from outside; the boxes sit
+            outside the concrete: the side one past the face, between the two
+            bend callouts, the bottom one under the footing."""
+            x_k, z_k = plan["main"][2]
+            hx, hz = plan["hook_centre"]
+            rh = plan["hook_radius"]
+            bar = drawn["bar"]
+            # (1) side: across the leg, halfway between the bend and the U
+            zz = (z_k + hz) / 2.0
+            face = (X(0.0), Y(zz))
+            out_ = 1.0 if X(0.0) > X(x_k) else -1.0              # from the leg towards the face
+            leg = (X(x_k) + out_ * bar / 2.0, Y(zz))             # the leg's outer edge, as drawn
+            _dim_outside(canvas, ink, leg[0], leg[1], face[0], face[1])
+            self._place_editor("cover_end", face[0] + out_ * (18.0 + 19.0 + 4.0), face[1], 0.0,
+                               self._rb_editors)
+            placed.add("cover_end")
+            # (2) bottom: under the middle of the U
+            under = (X(hx), Y(-fd))
+            u_bottom = (X(hx), Y(hz - rh) + bar / 2.0)
+            _dim_outside(canvas, ink, under[0], under[1], u_bottom[0], u_bottom[1])
+            self._place_editor("cover_bottom", under[0], under[1] + 18.0 + 10.0, 0.0,
+                               self._rb_editors)
+            placed.add("cover_bottom")
+
         def on_bar(x):
             """A point on the main bar's sloping part, at section x."""
             return (x, t * x + plan["main_k"])
@@ -2139,6 +2167,8 @@ class StairWindow(forms.WPFWindow):
             # the two setouts on the slope, up by the second step
             soffit_and_corner(canvas, X, Y, "cover_soffit", "corner_clear", 1.45 * g,
                               2 if N >= 3 else 1, True)
+            if plan["footing"] and plan["hook"]:
+                footing_covers(canvas, X, Y)
             col = X(0.0) + 34.0                      # the leaders end here, past the footing
             bend_y = None
             if plan["footing"] and across_on:

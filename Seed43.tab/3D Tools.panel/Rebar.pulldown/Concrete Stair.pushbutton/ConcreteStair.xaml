@@ -616,11 +616,11 @@
                                     </Grid.RowDefinitions>
                                     <TextBlock Grid.Row="0" Grid.Column="1" Text="Footing ends" Style="{StaticResource RowLabel}"/>
                                     <TextBox x:Name="cover_end_tb" TextChanged="inputs_changed" Grid.Row="0" Grid.Column="2" Width="80" Text="50"
-                                             ToolTip="From the footing's outer face to the hooked leg"
+                                             ToolTip="Side cover: from the footing's outer face to the U-bar's outer leg. The leg is placed at this cover."
                                              Style="{DynamicResource TextBoxStyle}"/>
                                     <TextBlock Grid.Row="2" Grid.Column="1" Text="Footing bottom" Style="{StaticResource RowLabel}"/>
                                     <TextBox x:Name="cover_bottom_tb" TextChanged="inputs_changed" Grid.Row="2" Grid.Column="2" Width="80" Text="50"
-                                             ToolTip="From the footing's underside to the bottom of the hook"
+                                             ToolTip="Bottom cover: from the footing's underside to the bottom of the U-bar's bend"
                                              Style="{DynamicResource TextBoxStyle}"/>
                                     <TextBlock Grid.Row="4" Grid.Column="1" Text="Soffit (minimum)" Style="{StaticResource RowLabel}"/>
                                     <TextBox x:Name="cover_soffit_tb" TextChanged="inputs_changed" Grid.Row="4" Grid.Column="2" Width="80" Text="70"

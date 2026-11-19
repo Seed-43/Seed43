@@ -233,16 +233,26 @@ def _layout_hooked(s, o):
     if o["footing"]:
         fw, fd = o["footing"]
         out["footing"] = (0.0, fw, -fd, 0.0)
-        # bend just below the base, then straight down, hooked at the bottom
-        x_k = max((-min(fd / 2.0, 50.0) - k) / t, ce + dm / 2.0)
-        x_k = min(x_k, fw - ce - dm / 2.0)
-        z_k = t * x_k + k
+        # The U-bar (the main bar's leg down into the footing and its hook):
+        # its outer leg sits the side cover (cover_end) in from the footing's
+        # outer face, and the bottom of the U the bottom cover (cover_bottom)
+        # above the underside. The leg starts where the slope meets it.
+        rh = o["hook_bend"] / 2.0 + dm / 2.0                   # centreline radius
         # Revit takes the end of a hooked bar as the outside of the hook,
         # so the end sits on the bottom cover
         z_end = -(fd - cb)
+        x_k = ce + dm / 2.0
+        # the U (leg, bend and the hook's far leg) must stay inside the footing
+        x_k = min(x_k, fw - ce - dm / 2.0 - 2.0 * rh)
+        # and the slope must meet the leg at least a bar's width above the U's
+        # centre, or the bar has no straight leg: then the leg moves in until it does
+        z_low = z_end + dm / 2.0 + rh + dm
+        if t * x_k + k < z_low:
+            x_k = (z_low - k) / t
+            out["side_cover_short"] = True
+        z_k = t * x_k + k
         main += [(x_k, z_k), (x_k, z_end)]
         out["hook"] = True
-        rh = o["hook_bend"] / 2.0 + dm / 2.0                   # centreline radius
         out["hook_radius"] = rh
         out["hook_centre"] = (x_k + rh, z_end + dm / 2.0 + rh)
         out["hook_length"] = HOOK_LENGTH

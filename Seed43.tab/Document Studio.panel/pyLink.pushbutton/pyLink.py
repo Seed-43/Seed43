@@ -875,6 +875,68 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         self._refresh_drop_zone()
         self._revalidate_all_view_name_boxes()
 
+    def OnBuildTable(self, sender, e):
+        """+ Build Table: type a table in pyLink's Table Builder. It is
+        saved as a pyLink-made .xlsx (named range = the table name) and
+        loaded as an ordinary Excel card with one row already set up for
+        it, as a Schedule, so Apply makes the schedule."""
+        try:
+            import pylink_table_builder as tbl
+        except Exception as ex:
+            _alert('Table Builder could not load:\n\n{}'.format(ex), title='pyLink')
+            return
+        try:
+            made = tbl.build_new(self)
+        except Exception as ex:
+            logger.error('Table Builder failed: {}'.format(ex))
+            _alert('Table Builder failed:\n\n{}'.format(ex), title='pyLink')
+            return
+        if not made:
+            return
+        xlsx, rng, name = made
+        self._load_files([xlsx])
+        key = self._active_file
+        fd = self._file_data.get(key)
+        if fd is None:
+            return
+        row = Row(file_path=fd.get('real_path', key), source_type='xl',
+                  sheets=fd.get('sheets', []),
+                  sheet_range_map=fd.get('sheet_range_map', {}))
+        row.Sheet = fd.get('sheets', ['Table'])[0] if fd.get('sheets') else 'Table'
+        row.NamedRange = rng
+        row.ViewName = name
+        row.ViewType = VIEW_TYPE_SCHEDULE
+        row.Enabled = True
+        fd['rows'].append(row)
+        row_ui = self._make_row_ui(row)
+        row_ui.Tag = row
+        fd['card_panel'].Children.Add(row_ui)
+        self._update_footer()
+        self._refresh_status_card()
+        self._save_persisted_state()
+
+    def _card_edit_table(self, path):
+        """Reopen a Table Builder table and rewrite its .xlsx. Its rows then
+        show as needing an update, like an edited spreadsheet; Apply (or
+        the card's reload) rebuilds the schedule."""
+        import pylink_table_builder as tbl
+        fd = self._file_data.get(path, {})
+        real = fd.get('real_path', path)
+        try:
+            if not tbl.edit_existing(self, real):
+                return
+        except Exception as ex:
+            logger.error('Table Builder failed: {}'.format(ex))
+            _alert('Table Builder failed:\n\n{}'.format(ex), title='pyLink')
+            return
+        for row in fd.get('rows', []):
+            try:
+                self._check_row_status(row, path)
+            except Exception:
+                pass
+        self._refresh_status_card()
+        self._update_card_reload_indicator(path)
+
     def OnAddTables(self, sender, e):
         """+ Add Tables. For now this opens the same browse-and-load
         flow as before, files still get auto-populated the same way.
@@ -2582,6 +2644,15 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         def item(label, fn):
             return self._make_menu_item(label, fn, popup)
 
+        try:
+            import pylink_table_builder as _tbl
+            _built = _tbl.is_built_table(fd.get('real_path', path))
+        except Exception:
+            _built = False
+        if _built:
+            popup_panel.Children.Add(item('Edit table',
+                lambda s, ev: self._card_edit_table(path)))
+            popup_panel.Children.Add(self._make_menu_separator())
         popup_panel.Children.Add(item('Delete selected',
             lambda s, ev: self._card_delete_selected(path)))
         popup_panel.Children.Add(self._make_menu_separator())

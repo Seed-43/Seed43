@@ -816,13 +816,21 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <Button Grid.Column="0"
-                            x:Name="AddTablesBtn"
-                            Content="+ Add Tables"
-                            Style="{StaticResource SmallButtonStyle}"
-                            Height="24" Padding="12,0"
-                            VerticalAlignment="Center"
-                            Click="OnAddTables"/>
+                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                        <Button x:Name="AddTablesBtn"
+                                Content="+ Add Tables"
+                                Style="{StaticResource SmallButtonStyle}"
+                                Height="24" Padding="12,0"
+                                VerticalAlignment="Center"
+                                Click="OnAddTables"/>
+                        <Button x:Name="BuildTableBtn"
+                                Content="+ Build Table"
+                                Style="{StaticResource SmallButtonStyle}"
+                                Height="24" Padding="12,0" Margin="6,0,0,0"
+                                VerticalAlignment="Center"
+                                ToolTip="Type a table into an Excel-style grid instead of linking a spreadsheet. It is saved as a pyLink table and added as a card, so Apply makes the schedule from it."
+                                Click="OnBuildTable"/>
+                    </StackPanel>
 
                     <Grid Grid.Column="2">
                         <ToggleButton x:Name="BatchBtn"

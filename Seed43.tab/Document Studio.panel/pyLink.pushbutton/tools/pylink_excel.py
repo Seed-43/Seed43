@@ -58,6 +58,7 @@ from pylink_shared import (
     load_excel_font_settings, _is_font_installed,
     NATIVE_SCALE_OPTIONS, DEFAULT_NATIVE_SCALE,
     card_native_scale, native_text_type_mm,
+    SPLIT_EXCEL, SPLIT_ROWS, SPLIT_HEIGHT,
 )
 
 _sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'format'))
@@ -116,6 +117,10 @@ class TableRow(object):
         # below what is already there. Schedules ignore it - a schedule
         # is one table by construction.
         self.stack_index = 0
+        # Where a Legend/Drafting table splits into side-by-side parts -
+        # see SPLIT_MODES in pylink_shared.
+        self.split_mode  = SPLIT_EXCEL
+        self.split_value = ''
 
 
 # ── Read spreadsheet metadata + cell data (format dispatch) ──
@@ -1234,6 +1239,13 @@ def apply_row(row):
         # back to col_widths.
         'col_widths_excel':   fmt.get('col_widths_excel', {}),
         'stack_index':        getattr(row, 'stack_index', 0),
+        # Excel's manual page breaks and Print Titles: a drafting view or
+        # legend draws each part beside the last, titles repeated.
+        'row_breaks':         fmt.get('row_breaks', []),
+        'repeat_rows':        fmt.get('repeat_rows'),
+        # The row's own choice: Excel (the breaks above), Rows or Height.
+        'split_mode':         getattr(row, 'split_mode', SPLIT_EXCEL),
+        'split_value':        getattr(row, 'split_value', ''),
         # Which of those sizes the user actually chose, as opposed to
         # Excel's defaults - the schedule builder autofits the rest.
         'custom_rows':        fmt.get('custom_rows', []),
@@ -1321,6 +1333,11 @@ def _hash_range(file_path, named_range, sheet_name):
         )
         styles = repr(styles_sorted)
         combined = content + styles
+        # Page breaks change the drawing too. Only added when there are
+        # any, so tables without breaks keep the hash they already have.
+        if fmt.get('row_breaks'):
+            combined += repr((fmt.get('row_breaks'),
+                              fmt.get('repeat_rows')))
         return hashlib.md5(combined.encode('utf-8', errors='replace')).hexdigest()
     except Exception:
         return None
@@ -1592,7 +1609,9 @@ class ExcelCardMixin(object):
         col_hdr.Children.Add(_ch('Range',     134))
         col_hdr.Children.Add(_ch('Modified',   96))
         col_hdr.Children.Add(_ch('View Type', 134))
-        col_hdr.Children.Add(_ch('Scale',      50))
+        col_hdr.Children.Add(_ch('Scale',      54))
+        col_hdr.Children.Add(_ch('Split',      88))
+        col_hdr.Children.Add(_ch('Rows / mm',  54))
 
         inner.Children.Add(col_hdr)
         inner.Children.Add(row_panel)
@@ -1729,6 +1748,39 @@ class ExcelCardMixin(object):
         except Exception:
             row.ViewScale = 1
         sender.Text = str(row.ViewScale)
+        self._save_persisted_state()
+
+    def _split_value_enable(self, row, mode):
+        """The value box only means something for Rows and Height."""
+        tb = getattr(row, '_split_value_tb', None)
+        if tb is not None:
+            tb.IsEnabled = mode in (SPLIT_ROWS, SPLIT_HEIGHT)
+            tb.Opacity = 1.0 if tb.IsEnabled else 0.4
+
+    def _split_mode_changed(self, sender, e):
+        row = sender.Tag
+        if not row or sender.SelectedItem is None:
+            return
+        row.SplitMode = str(sender.SelectedItem)
+        self._split_value_enable(row, row.SplitMode)
+        self._save_persisted_state()
+
+    def _split_value_changed(self, sender, e):
+        """Whole rows for Rows, mm for Height; anything else clears it."""
+        row = sender.Tag
+        if not row:
+            return
+        text = sender.Text.strip().lower().replace('mm', '').strip()
+        try:
+            val = float(text)
+            if val <= 0:
+                raise ValueError(text)
+            row.SplitValue = (str(int(round(val)))
+                              if row.SplitMode != SPLIT_HEIGHT
+                              else u'{:g}'.format(val))
+        except Exception:
+            row.SplitValue = ''
+        sender.Text = row.SplitValue
         self._save_persisted_state()
 
     def _parse_excel(self, path):

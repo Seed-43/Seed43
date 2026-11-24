@@ -88,6 +88,7 @@ from pylink_shared import (
     get_installed_font_names,
     REFIT_RESET as _REFIT_RESET, REFIT_CURRENT as _REFIT_CURRENT,
     DEFAULT_NATIVE_SCALE, card_native_scale,
+    SPLIT_MODES, SPLIT_EXCEL,
 )
 from pylink_excel import (
     TableRow, get_named_ranges_from_workbook, apply_row, _hash_range,
@@ -548,6 +549,41 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         sctb.ToolTip             = 'View scale (e.g. 50 for 1:50) - Legend/Drafting views only.'
         sctb.LostFocus          += self._view_scale_changed
         sp.Children.Add(sctb)
+
+        # Split - where a long Legend/Drafting table breaks into parts
+        # drawn side by side, headings repeated on each.
+        spc = ComboBox()
+        self._combo_style(spc, 84)
+        spc.Margin = Thickness(0, 0, 4, 0)
+        for m in SPLIT_MODES:
+            spc.Items.Add(m)
+        spc.SelectedItem = getattr(row, 'SplitMode', SPLIT_EXCEL) or SPLIT_EXCEL
+        spc.ToolTip = ('Split a long table into parts side by side, headings '
+                       'repeated (Legend/Drafting views only).\n'
+                       'Excel: at the sheet\'s page breaks (Page Layout > Breaks).\n'
+                       'Rows: a set number of data rows per part.\n'
+                       'Height: parts no taller than a set height in mm.')
+        spc.Tag = row
+        sp.Children.Add(spc)
+
+        svtb = TextBox()
+        svtb.Text  = getattr(row, 'SplitValue', '') or ''
+        svtb.Width = 50
+        try:
+            svtb.Style = self.FindResource('TextBoxStyle')
+        except Exception as e:
+            logger.warning('Failed to apply TextBoxStyle: {}'.format(e))
+        svtb.Margin            = Thickness(0, 0, 4, 0)
+        svtb.VerticalAlignment = VerticalAlignment.Center
+        svtb.Tag               = row
+        svtb.ToolTip           = ('Rows: data rows per part (e.g. 56).\n'
+                                  'Height: max part height in mm (e.g. 250).\n'
+                                  'Not used for Excel.')
+        svtb.LostFocus        += self._split_value_changed
+        row._split_value_tb    = svtb
+        sp.Children.Add(svtb)
+        self._split_value_enable(row, spc.SelectedItem)
+        spc.SelectionChanged  += self._split_mode_changed
 
         rb = self._make_sync_btn(row)
         row._refresh_btn    = rb
@@ -1710,6 +1746,8 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             tr.sheet_name  = row.Sheet
             tr.view_type   = row.ViewType
             tr.view_scale  = getattr(row, 'ViewScale', 1)
+            tr.split_mode  = getattr(row, 'SplitMode', SPLIT_EXCEL)
+            tr.split_value = getattr(row, 'SplitValue', '')
             tr.native_scale = self._row_native_scale(row)
             tr.file_path   = row.FilePath
             tr.auto_sync   = False
@@ -2089,6 +2127,8 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                 row._applied_at     = rdata.get('applied_at', None)
                 row._applied_view_name = rdata.get('applied_view_name', None)
                 row.ViewScale       = int(rdata.get('view_scale', 1) or 1)
+                row.SplitMode       = rdata.get('split_mode') or SPLIT_EXCEL
+                row.SplitValue      = rdata.get('split_value', '') or ''
                 row._applied_view_id = rdata.get('applied_view_id', None)
                 # Row.__init__ defaults Enabled=False, right for a blank new
                 # row but wrong here: a restored row already has its view
@@ -2375,6 +2415,8 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                     tr.sheet_name  = _r.Sheet
                     tr.view_type   = _r.ViewType
                     tr.view_scale  = getattr(_r, 'ViewScale', 1)
+                    tr.split_mode  = getattr(_r, 'SplitMode', SPLIT_EXCEL)
+                    tr.split_value = getattr(_r, 'SplitValue', '')
                     tr.native_scale = self._row_native_scale(_r)
                     tr.file_path   = _r.FilePath
                     tr.auto_sync   = False

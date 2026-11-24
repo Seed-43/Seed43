@@ -1374,9 +1374,12 @@ def save_pylink_state(file_data):
             vid = getattr(row, '_applied_view_id', None)
             vid = '' if vid is None else str(vid)
             en = '1' if getattr(row, 'Enabled', True) else '0'
-            lines.append('VN-{}|S-{}|R-{}|VT-{}|MT-{}|H-{}|CN-{}|PR-{}|GR-{}|AT-{}|AVN-{}|VS-{}|VID-{}|EN-{}'.format(
+            sp = getattr(row, 'SplitMode', SPLIT_EXCEL) or SPLIT_EXCEL
+            sv = getattr(row, 'SplitValue', '') or ''
+            lines.append('VN-{}|S-{}|R-{}|VT-{}|MT-{}|H-{}|CN-{}|PR-{}|GR-{}|AT-{}|AVN-{}|VS-{}|VID-{}|EN-{}|SP-{}|SV-{}'.format(
                 row.ViewName, row.Sheet, row.NamedRange,
-                row.ViewType, mt, h, cn, pr, gr, at, avn, vs, vid, en))
+                row.ViewType, mt, h, cn, pr, gr, at, avn, vs, vid, en,
+                sp, sv))
         # Card-level word settings
         ss = fd.get('sheet_size', '')
         cc = fd.get('col_count', '')
@@ -1422,6 +1425,15 @@ def save_pylink_state(file_data):
                 'cleared' if not text else 'saved', len(text)))
     except Exception as ex:
         logger.warning('pyLink save failed: {}'.format(ex))
+
+# ── Table split ──────────────────────────────────────────────────────────────
+# A long Legend/Drafting table is drawn as parts side by side, each starting
+# with the repeated heading rows. Where the parts start is chosen per row.
+SPLIT_EXCEL  = 'Excel'    # the sheet's own manual page breaks
+SPLIT_ROWS   = 'Rows'     # a set number of data rows per part
+SPLIT_HEIGHT = 'Height'   # parts no taller than a set height, in mm
+SPLIT_MODES  = (SPLIT_EXCEL, SPLIT_ROWS, SPLIT_HEIGHT)
+
 
 # ── Schedule scale ───────────────────────────────────────────────────────────
 # A schedule is built at Excel's own text, column and row sizes, all
@@ -1624,6 +1636,8 @@ def load_pylink_state():
                     # row rechecked; going forward this preserves an
                     # actual deliberate uncheck across a reopen.
                     'enabled': parts.get('EN', '1') == '1',
+                    'split_mode':  parts.get('SP') or SPLIT_EXCEL,
+                    'split_value': parts.get('SV', ''),
                 })
         # Resolve any relative path/real_path back to absolute now
         # that we know the current doc's location.
@@ -1691,6 +1705,11 @@ class Row(object):
         # Word-specific
         self.ColNo            = 1        # column assignment (1-based)
         self.ViewScale        = 1        # Excel Legend/Drafting view scale
+        # How a Legend/Drafting table splits into side-by-side parts:
+        # 'Excel' (the sheet's own page breaks), 'Rows' (SplitValue rows
+        # per part) or 'Height' (parts no taller than SplitValue mm).
+        self.SplitMode        = SPLIT_EXCEL
+        self.SplitValue       = ''
         self.Priority          = 'Medium' # High/Medium/Low - layout algo reorder freedom
         self.Group             = ''       # section group name, packs with same-group rows
         self._col_textbox     = None   # TextBox for col number

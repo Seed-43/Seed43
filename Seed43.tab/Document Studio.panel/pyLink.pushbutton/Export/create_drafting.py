@@ -87,6 +87,18 @@ native_scale  = float(_p.get('native_scale') or 0.7)
 # .ods, which falls back to col_widths.
 col_widths_excel = _p.get('col_widths_excel') or col_widths
 fill_type_id  = _p.get('fill_type_id', ElementId.InvalidElementId)
+# Excel's manual page breaks (row index each new part starts at) and the
+# Print Titles rows repeated at the top of every part; None = not set.
+row_breaks    = sorted(set(int(b) for b in (_p.get('row_breaks') or [])))
+repeat_rows   = _p.get('repeat_rows')
+# The row's split choice: 'Excel' uses row_breaks above; 'Rows' puts
+# split_value data rows in each part; 'Height' keeps each part no taller
+# than split_value mm.
+split_mode    = _p.get('split_mode') or 'Excel'
+try:
+    split_value = float(_p.get('split_value') or 0)
+except Exception:
+    split_value = 0.0
 # Legend mode: if set, use this name for the temp view
 _temp_name  = _p.get('_legend_temp_view_name', None)
 _final_name = _temp_name if _temp_name else view_name
@@ -334,7 +346,13 @@ def _cache_text_component(text, is_header):
     """The text portion of a probe cache key - see _probe_cache's
     docstring for why header cells use their real text and data cells
     share one placeholder."""
-    return str(text) if is_header else ''
+    # Text that runs over more than one line always measures on its own:
+    # a two-line heading below the first row shared a one-line cell's
+    # measurement at the same width and sat half a line too low.
+    t = unicode(text)
+    if is_header or '\r' in t.strip() or '\n' in t.strip():
+        return t
+    return ''
 
 
 def _apply_instance_formatting(tn, bold=False, italic=False, underline=False):
@@ -618,26 +636,126 @@ def _draw_text(view, x, y, w, h, text, tt_id, color_rgb,
         logger.debug('TextNote ({},{}) {}'.format(x, y, ex))
 
 
+def _curve_loop(pts):
+    """Closed CurveLoop through pts (XY tuples, feet), in order."""
+    loop = CurveLoop()
+    n = len(pts)
+    for i in range(n):
+        a, b = pts[i], pts[(i + 1) % n]
+        loop.Append(Line.CreateBound(XYZ(a[0], a[1], 0), XYZ(b[0], b[1], 0)))
+    return loop
+
+
 def _draw_filled_rect(view, x, y, w, h, frt_id, color_rgb):
     """Draw a solid FilledRegion rectangle, tinted via view override.
     (x, y) is the top-left corner."""
     if not frt_id or frt_id == ElementId.InvalidElementId or not color_rgb:
         return
     try:
-        loop = CurveLoop()
-        pts = [
-            XYZ(x,     y,     0),
-            XYZ(x + w, y,     0),
-            XYZ(x + w, y - h, 0),
-            XYZ(x,     y - h, 0),
-        ]
-        for i in range(4):
-            seg = Line.CreateBound(pts[i], pts[(i + 1) % 4])
-            loop.Append(seg)
+        loop = _curve_loop([(x, y), (x + w, y), (x + w, y - h), (x, y - h)])
         fr = FilledRegion.Create(doc, frt_id, view.Id, [loop])
         _override_color(fr.Id, color_rgb)
     except Exception as ex:
         logger.debug('FilledRegion ({},{}) {}'.format(x, y, ex))
+
+
+def _fill_outlines(rects):
+    """Outline loops of each joined group of rectangles.
+
+    rects: [(x0, x1, y_bottom, y_top), ...] in feet, all one colour. Cells
+    that share an edge belong to one group; each group comes back as a
+    list of loops (its outline, plus any holes), corners only. Works on
+    the grid every rectangle edge sits on, so it handles merged cells and
+    any shape a table makes, not just straight strips.
+    """
+    def k(v):
+        return round(v, 7)
+    xs = sorted(set(k(v) for r in rects for v in (r[0], r[1])))
+    ys = sorted(set(k(v) for r in rects for v in (r[2], r[3])))
+    xi = dict((v, i) for i, v in enumerate(xs))
+    yi = dict((v, i) for i, v in enumerate(ys))
+    cells = set()
+    for x0, x1, y0, y1 in rects:
+        for i in range(xi[k(x0)], xi[k(x1)]):
+            for j in range(yi[k(y0)], yi[k(y1)]):
+                cells.add((i, j))
+
+    groups = []
+    seen = set()
+    for start in sorted(cells):
+        if start in seen:
+            continue
+        comp, stack = [], [start]
+        seen.add(start)
+        while stack:
+            i, j = stack.pop()
+            comp.append((i, j))
+            for nb in ((i + 1, j), (i - 1, j), (i, j + 1), (i, j - 1)):
+                if nb in cells and nb not in seen:
+                    seen.add(nb)
+                    stack.append(nb)
+        groups.append(comp)
+
+    out = []
+    for comp in groups:
+        cs = set(comp)
+        # Counter-clockwise edges of every cell; an edge two cells share
+        # appears once each way and cancels, leaving the outline.
+        nxt = {}
+        for i, j in comp:
+            if (i, j - 1) not in cs:
+                nxt.setdefault((i, j), []).append((i + 1, j))
+            if (i + 1, j) not in cs:
+                nxt.setdefault((i + 1, j), []).append((i + 1, j + 1))
+            if (i, j + 1) not in cs:
+                nxt.setdefault((i + 1, j + 1), []).append((i, j + 1))
+            if (i - 1, j) not in cs:
+                nxt.setdefault((i, j + 1), []).append((i, j))
+        loops = []
+        while nxt:
+            p0 = min(nxt)
+            pts, p = [p0], p0
+            while True:
+                q = nxt[p].pop()
+                if not nxt[p]:
+                    del nxt[p]
+                if q == p0:
+                    break
+                pts.append(q)
+                p = q
+            # Corners only: drop points in the middle of a straight run.
+            n = len(pts)
+            corners = [pts[m] for m in range(n)
+                       if not ((pts[m - 1][0] == pts[m][0] == pts[(m + 1) % n][0])
+                               or (pts[m - 1][1] == pts[m][1] == pts[(m + 1) % n][1]))]
+            loops.append([(xs[a], ys[b]) for a, b in corners])
+        out.append((loops, comp))
+    return out, xs, ys
+
+
+def _draw_merged_fills(view, fill_cells, frt_id):
+    """One FilledRegion per joined group of same-colour cells, instead of
+    one per cell: a banded row is one strip, a block of shaded cells one
+    shape. A group Revit refuses as one shape (two cells touching only at
+    a corner) falls back to a region per cell, as before."""
+    if not frt_id or frt_id == ElementId.InvalidElementId:
+        return
+    by_rgb = {}
+    for x, y, w, h, rgb in fill_cells:
+        by_rgb.setdefault(rgb, []).append((x, x + w, y - h, y))
+    for rgb, rects in by_rgb.items():
+        groups, xs, ys = _fill_outlines(rects)
+        for loops, comp in groups:
+            try:
+                fr = FilledRegion.Create(doc, frt_id, view.Id,
+                                         [_curve_loop(lp) for lp in loops])
+                _override_color(fr.Id, rgb)
+            except Exception as ex:
+                logger.debug('Merged fill fell back to cells: {}'.format(ex))
+                for i, j in comp:
+                    _draw_filled_rect(view, xs[i], ys[j + 1],
+                                      xs[i + 1] - xs[i], ys[j + 1] - ys[j],
+                                      frt_id, rgb)
 
 
 def _draw_border_line(view, x1, y1, x2, y2, line_style_id, color_rgb, weight=None):
@@ -830,23 +948,94 @@ row_h_mm = []
 for r in range(n_total_rows):
     pts = row_heights.get(r, default_row_height)
     row_h_mm.append(max(pts * PT_MM * native_scale, min_row_h_mm[r]))
-row_y_mm = [0.0] * (n_total_rows + 1)
-for r in range(n_total_rows):
-    row_y_mm[r + 1] = row_y_mm[r] + row_h_mm[r]
+# ── Parts: Excel's manual page breaks ───────────────────────────────────
+# A long table split with Page Layout > Breaks is drawn as parts side by
+# side, each starting with the rows Excel's Print Titles repeat. With no
+# Print Titles, the rows above the first one holding a number repeat -
+# for a typical data table, its title and column headings.
+PART_GAP_MM = 10.0
 
-# ── Merge lookup ─────────────────────────────────────────────────────────
-# merge_anchor[(r,c)] = (r_end, c_end) for the top-left cell of a merge.
-# merge_covered holds every other cell inside that merge, so they're
-# skipped entirely (no duplicate background/border/text on top of the
-# anchor's larger rectangle).
-merge_anchor  = {}
-merge_covered = set()
-for (r1, c1, r2, c2) in merges:
-    merge_anchor[(r1, c1)] = (r2, c2)
-    for rr in range(r1, r2 + 1):
-        for cc in range(c1, c2 + 1):
-            if (rr, cc) != (r1, c1):
-                merge_covered.add((rr, cc))
+
+def _is_number(v):
+    try:
+        float(unicode(v).strip())
+        return True
+    except Exception:
+        return False
+
+
+if repeat_rows is not None:
+    _repeat = sorted(set(int(r) for r in repeat_rows
+                         if 0 <= int(r) < n_total_rows))
+else:
+    _first_num = n_total_rows
+    for _ri, _row in enumerate(_all_rows):
+        if any(_is_number(_v) for _v in _row if _v not in (None, '')):
+            _first_num = _ri
+            break
+    _repeat = list(range(0, max(1, _first_num)))
+# Data starts below the heading rows; a split never cuts into them.
+_data0 = (max(_repeat) + 1) if _repeat else 1
+_head_mm = sum(row_h_mm[r] for r in _repeat)
+
+if split_mode == 'Rows' and split_value >= 1:
+    _n = int(round(split_value))
+    _breaks = list(range(_data0 + _n, n_total_rows, _n))
+elif split_mode == 'Height' and split_value > 0:
+    _breaks = []
+    _acc = sum(row_h_mm[r] for r in range(_data0))   # part 1's headings
+    for _r in range(_data0, n_total_rows):
+        if _acc + row_h_mm[_r] > split_value and _r > (_breaks[-1] if _breaks
+                                                         else _data0):
+            _breaks.append(_r)
+            _acc = _head_mm
+        _acc += row_h_mm[_r]
+elif split_mode == 'Excel':
+    _breaks = [b for b in row_breaks if 0 < b < n_total_rows]
+else:
+    _breaks = []
+if split_mode != 'Excel':
+    logger.debug('split {} {} -> parts start at {}'.format(
+        split_mode, split_value, _breaks))
+
+parts = []   # [[source row, ...], ...]
+_edges = [0] + _breaks + [n_total_rows]
+for _p_i in range(len(_edges) - 1):
+    _body = list(range(_edges[_p_i], _edges[_p_i + 1]))
+    if _p_i == 0:
+        parts.append(_body)
+    else:
+        parts.append([r for r in _repeat if r < _edges[_p_i]] + _body)
+
+_table_w_mm = col_x_mm[n_cols]
+
+
+def _part_layout(rows):
+    """Top y (mm down from the part's top) of each row, plus this part's
+    own merges: a merge is kept for the rows of it the part shows, so a
+    titles row merged across columns stays merged in every part."""
+    y = {}
+    acc = 0.0
+    for r in rows:
+        y[r] = acc
+        acc += row_h_mm[r]
+    pos = dict((r, i) for i, r in enumerate(rows))
+    anchor, covered = {}, set()
+    for (r1, c1, r2, c2) in merges:
+        shown = [r for r in rows if r1 <= r <= r2]
+        if not shown:
+            continue
+        # Rows of a merge are only joined where the part shows them one
+        # after another; anything else is drawn as separate cells.
+        if pos[shown[-1]] - pos[shown[0]] != len(shown) - 1:
+            continue
+        top, bot = shown[0], shown[-1]
+        anchor[(top, c1)] = (bot, c2)
+        for rr in shown:
+            for cc in range(c1, c2 + 1):
+                if (rr, cc) != (top, c1):
+                    covered.add((rr, cc))
+    return y, acc, anchor, covered
 
 # ── Get or create drafting view ─────────────────────────────────────────
 
@@ -938,82 +1127,93 @@ default_line_id = _default_line_style_id()
 h_border_segments = []  # [(y, x1, x2, rgb, weight), ...]
 v_border_segments = []  # [(x, y1, y2, rgb, weight), ...]
 cell_specs = []          # text-drawing specs, one per non-covered cell
+fill_cells = []          # [(x, y, w, h, rgb), ...] joined up after the loop
 
-for r in range(n_total_rows):
+_cells = []
+for _p_i, _rows in enumerate(parts):
+    _py, _ph, _anchor, _covered = _part_layout(_rows)
+    _x0_mm = _p_i * (_table_w_mm + PART_GAP_MM)
+    for r in _rows:
+        for c in range(n_cols):
+            if (r, c) in _covered:
+                continue
+            _cells.append((r, c, _x0_mm, _py, _anchor))
+
+for r, c, _x0_mm, _py, _anchor in _cells:
     is_header = (r == 0)
-    for c in range(n_cols):
-        if (r, c) in merge_covered:
-            continue
+    r_end, c_end = _anchor.get((r, c), (r, c))
+    x = (_x0_mm + col_x_mm[c]) * MM
+    y = _stack_y0_ft - _py[r] * MM
+    w = (col_x_mm[c_end + 1] - col_x_mm[c]) * MM
+    h = (_py[r_end] + row_h_mm[r_end] - _py[r]) * MM
 
-        r_end, c_end = merge_anchor.get((r, c), (r, c))
-        x = col_x_mm[c] * MM
-        y = _stack_y0_ft - row_y_mm[r] * MM
-        w = (col_x_mm[c_end + 1] - col_x_mm[c]) * MM
-        h = (row_y_mm[r_end + 1] - row_y_mm[r]) * MM
+    style = cell_styles.get((r, c), {})
 
-        style = cell_styles.get((r, c), {})
+    # Background — only where Excel actually set a fill; nothing
+    # invented for cells Excel left plain. Collected and drawn after
+    # the loop so touching cells of one colour become one region.
+    fill_rgb = style.get('fill_rgb')
+    if fill_rgb:
+        fill_cells.append((x, y, w, h, tuple(fill_rgb)))
 
-        # Background — only drawn if Excel actually set a fill on this
-        # cell; nothing invented for cells Excel left plain.
-        fill_rgb = style.get('fill_rgb')
-        if fill_rgb:
-            _draw_filled_rect(view, x, y, w, h, fill_type_id, tuple(fill_rgb))
+    # Borders — collected here, merged and drawn in pass 2 below:
+    # a whole row/column of cells sharing the same border colour/
+    # weight ends up as ONE DetailLine instead of one per cell.
+    top_rgb    = _cell_border_rgb(style, 'top')
+    bottom_rgb = _cell_border_rgb(style, 'bottom')
+    left_rgb   = _cell_border_rgb(style, 'left')
+    right_rgb  = _cell_border_rgb(style, 'right')
+    if top_rgb:
+        h_border_segments.append(
+            (y, x, x + w, top_rgb, _cell_border_weight(style, 'top')))
+    if bottom_rgb:
+        h_border_segments.append(
+            (y - h, x, x + w, bottom_rgb, _cell_border_weight(style, 'bottom')))
+    if left_rgb:
+        v_border_segments.append(
+            (x, y, y - h, left_rgb, _cell_border_weight(style, 'left')))
+    if right_rgb:
+        v_border_segments.append(
+            (x + w, y, y - h, right_rgb, _cell_border_weight(style, 'right')))
 
-        # Borders — collected here, merged and drawn in pass 2 below:
-        # a whole row/column of cells sharing the same border colour/
-        # weight ends up as ONE DetailLine instead of one per cell.
-        top_rgb    = _cell_border_rgb(style, 'top')
-        bottom_rgb = _cell_border_rgb(style, 'bottom')
-        left_rgb   = _cell_border_rgb(style, 'left')
-        right_rgb  = _cell_border_rgb(style, 'right')
-        if top_rgb:
-            h_border_segments.append(
-                (y, x, x + w, top_rgb, _cell_border_weight(style, 'top')))
-        if bottom_rgb:
-            h_border_segments.append(
-                (y - h, x, x + w, bottom_rgb, _cell_border_weight(style, 'bottom')))
-        if left_rgb:
-            v_border_segments.append(
-                (x, y, y - h, left_rgb, _cell_border_weight(style, 'left')))
-        if right_rgb:
-            v_border_segments.append(
-                (x + w, y, y - h, right_rgb, _cell_border_weight(style, 'right')))
+    # Text spec - measured in pass 3 (one batch doc.Regenerate() covering
+    # every distinct probe) and drawn in pass 4. Bold/italic/underline come
+    # from Excel's own per-cell flags rather than being inferred from
+    # header-ness, and the type is never bold (see get_or_create_text_type),
+    # so an unbolded header stays regular and a bolded data cell comes
+    # through bold.
+    if is_header:
+        text = fields[c] if c < len(fields) else ''
+    else:
+        record = records[r - 1] if (r - 1) < len(records) else []
+        text = record[c] if c < len(record) else ''
+    color_rgb = style.get('color_rgb')
+    _rot_rad = (_excel_rotation_to_radians(style.get('rotation', 0))
+                if is_header else 0.0)
+    # Rotated text runs down the cell, so the height is what it has
+    # to fit inside; everything else runs across the width. x/y/w/h
+    # are Revit internal units (feet) by this point, and the wrap
+    # measures in millimetres - without the conversion every word
+    # was wider than the cell and each one took its own line.
+    text = _dv_prewrapped(r, c, text,
+                          (h - 2 * _TEXT_MARGIN if _rot_rad
+                           else w - 2 * _CELL_PAD) / MM)
+    cell_specs.append({
+        'x': x, 'y': y, 'w': w, 'h': h,
+        'text':  text,
+        'tt_id': hdr_txt_id if is_header else dat_txt_id,
+        'color_rgb': tuple(color_rgb) if color_rgb else None,
+        'rotation_rad': _rot_rad,
+        'halign': style.get('halign', 'Center'),
+        'valign': style.get('valign', 'Center' if not is_header else 'Bottom'),
+        'bold':      bool(style.get('bold', False)),
+        'italic':    bool(style.get('italic', False)),
+        'underline': bool(style.get('underline', False)),
+        'is_header': is_header,
+    })
 
-        # Text spec - measured in pass 3 (one batch doc.Regenerate() covering
-        # every distinct probe) and drawn in pass 4. Bold/italic/underline come
-        # from Excel's own per-cell flags rather than being inferred from
-        # header-ness, and the type is never bold (see get_or_create_text_type),
-        # so an unbolded header stays regular and a bolded data cell comes
-        # through bold.
-        if is_header:
-            text = fields[c] if c < len(fields) else ''
-        else:
-            record = records[r - 1] if (r - 1) < len(records) else []
-            text = record[c] if c < len(record) else ''
-        color_rgb = style.get('color_rgb')
-        _rot_rad = (_excel_rotation_to_radians(style.get('rotation', 0))
-                    if is_header else 0.0)
-        # Rotated text runs down the cell, so the height is what it has
-        # to fit inside; everything else runs across the width. x/y/w/h
-        # are Revit internal units (feet) by this point, and the wrap
-        # measures in millimetres - without the conversion every word
-        # was wider than the cell and each one took its own line.
-        text = _dv_prewrapped(r, c, text,
-                              (h - 2 * _TEXT_MARGIN if _rot_rad
-                               else w - 2 * _CELL_PAD) / MM)
-        cell_specs.append({
-            'x': x, 'y': y, 'w': w, 'h': h,
-            'text':  text,
-            'tt_id': hdr_txt_id if is_header else dat_txt_id,
-            'color_rgb': tuple(color_rgb) if color_rgb else None,
-            'rotation_rad': _rot_rad,
-            'halign': style.get('halign', 'Center'),
-            'valign': style.get('valign', 'Center' if not is_header else 'Bottom'),
-            'bold':      bool(style.get('bold', False)),
-            'italic':    bool(style.get('italic', False)),
-            'underline': bool(style.get('underline', False)),
-            'is_header': is_header,
-        })
+# Pass 1b: backgrounds, touching same-colour cells joined into one region.
+_draw_merged_fills(view, fill_cells, fill_type_id)
 
 # Pass 2: merge collinear border segments and draw the result.
 for y, x1, x2, rgb, weight in _merge_collinear_segments(h_border_segments):

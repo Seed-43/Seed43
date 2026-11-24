@@ -321,6 +321,35 @@ def _resolve_named_range(wb_xml, named_range, sheet_name=None):
         any_match = any_match or text
     return workbook_wide or any_match
 
+def _sheet_print_titles(wb_xml, sheet_name):
+    """(first_row, last_row), 0-based absolute, of the rows Excel's Print
+    Titles repeat on this sheet, or None. Only the name scoped to this
+    sheet counts: another sheet's titles say nothing about this one."""
+    sheets = _sheet_names(wb_xml)
+    if sheet_name not in sheets:
+        return None
+    index = str(sheets.index(sheet_name))
+    dn_nodes = wb_xml.GetElementsByTagName('definedName')
+    if dn_nodes.Count == 0:
+        dn_nodes = wb_xml.GetElementsByTagName(
+            'definedName',
+            'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+        )
+    for i in range(dn_nodes.Count):
+        attr = dn_nodes[i].Attributes.GetNamedItem('name')
+        local = dn_nodes[i].Attributes.GetNamedItem('localSheetId')
+        if not attr or attr.Value != '_xlnm.Print_Titles':
+            continue
+        if local is None or local.Value != index:
+            continue
+        for part in dn_nodes[i].InnerText.split(','):
+            m = re.match(r'^\$?(\d+):\$?(\d+)$',
+                         part.split('!')[-1].strip())
+            if m:
+                return int(m.group(1)) - 1, int(m.group(2)) - 1
+    return None
+
+
 def _find_sheet_file(z, wb_xml, sheet_name, XmlDocument):
     sheet_nodes = wb_xml.GetElementsByTagName('sheet')
     if sheet_nodes.Count == 0:
@@ -598,6 +627,35 @@ def read_xlsx_range_formatting(file_path, named_range, sheet_name):
             c2 = _col_letter_to_index(m2.group(1)) - min_col
             if r1 >= 0 and c1 >= 0:
                 result['merges'].append((r1, c1, r2, c2))
+
+        # --- page breaks and print titles ---
+        # Manual row breaks (Page Layout > Breaks) split a long table into
+        # parts drawn side by side; Print Titles say which rows repeat at
+        # the top of every part. Both relative to the range.
+        try:
+            last_rel = (max_row - min_row) if max_row is not None else None
+            brk_nodes = ws_xml.GetElementsByTagName('brk')
+            breaks = set()
+            for i in range(brk_nodes.Count):
+                par = brk_nodes[i].ParentNode
+                if par is None or par.LocalName != 'rowBreaks':
+                    continue
+                id_attr = brk_nodes[i].Attributes.GetNamedItem('id')
+                if not id_attr:
+                    continue
+                # id is the 1-based row the break follows, so it is also
+                # the 0-based index of the first row of the next part.
+                rel = int(id_attr.Value) - min_row
+                if rel > 0 and (last_rel is None or rel <= last_rel):
+                    breaks.add(rel)
+            result['row_breaks'] = sorted(breaks)
+            titles = _sheet_print_titles(wb_xml, target_sheet)
+            if titles:
+                a, b = titles
+                rows = [r - min_row for r in range(a, b + 1)]
+                result['repeat_rows'] = [r for r in rows if r >= 0]
+        except Exception as bex:
+            logger.debug('Page break parse failed: {}'.format(bex))
 
         # --- parse row heights ---
         row_nodes = ws_xml.GetElementsByTagName('row')

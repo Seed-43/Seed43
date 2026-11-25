@@ -48,6 +48,20 @@ def get_param_display_value(param):
     return u""
 
 
+_YES_WORDS = (u"yes", u"y", u"true", u"1")
+_NO_WORDS = (u"no", u"n", u"false", u"0", u"")
+
+
+def _is_yes_no(param):
+    """True for a Yes/No (checkbox) parameter. Wrapped: the spec API is
+    2022+, and a failed check just means no Yes/No handling."""
+    try:
+        from Autodesk.Revit.DB import SpecTypeId
+        return param.Definition.GetDataType() == SpecTypeId.Boolean.YesNo
+    except Exception:
+        return False
+
+
 def set_param_from_display_value(param, text):
     """
     Write a display-text value back to a parameter.
@@ -64,26 +78,82 @@ def set_param_from_display_value(param, text):
 
     Raises ValueError if the value could not be set.
     """
+    storage = param.StorageType
+
+    # Yes/No reads as "Yes"/"No" but SetValueString won't take it back, and
+    # the Integer fallback below would fail on the word (or, worse, write a
+    # 5 into a checkbox). Map the words, refuse anything else.
+    if storage == StorageType.Integer and _is_yes_no(param):
+        key = (text or u"").strip().lower()
+        if key in _YES_WORDS:
+            param.Set(1)
+            return
+        if key in _NO_WORDS:
+            param.Set(0)
+            return
+        raise ValueError(
+            "'{0}' is a Yes/No parameter, '{1}' is not Yes or No".format(
+                param.Definition.Name, text))
+
     try:
         if param.SetValueString(text):
             return
     except Exception:
         pass
 
-    storage = param.StorageType
+    name = param.Definition.Name
     if storage == StorageType.String:
         param.Set(text)
     elif storage == StorageType.Integer:
-        param.Set(int(round(float(text))))
+        try:
+            number = int(round(float(text)))
+        except (TypeError, ValueError):
+            raise ValueError(u"'{0}' needs a whole number, not '{1}'".format(name, text))
+        param.Set(number)
     elif storage == StorageType.Double:
+        # No raw float() fallback: Set(float) takes internal (feet) units and
+        # would silently misread whatever unit the text was in.
         raise ValueError(
-            "Could not set parameter '{0}' - SetValueString failed and no "
-            "safe unit-aware fallback exists for a Double value of "
-            "'{1}'".format(param.Definition.Name, text))
+            u"'{0}' could not take '{1}': not a valid value in project "
+            u"units".format(name, text))
+    elif storage == StorageType.ElementId:
+        _set_element_id_by_name(param, text)
     else:
+        raise ValueError(u"'{0}' can't be set from text".format(name))
+
+
+def _set_element_id_by_name(param, text):
+    """Set a reference parameter (Base Constraint, Level, Phase, ...) from
+    the NAME of the element it should point at. The candidates are elements
+    of the same class as the current value, so "L2" on a Level parameter
+    only matches levels. Refuses when there is nothing to go by or the name
+    is missing or ambiguous."""
+    name = param.Definition.Name
+    doc = param.Element.Document
+    current = doc.GetElement(param.AsElementId())
+    if current is None:
         raise ValueError(
-            "Could not set parameter '{0}' - unsupported StorageType for "
-            "value '{1}'".format(param.Definition.Name, text))
+            u"'{0}' is empty, so there's no way to tell what kind of element "
+            u"'{1}' is".format(name, text))
+    wanted = (text or u"").strip()
+    matches = []
+    from Autodesk.Revit.DB import Element
+    for el in FilteredElementCollector(doc).OfClass(current.GetType()):
+        try:
+            # Element.Name getter: .Name isn't reachable on every subclass
+            # from IronPython (ElementType hides it).
+            el_name = Element.Name.GetValue(el)
+        except Exception:
+            continue
+        if el_name == wanted:
+            matches.append(el)
+    if not matches:
+        raise ValueError(u"'{0}': no {1} named '{2}'".format(
+            name, current.GetType().Name, wanted))
+    if len(matches) > 1:
+        raise ValueError(u"'{0}': {1} elements are named '{2}'".format(
+            name, len(matches), wanted))
+    param.Set(matches[0].Id)
 
 
 # ── CATEGORIES ──────────────────────────────────────────────────────────────

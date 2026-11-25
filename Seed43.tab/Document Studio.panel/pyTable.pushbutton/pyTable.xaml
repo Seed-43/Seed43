@@ -82,6 +82,8 @@
         <Thickness x:Key="PaddingMenuItem">12,8,12,8</Thickness>
         <CornerRadius x:Key="CornerRadiusDropdownPopup">14</CornerRadius>
         <CornerRadius x:Key="CornerRadiusDropdownItem">4</CornerRadius>
+        <sys:Double x:Key="SizeDropdownArrow">10</sys:Double>
+        <sys:Double x:Key="SizeTopBarLogo">28</sys:Double>
         <Thickness x:Key="PaddingDropdownItem">8,4,8,4</Thickness>
         <Thickness x:Key="PaddingCard">16</Thickness>
         <sys:Double x:Key="FontSizeSectionLabel">11</sys:Double>
@@ -234,9 +236,11 @@
                                                 </Grid.ColumnDefinitions>
                                                 <ContentPresenter Grid.Column="0" Margin="8,0,0,0"
                                                                   VerticalAlignment="Center" HorizontalAlignment="Left"/>
-                                                <TextBlock Grid.Column="1" Text="&#9662;" FontSize="9"
-                                                           Foreground="{DynamicResource BrushTextInput}"
-                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                <Viewbox Grid.Column="1"
+                                                         Width="{DynamicResource SizeDropdownArrow}" Height="{DynamicResource SizeDropdownArrow}"
+                                                         HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <Path Fill="{DynamicResource BrushTextInput}" Data="M7,10L12,15L17,10Z"/>
+                                                </Viewbox>
                                             </Grid>
                                         </Border>
                                         <ControlTemplate.Triggers>
@@ -269,6 +273,12 @@
                                 </Border>
                             </Popup>
                         </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ToggleButton" Property="Background" Value="{DynamicResource BrushSecondaryDisabledBg}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource BrushSecondaryDisabledFg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -309,7 +319,7 @@
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="RowBorder" Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
-                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -389,7 +399,7 @@
             <Style.Triggers>
                 <Trigger Property="IsSelected" Value="True">
                     <Setter Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
-                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                    <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -504,12 +514,95 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushDanger}"/>
-                                <Setter Property="Foreground" Value="White"/>
+                                <Setter Property="Foreground" Value="{DynamicResource BrushTextPrimary}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <!-- macOS-style slim green scrollbar — applies everywhere -->
+        <Style x:Key="MacScrollBarThumb" TargetType="Thumb">
+            <Setter Property="Background" Value="{DynamicResource BrushPrimaryGreen}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border x:Name="thumb"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="3"
+                                Margin="2"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter TargetName="thumb" Property="Background" Value="{DynamicResource BrushPrimaryGreenHover}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="ScrollBar">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Width"    Value="8"/>
+            <Setter Property="MinWidth" Value="8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid x:Name="GridRoot" Width="8" Background="Transparent">
+                            <Track x:Name="PART_Track"
+                                   Orientation="Vertical"
+                                   IsDirectionReversed="True">
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource MacScrollBarThumb}"/>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="GridRoot" Property="Width" Value="10"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="Orientation" Value="Horizontal">
+                    <Setter Property="Width"     Value="Auto"/>
+                    <Setter Property="MinWidth"  Value="0"/>
+                    <Setter Property="Height"    Value="8"/>
+                    <Setter Property="MinHeight" Value="8"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ScrollBar">
+                                <Grid x:Name="GridRoot" Height="8" Background="Transparent">
+                                    <Track x:Name="PART_Track" Orientation="Horizontal">
+                                        <Track.Thumb>
+                                            <Thumb Style="{StaticResource MacScrollBarThumb}"/>
+                                        </Track.Thumb>
+                                    </Track>
+                                </Grid>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="GridRoot" Property="Height" Value="10"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Square icon-only button (the add/remove arrows between the
+             lists): secondary colours, no text padding, so the icon from
+             _icons.json sits centred instead of being squeezed out. -->
+        <Style x:Key="IconButtonStyle" TargetType="Button" BasedOn="{StaticResource ButtonSecondaryStyle}">
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Padding" Value="0"/>
         </Style>
 
     </Window.Resources>
@@ -543,7 +636,7 @@
                            Height="{DynamicResource SizeTopBarLogo}"
                            VerticalAlignment="Center"
                            Margin="0,0,10,0"/>
-                    <TextBlock Text="Py" FontWeight="Bold" FontSize="20"
+                    <TextBlock Text="py" FontWeight="Bold" FontSize="20"
                                Foreground="{DynamicResource BrushPrimaryGreen}" VerticalAlignment="Center"/>
                     <TextBlock Text="Table" FontWeight="SemiBold" FontSize="20"
                                Foreground="{DynamicResource BrushTextPrimary}"
@@ -609,39 +702,39 @@
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                    <TextBlock Text="SELECT CATEGORIES" Style="{StaticResource SectionLabelStyle}"/>
-                                    <ListBox x:Name="categories_list" Height="380"
+                                <DockPanel Grid.Column="0" Margin="0,0,8,0" LastChildFill="True">
+                                    <TextBlock DockPanel.Dock="Top" Text="SELECT CATEGORIES" Style="{StaticResource SectionLabelStyle}"/>
+                                    <ListBox x:Name="categories_list"
                                              SelectionMode="Extended"
                                              ItemContainerStyle="{StaticResource ListBoxItemStyle}"
                                              Background="{DynamicResource BrushInputBg}"
                                              Foreground="{DynamicResource BrushTextPrimary}"
                                              BorderBrush="{DynamicResource BrushBorderDefault}"/>
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Margin="8,0,8,0">
-                                    <TextBlock Text="AVAILABLE PARAMETERS" Style="{StaticResource SectionLabelStyle}"/>
-                                    <ListBox x:Name="available_params_categories" Height="380"
+                                </DockPanel>
+                                <DockPanel Grid.Column="1" Margin="8,0,8,0" LastChildFill="True">
+                                    <TextBlock DockPanel.Dock="Top" Text="AVAILABLE PARAMETERS" Style="{StaticResource SectionLabelStyle}"/>
+                                    <ListBox x:Name="available_params_categories"
                                              SelectionMode="Extended"
                                              ItemContainerStyle="{StaticResource ListBoxItemStyle}"
                                              Background="{DynamicResource BrushInputBg}"
                                              Foreground="{DynamicResource BrushTextPrimary}"
                                              BorderBrush="{DynamicResource BrushBorderDefault}"/>
-                                </StackPanel>
+                                </DockPanel>
                                 <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="4,20,4,0">
-                                    <Button x:Name="cat_params_add_btn" Content="&#9654;" Width="32" Height="32"
-                                            Style="{StaticResource ButtonSecondaryStyle}" Margin="0,0,0,6"/>
-                                    <Button x:Name="cat_params_remove_btn" Content="&#9664;" Width="32" Height="32"
-                                            Style="{StaticResource ButtonSecondaryStyle}"/>
+                                    <Button x:Name="cat_params_add_btn"
+                                            Style="{StaticResource IconButtonStyle}" Margin="0,0,0,6"/>
+                                    <Button x:Name="cat_params_remove_btn"
+                                            Style="{StaticResource IconButtonStyle}"/>
                                 </StackPanel>
-                                <StackPanel Grid.Column="3" Margin="8,0,0,0">
-                                    <TextBlock Text="SELECTED PARAMETERS" Style="{StaticResource SectionLabelStyle}"/>
-                                    <ListBox x:Name="selected_params_categories" Height="380"
+                                <DockPanel Grid.Column="3" Margin="8,0,0,0" LastChildFill="True">
+                                    <TextBlock DockPanel.Dock="Top" Text="SELECTED PARAMETERS" Style="{StaticResource SectionLabelStyle}"/>
+                                    <ListBox x:Name="selected_params_categories"
                                              SelectionMode="Extended"
                                              ItemContainerStyle="{StaticResource ListBoxItemStyle}"
                                              Background="{DynamicResource BrushInputBg}"
                                              Foreground="{DynamicResource BrushTextPrimary}"
                                              BorderBrush="{DynamicResource BrushBorderDefault}"/>
-                                </StackPanel>
+                                </DockPanel>
                             </Grid>
                         </Border>
                     </TabItem>
@@ -656,40 +749,40 @@
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                    <TextBlock Text="SELECT SCHEDULES" Style="{StaticResource SectionLabelStyle}"/>
-                                    <TextBox x:Name="schedules_search" Style="{StaticResource SearchTextBoxStyle}" Margin="0,0,0,6"/>
-                                    <ListBox x:Name="schedules_list" Height="340"
+                                <DockPanel Grid.Column="0" Margin="0,0,8,0" LastChildFill="True">
+                                    <TextBlock DockPanel.Dock="Top" Text="SELECT SCHEDULES" Style="{StaticResource SectionLabelStyle}"/>
+                                    <TextBox x:Name="schedules_search" DockPanel.Dock="Top" Style="{StaticResource SearchTextBoxStyle}" Margin="0,0,0,6"/>
+                                    <ListBox x:Name="schedules_list"
                                              SelectionMode="Extended"
                                              ItemContainerStyle="{StaticResource ListBoxItemStyle}"
                                              Background="{DynamicResource BrushInputBg}"
                                              Foreground="{DynamicResource BrushTextPrimary}"
                                              BorderBrush="{DynamicResource BrushBorderDefault}"/>
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Margin="8,0,8,0">
-                                    <TextBlock Text="AVAILABLE PARAMETERS" Style="{StaticResource SectionLabelStyle}"/>
-                                    <ListBox x:Name="available_params_schedules" Height="374"
+                                </DockPanel>
+                                <DockPanel Grid.Column="1" Margin="8,0,8,0" LastChildFill="True">
+                                    <TextBlock DockPanel.Dock="Top" Text="AVAILABLE PARAMETERS" Style="{StaticResource SectionLabelStyle}"/>
+                                    <ListBox x:Name="available_params_schedules"
                                              SelectionMode="Extended"
                                              ItemContainerStyle="{StaticResource ListBoxItemStyle}"
                                              Background="{DynamicResource BrushInputBg}"
                                              Foreground="{DynamicResource BrushTextPrimary}"
                                              BorderBrush="{DynamicResource BrushBorderDefault}"/>
-                                </StackPanel>
+                                </DockPanel>
                                 <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="4,20,4,0">
-                                    <Button x:Name="sched_params_add_btn" Content="&#9654;" Width="32" Height="32"
-                                            Style="{StaticResource ButtonSecondaryStyle}" Margin="0,0,0,6"/>
-                                    <Button x:Name="sched_params_remove_btn" Content="&#9664;" Width="32" Height="32"
-                                            Style="{StaticResource ButtonSecondaryStyle}"/>
+                                    <Button x:Name="sched_params_add_btn"
+                                            Style="{StaticResource IconButtonStyle}" Margin="0,0,0,6"/>
+                                    <Button x:Name="sched_params_remove_btn"
+                                            Style="{StaticResource IconButtonStyle}"/>
                                 </StackPanel>
-                                <StackPanel Grid.Column="3" Margin="8,0,0,0">
-                                    <TextBlock Text="SELECTED PARAMETERS" Style="{StaticResource SectionLabelStyle}"/>
-                                    <ListBox x:Name="selected_params_schedules" Height="374"
+                                <DockPanel Grid.Column="3" Margin="8,0,0,0" LastChildFill="True">
+                                    <TextBlock DockPanel.Dock="Top" Text="SELECTED PARAMETERS" Style="{StaticResource SectionLabelStyle}"/>
+                                    <ListBox x:Name="selected_params_schedules"
                                              SelectionMode="Extended"
                                              ItemContainerStyle="{StaticResource ListBoxItemStyle}"
                                              Background="{DynamicResource BrushInputBg}"
                                              Foreground="{DynamicResource BrushTextPrimary}"
                                              BorderBrush="{DynamicResource BrushBorderDefault}"/>
-                                </StackPanel>
+                                </DockPanel>
                             </Grid>
                         </Border>
                     </TabItem>

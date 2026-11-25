@@ -1,0 +1,24 @@
+title: "Align Drafting"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Lines up drafting views and legends on sheets, the way model views
+  line up by their coordinates.
+
+  Line up by view origin: pick a reference view, then the views to line
+  up with it, on any sheets. Each one moves so its own 0,0 sits where
+  the reference view's 0,0 sits on its sheet. No picking needed.
+
+  Line up by picked points: on the open sheet, pick the reference view.
+  The tool goes into that view so you can pick the point on its lines,
+  then comes back out to the sheet. Then, for each view to move: pick
+  it on the sheet, pick the matching point inside it, and it lines up.
+  Esc to finish.
+
+  Both modes can line up horizontally, vertically or both. Each run is
+  one undo.
+
+  __________________________________________________________________

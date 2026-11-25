@@ -379,6 +379,8 @@
                         name that is easy to understand and find. For example: "City of Portland ePermit"
                     </TextBlock>
                     <TextBox x:Name="template_name_tb"
+                             Foreground="{DynamicResource BrushTextInput}"
+                             CaretBrush="{DynamicResource BrushTextInput}"
                              Text="{Binding name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              Style="{StaticResource ModernTextBoxStyle}"/>
 
@@ -393,6 +395,8 @@
                         below and drag them to this box.
                     </TextBlock>
                     <TextBox x:Name="template_tb"
+                             Foreground="{DynamicResource BrushTextInput}"
+                             CaretBrush="{DynamicResource BrushTextInput}"
                              Text="{Binding template, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              Style="{StaticResource ModernTextBoxStyle}"
                              AllowDrop="True" 

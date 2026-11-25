@@ -77,6 +77,13 @@ class EditNamingFormatsWindow(forms.WPFWindow):
                   + self._error_chain(ex))
             raise
         apply_seed43_palette(self, op.dirname(__file__))
+        # The style's Foreground came out black on the dark input background
+        # (unreadable); set the input text colour on the boxes directly.
+        _txt = self.TryFindResource('BrushTextInput')
+        if _txt is not None:
+            for _tb in (self.template_name_tb, self.template_tb):
+                _tb.Foreground = _txt
+                _tb.CaretBrush = _txt
         self._drop_pos = 0
         self._starting_item = start_with
         self._saved = False
@@ -272,12 +279,39 @@ class EditNamingFormatsWindow(forms.WPFWindow):
             Windows.DragDropEffects.Copy
             )
 
+    def _drop_index(self, point):
+        """Text index a dragged tag goes in at, for a point over the box.
+
+        GetCharacterIndexFromPoint gives the character UNDER the point, so
+        dropping on the right half of a character (or past the end of the
+        text) landed one character early, inside the last tag's braces.
+        Round to the nearer edge of that character, then move out of any
+        {tag} the index falls inside, to whichever end is closer.
+        """
+        tb = self.template_tb
+        text = tb.Text or ''
+        idx = tb.GetCharacterIndexFromPoint(point, True)
+        if idx < 0 or not text:
+            return len(text)
+        try:
+            lead = tb.GetRectFromCharacterIndex(idx).X
+            trail = tb.GetRectFromCharacterIndex(idx, True).X
+            if point.X > (lead + trail) / 2.0:
+                idx += 1
+        except Exception:
+            pass
+        idx = max(0, min(idx, len(text)))
+        open_i = text.rfind('{', 0, idx)
+        if open_i >= 0 and text.rfind('}', 0, idx) < open_i:
+            close_i = text.find('}', idx)
+            if close_i >= 0:
+                idx = open_i if idx - open_i <= close_i + 1 - idx \
+                    else close_i + 1
+        return idx
+
     def preview_drag(self, sender, args):
         point = args.GetPosition(self.template_tb)
-        self._drop_pos = self.template_tb.GetCharacterIndexFromPoint(
-            point, True)
-        if self._drop_pos < 0:
-            self._drop_pos = len(self.template_tb.Text or '')
+        self._drop_pos = self._drop_index(point)
         self.template_tb.CaretIndex = self._drop_pos
         args.Effects = Windows.DragDropEffects.Copy
         args.Handled = True

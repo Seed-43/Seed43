@@ -930,32 +930,6 @@ class MainWindow(forms.WPFWindow):
         self.FindName("status_label").Text = text
 
 
-# ── DEVELOPMENT DISCLAIMER ──────────────────────────────────────────────
-# Shown before the window opens, every launch. Deliberately not a "don't
-# show again" tick: this tool writes changes back to the model, and the
-# warning stops being a warning the moment it can be dismissed for good.
-# Delete this block (and the call in __main__) once pyTable is production
-# ready.
-DISCLAIMER_TITLE = 'pyTable is under development'
-DISCLAIMER_TEXT = (
-    u'pyTable is a proof of concept and is still being built. It is not '
-    u'ready for full production use - treat it as a testing tool for now.\n\n'
-    u'It writes changes back to your model, so read the preview carefully '
-    u'before confirming anything, and work on a model you can afford to '
-    u'roll back.'
-)
-
-
-def show_disclaimer():
-    """Never blocks the tool from opening - a failed dialog must not be the
-    reason you cannot run pyTable at all."""
-    try:
-        dlg.message(DISCLAIMER_TEXT, title=DISCLAIMER_TITLE, ok_label='I understand')
-    except Exception:
-        pass
-
-
 if __name__ == "__main__":
-    show_disclaimer()
     window = MainWindow()
     window.ShowDialog()

@@ -12,6 +12,8 @@ tooltip: >
   __________________________________________________________________
 layout:
   - View Mover
+  - Replace View
+  - View Order
   - ----
   - View Organiser
   - Duplicate Sheets

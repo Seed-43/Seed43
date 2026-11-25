@@ -224,6 +224,8 @@ EDGES = studio_publish.StudioLayout(LAYOUT, DATA, _p, log=_log).resolved_edges()
 # use or whether to name it. A 'group_label' key written by an earlier build is
 # deliberately ignored, so a template cannot quietly override the toggle.
 GROUP_LABEL = bool(_p.get('group_label', True))
+# pyTransmit's Group toggle: off = the parameters only sort the list.
+GROUP_ON = bool(_p.get('group_on', True))
 
 # condense=False always: Condense Rows shortens the PREVIEW so a 2000-sheet
 # layout stays workable on screen. The transmittal must list every sheet.
@@ -235,7 +237,8 @@ _gap_between = bool(LAYOUT.get('space_between_' + _suffix, False))
 
 ROW_PLAN = studio_rows.sheet_row_plan(
     DATA, GROUP_PARAMS, GROUP_LABEL, condense=False,
-    space_first_group=_gap_first, space_between_groups=_gap_between)
+    space_first_group=_gap_first, space_between_groups=_gap_between,
+    group_on=GROUP_ON)
 VROWS, VSPANS = studio_rows.expand_rows(LAYOUT, DATA, ROW_PLAN)
 # Stripe index per row: restarts at every group so each group opens white.
 BAND_INDEX = studio_rows.band_indices(ROW_PLAN)

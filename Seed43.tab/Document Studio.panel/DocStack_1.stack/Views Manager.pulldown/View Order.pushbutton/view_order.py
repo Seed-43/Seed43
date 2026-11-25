@@ -1,0 +1,172 @@
+# -*- coding: utf-8 -*-
+"""
+View Order - bring views on a sheet to the front or send them to the back.
+
+Revit has no draw-order setting for viewports: it draws them in the order
+they were placed, the newest on top. So a view is brought to the front by
+placing it again, and sent to the back by placing again every view drawn
+above it. Each one goes back exactly where it was, with the same viewport
+type, detail number, title position, rotation and instance parameters.
+"""
+from System.Collections.Generic import List
+from pyrevit import revit, DB, forms, script
+from pyrevit.forms import WarningBar
+from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
+
+doc = revit.doc
+uidoc = revit.uidoc
+
+FRONT = 'Bring to Front'
+BACK = 'Send to Back'
+
+
+# ── PICK ─────────────────────────────────────────────────────────────────────
+
+class _ViewportFilter(ISelectionFilter):
+    def AllowElement(self, el):
+        return isinstance(el, DB.Viewport)
+
+    def AllowReference(self, ref, pt):
+        return False
+
+
+def _picked():
+    """Viewports selected before running, or picked on the active sheet."""
+    sel = [doc.GetElement(i) for i in uidoc.Selection.GetElementIds()]
+    sel = [e for e in sel if isinstance(e, DB.Viewport)]
+    if sel:
+        return sel
+    if revit.active_view.ViewType != DB.ViewType.DrawingSheet:
+        forms.alert('Open a sheet, or select viewports on one, first.',
+                    exitscript=True)
+    with WarningBar(title='Pick the views to move. Click Finish when done.'):
+        try:
+            refs = uidoc.Selection.PickObjects(ObjectType.Element,
+                                               _ViewportFilter(),
+                                               'Pick the views to move')
+        except Exception:
+            script.exit()
+    return [doc.GetElement(r.ElementId) for r in refs]
+
+
+def _id_int(eid):
+    try:
+        return eid.Value
+    except AttributeError:
+        return eid.IntegerValue
+
+
+# ── RE-PLACE ─────────────────────────────────────────────────────────────────
+
+_SKIP_PARAMS = (DB.BuiltInParameter.VIEWPORT_DETAIL_NUMBER,
+                DB.BuiltInParameter.VIEWPORT_SHEET_NUMBER,
+                DB.BuiltInParameter.VIEWPORT_SHEET_NAME)
+
+
+def _instance_values(vp):
+    """Writable instance parameters other than the ones set explicitly."""
+    skip = set(int(b) for b in _SKIP_PARAMS)
+    out = []
+    for p in vp.Parameters:
+        if p.IsReadOnly:
+            continue
+        try:
+            if p.Definition.BuiltInParameter != DB.BuiltInParameter.INVALID \
+                    and int(p.Definition.BuiltInParameter) in skip:
+                continue
+        except Exception:
+            pass
+        st = p.StorageType
+        if st == DB.StorageType.String:
+            out.append((p.Definition.Name, st, p.AsString()))
+        elif st == DB.StorageType.Integer:
+            out.append((p.Definition.Name, st, p.AsInteger()))
+        elif st == DB.StorageType.Double:
+            out.append((p.Definition.Name, st, p.AsDouble()))
+        elif st == DB.StorageType.ElementId:
+            out.append((p.Definition.Name, st, p.AsElementId()))
+    return out
+
+
+def _replace(vp):
+    """Place vp's view again where it is, as the newest viewport on the
+    sheet, and return the new viewport."""
+    sheet = doc.GetElement(vp.SheetId)
+    view_id = vp.ViewId
+    center = vp.GetBoxCenter()
+    type_id = vp.GetTypeId()
+    rotation = vp.Rotation
+    detail = vp.get_Parameter(
+        DB.BuiltInParameter.VIEWPORT_DETAIL_NUMBER).AsString()
+    try:
+        label_offset, label_len = vp.LabelOffset, vp.LabelLineLength
+    except Exception:
+        label_offset = label_len = None
+    values = _instance_values(vp)
+
+    sheet.DeleteViewport(vp)
+    new = DB.Viewport.Create(doc, sheet.Id, view_id, center)
+    new.ChangeTypeId(type_id)
+    if rotation != getattr(DB.ViewportRotation, 'None'):
+        new.Rotation = rotation
+    new.SetBoxCenter(center)
+    if detail:
+        try:
+            new.get_Parameter(
+                DB.BuiltInParameter.VIEWPORT_DETAIL_NUMBER).Set(detail)
+        except Exception:
+            pass
+    try:
+        if label_offset is not None:
+            new.LabelOffset = label_offset
+        if label_len:
+            new.LabelLineLength = label_len
+    except Exception:
+        pass
+    for name, st, val in values:
+        p = new.LookupParameter(name)
+        if p is None or p.IsReadOnly or val is None:
+            continue
+        try:
+            p.Set(val)
+        except Exception:
+            pass
+    return new
+
+
+# ── RUN ──────────────────────────────────────────────────────────────────────
+
+picked = _picked()
+if not picked:
+    script.exit()
+mode = forms.CommandSwitchWindow.show([FRONT, BACK],
+                                      message='Move the picked views:')
+if not mode:
+    script.exit()
+
+result_ids = []
+with revit.Transaction('View Order: ' + mode):
+    by_sheet = {}
+    for vp in picked:
+        by_sheet.setdefault(_id_int(vp.SheetId), []).append(vp)
+    for sheet_key, vps in by_sheet.items():
+        sheet = doc.GetElement(vps[0].SheetId)
+        if mode == FRONT:
+            # Picked views, kept in their order among themselves.
+            to_move = sorted(vps, key=lambda v: _id_int(v.Id))
+        else:
+            # Every other view on the sheet is placed again, in its own
+            # order, so the picked ones end up the oldest: at the back.
+            picked_ids = set(_id_int(v.Id) for v in vps)
+            to_move = sorted(
+                (doc.GetElement(i) for i in sheet.GetAllViewports()
+                 if _id_int(i) not in picked_ids),
+                key=lambda v: _id_int(v.Id))
+        for vp in to_move:
+            new = _replace(vp)
+            if mode == FRONT:
+                result_ids.append(new.Id)
+        if mode == BACK:
+            result_ids += [v.Id for v in vps]
+
+uidoc.Selection.SetElementIds(List[DB.ElementId](result_ids))

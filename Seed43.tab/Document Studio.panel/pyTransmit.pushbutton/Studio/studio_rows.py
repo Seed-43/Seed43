@@ -277,7 +277,8 @@ def condense_plan(plan, condense=True):
 
 
 def sheet_row_plan(data, group_params=None, group_label=True, condense=False,
-                   space_first_group=False, space_between_groups=False):
+                   space_first_group=False, space_between_groups=False,
+                   group_on=True):
     """Build the row plan for the documentation table.
 
     Groups are ordered by their own parameter values (see _group_sort_key),
@@ -297,6 +298,14 @@ def sheet_row_plan(data, group_params=None, group_label=True, condense=False,
 
     if not group_params:
         return condense_plan([('doc', d) for d in docs], condense)
+
+    if not group_on:
+        # Sort only: the same parameters order the list, sheet number breaks
+        # ties (docs already arrive in sheet-number order and sorted() is
+        # stable), but no header rows or gaps go in between.
+        ordered = sorted(docs, key=lambda d: _group_sort_key(
+            _group_key(d, group_params)))
+        return condense_plan([('doc', d) for d in ordered], condense)
 
     groups = OrderedDict()
     for doc in docs:
@@ -358,9 +367,11 @@ def band_indices(row_plan):
     return out
 
 
-def plan_summary(data, group_params=None, group_label=True, condense=False):
+def plan_summary(data, group_params=None, group_label=True, condense=False,
+                 group_on=True):
     """(shown_rows, total_rows, n_groups) - for the status bar / ribbon."""
-    full = sheet_row_plan(data, group_params, group_label, condense=False)
+    full = sheet_row_plan(data, group_params, group_label, condense=False,
+                          group_on=group_on)
     shown = condense_plan(full, condense)
     n_groups = len([1 for kind, _v in full if kind == 'group'])
     return len(shown), len(full), n_groups

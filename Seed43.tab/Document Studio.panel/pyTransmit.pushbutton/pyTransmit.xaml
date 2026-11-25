@@ -1043,10 +1043,18 @@
                 <TextBlock Text="Sheet Parameters" Style="{StaticResource SectionLabelStyle}" Margin="0,0,0,8"/>
                 <Border Style="{StaticResource CardStyle}">
                     <StackPanel>
-                        <TextBlock Text="Grouping Drawing Sheets by Selected Parameters"
+                        <TextBlock Text="Sort Drawing Sheets by Selected Parameters, then Sheet Number"
                                    Style="{StaticResource FieldLabelStyle}"
                                    Margin="0,0,0,8"/>
                         <DockPanel LastChildFill="False" Margin="0,0,0,8">
+                            <Border x:Name="group_on_toggle" DockPanel.Dock="Left"
+                                    Width="{DynamicResource WidthToggle}" Height="{DynamicResource HeightToggle}" CornerRadius="{DynamicResource CornerRadiusToggle}"
+                                    Cursor="Hand" Margin="0,0,8,0"
+                                    ToolTip="On: the sheets are grouped by the parameters below, with a header row for each group. Off: the parameters only sort the list."/>
+                            <TextBlock x:Name="group_on_toggle_tb" DockPanel.Dock="Left"
+                                       Text="Group On" FontSize="9" Margin="0,0,16,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource BrushTextPrimary}"/>
                             <Border x:Name="group_label_toggle" DockPanel.Dock="Left"
                                     Width="{DynamicResource WidthToggle}" Height="{DynamicResource HeightToggle}" CornerRadius="{DynamicResource CornerRadiusToggle}"
                                     Cursor="Hand" Margin="0,0,8,0"/>

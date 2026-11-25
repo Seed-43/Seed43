@@ -1237,6 +1237,13 @@ class StudioSettingsWindow(WPFWindow):
             self._group_label = bool(cfg.get('group_label'))
         else:
             self._group_label = bool(self._read_json(SYNC_FILE).get('group_label_on', True))
+        # pyTransmit's Group toggle, always: off = the parameters only sort
+        # the list, so the preview has no group rows either.
+        self._group_on = bool(self._read_json(SYNC_FILE).get('group_on', True))
+
+    def _grouping(self):
+        """False when pyTransmit's Group toggle is off (sort only)."""
+        return bool(getattr(self, '_group_on', True))
 
     def _read_json(self, path):
         try:
@@ -1267,7 +1274,8 @@ class StudioSettingsWindow(WPFWindow):
         if self._condense or not self._condense_is_default:
             return
         total = studio_blocks.plan_summary(
-            self._data, self._group_params, self._group_label, False)[1]
+            self._data, self._group_params, self._group_label, False,
+            group_on=self._grouping())[1]
         if total > AUTO_CONDENSE_ABOVE:
             self._condense = True
             self._startup_notice = (
@@ -1279,7 +1287,8 @@ class StudioSettingsWindow(WPFWindow):
         first_gap, between_gap = self._grid.gaps_for(self._group_label)
         return studio_blocks.sheet_row_plan(
             self._data, self._group_params, self._group_label, self._condense,
-            space_first_group=first_gap, space_between_groups=between_gap)
+            space_first_group=first_gap, space_between_groups=between_gap,
+            group_on=self._grouping())
 
     def _on_space_first_click(self, sender, args):
         # Edits the pair for the group-text state currently in force, so the
@@ -1969,8 +1978,9 @@ class StudioSettingsWindow(WPFWindow):
         _first_gap, _between_gap = self._grid.gaps_for(self._group_label)
         self.space_first_btn.IsChecked = bool(_first_gap)
         self.space_between_btn.IsChecked = bool(_between_gap)
-        self.space_first_btn.IsEnabled = bool(self._group_params)
-        self.space_between_btn.IsEnabled = bool(self._group_params)
+        _grouped = bool(self._group_params) and self._grouping()
+        self.space_first_btn.IsEnabled = _grouped
+        self.space_between_btn.IsEnabled = _grouped
         # The captions say which set is being edited, so it is obvious that
         # flipping Group Text swaps to the other pair rather than losing it.
         _state = 'text on' if self._group_label else 'text off'
@@ -1983,14 +1993,15 @@ class StudioSettingsWindow(WPFWindow):
         self.condense_btn.IsChecked = bool(self._condense)
         # Group text only means anything once there are groups to label.
         # A Border has no IsEnabled look of its own, so it dims instead.
-        self.group_label_toggle.Opacity = 1.0 if self._group_params else 0.4
-        self.group_label_toggle.IsHitTestVisible = bool(self._group_params)
-        self.group_label_toggle_tb.Opacity = 1.0 if self._group_params else 0.4
+        self.group_label_toggle.Opacity = 1.0 if _grouped else 0.4
+        self.group_label_toggle.IsHitTestVisible = _grouped
+        self.group_label_toggle_tb.Opacity = 1.0 if _grouped else 0.4
         self._update_rows_count_label()
 
     def _update_rows_count_label(self):
         shown, total, n_groups = studio_blocks.plan_summary(
-            self._data, self._group_params, self._group_label, self._condense)
+            self._data, self._group_params, self._group_label, self._condense,
+            group_on=self._grouping())
         if not total:
             self.rows_count_label.Text = 'no sheets'
             self.condense_btn.IsEnabled = False

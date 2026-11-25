@@ -197,6 +197,8 @@ class StudioLayout(object):
         # for LAYOUT, not for which grouping to use or whether to name it, so
         # a 'group_label' key written by an earlier build is ignored.
         group_label = bool(self._p.get('group_label', True))
+        # pyTransmit's Group toggle: off = the parameters only sort the list.
+        group_on = bool(self._p.get('group_on', True))
 
         # The layout stores a gap pair for each group-text state; the state in
         # force chooses which pair applies, so one template covers both.
@@ -209,7 +211,8 @@ class StudioLayout(object):
         # list every sheet.
         self.row_plan = studio_rows.sheet_row_plan(
             self.data, group_params, group_label, condense=False,
-            space_first_group=gap_first, space_between_groups=gap_between)
+            space_first_group=gap_first, space_between_groups=gap_between,
+            group_on=group_on)
         self.vrows, self.vspans = studio_rows.expand_rows(
             self.layout, self.data, self.row_plan)
         # Stripe index per row: restarts at every group so each group opens
@@ -229,7 +232,7 @@ class StudioLayout(object):
         # silently by nature - a parameter that was never read off the sheets
         # gives every sheet the same blank key, which is one nameless group,
         # which is no header rows - and looks exactly like grouping being off.
-        if group_params and not any(k == 'group' for k, _v in self.row_plan):
+        if group_params and group_on and                 not any(k == 'group' for k, _v in self.row_plan):
             self._log(
                 'Grouping by {} produced no groups - every sheet returned the '
                 'same value. Check the parameter is filled in on the '

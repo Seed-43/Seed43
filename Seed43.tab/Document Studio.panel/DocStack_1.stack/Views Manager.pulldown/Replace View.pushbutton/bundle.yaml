@@ -1,0 +1,18 @@
+title: "Replace View"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Swaps a view on a sheet for another view, in the same place.
+
+  Select a viewport or schedule on a sheet (or run it from a sheet and
+  pick one), then choose the replacement from a searchable list. The new
+  view keeps the old one's centre, viewport type, detail number, title
+  position and rotation. Schedules are swapped for schedules and keep
+  their insertion point. Only views Revit allows on that sheet are
+  listed: unplaced views, plus legends. The old view stays in the
+  project, it is only taken off the sheet.
+
+  __________________________________________________________________

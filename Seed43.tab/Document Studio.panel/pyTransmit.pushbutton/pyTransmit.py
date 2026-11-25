@@ -208,7 +208,9 @@ class RevTableWindow(Window):
         self.selected_params = []
         self.param_counter = 1
         self.group_label_on = self._load_sync().get('group_label_on', True)
+        self.group_on = self._load_sync().get('group_on', True)
         self._setup_group_label_toggle()
+        self._setup_group_on_toggle()
         self._setup_schedule_pages()
         self.PreviewMouseDown += self._options_popup_outside_click
         
@@ -395,6 +397,57 @@ class RevTableWindow(Window):
             pass
         self._save_sync()
 
+    def _paint_group_on_toggle(self):
+        """Knob, track and caption for the Group toggle. Text On/Off only
+        means anything while grouping is on, so it dims with it."""
+        import System.Windows.Media as _SWM
+        import System
+        _on_brush  = self.TryFindResource('BrushPrimaryGreen') or _SWM.SolidColorBrush(_SWM.Color.FromRgb(0x20, 0x8A, 0x3C))
+        _off_brush = self.TryFindResource('BrushToggleOffBg')  or _SWM.SolidColorBrush(_SWM.Color.FromRgb(0xA0, 0xAA, 0xBB))
+        _on_text_brush = self.TryFindResource('BrushTextPrimary') or _SWM.SolidColorBrush(_SWM.Color.FromRgb(0xF4, 0xFA, 0xFF))
+        _track_w    = self.TryFindResource('WidthToggle')    or 40.0
+        _knob_size  = self.TryFindResource('SizeToggleKnob') or 16.0
+        _knob_margin = self.TryFindResource('MarginToggleKnob') or 2.0
+        on = bool(self.group_on)
+        try:
+            self._group_on_knob.Margin = (
+                System.Windows.Thickness(_track_w - _knob_size - _knob_margin, _knob_margin, 0, _knob_margin) if on
+                else System.Windows.Thickness(_knob_margin, _knob_margin, 0, _knob_margin))
+            self.group_on_toggle.Background = _on_brush if on else _off_brush
+            self.group_on_toggle_tb.Text = "Group On" if on else "Group Off (Sort Only)"
+            self.group_on_toggle_tb.Foreground = _on_text_brush if on else _off_brush
+            self.group_label_toggle.Opacity = 1.0 if on else 0.4
+            self.group_label_toggle.IsHitTestVisible = on
+            self.group_label_toggle_tb.Opacity = 1.0 if on else 0.4
+        except Exception:
+            pass
+
+    def _setup_group_on_toggle(self):
+        """Build the Group on/off switch: off = the parameters only sort."""
+        import System.Windows.Media as _SWM
+        import System
+        _knob_brush = self.TryFindResource('BrushToggleKnob')  or _SWM.Brushes.White
+        _knob_size  = self.TryFindResource('SizeToggleKnob')   or 16.0
+        _knob_radius = self.TryFindResource('CornerRadiusToggleKnob') or System.Windows.CornerRadius(_knob_size / 2.0)
+        try:
+            knob                     = System.Windows.Controls.Border()
+            knob.Width               = _knob_size
+            knob.Height              = _knob_size
+            knob.CornerRadius        = _knob_radius
+            knob.Background          = _knob_brush
+            knob.HorizontalAlignment = System.Windows.HorizontalAlignment.Left
+            self.group_on_toggle.Child = knob
+            self._group_on_knob = knob
+            self.group_on_toggle.MouseLeftButtonUp += self._on_group_on_toggle
+        except Exception:
+            pass
+        self._paint_group_on_toggle()
+
+    def _on_group_on_toggle(self, sender, args):
+        self.group_on = not self.group_on
+        self._paint_group_on_toggle()
+        self._save_sync()
+
     # --- Schedule Pages card ---
     def _project_key(self):
         """Key the split settings per project - sheet numbers differ between jobs."""
@@ -579,9 +632,11 @@ class RevTableWindow(Window):
             
             # Update selected params
             self.selected_params = [cb.SelectedItem for cb in self.sheet_param_combos if cb.SelectedItem and cb.SelectedItem != "(None)"]
+            self._save_project_group_params()
             return
         
         self.selected_params = [cb.SelectedItem for cb in self.sheet_param_combos if cb.SelectedItem and cb.SelectedItem != "(None)"]
+        self._save_project_group_params()
         if sender.SelectedItem and sender.SelectedItem != "(None)" and sender == self.sheet_param_combos[-1]:
             self.param_counter += 1
             new_combo = ComboBox()
@@ -2239,12 +2294,26 @@ class RevTableWindow(Window):
         except Exception: pass
         return {}
 
+    def _save_project_group_params(self):
+        """Remember the sort parameters for THIS model, so reopening the
+        window brings back this job's choice, not the last other job's."""
+        try:
+            cfg = self._load_sync()
+            by_proj = cfg.get('group_params_by_project') or {}
+            by_proj[self._project_key()] = list(self.selected_params or [])
+            cfg['group_params_by_project'] = by_proj
+            with open(SYNC_FILE, 'w') as f:
+                _json.dump(cfg, f, indent=2)
+        except Exception:
+            pass
+
     def _save_sync(self):
         """Persist non-layout settings (group_label_on, etc.) to pytransmit_sync.json."""
         try:
             sync_path = SYNC_FILE
             cfg = self._load_sync()
             cfg['group_label_on'] = getattr(self, 'group_label_on', True)
+            cfg['group_on'] = getattr(self, 'group_on', True)
             if hasattr(self, 'ignore_page_height'):
                 pages = cfg.get('schedule_pages') or {}
                 pages[self._project_key()] = {
@@ -2755,6 +2824,7 @@ class RevTableWindow(Window):
                 'recipients':        recipients,
                 'group_params':      getattr(self, 'selected_params', []) or [],
                 'group_label':       getattr(self, 'group_label_on', False),
+                'group_on':          getattr(self, 'group_on', True),
                 'logo_path':         _bc.get_logo_path()       if _bc else '',
                 'title_bg_color':    _bc.get_title_bg_color()  if _bc else '#FFFFFF',
                 'title_fg_color':    _bc.get_title_fg_color()  if _bc else '#000000',

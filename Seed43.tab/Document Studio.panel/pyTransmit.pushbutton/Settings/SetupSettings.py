@@ -97,11 +97,14 @@ class SetupSettingsController(object):
         """Restore sheet grouping parameters onto the host window.
 
         Source priority:
-          1. GP: tag in the last issued revision's IssuedTo, project-specific,
-             always correct for this model.
-          2. pytransmit_setup.json group_params, fallback for
-             projects issued before GP: tag was introduced, filtered to params
-             that exist in the current model to prevent cross-project bleed.
+          1. The choice last made in this window FOR THIS MODEL
+             (pytransmit_sync.json group_params_by_project), even if it is
+             "none". Without it, a model with nothing issued yet fell through
+             to the global setup file and picked up whatever another job had
+             saved (it kept coming back as Folder).
+          2. GP: tag in the newest revision that has one, issued or not.
+          3. pytransmit_setup.json group_params, filtered to params that
+             exist in the current model.
         """
         if self._host is None:
             return
@@ -111,8 +114,19 @@ class SetupSettingsController(object):
             if not all_params:
                 return
 
-            # ── Try GP: tag from last issued revision first ────────────────
+            # ── This model's own last choice ───────────────────────────────
             saved = []
+            try:
+                _by_proj = (h._load_sync().get('group_params_by_project') or {})
+                _key = h._project_key()
+                if _key in _by_proj:
+                    saved = [p for p in (_by_proj.get(_key) or []) if p in all_params]
+                    if not saved:
+                        return          # the user chose no sort parameters
+            except Exception:
+                pass
+
+            # ── GP: tag from the newest revision that carries one ──────────
             try:
                 from pyrevit import revit as _rv
                 from pyrevit import DB as _DB
@@ -120,9 +134,10 @@ class SetupSettingsController(object):
                 _all = sorted(
                     _rv.query.get_elements_by_class(_DB.Revision, doc=_rv.doc),
                     key=lambda r: r.SequenceNumber)
-                _issued = [r for r in _all if r.Issued]
-                if _issued:
-                    _ito = (_issued[-1].IssuedTo or '').strip()
+                for _rev in reversed(_all):
+                    if saved:
+                        break
+                    _ito = (_rev.IssuedTo or '').strip()
                     # GP: tag ends at next ' | ' or end of string
                     _gp_m = _re2.search(r'(?:^| \| )GP:(.*?)(?= \| |$)', _ito)
                     if _gp_m:

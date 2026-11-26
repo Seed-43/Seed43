@@ -5,15 +5,17 @@ tooltip: >
 
   Description:
 
-  Brings views on a sheet to the front, or sends them to the back.
+  Brings views and schedules on a sheet to the front, or sends them to
+  the back.
 
-  Select viewports on a sheet (or run it from a sheet and pick them),
-  then choose Bring to Front or Send to Back. Revit has no draw order
-  setting for viewports: it draws them in the order they were placed,
-  newest on top. So Bring to Front places the picked views again, and
-  Send to Back places every other view on the sheet again. Each view
-  goes back exactly where it was, with the same viewport type, detail
-  number, title position, rotation and parameters. Schedules and
-  title blocks are not affected.
+  Select viewports or schedules on a sheet (or run it from a sheet and
+  pick them), then choose Bring to Front or Send to Back. Revit has no
+  draw order setting for them: it draws them in the order they were
+  placed, newest on top. So Bring to Front places the picked items
+  again, and Send to Back places every other view and schedule on the
+  sheet again. Each one goes back exactly where it was, a view with the
+  same viewport type, detail number, title position, rotation and
+  parameters, a schedule with the same position, segment and pin. Title
+  blocks are not affected.
 
   __________________________________________________________________

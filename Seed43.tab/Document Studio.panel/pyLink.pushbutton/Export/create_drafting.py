@@ -41,6 +41,7 @@ _p = globals().get('PYLINK_PAYLOAD', {})
 
 from pyrevit import revit, DB, script
 from Autodesk.Revit.DB import (
+    CurveArray,
     FilteredElementCollector, ViewFamilyType, ViewFamily,
     ViewDrafting, TextNote, TextNoteOptions,
     HorizontalTextAlignment, FilledRegion, FilledRegionType,
@@ -758,19 +759,30 @@ def _draw_merged_fills(view, fill_cells, frt_id):
                                       frt_id, rgb)
 
 
+_LINE_PROF = [0.0, 0.0, 0.0]   # create / set style / override seconds (profiling)
+
+
 def _draw_border_line(view, x1, y1, x2, y2, line_style_id, color_rgb, weight=None):
     """Draw a single DetailLine on the default <Lines> style, tinted via
     a per-instance view override to the border's actual colour and
     (best-effort) weight."""
     try:
+        import time as _t
+        _t0 = _t.time()
         seg = Line.CreateBound(XYZ(x1, y1, 0), XYZ(x2, y2, 0))
         dc = doc.Create.NewDetailCurve(view, seg)
+        _t1 = _t.time()
         if line_style_id and line_style_id != ElementId.InvalidElementId:
             try:
                 dc.LineStyle = doc.GetElement(line_style_id)
             except Exception as ex:
                 logger.warning('Set <Lines> style: {}'.format(ex))
+        _t2 = _t.time()
         _override_color(dc.Id, color_rgb or (0, 0, 0), weight)
+        _t3 = _t.time()
+        _LINE_PROF[0] += _t1 - _t0
+        _LINE_PROF[1] += _t2 - _t1
+        _LINE_PROF[2] += _t3 - _t2
     except Exception as ex:
         logger.debug(
             'Border ({},{})-({},{}) {}'.format(x1, y1, x2, y2, ex)
@@ -1047,6 +1059,8 @@ _stack_y0_ft = 0.0
 # as a deliberate break rather than a mis-set row height.
 STACK_GAP_MM = 8.0
 
+import time as _tm
+_T = [('begin', _tm.time())]
 view = None
 for v in FilteredElementCollector(doc)\
         .OfClass(ViewDrafting)\
@@ -1073,14 +1087,29 @@ for v in FilteredElementCollector(doc)\
             logger.debug('stacking table {} at y={:.1f}mm'.format(
                 stack_index, _stack_y0_ft / MM))
         else:
-            # Clear existing elements
+            # Clear existing elements. One batched delete: Revit works out
+            # dependencies once instead of once per element, which is most
+            # of the time a big table spent being cleared. Falls back to
+            # one at a time if the batch is refused.
+            import clr, System
+            from System.Collections.Generic import List as _List
+            from Autodesk.Revit.DB import ElementMulticlassFilter
+            _classes = _List[System.Type]()
             for cls in (CurveElement, TextNote, FilledRegion, ImageInstance):
-                for el in list(FilteredElementCollector(doc, view.Id)
-                               .OfClass(cls).ToElements()):
-                    try:
-                        doc.Delete(el.Id)
-                    except Exception:
-                        pass
+                _classes.Add(clr.GetClrType(cls))
+            _ids = _List[ElementId](
+                FilteredElementCollector(doc, view.Id)
+                .WherePasses(ElementMulticlassFilter(_classes))
+                .ToElementIds())
+            if _ids.Count:
+                try:
+                    doc.Delete(_ids)
+                except Exception:
+                    for _i in _ids:
+                        try:
+                            doc.Delete(_i)
+                        except Exception:
+                            pass
         break
 
 if view is None:
@@ -1120,6 +1149,7 @@ hdr_txt_id = _get_text_type(hdr_tt_id)
 dat_txt_id = _get_text_type(dat_tt_id)
 default_line_id = _default_line_style_id()
 
+_T.append(('find_clear_view', _tm.time()))
 # Pass 1: backgrounds (drawn immediately - no batching benefit, each
 # is its own FilledRegion) plus collecting border segments and text
 # specs for passes 2-4 below, instead of drawing borders/text inline
@@ -1212,18 +1242,61 @@ for r, c, _x0_mm, _py, _anchor in _cells:
         'is_header': is_header,
     })
 
+_T.append(('layout_loop', _tm.time()))
+# Pass 3 runs FIRST: the probe measurement needs one doc.Regenerate(), and
+# that regenerate also has to process every element drawn before it. Done
+# here, before any fill, border or text exists, it only regenerates the
+# probes themselves. Nothing below needs a regenerate until the commit.
+_batch_measure_probes(cell_specs)
+_T.append(('measure', _tm.time()))
+
 # Pass 1b: backgrounds, touching same-colour cells joined into one region.
 _draw_merged_fills(view, fill_cells, fill_type_id)
 
+_T.append(('fills', _tm.time()))
 # Pass 2: merge collinear border segments and draw the result.
-for y, x1, x2, rgb, weight in _merge_collinear_segments(h_border_segments):
-    _draw_border_line(view, x1, y, x2, y, default_line_id, rgb, weight)
-for x, y1, y2, rgb, weight in _merge_collinear_segments(v_border_segments):
-    _draw_border_line(view, x, y1, x, y2, default_line_id, rgb, weight)
+_hm = _merge_collinear_segments(h_border_segments)
+_vm = _merge_collinear_segments(v_border_segments)
+_nlines = len(_hm) + len(_vm)
+# NewDetailCurve costs more the more is already in the view (about 40 ms
+# a line on a big table), so every border goes in with ONE
+# NewDetailCurveArray call and is styled afterwards. Falls back to a line
+# at a time if the array call is refused.
+_all_lines = ([(x1, y, x2, y, rgb, w) for y, x1, x2, rgb, w in _hm] +
+              [(x, y1, x, y2, rgb, w) for x, y1, y2, rgb, w in _vm])
+_made = False
+if _all_lines:
+    try:
+        import time as _t2
+        _a0 = _t2.time()
+        _ca = CurveArray()
+        for _x1, _y1, _x2, _y2, _rgb, _w in _all_lines:
+            _ca.Append(Line.CreateBound(XYZ(_x1, _y1, 0), XYZ(_x2, _y2, 0)))
+        _dcs = doc.Create.NewDetailCurveArray(view, _ca)
+        _made = True   # lines exist now; never redraw them singly
+        _LINE_PROF[0] += _t2.time() - _a0
+        _style_el = (doc.GetElement(default_line_id)
+                     if default_line_id and default_line_id != ElementId.InvalidElementId
+                     else None)
+        _i = 0
+        for _dc in _dcs:
+            if _style_el is not None:
+                try:
+                    _dc.LineStyle = _style_el
+                except Exception as _ex:
+                    logger.warning('Set <Lines> style: {}'.format(_ex))
+            _rgb, _w = _all_lines[_i][4], _all_lines[_i][5]
+            _override_color(_dc.Id, _rgb or (0, 0, 0), _w)
+            _i += 1
+    except Exception as _aex:
+        logger.debug('Border array failed: {}'.format(_aex))
+if _all_lines and not _made:
+    # partial/failed array: clear nothing here - a failed call made no lines
+    for x1, y1, x2, y2, rgb, weight in _all_lines:
+        _draw_border_line(view, x1, y1, x2, y2, default_line_id, rgb, weight)
 
-# Pass 3: pre-measure every distinct text-box probe this table needs
-# in one doc.Regenerate() call - see _batch_measure_probes.
-_batch_measure_probes(cell_specs)
+_T.append(('borders', _tm.time()))
+# (Pass 3, the probe measurement, now runs before the fills - see above.)
 
 # Pass 4: place every cell's text. _measure_probe now hits the cache
 # pass 3 already populated, so no further doc.Regenerate() calls
@@ -1236,6 +1309,14 @@ for spec in cell_specs:
                bold=spec['bold'], italic=spec['italic'],
                underline=spec['underline'], is_header=spec['is_header'])
 
+_T.append(('text', _tm.time()))
+try:
+    with open('C:/Users/Fred/Proton Drive/juvenciodas/My files/.Claude/Work Files/pylink_timing.log', 'a') as _fh:
+        _fh.write('   DRAFT cells=%d borders=%d+%d->%d lines [create=%.2f style=%.2f override=%.2f] fills=%d | %s\n' % (
+            len(cell_specs), len(h_border_segments), len(v_border_segments), _nlines, _LINE_PROF[0], _LINE_PROF[1], _LINE_PROF[2],
+            len(fill_cells), ' '.join('%s=%.2f' % (_T[i+1][0], _T[i+1][1]-_T[i][1]) for i in range(len(_T)-1))))
+except Exception:
+    pass
 logger.debug(
     'create_drafting: "{}" {}r x {}c'.format(
         _final_name, n_total_rows, n_cols

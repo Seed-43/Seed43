@@ -317,6 +317,87 @@ def copy_writable_parameters(source, target, skip_names=None):
             pass
 
 
+def _element_key(element, view):
+    """Identify an element by what it is and where it sits in the view, so the
+    same element can be found again in a duplicate of that view."""
+    try:
+        box = element.get_BoundingBox(view)
+    except Exception:
+        box = None
+    where = (round(box.Min.X, 4), round(box.Min.Y, 4),
+             round(box.Max.X, 4), round(box.Max.Y, 4)) if box else None
+    return (element.GetType().Name, eid_int(element.GetTypeId()), where)
+
+
+def match_view_graphics(source, target):
+    """Carry the source view's hidden-line and graphic settings to its copy.
+
+    Show Hidden Lines is set outright (it can be missing from Properties in
+    a drafting view, so the parameter copy can miss it). Per-element graphic
+    overrides are not kept by Duplicate with Detailing, so each override is
+    re-applied to the matching element of the copy.
+    """
+    prm = DB.BuiltInParameter.VIEW_SHOW_HIDDEN_LINES
+    try:
+        sp, tp = source.get_Parameter(prm), target.get_Parameter(prm)
+        if sp is not None and tp is not None and not tp.IsReadOnly:
+            if tp.AsInteger() != sp.AsInteger():
+                tp.Set(sp.AsInteger())
+    except Exception:
+        pass
+
+    try:
+        src_els = [e for e in DB.FilteredElementCollector(doc, source.Id)
+                              .WhereElementIsNotElementType()
+                   if e.OwnerViewId == source.Id]
+        overridden = []
+        for e in src_els:
+            ogs = source.GetElementOverrides(e.Id)
+            if _has_overrides(ogs):
+                overridden.append((e, ogs))
+        if not overridden:
+            return 0
+
+        pool = {}
+        for e in DB.FilteredElementCollector(doc, target.Id) \
+                   .WhereElementIsNotElementType():
+            if e.OwnerViewId == target.Id:
+                pool.setdefault(_element_key(e, target), []).append(e)
+        for lst in pool.values():
+            lst.sort(key=lambda x: eid_int(x.Id))
+
+        applied = 0
+        for e, ogs in sorted(overridden, key=lambda p: eid_int(p[0].Id)):
+            lst = pool.get(_element_key(e, source))
+            if lst:
+                target.SetElementOverrides(lst.pop(0).Id, ogs)
+                applied += 1
+        return applied
+    except Exception:
+        return 0
+
+
+def _has_overrides(ogs):
+    """True when an OverrideGraphicSettings changes anything."""
+    def vid(x):
+        return eid_int(x)
+    return bool(
+        ogs.Halftone
+        or ogs.Transparency != 0
+        or ogs.ProjectionLineWeight != -1
+        or ogs.CutLineWeight != -1
+        or vid(ogs.ProjectionLinePatternId) != -1
+        or vid(ogs.CutLinePatternId) != -1
+        or vid(ogs.SurfaceForegroundPatternId) != -1
+        or vid(ogs.SurfaceBackgroundPatternId) != -1
+        or (ogs.ProjectionLineColor is not None and ogs.ProjectionLineColor.IsValid)
+        or (ogs.CutLineColor is not None and ogs.CutLineColor.IsValid)
+        or (ogs.SurfaceForegroundPatternColor is not None
+            and ogs.SurfaceForegroundPatternColor.IsValid)
+        or (ogs.SurfaceBackgroundPatternColor is not None
+            and ogs.SurfaceBackgroundPatternColor.IsValid))
+
+
 # ── Collect selection ─────────────────────────────────────────────────────────
 
 selected_elements = revit.get_selection().elements
@@ -630,6 +711,8 @@ try:
                             except Exception:
                                 pass
 
+                            match_view_graphics(original_view, new_view)
+
                             # Place on the new sheet, then line it up with the
                             # original: see match_viewport for why not by box.
                             try:
@@ -714,6 +797,8 @@ try:
                         new_view.Name = unique_view_name(view.Name)
                     except Exception:
                         pass
+
+                    match_view_graphics(view, new_view)
 
                     new_element_ids.append(new_id)
                     view_count += 1

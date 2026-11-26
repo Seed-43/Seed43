@@ -961,7 +961,20 @@ def refit_schedule(doc, schedule, default_font='Arial', mode=REFIT_RESET,
     else:
         col_overrides = {}
 
+    # A column under 1 mm is a group divider (a thin black column) - it is
+    # not text and must stay exactly as thin as it was built.
+    thin_cols = set()
     for c in range(n_cols):
+        try:
+            if section.GetColumnWidth(c) * MM_PER_FT < 1.0:
+                thin_cols.add(c)
+                col_mm[c] = section.GetColumnWidth(c) * MM_PER_FT
+        except Exception:
+            pass
+
+    for c in range(n_cols):
+        if c in thin_cols:
+            continue
         col_mm[c] = min(REFIT_MAX_COL_MM,
                         max(AUTOFIT_MIN_COL_MM,
                             col_mm.get(c, 0.0) + AUTOFIT_PAD_W_MM,
@@ -972,9 +985,10 @@ def refit_schedule(doc, schedule, default_font='Arial', mode=REFIT_RESET,
         if not span_cols:
             continue
         shortfall = need + AUTOFIT_PAD_W_MM - sum(col_mm[x] for x in span_cols)
-        if shortfall > 0:
-            share = shortfall / len(span_cols)
-            for x in span_cols:
+        grow_cols = [x for x in span_cols if x not in thin_cols]
+        if shortfall > 0 and grow_cols:
+            share = shortfall / len(grow_cols)
+            for x in grow_cols:
                 col_mm[x] += share
 
     # ── Row heights at those widths ──
@@ -1148,6 +1162,218 @@ def _run_export_script(script_name, payload):
     # can tag the actual view that was created — used for the
     # ElementId-based ownership tracking.
     return ns.get('PYLINK_RESULT')
+
+def view_matches_type(view, view_type):
+    """True if an existing view is already the kind of view this row asks
+    for (Schedule / Drafting / Legend). Anything unknown counts as a match,
+    so a surprise never triggers a delete."""
+    try:
+        if view_type == VIEW_TYPE_SCHEDULE:
+            return isinstance(view, DB.ViewSchedule)
+        if view_type == VIEW_TYPE_DRAFTING:
+            return isinstance(view, DB.ViewDrafting)
+        if view_type == VIEW_TYPE_LEGEND:
+            return view.ViewType == DB.ViewType.Legend
+    except Exception:
+        pass
+    return True
+
+
+# Parameters that belong to one kind of view and must not travel to another,
+# or that pyLink sets itself.
+_SWAP_SKIP_PARAMS = set([
+    'View Name', 'Family', 'Family and Type', 'Type', 'pyLink', 'None',
+    'Title on Sheet', 'View Template', 'Saved Position', 'Detail Number',
+    'Rotation on Sheet', 'Detail Level', 'View Scale', 'Scale', 'Visual Style',
+    'Discipline', 'Phase', 'Phase Filter', 'Schedule', 'Export to IFC',
+    'Sheet Number', 'Sheet Name', 'Referencing Sheet', 'Referencing Detail',
+])
+
+
+def _swap_param_values(view):
+    """[(name, storage type, value)] for every writable parameter of a view
+    that holds a value, minus the ones that belong to one kind of view."""
+    saved = []
+    for p in view.Parameters:
+        try:
+            if p.IsReadOnly:
+                continue
+            name = p.Definition.Name
+            if name in _SWAP_SKIP_PARAMS:
+                continue
+            st = p.StorageType
+            if st == DB.StorageType.String:
+                val = p.AsString()
+                if not val:
+                    continue
+            elif st == DB.StorageType.Integer:
+                val = p.AsInteger()
+            elif st == DB.StorageType.Double:
+                val = p.AsDouble()
+            elif st == DB.StorageType.ElementId:
+                val = p.AsElementId()
+                if val is None or val == DB.ElementId.InvalidElementId:
+                    continue
+            else:
+                continue
+            saved.append((name, st, val))
+        except Exception:
+            continue
+    return saved
+
+
+def _set_swap_params(view, saved):
+    """Write saved parameter values onto a view, by name, where the view
+    has the same parameter. Returns how many were set."""
+    n = 0
+    for name, st, val in saved:
+        try:
+            p = view.LookupParameter(name)
+            if p is None or p.IsReadOnly or p.StorageType != st:
+                continue
+            p.Set(val)
+            n += 1
+        except Exception as ex:
+            logger.debug('swap param "{}": {}'.format(name, ex))
+    return n
+
+
+def _content_size(view):
+    """(width, height) in feet of everything drawn in a drafting view or
+    legend, or None when it holds nothing measurable."""
+    xs, ys = [], []
+    for e in DB.FilteredElementCollector(doc, view.Id).ToElements():
+        try:
+            bb = e.get_BoundingBox(view)
+        except Exception:
+            bb = None
+        if bb is None:
+            continue
+        xs += [bb.Min.X, bb.Max.X]
+        ys += [bb.Min.Y, bb.Max.Y]
+    if not xs:
+        return None
+    return (max(xs) - min(xs), max(ys) - min(ys))
+
+
+def _viewport_visible_top_left(vp, size):
+    """Sheet point of the top-left corner of what a viewport SHOWS. The
+    viewport's own box runs a few mm past the content on every side, and
+    the content is centred in it, so the corner is the box centre moved
+    back half the content size."""
+    c = vp.GetBoxCenter()
+    return (c.X - size[0] / 2.0, c.Y + size[1] / 2.0)
+
+
+def capture_view_for_swap(view):
+    """Everything needed to put a replacement view where this one is: each
+    sheet it sits on with the top-left corner of what it shows, the
+    viewport type, and the Title on Sheet text. A drafting view or legend
+    is a Viewport on the sheet and a schedule is a ScheduleSheetInstance;
+    what they share is where the top-left of the table sits."""
+    saved = {'sheets': [], 'title': None, 'params': []}
+    try:
+        saved['params'] = _swap_param_values(view)
+    except Exception as ex:
+        logger.debug('swap params capture: {}'.format(ex))
+    try:
+        p = view.get_Parameter(DB.BuiltInParameter.VIEW_DESCRIPTION)
+        if p is None:
+            p = view.LookupParameter('Title on Sheet')
+        if p is not None:
+            saved['title'] = p.AsString()
+    except Exception:
+        pass
+    try:
+        if isinstance(view, DB.ViewSchedule):
+            insts = list(DB.FilteredElementCollector(doc)
+                         .OfClass(DB.ScheduleSheetInstance).ToElements())
+            for inst in insts:
+                try:
+                    if inst.ScheduleId != view.Id:
+                        continue
+                    saved['sheets'].append({
+                        'sheet': inst.OwnerViewId,
+                        'tl': (inst.Point.X, inst.Point.Y),
+                        'vp_type': None})
+                except Exception as ex:
+                    logger.debug('swap capture (schedule): {}'.format(ex))
+        else:
+            size = _content_size(view)
+            vps = list(DB.FilteredElementCollector(doc)
+                       .OfClass(DB.Viewport).ToElements())
+            for vp in vps:
+                try:
+                    if vp.ViewId != view.Id:
+                        continue
+                    if size is not None:
+                        tl = _viewport_visible_top_left(vp, size)
+                    else:
+                        o = vp.GetBoxOutline()
+                        tl = (o.MinimumPoint.X, o.MaximumPoint.Y)
+                    saved['sheets'].append({
+                        'sheet': vp.SheetId, 'tl': tl,
+                        'vp_type': vp.GetTypeId()})
+                except Exception as ex:
+                    logger.debug('swap capture (viewport): {}'.format(ex))
+    except Exception as ex:
+        logger.debug('swap capture: {}'.format(ex))
+    return saved
+
+
+def restore_view_after_swap(new_view, saved):
+    """Put new_view on the sheets the old one was on, with the top-left of
+    what it shows at the old one's point, and give it the old Title on
+    Sheet. Returns how many sheets it was placed on."""
+    placed = 0
+    size = None
+    if not isinstance(new_view, DB.ViewSchedule):
+        size = _content_size(new_view)
+    with revit.Transaction('pyLink - place replaced view'):
+        for s in saved.get('sheets', []):
+            try:
+                tl = s['tl']
+                if isinstance(new_view, DB.ViewSchedule):
+                    # A schedule's Point IS the top-left of its table.
+                    DB.ScheduleSheetInstance.Create(
+                        doc, s['sheet'], new_view.Id,
+                        DB.XYZ(tl[0], tl[1], 0))
+                else:
+                    el = DB.Viewport.Create(
+                        doc, s['sheet'], new_view.Id, DB.XYZ(tl[0], tl[1], 0))
+                    vt = s.get('vp_type')
+                    if vt is not None and vt != DB.ElementId.InvalidElementId:
+                        try:
+                            el.ChangeTypeId(vt)
+                        except Exception:
+                            pass
+                    doc.Regenerate()
+                    if size is not None:
+                        cur = _viewport_visible_top_left(el, size)
+                    else:
+                        o = el.GetBoxOutline()
+                        cur = (o.MinimumPoint.X, o.MaximumPoint.Y)
+                    dx, dy = tl[0] - cur[0], tl[1] - cur[1]
+                    if abs(dx) > 1e-9 or abs(dy) > 1e-9:
+                        DB.ElementTransformUtils.MoveElement(
+                            doc, el.Id, DB.XYZ(dx, dy, 0))
+                placed += 1
+            except Exception as ex:
+                logger.warning('Could not place replaced view on a sheet: {}'
+                               .format(ex))
+        _set_swap_params(new_view, saved.get('params', []))
+        title = saved.get('title')
+        if title is not None:
+            try:
+                p = new_view.get_Parameter(DB.BuiltInParameter.VIEW_DESCRIPTION)
+                if p is None:
+                    p = new_view.LookupParameter('Title on Sheet')
+                if p is not None and not p.IsReadOnly:
+                    p.Set(title)
+            except Exception as ex:
+                logger.debug('Title on Sheet: {}'.format(ex))
+    return placed
+
 
 def _ensure_pylink_param_bound():
     """
@@ -1376,10 +1602,13 @@ def save_pylink_state(file_data):
             en = '1' if getattr(row, 'Enabled', True) else '0'
             sp = getattr(row, 'SplitMode', SPLIT_EXCEL) or SPLIT_EXCEL
             sv = getattr(row, 'SplitValue', '') or ''
-            lines.append('VN-{}|S-{}|R-{}|VT-{}|MT-{}|H-{}|CN-{}|PR-{}|GR-{}|AT-{}|AVN-{}|VS-{}|VID-{}|EN-{}|SP-{}|SV-{}'.format(
+            sm = getattr(row, 'SchedMode', SCHED_ONE)
+            if sm not in SCHED_MODES:
+                sm = SCHED_ONE
+            lines.append('VN-{}|S-{}|R-{}|VT-{}|MT-{}|H-{}|CN-{}|PR-{}|GR-{}|AT-{}|AVN-{}|VS-{}|VID-{}|EN-{}|SP-{}|SV-{}|SM-{}'.format(
                 row.ViewName, row.Sheet, row.NamedRange,
                 row.ViewType, mt, h, cn, pr, gr, at, avn, vs, vid, en,
-                sp, sv))
+                sp, sv, sm))
         # Card-level word settings
         ss = fd.get('sheet_size', '')
         cc = fd.get('col_count', '')
@@ -1399,19 +1628,21 @@ def save_pylink_state(file_data):
         cl = '1' if fd.get('collapsed') else '0'
         cv = '1' if fd.get('combine_views') else '0'
         sc = card_native_scale(fd)
+        sm = card_sched_mode(fd)
         if ss:
-            lines.append('CARD_SS-{}|CC-{}|VN-{}|VT-{}|RP-{}|UL-{}|PM-{}|LM-{}|AVN-{}|CAT-{}|CL-{}|CV-{}|SC-{}'.format(
-                ss, cc, vn, vt, rp_stored, ul, pm, lm, avn, card_at, cl, cv, sc))
+            lines.append('CARD_SS-{}|CC-{}|VN-{}|VT-{}|RP-{}|UL-{}|PM-{}|LM-{}|AVN-{}|CAT-{}|CL-{}|CV-{}|SC-{}|SM-{}'.format(
+                ss, cc, vn, vt, rp_stored, ul, pm, lm, avn, card_at, cl, cv, sc, sm))
         elif (rp != path or fd.get('unlinked') or pm != 'absolute'
                 or lm != 'manual' or avn or fd.get('collapsed')
                 or fd.get('combine_views')
-                or sc != DEFAULT_NATIVE_SCALE):
+                or sc != DEFAULT_NATIVE_SCALE
+                or sm != SCHED_ONE):
             # Excel duplicate/unlinked cards have no sheet_size line,
             # still need real_path (and now unlink/path-mode/layout
             # mode/applied view name) recorded so they round-trip on
             # reload.
-            lines.append('CARD_RP-{}|UL-{}|PM-{}|LM-{}|AVN-{}|CAT-{}|CL-{}|CV-{}|SC-{}'.format(
-                rp_stored, ul, pm, lm, avn, card_at, cl, cv, sc))
+            lines.append('CARD_RP-{}|UL-{}|PM-{}|LM-{}|AVN-{}|CAT-{}|CL-{}|CV-{}|SC-{}|SM-{}'.format(
+                rp_stored, ul, pm, lm, avn, card_at, cl, cv, sc, sm))
     text = '\n'.join(lines)
     try:
         p = _get_pylink_param()
@@ -1442,6 +1673,19 @@ SPLIT_MODES  = (SPLIT_EXCEL, SPLIT_ROWS, SPLIT_HEIGHT)
 # one number keeps every proportion of the sheet, where separate text and
 # cell sizes drifted apart.
 NATIVE_SCALE_OPTIONS = (0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
+
+# How a schedule that splits into parts is built (the card dropdown).
+# One schedule: the parts sit side by side inside ONE wide schedule. A
+# header-section schedule cannot be split by Revit, so the parts are laid
+# out as columns instead. Schedule per part: one schedule for each part.
+SCHED_ONE = 'One schedule'
+SCHED_PER_PART = 'Schedule per part'
+SCHED_MODES = (SCHED_ONE, SCHED_PER_PART)
+
+
+def card_sched_mode(fd):
+    m = fd.get('sched_mode') if fd else None
+    return m if m in SCHED_MODES else SCHED_ONE
 DEFAULT_NATIVE_SCALE = 0.7
 
 # Excel's point size is the font's full em height; Revit's text size is
@@ -1598,6 +1842,8 @@ def load_pylink_state():
                     current['collapsed'] = parts.get('CL') == '1'
                     current['combine_views'] = parts.get('CV') == '1'
                     current['native_scale'] = _parse_native_scale(parts.get('SC'))
+                    current['sched_mode'] = (parts.get('SM') if parts.get('SM') in SCHED_MODES
+                                             else SCHED_ONE)
                     continue
                 if 'CARD_RP' in parts:
                     # Excel duplicate card, no sheet_size line, just the
@@ -1612,6 +1858,8 @@ def load_pylink_state():
                     current['collapsed'] = parts.get('CL') == '1'
                     current['combine_views'] = parts.get('CV') == '1'
                     current['native_scale'] = _parse_native_scale(parts.get('SC'))
+                    current['sched_mode'] = (parts.get('SM') if parts.get('SM') in SCHED_MODES
+                                             else SCHED_ONE)
                     continue
                 mt = parts.get('MT', '')
                 at = parts.get('AT', '')
@@ -1638,6 +1886,8 @@ def load_pylink_state():
                     'enabled': parts.get('EN', '1') == '1',
                     'split_mode':  parts.get('SP') or SPLIT_EXCEL,
                     'split_value': parts.get('SV', ''),
+                    'sched_mode':  (parts.get('SM') if parts.get('SM') in SCHED_MODES
+                                    else SCHED_ONE),
                 })
         # Resolve any relative path/real_path back to absolute now
         # that we know the current doc's location.
@@ -1710,6 +1960,9 @@ class Row(object):
         # per part) or 'Height' (parts no taller than SplitValue mm).
         self.SplitMode        = SPLIT_EXCEL
         self.SplitValue       = ''
+        # Schedule rows only: how a table that splits into parts is built
+        # (SCHED_ONE = one wide schedule, SCHED_PER_PART = a schedule per part)
+        self.SchedMode        = SCHED_ONE
         self.Priority          = 'Medium' # High/Medium/Low - layout algo reorder freedom
         self.Group             = ''       # section group name, packs with same-group rows
         self._col_textbox     = None   # TextBox for col number

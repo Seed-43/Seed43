@@ -77,7 +77,7 @@ def _github_menu_label():
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools'))
 from pylink_shared import (
     hb, Row, VIEW_TYPES, WORD_VIEW_TYPES, SHEET_SIZES, SRC_COLOURS,
-    VIEW_TYPE_SCHEDULE,
+    VIEW_TYPE_SCHEDULE, view_matches_type,
     STATUS_COLOURS, _alert, _confirm,
     _get_pylink_param, _doc_base_dir, _to_relative, _to_absolute,
     save_pylink_state, load_pylink_state, _run_export_script,
@@ -87,8 +87,9 @@ from pylink_shared import (
     load_excel_font_settings, save_excel_font_settings,
     get_installed_font_names,
     REFIT_RESET as _REFIT_RESET, REFIT_CURRENT as _REFIT_CURRENT,
-    DEFAULT_NATIVE_SCALE, card_native_scale,
-    SPLIT_MODES, SPLIT_EXCEL,
+    DEFAULT_NATIVE_SCALE, card_native_scale, card_sched_mode,
+    SCHED_ONE, SCHED_MODES, get_view_pylink_data,
+    SPLIT_MODES, SPLIT_EXCEL, SPLIT_ROWS, SPLIT_HEIGHT,
 )
 from pylink_excel import (
     TableRow, get_named_ranges_from_workbook, apply_row, _hash_range,
@@ -530,6 +531,7 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             vtc.Items.Add(vt)
         vtc.SelectedItem    = row.ViewType
         vtc.Tag             = row
+        row._vt_cb          = vtc
         vtc.SelectionChanged += self._vt_changed
         sp.Children.Add(vtc)
 
@@ -538,7 +540,7 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         # rows can leave it at the 1 default, it's harmless there).
         sctb = TextBox()
         sctb.Text     = str(getattr(row, 'ViewScale', 1))
-        sctb.Width    = 50
+        sctb.Width    = 120      # same as the schedule-mode dropdown
         try:
             sctb.Style = self.FindResource('TextBoxStyle')
         except Exception as e:
@@ -548,7 +550,32 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         sctb.Tag                 = row
         sctb.ToolTip             = 'View scale (e.g. 50 for 1:50) - Legend/Drafting views only.'
         sctb.LostFocus          += self._view_scale_changed
+        # Schedule rows have no view scale, so the same slot holds the
+        # schedule mode instead: how a table that splits into parts is
+        # built. One schedule = the parts side by side in ONE wide
+        # schedule; Schedule per part = a schedule for each part.
+        smcb = ComboBox()
+        self._combo_style(smcb, 120)
+        smcb.Margin = Thickness(0, 0, 4, 0)
+        for _m in SCHED_MODES:
+            smcb.Items.Add(_m)
+        smcb.SelectedItem = (getattr(row, 'SchedMode', SCHED_ONE)
+                             if getattr(row, 'SchedMode', SCHED_ONE) in SCHED_MODES
+                             else SCHED_ONE)
+        smcb.ToolTip = ('How a table that splits into parts becomes schedules.\n'
+                        'One schedule: the parts sit side by side in one wide '
+                        'schedule, headings repeated.\n'
+                        'Schedule per part: a separate schedule for each part, '
+                        'placed side by side.')
+        smcb.Tag = row
+        smcb.SelectionChanged += self._sched_mode_row_changed
+        row._scale_tb = sctb
+        row._sched_cb = smcb
+        _is_sched = (row.ViewType == VIEW_TYPE_SCHEDULE)
+        sctb.Visibility = Visibility.Collapsed if _is_sched else Visibility.Visible
+        smcb.Visibility = Visibility.Visible if _is_sched else Visibility.Collapsed
         sp.Children.Add(sctb)
+        sp.Children.Add(smcb)
 
         # Split - where a long Legend/Drafting table breaks into parts
         # drawn side by side, headings repeated on each.
@@ -564,11 +591,12 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                        'Rows: a set number of data rows per part.\n'
                        'Height: parts no taller than a set height in mm.')
         spc.Tag = row
+        row._split_cb = spc
         sp.Children.Add(spc)
 
         svtb = TextBox()
         svtb.Text  = getattr(row, 'SplitValue', '') or ''
-        svtb.Width = 50
+        svtb.Width = 84       # same as the Split dropdown
         try:
             svtb.Style = self.FindResource('TextBoxStyle')
         except Exception as e:
@@ -1213,16 +1241,174 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         def all_rows():
             return [r for fd in self._file_data.values() for r in fd['rows']]
 
-        panel.Children.Add(item('Select all',
-            lambda s, ev: [setattr(r, 'Enabled', True) for r in all_rows()]))
-        panel.Children.Add(item('Deselect all',
-            lambda s, ev: [setattr(r, 'Enabled', False) for r in all_rows()]))
-        panel.Children.Add(item(u'Set all \u2192 Schedule View',
-            lambda s, ev: [setattr(r, 'ViewType', 'Schedule View')
-                           for r in all_rows()]))
-        panel.Children.Add(item(u'Set all \u2192 Legend View',
-            lambda s, ev: [setattr(r, 'ViewType', 'Legend View')
-                           for r in all_rows()]))
+        # Acts on the TICKED rows of every card.
+        self._add_batch_setters(panel, self.BatchPopup, all_rows)
+
+    # ── Batch: set one thing on every ticked row ──
+
+    def _batch_tick_all(self, state):
+        """Tick or untick every row, boxes and all."""
+        for path, fd in self._file_data.items():
+            for r in fd.get('rows', []):
+                r.Enabled = state
+                if r._enabled_cb is not None:
+                    r._enabled_cb.IsChecked = state
+            try:
+                self._update_tri_select_state(path)
+            except Exception:
+                pass
+        self._update_footer()
+        self._save_persisted_state()
+
+    def _ticked(self, rows_fn):
+        return [r for r in rows_fn() if r.Enabled and r.SourceType != 'word']
+
+    def _add_batch_setters(self, panel, popup, rows_fn):
+        """The Batch entries that set View Type, schedule Mode, Scale, Split
+        and Rows / mm on every ticked row of `rows_fn()`."""
+        def item(label, fn):
+            return self._make_menu_item(label, fn, popup)
+
+        if panel.Children.Count:
+            panel.Children.Add(self._make_menu_separator())
+        for vt in VIEW_TYPES:
+            panel.Children.Add(item(
+                u'Ticked: View Type \u2192 {}'.format(vt),
+                lambda s, ev, v=vt: self._batch_view_type(self._ticked(rows_fn), v)))
+        panel.Children.Add(self._make_menu_separator())
+        for m in SCHED_MODES:
+            panel.Children.Add(item(
+                u'Ticked: Mode \u2192 {}'.format(m),
+                lambda s, ev, v=m: self._batch_sched_mode(self._ticked(rows_fn), v)))
+        panel.Children.Add(item(
+            u'Ticked: Scale\u2026',
+            lambda s, ev: self._batch_scale(self._ticked(rows_fn))))
+        panel.Children.Add(self._make_menu_separator())
+        for m in SPLIT_MODES:
+            panel.Children.Add(item(
+                u'Ticked: Split \u2192 {}'.format(m),
+                lambda s, ev, v=m: self._batch_split_mode(self._ticked(rows_fn), v)))
+        panel.Children.Add(item(
+            u'Ticked: Rows / mm\u2026',
+            lambda s, ev: self._batch_split_value(self._ticked(rows_fn))))
+
+    def _batch_say(self, text):
+        self._set_status(text)
+        try:
+            self._refresh_status_card()
+        except Exception:
+            pass
+
+    def _batch_view_type(self, rows, vt):
+        if not rows:
+            self._batch_say('No rows are ticked.')
+            return
+        n = 0
+        for r in rows:
+            if r.ViewType == vt:
+                continue
+            cb = getattr(r, '_vt_cb', None)
+            if cb is not None:
+                cb.SelectedItem = vt          # runs the row's own handler
+            else:
+                r.ViewType = vt
+                self._mark_row_changed(r)
+            n += 1
+        self._save_persisted_state()
+        self._batch_say('View Type \u2192 {}: {} row(s) changed.'.format(vt, n))
+
+    def _batch_sched_mode(self, rows, mode):
+        rows = [r for r in rows if r.ViewType == VIEW_TYPE_SCHEDULE]
+        if not rows:
+            self._batch_say('No ticked Schedule rows.')
+            return
+        n = 0
+        for r in rows:
+            if getattr(r, 'SchedMode', SCHED_ONE) == mode:
+                continue
+            cb = getattr(r, '_sched_cb', None)
+            if cb is not None:
+                cb.SelectedItem = mode
+            else:
+                r.SchedMode = mode
+                self._mark_row_changed(r)
+            n += 1
+        self._save_persisted_state()
+        self._batch_say('Mode \u2192 {}: {} schedule row(s) changed.'.format(mode, n))
+
+    def _batch_scale(self, rows):
+        rows = [r for r in rows if r.ViewType != VIEW_TYPE_SCHEDULE]
+        if not rows:
+            self._batch_say('No ticked Drafting or Legend rows (a schedule '
+                            'has a Mode, not a Scale).')
+            return
+        text = forms.ask_for_string(default=str(getattr(rows[0], 'ViewScale', 1)),
+                                    prompt='View scale for the ticked Drafting / Legend rows (e.g. 1, 20, 50):',
+                                    title='Batch: Scale')
+        if not text:
+            return
+        try:
+            val = int(text.strip())
+            if val <= 0:
+                raise ValueError(text)
+        except Exception:
+            _alert('"{}" is not a whole number.'.format(text), title='Batch: Scale')
+            return
+        n = 0
+        for r in rows:
+            if getattr(r, 'ViewScale', 1) == val:
+                continue
+            r.ViewScale = val
+            tb = getattr(r, '_scale_tb', None)
+            if tb is not None:
+                tb.Text = str(val)
+            self._mark_row_changed(r)
+            n += 1
+        self._save_persisted_state()
+        self._batch_say('Scale {}: {} row(s) changed.'.format(val, n))
+
+    def _batch_split_mode(self, rows, mode):
+        if not rows:
+            self._batch_say('No rows are ticked.')
+            return
+        n = 0
+        for r in rows:
+            if getattr(r, 'SplitMode', SPLIT_EXCEL) == mode:
+                continue
+            cb = getattr(r, '_split_cb', None)
+            if cb is not None:
+                cb.SelectedItem = mode        # runs the row's own handler
+            else:
+                r.SplitMode = mode
+                self._mark_row_changed(r)
+            n += 1
+        self._save_persisted_state()
+        self._batch_say('Split \u2192 {}: {} row(s) changed.'.format(mode, n))
+
+    def _batch_split_value(self, rows):
+        rows = [r for r in rows
+                if getattr(r, 'SplitMode', SPLIT_EXCEL) in (SPLIT_ROWS, SPLIT_HEIGHT)]
+        if not rows:
+            self._batch_say('No ticked rows are set to split by Rows or Height.')
+            return
+        text = forms.ask_for_string(default=str(getattr(rows[0], 'SplitValue', '') or ''),
+                                    prompt='Rows per part (Rows) or max part height in mm (Height), for the ticked rows:',
+                                    title='Batch: Rows / mm')
+        if not text:
+            return
+        n = 0
+        for r in rows:
+            tb = getattr(r, '_split_value_tb', None)
+            if tb is None:
+                continue
+            old = getattr(r, 'SplitValue', '')
+            tb.Text = text.strip()
+            self._split_value_changed(tb, None)       # validates and stores it
+            if getattr(r, 'SplitValue', '') != old:
+                self._mark_row_changed(r)
+                n += 1
+        self._save_persisted_state()
+        self._batch_say('Rows / mm: {} row(s) changed.'.format(n))
 
     def OnMenuOpened(self, sender, e):
         """MenuPopup's own Opened event - fires right as the hamburger
@@ -1440,9 +1626,9 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         if not changed:
             _alert('No text heights changed.', title=title)
             return
-        _alert(u'{0} text height(s) updated:\n\n{1}\n\nRebuild a schedule, '
-               u'or use Reset Cell Sizes on one already built, to see the '
-               u'new size.'.format(len(changed), u'\n'.join(changed)),
+        _alert(u'{0} text height(s) updated:\n\n{1}\n\nRebuild a schedule '
+               u'(Apply) to see the new size.'.format(
+                   len(changed), u'\n'.join(changed)),
                title=title)
 
     def _open_default_font_editor(self):
@@ -1560,6 +1746,32 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
     def OnApply(self, sender, e):
         all_rows = [r for fd in self._file_data.values()
                     for r in fd['rows'] if r.Enabled]
+
+        # Apply only what needs it: a row that is already 'success' (green,
+        # matches its Excel range) is left alone. Hold Shift to re-apply
+        # every checked row. Rows sharing one view (combined legend/drafting
+        # runs) are rebuilt as a unit, so one changed row brings its whole
+        # run with it.
+        try:
+            from System.Windows.Input import Keyboard, ModifierKeys
+            _force = bool(Keyboard.Modifiers & ModifierKeys.Shift)
+        except Exception:
+            _force = False
+        if not _force:
+            _needed = [r for r in all_rows if r.Status != 'success']
+            _keep = set(id(r) for r in _needed)
+            for r in _needed:
+                if r.SourceType != 'word':
+                    for sib in self._run_siblings(r):
+                        _keep.add(id(sib))
+            _total_checked = len(all_rows)
+            all_rows = [r for r in all_rows if id(r) in _keep]
+            if not all_rows:
+                self._set_status(
+                    'Nothing to update - all {} checked rows are up to date. '
+                    'Hold Shift while clicking Apply to re-apply all.'.format(
+                        _total_checked))
+                return
         # Cards that have rows but none of them checked — these get
         # silently skipped below with no per-row error to explain why,
         # so surface them in the status message instead.
@@ -1749,6 +1961,7 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             tr.split_mode  = getattr(row, 'SplitMode', SPLIT_EXCEL)
             tr.split_value = getattr(row, 'SplitValue', '')
             tr.native_scale = self._row_native_scale(row)
+            tr.sched_mode  = getattr(row, 'SchedMode', SCHED_ONE)
             tr.file_path   = row.FilePath
             tr.auto_sync   = False
             tr.stack_index = _stack.get(id(row), 0)
@@ -1812,12 +2025,16 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         if self._progress_bar is not None:
             self._progress_bar.Value      = 100
             import threading, System
+            # Resolved here, on the UI thread: the lambda below runs on a
+            # worker thread where the module-level name was not found.
+            _collapsed = Visibility.Collapsed
+            _bar = self._progress_bar
             def _hide():
                 import time
                 time.sleep(1.0)
-                self._progress_bar.Dispatcher.Invoke(
+                _bar.Dispatcher.Invoke(
                     System.Action(lambda: setattr(
-                        self._progress_bar, 'Visibility', Visibility.Collapsed)))
+                        _bar, 'Visibility', _collapsed)))
             threading.Thread(target=_hide).start()
         self._refresh_status_card()
 
@@ -2128,6 +2345,7 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                 row._applied_view_name = rdata.get('applied_view_name', None)
                 row.ViewScale       = int(rdata.get('view_scale', 1) or 1)
                 row.SplitMode       = rdata.get('split_mode') or SPLIT_EXCEL
+                row.SchedMode       = rdata.get('sched_mode') or SCHED_ONE
                 row.SplitValue      = rdata.get('split_value', '') or ''
                 row._applied_view_id = rdata.get('applied_view_id', None)
                 # Row.__init__ defaults Enabled=False, right for a blank new
@@ -2245,16 +2463,24 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
 
             # Check if a view with this name exists
             found = False
+            _found_view = None
             for v in query.get_elements_by_class(DB.View, doc=revit.doc):
                 try:
                     if v.Name == view_name:
                         found = True
+                        _found_view = v
                         break
                 except Exception:
                     continue
 
             if not found:
                 return 'pending'
+
+            # The view is there but is the wrong kind (the row was switched
+            # between Drafting / Legend / Schedule): it needs rebuilding.
+            if (row.SourceType != 'word' and _found_view is not None
+                    and not view_matches_type(_found_view, row.ViewType)):
+                return 'sync'
 
             # View exists — compare content hash to detect changes
             try:
@@ -2418,6 +2644,7 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                     tr.split_mode  = getattr(_r, 'SplitMode', SPLIT_EXCEL)
                     tr.split_value = getattr(_r, 'SplitValue', '')
                     tr.native_scale = self._row_native_scale(_r)
+                    tr.sched_mode  = getattr(_r, 'SchedMode', SCHED_ONE)
                     tr.file_path   = _r.FilePath
                     tr.auto_sync   = False
                     tr.stack_index = _stack2.get(id(_r), 0)
@@ -2710,11 +2937,11 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         popup_panel.Children.Add(item(
             ('\u2713  ' if _combined else '') + 'Combine onto one view',
             lambda s, ev: self._toggle_combine_views(path)))
-        popup_panel.Children.Add(item('Reset Cell Sizes',
-            lambda s, ev: self._card_refit_views(path, _REFIT_RESET)))
         popup_panel.Children.Add(item('Update Cells After Resizing',
             lambda s, ev: self._card_refit_views(path, _REFIT_CURRENT)))
         popup_panel.Children.Add(self._make_menu_separator())
+        popup_panel.Children.Add(item(u'Relink to new path\u2026',
+            lambda s, ev: self._card_change_source(path)))
         popup_panel.Children.Add(item('Open File',
             lambda s, ev: self._card_open_file(path)))
         popup_panel.Children.Add(item('Open Folder',
@@ -2942,6 +3169,10 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             nr.ViewType   = row.ViewType
             nr.ColNo      = row.ColNo
             nr.Enabled    = row.Enabled
+            nr.ViewScale  = getattr(row, 'ViewScale', 1)
+            nr.SplitMode  = getattr(row, 'SplitMode', SPLIT_EXCEL)
+            nr.SplitValue = getattr(row, 'SplitValue', '')
+            nr.SchedMode  = getattr(row, 'SchedMode', SCHED_ONE)
             new_fd['rows'].append(nr)
             row_ui = self._make_row_ui(nr)
             row_ui.Tag = nr
@@ -2976,6 +3207,74 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         self._update_card_link_badge(path)
         self._save_persisted_state()
         self._set_status('Path storage: {}'.format(fd['path_mode']))
+
+    def _card_change_source(self, path):
+        """Card menu -> Relink to new path: point this card at a different
+        file (a moved or renamed copy of the same workbook) and keep its
+        rows. Every row's sheet and range must exist in the new file, or
+        nothing changes. Rows are re-checked against the new content, so
+        they show blue where it differs."""
+        title = 'Relink to new path'
+        fd = self._file_data.get(path)
+        if fd is None:
+            return
+        old = fd.get('real_path', path)
+        if fd.get('source_type') == 'word':
+            _alert('Relink works on spreadsheet cards.', title=title)
+            return
+        new = forms.pick_file(
+            files_filter='Spreadsheets (*.xlsx;*.ods)|*.xlsx;*.ods|All files (*.*)|*.*',
+            init_dir=os.path.dirname(old) if old else '')
+        if not new:
+            return
+        new = os.path.normpath(new)
+        if new == os.path.normpath(old):
+            return
+        try:
+            wb = get_named_ranges_from_workbook(new)
+        except Exception as ex:
+            _alert('Could not read that file:\n{}'.format(ex), title=title)
+            return
+        sheets = wb.get('sheets', [])
+        srmap = wb.get('sheet_ranges', {})
+        if not srmap:
+            all_r = wb.get('named_ranges', [])
+            srmap = dict((s, all_r) for s in sheets)
+        missing = []
+        for r in fd.get('rows', []):
+            if r.Sheet not in srmap:
+                missing.append(u'{}: sheet "{}"'.format(r.ViewName or r.NamedRange, r.Sheet))
+            elif r.NamedRange not in srmap.get(r.Sheet, []):
+                missing.append(u'{}: range "{}" on "{}"'.format(
+                    r.ViewName or r.NamedRange, r.NamedRange, r.Sheet))
+        if missing:
+            _alert(u'The new file is missing {} thing(s) these rows use, so '
+                   u'nothing was changed:\n\n{}'.format(
+                       len(missing), u'\n'.join(missing[:12])
+                       + (u'\n...' if len(missing) > 12 else u'')),
+                   title=title)
+            return
+        fd['real_path'] = new
+        fd['sheets'] = sheets
+        fd['sheet_range_map'] = srmap
+        fd['unlinked'] = False
+        for r in fd.get('rows', []):
+            r.FilePath = new
+            r._unlinked = False
+            r._sheets = sheets
+            r._sheet_range_map = srmap
+            r.LastModified = r._mtime(new)
+            r.Status = self._check_row_status(r, path)
+            try:
+                if r._dot is not None:
+                    r._dot.Fill = hb(STATUS_COLOURS.get(r.Status, '#6B7280'))
+                self._set_sync_btn_state(r._refresh_btn, r.Status == 'sync')
+            except Exception:
+                pass
+        self._update_card_link_badge(path)
+        self._refresh_status_card()
+        self._save_persisted_state()
+        self._set_status('Relinked to {}'.format(os.path.basename(new)))
 
     def _card_open_file(self, path):
         fd = self._file_data.get(path)
@@ -3067,6 +3366,16 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                             doc.Delete(v.Id)
                             removed += 1
                             break
+                    except Exception:
+                        continue
+                # "<name> (2)", "(3)"... : the extra schedules a row builds
+                # when it makes a schedule per part (only pyLink's own)
+                for v in list(query.get_elements_by_class(DB.ViewSchedule, doc=doc)):
+                    try:
+                        if (v.Name.startswith(view_name + ' (')
+                                and get_view_pylink_data(v)):
+                            doc.Delete(v.Id)
+                            removed += 1
                     except Exception:
                         continue
                 row.Status          = 'pending'

@@ -25,6 +25,7 @@ from System.Windows.Controls import (
     Grid, ColumnDefinition
 )
 from System.Windows.Controls.Primitives import Popup, ToggleButton
+from System.Windows.Input import Cursors
 from System.Windows.Shapes import Ellipse
 
 logger = script.get_logger()
@@ -54,11 +55,13 @@ import sys as _sys
 _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pylink_shared import (
     hb, Row, VIEW_TYPES, SRC_COLOURS, STATUS_COLOURS,
-    _run_export_script, _confirm, _alert, set_view_pylink_data,
+    _run_export_script, _confirm, _alert, set_view_pylink_data, get_view_pylink_data,
+    view_matches_type, capture_view_for_swap, restore_view_after_swap,
     load_excel_font_settings, _is_font_installed,
     NATIVE_SCALE_OPTIONS, DEFAULT_NATIVE_SCALE,
+    SCHED_ONE, SCHED_PER_PART, SCHED_MODES, card_sched_mode,
     card_native_scale, native_text_type_mm,
-    SPLIT_EXCEL, SPLIT_ROWS, SPLIT_HEIGHT,
+    SPLIT_EXCEL, SPLIT_ROWS, SPLIT_HEIGHT, SPLIT_MODES,
 )
 
 _sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'format'))
@@ -99,6 +102,7 @@ class TableRow(object):
         self.view_type   = VIEW_TYPE_SCHEDULE
         self.view_scale  = 1
         self.native_scale = DEFAULT_NATIVE_SCALE   # card's schedule scale
+        self.sched_mode  = SCHED_ONE               # card's schedule split mode
         self.file_path   = ''
         self.auto_sync   = False
         self.font        = 'Arial'    # used for pyLink text type lookup
@@ -169,18 +173,54 @@ def get_named_ranges_from_workbook(file_path):
     return {'named_ranges': [], 'sheets': [], 'sheet_ranges': {}}
 
 
+# --- Parse cache ---
+# One Apply used to open and fully parse the same workbook up to six times
+# per row (data + formatting to draw, again for the view's tag hash, again
+# for the card's hash). The parse is keyed on the file's own modified time
+# and size, so saving the workbook in Excel always forces a fresh read.
+# Results are copied out so no caller can change what the next one gets.
+_PARSE_CACHE = {}
+_PARSE_CACHE_MAX = 64
+
+
+def _file_stamp(file_path):
+    try:
+        st = os.stat(file_path)
+        return (st.st_mtime, st.st_size)
+    except Exception:
+        return None
+
+
+def _cached_parse(kind, file_path, named_range, sheet_name, parser):
+    import copy as _copy
+    stamp = _file_stamp(file_path)
+    if stamp is None:
+        return parser()
+    key = (kind, file_path, named_range, sheet_name)
+    hit = _PARSE_CACHE.get(key)
+    if hit is not None and hit[0] == stamp:
+        return _copy.deepcopy(hit[1])
+    value = parser()
+    if len(_PARSE_CACHE) >= _PARSE_CACHE_MAX:
+        _PARSE_CACHE.clear()
+    _PARSE_CACHE[key] = (stamp, _copy.deepcopy(value))
+    return value
+
+
 def read_named_range_data(file_path, named_range, sheet_name):
     """
     Read rows from an xlsx OR ods named range. Returns list of lists:
     [[header1, header2, ...], [val, val, ...], ...] - first row is
     column headers.
     """
-    fmt = _sniff_format(file_path)
-    if fmt == 'xlsx':
-        return read_xlsx_range_data(file_path, named_range, sheet_name)
-    if fmt == 'ods':
-        return read_ods_range_data(file_path, named_range, sheet_name)
-    return []
+    def _parse():
+        fmt = _sniff_format(file_path)
+        if fmt == 'xlsx':
+            return read_xlsx_range_data(file_path, named_range, sheet_name)
+        if fmt == 'ods':
+            return read_ods_range_data(file_path, named_range, sheet_name)
+        return []
+    return _cached_parse('data', file_path, named_range, sheet_name, _parse)
 
 
 def read_range_formatting(file_path, named_range, sheet_name):
@@ -190,12 +230,17 @@ def read_range_formatting(file_path, named_range, sheet_name):
     pylink_xlsx.read_xlsx_range_formatting's docstring for the full
     result shape (cell_styles/merges/row_heights/col_widths).
     """
-    fmt = _sniff_format(file_path)
-    if fmt == 'xlsx':
-        return read_xlsx_range_formatting(file_path, named_range, sheet_name)
-    if fmt == 'ods':
-        return read_ods_range_formatting(file_path, named_range, sheet_name)
-    return {'cell_styles': {}, 'merges': [], 'row_heights': {}, 'col_widths': {}}
+    def _parse():
+        fmt = _sniff_format(file_path)
+        if fmt == 'xlsx':
+            return read_xlsx_range_formatting(file_path, named_range,
+                                              sheet_name)
+        if fmt == 'ods':
+            return read_ods_range_formatting(file_path, named_range,
+                                             sheet_name)
+        return {'cell_styles': {}, 'merges': [], 'row_heights': {},
+                'col_widths': {}}
+    return _cached_parse('fmt', file_path, named_range, sheet_name, _parse)
 
 # ── Schedule creation - pyTransmit pattern ──
 # Uses ViewSchedule.CreateSchedule with ElementId.InvalidElementId (no
@@ -939,9 +984,23 @@ def _pre_create_line_styles(cell_styles):
             if c:
                 needed.add(tuple(c))
 
+    # Every row used to open a transaction and rewrite colour and weight of
+    # each style even when nothing had changed. Styles already made this
+    # session are reused as long as they still exist in the document.
+    cache = _LINE_STYLE_CACHE.setdefault(_doc_key(), {})
     line_ids = {}
+    todo = []
+    for rgb in needed:
+        eid = cache.get(rgb)
+        if eid is not None and _id_alive(eid):
+            line_ids[rgb] = eid
+        else:
+            todo.append(rgb)
+    if not todo:
+        return _with_invisible_off(line_ids)
+
     with revit.Transaction('pyLink - Line Styles'):
-        for rgb in needed:
+        for rgb in todo:
             if rgb == (255, 255, 255):
                 name = 'pyT Off'
             elif rgb == (0, 0, 0):
@@ -951,7 +1010,60 @@ def _pre_create_line_styles(cell_styles):
             eid = _get_or_create_line_style(name, rgb)
             if eid is not None:
                 line_ids[rgb] = eid
+                cache[rgb] = eid
+    return _with_invisible_off(line_ids)
+
+
+_INVISIBLE_CACHE = {}
+
+
+def _invisible_lines_id():
+    """ElementId of Revit's built-in <Invisible lines> style, or None."""
+    key = _doc_key()
+    eid = _INVISIBLE_CACHE.get(key)
+    if eid is not None and _id_alive(eid):
+        return eid
+    try:
+        for gs in DB.FilteredElementCollector(doc).OfClass(DB.GraphicsStyle):
+            try:
+                if (gs.Name == '<Invisible lines>'
+                        and gs.GraphicsStyleType == DB.GraphicsStyleType.Projection):
+                    _INVISIBLE_CACHE[key] = gs.Id
+                    return gs.Id
+            except Exception:
+                continue
+    except Exception as ex:
+        logger.debug('Invisible lines lookup: {}'.format(ex))
+    return None
+
+
+def _with_invisible_off(line_ids):
+    """A cell side with no Excel border is drawn with the 'off' style. A
+    white line is invisible on screen but prints (and exports) black when
+    the print setup makes every line black, so it showed as a grid. The
+    <Invisible lines> style never prints. Falls back to the white style."""
+    # Disabled: the white 'pyT Off' style is what pyTransmit uses, and
+    # <Invisible lines> left the schedule's own grid showing.
     return line_ids
+
+
+# Per-document caches for ids pyLink makes once and reuses every row.
+_LINE_STYLE_CACHE = {}
+_FILL_TYPE_CACHE = {}
+
+
+def _doc_key():
+    try:
+        return doc.PathName or doc.Title
+    except Exception:
+        return ''
+
+
+def _id_alive(eid):
+    try:
+        return doc.GetElement(eid) is not None
+    except Exception:
+        return False
 
 def _type_name(el):
     """Safely read an ElementType's name. Reading .Name directly on
@@ -988,9 +1100,13 @@ def _get_or_create_pylink_fill_type():
     a cell with no fill colour at all.
     """
     name = 'pyLink Fill'
+    _cached = _FILL_TYPE_CACHE.get(_doc_key())
+    if _cached is not None and _id_alive(_cached):
+        return _cached
     try:
         for frt in DB.FilteredElementCollector(doc).OfClass(DB.FilledRegionType):
             if _type_name(frt) == name:
+                _FILL_TYPE_CACHE[_doc_key()] = frt.Id
                 return frt.Id
     except Exception as ex:
         logger.error('Fill type lookup failed: {}'.format(ex))
@@ -1041,6 +1157,483 @@ def _get_or_create_pylink_fill_type():
     )
     return DB.ElementId.InvalidElementId
 
+_TIMING_LOG = 'C:/Users/Fred/Proton Drive/juvenciodas/My files/.Claude/Work Files/pylink_timing.log'
+
+
+def _timing(row, marks):
+    """Append one line of per-phase seconds for a row (profiling aid)."""
+    try:
+        out = ['%s=%.2f' % (marks[i + 1][0], marks[i + 1][1] - marks[i][1])
+               for i in range(len(marks) - 1)]
+        with open(_TIMING_LOG, 'a') as fh:
+            fh.write('%s | total=%.2f | %s | %s\n' % (
+                row.view_name[:40], marks[-1][1] - marks[0][1],
+                ' '.join(out), row.view_type))
+    except Exception:
+        pass
+
+
+
+# ── Schedule parts ──────────────────────────────────────────────────────────
+# A long table splits into parts the way a drafting view does (Excel page
+# breaks, N rows, or a height), the heading rows repeating on each part.
+# A schedule built from the header section cannot be split by Revit, so
+# the parts are built here instead: side by side in ONE wide schedule, or
+# as a schedule each.
+
+SCHED_GAP_MM = 6.0     # empty column between parts in a single wide schedule
+PART_PLACE_GAP_MM = 10.0   # distance between separate schedules on a sheet
+
+
+def _num_like(v):
+    try:
+        float(u'{}'.format(v).strip())
+        return True
+    except Exception:
+        return False
+
+
+def _schedule_part_rows(payload, scale):
+    """[[source row index, ...], ...] - one list per part. Part 1 holds the
+    rows from the top; every later part starts with the heading rows again.
+    A single list means the table does not split."""
+    all_rows = [payload['fields']] + list(payload['records'])
+    n = len(all_rows)
+    heights = payload.get('row_heights', {}) or {}
+    dflt = payload.get('default_row_height', 14.0)
+    rh = [heights.get(r, dflt) * PT_MM * scale for r in range(n)]
+    rep = payload.get('repeat_rows')
+    if rep is not None:
+        repeat = sorted(set(int(r) for r in rep if 0 <= int(r) < n))
+    else:
+        first_num = n
+        for ri, row in enumerate(all_rows):
+            if any(_num_like(v) for v in row if v not in (None, '')):
+                first_num = ri
+                break
+        repeat = list(range(0, max(1, first_num)))
+    data0 = (max(repeat) + 1) if repeat else 1
+    head = sum(rh[r] for r in repeat)
+    mode = payload.get('split_mode')
+    try:
+        val = float(payload.get('split_value') or 0)
+    except Exception:
+        val = 0.0
+    if mode == SPLIT_ROWS and val >= 1:
+        k = int(round(val))
+        breaks = list(range(data0 + k, n, k))
+    elif mode == SPLIT_HEIGHT and val > 0:
+        breaks = []
+        acc = sum(rh[r] for r in range(data0))
+        for r in range(data0, n):
+            if acc + rh[r] > val and r > (breaks[-1] if breaks else data0):
+                breaks.append(r)
+                acc = head
+            acc += rh[r]
+    elif mode == SPLIT_EXCEL:
+        breaks = [b for b in (payload.get('row_breaks') or []) if 0 < b < n]
+    else:
+        breaks = []
+    edges = [0] + breaks + [n]
+    parts = []
+    for i in range(len(edges) - 1):
+        body = list(range(edges[i], edges[i + 1]))
+        if i == 0:
+            parts.append(body)
+        else:
+            parts.append([r for r in repeat if r < edges[i]] + body)
+    return parts
+
+
+def _parts_payload(payload, parts, side_by_side):
+    """A copy of payload rebuilt for the given parts. side_by_side puts every
+    part into one wide table (a gap column between them, row i of each part
+    on row i); otherwise parts[0] alone becomes the whole table."""
+    all_rows = [payload['fields']] + list(payload['records'])
+    n_cols = len(payload['fields'])
+    cs = payload.get('cell_styles', {}) or {}
+    merges = payload.get('merges', []) or []
+    heights = payload.get('row_heights', {}) or {}
+    cw = payload.get('col_widths', {}) or {}
+    cwe = payload.get('col_widths_excel', {}) or {}
+    cust_r = payload.get('custom_rows', []) or []
+    cust_c = payload.get('custom_cols', []) or []
+    if side_by_side:
+        n_parts = len(parts)
+        total_cols = n_parts * (n_cols + 1) - 1
+        placed = [(rows, k * (n_cols + 1)) for k, rows in enumerate(parts)]
+    else:
+        total_cols = n_cols
+        placed = [(parts[0], 0)]
+    n_rows = max(len(rows) for rows, _ in placed)
+    matrix = [[''] * total_cols for _ in range(n_rows)]
+    nst, nmg, nh, ncr = {}, [], {}, set()
+    for rows, off in placed:
+        pos = dict((r, i) for i, r in enumerate(rows))
+        for i, src in enumerate(rows):
+            for c in range(n_cols):
+                row = all_rows[src]
+                matrix[i][off + c] = row[c] if c < len(row) else ''
+                st = cs.get((src, c))
+                if st is not None:
+                    nst[(i, off + c)] = st
+            if src in heights:
+                nh[i] = max(nh.get(i, 0), heights[src])
+            if src in cust_r:
+                ncr.add(i)
+        for (r1, c1, r2, c2) in merges:
+            shown = [r for r in rows if r1 <= r <= r2]
+            if not shown:
+                continue
+            if pos[shown[-1]] - pos[shown[0]] != len(shown) - 1:
+                continue
+            a, b = pos[shown[0]], pos[shown[-1]]
+            if a == b and c1 == c2:
+                continue
+            nmg.append((a, c1 + off, b, c2 + off))
+    ncw, ncwe, ncc = {}, {}, []
+    for k, (rows, off) in enumerate(placed):
+        for c in range(n_cols):
+            if c in cw:
+                ncw[off + c] = cw[c]
+            if c in cwe:
+                ncwe[off + c] = cwe[c]
+            if c in cust_c:
+                ncc.append(off + c)
+    if side_by_side:
+        for k in range(len(placed) - 1):
+            g = k * (n_cols + 1) + n_cols
+            ncw[g] = SCHED_GAP_MM
+            ncwe[g] = SCHED_GAP_MM
+            ncc.append(g)
+            # a schedule fills its title row grey by default; the gap between
+            # parts is no part of either title
+            nst[(0, g)] = {'fill_rgb': (255, 255, 255), 'halign': 'Center'}
+    out = dict(payload)
+    out['fields'] = matrix[0]
+    out['records'] = matrix[1:]
+    out['cell_styles'] = nst
+    out['merges'] = nmg
+    out['row_heights'] = nh
+    out['col_widths'] = ncw
+    out['col_widths_excel'] = ncwe
+    out['custom_rows'] = sorted(ncr)
+    out['custom_cols'] = ncc
+    out['row_breaks'] = []
+    out['repeat_rows'] = None
+    out['split_mode'] = SPLIT_EXCEL
+    out['split_value'] = ''
+    return out
+
+
+# ── Group dividers as thin black columns ────────────────────────────────────
+# A schedule only draws cell borders while its grid lines are on, and the
+# grid then boxes every cell. So the schedule is built with the grid off, and
+# each vertical rule the spreadsheet draws between column groups is made a
+# very thin column filled black instead.
+
+DIVIDER_MM = 0.25       # Excel-side width; the schedule draws it at the card scale
+DIVIDER_PAD_MM = 0.8    # extra width (Excel-side) for each column beside a divider, so text clears the rule
+DIVIDER_FRACTION = 0.6  # a boundary is a divider when this share of data rows rule it
+
+
+def _has_border(st, side):
+    v = (st or {}).get('border_' + side)
+    return bool(v) and v not in ('', 'none')
+
+
+def _divider_boundaries(payload):
+    """Column indexes b (1..n-1) where a vertical rule sits between column
+    b-1 and column b on most data rows."""
+    n_cols = len(payload['fields'])
+    cs = payload.get('cell_styles', {}) or {}
+    n_rows = 1 + len(payload['records'])
+    # heading rows are the ones above the first row holding a number
+    first_num = n_rows
+    all_rows = [payload['fields']] + list(payload['records'])
+    for ri, row in enumerate(all_rows):
+        if any(_num_like(v) for v in row if v not in (None, '')):
+            first_num = ri
+            break
+    data_rows = [r for r in range(first_num, n_rows)]
+    if not data_rows:
+        return []
+    out = []
+    for b in range(1, n_cols):
+        hits = 0
+        for r in data_rows:
+            if (_has_border(cs.get((r, b)), 'left')
+                    or _has_border(cs.get((r, b - 1)), 'right')):
+                hits += 1
+        if hits >= DIVIDER_FRACTION * len(data_rows):
+            out.append(b)
+    return out
+
+
+def _with_dividers(payload):
+    """payload with a thin black column inserted at every group boundary.
+    Returned unchanged when the table has none."""
+    bounds = _divider_boundaries(payload)
+    if not bounds:
+        return payload
+    n_cols = len(payload['fields'])
+    # old column -> new column; divider k sits just before old column bounds[k]
+    shift = {}
+    for c in range(n_cols):
+        shift[c] = c + len([b for b in bounds if b <= c])
+    dcol = [bounds[k] + k for k in range(len(bounds))]
+    new_n = n_cols + len(bounds)
+    cs = payload.get('cell_styles', {}) or {}
+    n_rows = 1 + len(payload['records'])
+
+    def widen(row):
+        out = [u''] * new_n
+        for c, v in enumerate(list(row)[:n_cols]):
+            out[shift[c]] = v
+        return out
+
+    new = dict(payload)
+    new['fields'] = widen(payload['fields'])
+    new['records'] = [widen(r) for r in payload['records']]
+    ncs = {}
+    for (r, c), st in cs.items():
+        if c >= n_cols:
+            continue
+        st2 = st
+        if c in bounds or (c + 1) in bounds:
+            st2 = dict(st)
+            if c in bounds:
+                st2['border_left'] = ''
+            if (c + 1) in bounds:
+                st2['border_right'] = ''
+        ncs[(r, shift[c])] = st2
+    # the rule itself, on each row where the spreadsheet rules that boundary
+    # (the group heading row and the data rows - not the sub-heading row,
+    # which has no borders in the spreadsheet)
+    for k, d in enumerate(dcol):
+        bnd = bounds[k]
+        for r in range(1, n_rows):
+            ruled = (_has_border(cs.get((r, bnd)), 'left')
+                     or _has_border(cs.get((r, bnd - 1)), 'right'))
+            if ruled:
+                ncs[(r, d)] = {'fill_rgb': (0, 0, 0), 'halign': 'Center'}
+            else:
+                # no rule on this row: the gap takes the colour of the cell it
+                # sits against, so a banded or grey row has no white notch
+                fill = (cs.get((r, bnd - 1)) or {}).get('fill_rgb')
+                if fill:
+                    ncs[(r, d)] = {'fill_rgb': tuple(fill), 'halign': 'Center'}
+    new['cell_styles'] = ncs
+    nm = []
+    for (r1, c1, r2, c2) in payload.get('merges', []) or []:
+        nm.append((r1, shift.get(c1, c1), r2, shift.get(c2, c2)))
+    new['merges'] = nm
+    for key in ('col_widths', 'col_widths_excel'):
+        old = payload.get(key, {}) or {}
+        nw = {}
+        for c, w in old.items():
+            if c in shift:
+                nw[shift[c]] = w
+        for d in dcol:
+            nw[d] = DIVIDER_MM
+        # room for the text beside each rule: it is centred in its column and
+        # a schedule draws it wider than it measures, so it touched the line
+        for b in bounds:
+            for oc in (b - 1, b):
+                nc = shift[oc]
+                if nc in nw:
+                    nw[nc] = nw[nc] + DIVIDER_PAD_MM
+        new[key] = nw
+    nc_set = set(shift[c] for c in (payload.get('custom_cols', []) or []) if c in shift)
+    nc_set.update(dcol)
+    for b in bounds:
+        nc_set.add(shift[b - 1])
+        nc_set.add(shift[b])
+    new['custom_cols'] = sorted(nc_set)
+    return new
+
+
+def _find_schedule(name):
+    for v in DB.FilteredElementCollector(doc).OfClass(DB.ViewSchedule):
+        try:
+            if v.Name == name and not v.IsTitleblockRevisionSchedule:
+                return v
+        except Exception:
+            continue
+    return None
+
+
+def _schedule_instances(sched):
+    out = []
+    for inst in DB.FilteredElementCollector(doc).OfClass(
+            DB.ScheduleSheetInstance).ToElements():
+        try:
+            if inst.ScheduleId == sched.Id:
+                out.append(inst)
+        except Exception:
+            pass
+    return out
+
+
+def _place_beside(prev, new):
+    """Put `new` on every sheet `prev` is on, just to its right and level
+    with its top, unless `new` is already on that sheet."""
+    gap = PART_PLACE_GAP_MM / 304.8
+    on_sheets = set(_eid_int(i.OwnerViewId) for i in _schedule_instances(new))
+    with revit.Transaction('pyLink - place schedule part'):
+        for inst in _schedule_instances(prev):
+            try:
+                if _eid_int(inst.OwnerViewId) in on_sheets:
+                    continue
+                sheet = doc.GetElement(inst.OwnerViewId)
+                bb = inst.get_BoundingBox(sheet)
+                tl = (bb.Max.X + gap, bb.Max.Y)
+                el = DB.ScheduleSheetInstance.Create(
+                    doc, inst.OwnerViewId, new.Id, DB.XYZ(tl[0], tl[1], 0))
+                doc.Regenerate()
+                nb = el.get_BoundingBox(sheet)
+                dx, dy = tl[0] - nb.Min.X, tl[1] - nb.Max.Y
+                if abs(dx) > 1e-9 or abs(dy) > 1e-9:
+                    DB.ElementTransformUtils.MoveElement(
+                        doc, el.Id, DB.XYZ(dx, dy, 0))
+            except Exception as ex:
+                logger.warning('Could not place schedule part: {}'.format(ex))
+
+
+def _remove_extra_schedules(base_name, keep):
+    """Delete "<base> (k)" schedules for k > keep that pyLink made (they
+    carry a pyLink tag), when a table now has fewer parts."""
+    k = max(keep, 1) + 1
+    misses = 0
+    with revit.Transaction('pyLink - remove unused schedule parts'):
+        while misses < 3 and k < 60:
+            v = _find_schedule(u'{} ({})'.format(base_name, k))
+            if v is None:
+                misses += 1
+            else:
+                misses = 0
+                try:
+                    if get_view_pylink_data(v):
+                        doc.Delete(v.Id)
+                except Exception as ex:
+                    logger.debug('remove extra schedule: {}'.format(ex))
+            k += 1
+
+
+def _reapply_schedule_borders(view_id, borders):
+    """Write a schedule's cell borders again in a transaction of their own,
+    after the build has committed. Borders set inside the transaction that
+    built the table show for a few seconds and are then lost as Revit
+    settles the table; written afterwards, from fresh section data, they
+    stay (the order pyTransmit uses)."""
+    if not borders or view_id is None:
+        return
+    try:
+        sched = doc.GetElement(DB.ElementId(_Int64(view_id)))
+        with revit.Transaction('pyLink - schedule borders'):
+            hdr = sched.GetTableData().GetSectionData(DB.SectionType.Header)
+            for (r, c), sides in borders.items():
+                try:
+                    st = hdr.GetTableCellStyle(r, c)
+                    opts = st.GetCellStyleOverrideOptions()
+                    opts.BorderLineStyle = True
+                    for prop, eid in sides.items():
+                        setattr(opts, prop, True)
+                        setattr(st, prop, eid)
+                    st.SetCellStyleOverrideOptions(opts)
+                    hdr.SetCellStyle(r, c, st)
+                except Exception as ex:
+                    logger.debug('border ({},{}): {}'.format(r, c, ex))
+    except Exception as ex:
+        logger.warning('Schedule borders pass failed: {}'.format(ex))
+
+
+def _whiten(payload):
+    """Colour only where the spreadsheet has colour: a cell with no fill is
+    WHITE, never left to a schedule's own default (it fills the title row,
+    among others, grey)."""
+    cs = dict(payload.get('cell_styles', {}) or {})
+    n_rows = 1 + len(payload['records'])
+    n_cols = len(payload['fields'])
+    for r in range(n_rows):
+        for c in range(n_cols):
+            st = cs.get((r, c))
+            if st is None:
+                cs[(r, c)] = {'fill_rgb': (255, 255, 255)}
+            elif not st.get('fill_rgb'):
+                st = dict(st)
+                st['fill_rgb'] = (255, 255, 255)
+                cs[(r, c)] = st
+    out = dict(payload)
+    out['cell_styles'] = cs
+    return out
+
+
+def _export_schedule(export_script, payload):
+    """_run_export_script for a schedule, then its borders in their own
+    transaction. Returns the export result."""
+    payload = _whiten(payload)
+    res = _run_export_script(export_script, payload)
+    if res and res.get('borders'):
+        _reapply_schedule_borders(res.get('view_id'), res.get('borders'))
+    return res
+
+
+def _run_schedule_build(export_script, payload, row):
+    """Run the schedule export for a row, split into parts when the row
+    says so. Returns the export result of the first (or only) schedule."""
+    # A schedule fills any title-row cell the spreadsheet left without a
+    # fill grey. Make them white, so a column the title does not cover
+    # does not show as a grey block.
+    _cs = dict(payload.get('cell_styles', {}) or {})
+    for _c in range(len(payload['fields'])):
+        _st = _cs.get((0, _c))
+        if _st is None:
+            _cs[(0, _c)] = {'fill_rgb': (255, 255, 255)}
+        elif not _st.get('fill_rgb'):
+            _st = dict(_st)
+            _st['fill_rgb'] = (255, 255, 255)
+            _cs[(0, _c)] = _st
+    payload = dict(payload)
+    payload['cell_styles'] = _cs
+    payload = _with_dividers(payload)
+    scale = getattr(row, 'native_scale', DEFAULT_NATIVE_SCALE)
+    parts = _schedule_part_rows(payload, scale)
+    name = payload['view_name']
+    if len(parts) <= 1:
+        res = _export_schedule(export_script, payload)
+        _remove_extra_schedules(name, 1)
+        return res
+    mode = getattr(row, 'sched_mode', SCHED_ONE)
+    if mode != SCHED_PER_PART:
+        res = _export_schedule(export_script,
+                                 _parts_payload(payload, parts, True))
+        _remove_extra_schedules(name, 1)
+        return res
+    first, prev = None, None
+    for k, rows in enumerate(parts):
+        p = _parts_payload(payload, [rows], False)
+        p['view_name'] = name if k == 0 else u'{} ({})'.format(name, k + 1)
+        res = _export_schedule(export_script, p)
+        sched = _find_schedule(p['view_name'])
+        if k == 0:
+            first = res
+        elif sched is not None:
+            try:
+                set_view_pylink_data(
+                    sched, FP=row.file_path, SH=row.sheet_name,
+                    RG=row.named_range, VT=row.view_type,
+                    H=_hash_range(row.file_path, row.named_range,
+                                  row.sheet_name))
+            except Exception as ex:
+                logger.debug('part tag failed: {}'.format(ex))
+        if prev is not None and sched is not None:
+            _place_beside(prev, sched)
+        prev = sched
+    _remove_extra_schedules(name, len(parts))
+    return first
+
+
 def apply_row(row):
     """
     Process one UI row:
@@ -1056,6 +1649,7 @@ def apply_row(row):
         'message':   ''
     }
 
+    _marks = [('start', _time.time())]
     logger.debug('pyLink: {} | {} | {}/{}'.format(
         row.view_name, row.file_path, row.sheet_name, row.named_range))
 
@@ -1073,6 +1667,7 @@ def apply_row(row):
         )
         return result
 
+    _marks.append(('read_data', _time.time()))
     fields  = [str(h) for h in rows[0]]
     records = [[str(c) for c in r] for r in rows[1:]]
 
@@ -1092,7 +1687,19 @@ def apply_row(row):
     _stacking = getattr(row, 'stack_index', 0) > 0
     try:
         existing_view = None
-        for v in ([] if _stacking else
+        # Fast path: the view this row made last time, found by id. Only a
+        # name hit counts, so a renamed or deleted view falls through to
+        # the full scan below, which looks at every view by name.
+        _aid = getattr(row, 'applied_view_id', None)
+        if _aid is not None and not _stacking:
+            try:
+                _cand = doc.GetElement(DB.ElementId(_Int64(_aid)))
+                if (_cand is not None and isinstance(_cand, DB.View)
+                        and _cand.Name == row.view_name):
+                    existing_view = _cand
+            except Exception:
+                existing_view = None
+        for v in ([] if (_stacking or existing_view is not None) else
                   DB.FilteredElementCollector(revit.doc).OfClass(DB.View)):
             try:
                 if v.IsValidObject and v.Name == row.view_name:
@@ -1130,6 +1737,7 @@ def apply_row(row):
         row.sheet_name
     )
     cell_styles = fmt.get('cell_styles', {})
+    _marks.append(('ownership+fmt', _time.time()))
 
     # Take text size from Excel's own font_size in cell_styles, not the fixed
     # 2.5mm/2.3mm TableRow defaults, which are unrelated to the file - a 9pt
@@ -1216,6 +1824,7 @@ def apply_row(row):
     line_ids     = _pre_create_line_styles(cell_styles)
     fill_type_id = _get_or_create_pylink_fill_type()
 
+    _marks.append(('types+styles', _time.time()))
     # Build payload for export script
     payload = {
         'view_name':          row.view_name,
@@ -1267,8 +1876,29 @@ def apply_row(row):
         result['message'] = 'Unknown view type: {}'.format(row.view_type)
         return result
 
+    # View type changed (Drafting <-> Legend <-> Schedule): the old view is
+    # captured (sheets, top-left corners, Title on Sheet) and deleted so the
+    # new one can take its name, then placed where the old one was.
+    _swap = None
+    if (not _stacking and existing_view is not None
+            and not view_matches_type(existing_view, row.view_type)):
+        try:
+            _swap = capture_view_for_swap(existing_view)
+            with revit.Transaction('pyLink - replace view: {}'.format(
+                    row.view_name)):
+                doc.Delete(existing_view.Id)
+            logger.debug('View type changed - replaced "{}" ({} sheet(s))'
+                         .format(row.view_name, len(_swap.get('sheets', []))))
+        except Exception as ex:
+            result['message'] = 'Could not replace the old view: {}'.format(ex)
+            return result
+
     try:
-        export_result = _run_export_script(export_script, payload)
+        if row.view_type == VIEW_TYPE_SCHEDULE and not _stacking:
+            export_result = _run_schedule_build(export_script, payload, row)
+        else:
+            export_result = _run_export_script(export_script, payload)
+        _marks.append(('export_script', _time.time()))
         result['status']  = 'success'
         result['message'] = 'Created'
         view_id = None
@@ -1282,6 +1912,12 @@ def apply_row(row):
                 # overloads under IronPython (this exact "Multiple
                 # targets could match" error was seen in Fred's log).
                 view = doc.GetElement(DB.ElementId(_Int64(view_id)))
+                if view and _swap is not None:
+                    try:
+                        restore_view_after_swap(view, _swap)
+                    except Exception as ex:
+                        logger.warning('Placing replaced view failed: {}'
+                                       .format(ex))
                 if view:
                     set_view_pylink_data(
                         view,
@@ -1299,6 +1935,8 @@ def apply_row(row):
         result['message'] = str(e)
         logger.error(traceback.format_exc())
 
+    _marks.append(('tag+hash', _time.time()))
+    _timing(row, _marks)
     return result
 
 
@@ -1346,6 +1984,141 @@ def _hash_range(file_path, named_range, sheet_name):
 class ExcelCardMixin(object):
     """Excel-specific card/row UI methods, mixed into
     PyLinkWindow. Everything here assumes fd.get('source_type') == 'xl'."""
+
+    # ── Column-header dropdowns (batch set on the card's ticked rows) ──
+
+    def _header_button(self, text, width, path, kind):
+        """A column heading that opens a dropdown setting that column on
+        every ticked row of the card."""
+        btn = Button()
+        btn.Content = u'{} \u25BE'.format(text)
+        btn.Width = width
+        btn.FontSize = 10
+        btn.Foreground = hb('#F4FAFF')
+        btn.Opacity = 0.75
+        btn.Background = hb('#00000000')
+        btn.BorderThickness = Thickness(0)
+        btn.Padding = Thickness(4, 0, 0, 0)
+        btn.HorizontalContentAlignment = HorizontalAlignment.Left
+        btn.VerticalAlignment = VerticalAlignment.Center
+        btn.Cursor = Cursors.Hand
+        btn.FocusVisualStyle = None
+        btn.ToolTip = 'Set {} for every ticked row in this card'.format(text)
+        btn.Tag = (path, kind)
+        btn.Click += self._header_menu
+        return btn
+
+    def _header_menu(self, sender, e):
+        path, kind = sender.Tag
+        fd = self._file_data.get(path)
+        if fd is None:
+            return
+        pops = fd.setdefault('hdr_popups', {})
+        if kind not in pops:
+            pops[kind] = self._build_dropdown_popup(sender)
+        popup, panel = pops[kind]
+        if popup.IsOpen:
+            popup.IsOpen = False
+            return
+        panel.Children.Clear()
+
+        def item(label, fn):
+            return self._make_menu_item(label, fn, popup)
+
+        def ticked():
+            return self._ticked(lambda: list(fd.get('rows', [])))
+
+        if kind == 'vt':
+            for vt in VIEW_TYPES:
+                panel.Children.Add(item(
+                    vt, lambda s, ev, v=vt: self._batch_view_type(ticked(), v)))
+        elif kind == 'sm':
+            for m in SCHED_MODES:
+                panel.Children.Add(item(
+                    m, lambda s, ev, v=m: self._batch_sched_mode(ticked(), v)))
+            panel.Children.Add(self._make_menu_separator())
+            panel.Children.Add(item(
+                u'Scale\u2026', lambda s, ev: self._batch_scale(ticked())))
+        elif kind == 'sp':
+            for m in SPLIT_MODES:
+                panel.Children.Add(item(
+                    m, lambda s, ev, v=m: self._batch_split_mode(ticked(), v)))
+        elif kind == 'rv':
+            panel.Children.Add(item(
+                u'Set Rows / mm\u2026',
+                lambda s, ev: self._batch_split_value(ticked())))
+        popup.IsOpen = True
+
+    def _mark_row_changed(self, row):
+        """A setting that changes what a row builds was edited: show it as
+        needing an update (blue), tick it, so Apply picks it up."""
+        if row.Status == 'success':
+            row.Status = 'sync'
+            try:
+                if row._dot is not None:
+                    row._dot.Fill = hb(STATUS_COLOURS.get('sync', '#3B82F6'))
+                self._set_sync_btn_state(row._refresh_btn, True)
+            except Exception:
+                pass
+        self._auto_check_row(row)
+
+    def _sync_scale_mode_widgets(self, row):
+        """Schedule rows show the mode dropdown in the Scale column;
+        Drafting and Legend rows show the scale box."""
+        is_sched = (row.ViewType == VIEW_TYPE_SCHEDULE)
+        tb = getattr(row, '_scale_tb', None)
+        cb = getattr(row, '_sched_cb', None)
+        if tb is not None:
+            tb.Visibility = Visibility.Collapsed if is_sched else Visibility.Visible
+        if cb is not None:
+            cb.Visibility = Visibility.Visible if is_sched else Visibility.Collapsed
+
+    def _sched_mode_row_changed(self, sender, e):
+        """Row dropdown -> how this schedule's parts are built. The row has
+        to be rebuilt, so it shows as changed."""
+        row = sender.Tag
+        if not row or sender.SelectedItem is None:
+            return
+        new = str(sender.SelectedItem)
+        if new == getattr(row, 'SchedMode', SCHED_ONE):
+            return
+        row.SchedMode = new
+        if row.Status == 'success':
+            row.Status = 'sync'
+            try:
+                if row._dot is not None:
+                    row._dot.Fill = hb(STATUS_COLOURS.get('sync', '#3B82F6'))
+                self._set_sync_btn_state(row._refresh_btn, True)
+                self._refresh_status_card()
+            except Exception:
+                pass
+        self._auto_check_row(row)
+        self._save_persisted_state()
+
+    def _sched_mode_changed(self, sender, e):
+        """Card dropdown -> how split schedules are built. Schedule rows
+        that were up to date now need rebuilding, so they show as changed."""
+        fd = self._file_data.get(sender.Tag)
+        if fd is None or sender.SelectedItem is None:
+            return
+        new = str(sender.SelectedItem)
+        if new == card_sched_mode(fd):
+            return
+        fd['sched_mode'] = new
+        for r in fd.get('rows', []):
+            if r.ViewType == VIEW_TYPE_SCHEDULE and r.Status == 'success':
+                r.Status = 'sync'
+                try:
+                    if r._dot is not None:
+                        r._dot.Fill = hb(STATUS_COLOURS.get('sync', '#3B82F6'))
+                    self._set_sync_btn_state(r._refresh_btn, True)
+                except Exception:
+                    pass
+        try:
+            self._refresh_status_card()
+        except Exception:
+            pass
+        self._save_persisted_state()
 
     def _native_scale_changed(self, sender, e):
         """Card scale dropdown -> remember the new scale for this card."""
@@ -1608,10 +2381,12 @@ class ExcelCardMixin(object):
         col_hdr.Children.Add(_ch('Sheet',     124))
         col_hdr.Children.Add(_ch('Range',     134))
         col_hdr.Children.Add(_ch('Modified',   96))
-        col_hdr.Children.Add(_ch('View Type', 134))
-        col_hdr.Children.Add(_ch('Scale',      54))
-        col_hdr.Children.Add(_ch('Split',      88))
-        col_hdr.Children.Add(_ch('Rows / mm',  54))
+        # These four are buttons: each opens a dropdown that sets that one
+        # thing on every TICKED row of this card.
+        col_hdr.Children.Add(self._header_button('View Type', 134, path, 'vt'))
+        col_hdr.Children.Add(self._header_button('Scale / Mode', 124, path, 'sm'))
+        col_hdr.Children.Add(self._header_button('Split', 88, path, 'sp'))
+        col_hdr.Children.Add(self._header_button('Rows / mm', 88, path, 'rv'))
 
         inner.Children.Add(col_hdr)
         inner.Children.Add(row_panel)
@@ -1736,7 +2511,23 @@ class ExcelCardMixin(object):
             return
         row = sender.Tag
         if row:
+            changed = (row.ViewType != sender.SelectedItem)
             row.ViewType = sender.SelectedItem
+            self._sync_scale_mode_widgets(row)
+            # A different view type means the view has to be rebuilt, so the
+            # row must show as needing an update (and Apply must not skip it).
+            if changed and row.Status == 'success':
+                row.Status = 'sync'
+                try:
+                    if row._dot is not None:
+                        row._dot.Fill = hb(STATUS_COLOURS.get('sync', '#3B82F6'))
+                    self._set_sync_btn_state(row._refresh_btn, True)
+                    self._refresh_status_card()
+                except Exception:
+                    pass
+            if changed:
+                self._auto_check_row(row)
+                self._save_persisted_state()
 
     def _view_scale_changed(self, sender, e):
         row = sender.Tag
@@ -1761,8 +2552,15 @@ class ExcelCardMixin(object):
         row = sender.Tag
         if not row or sender.SelectedItem is None:
             return
+        changed = (row.SplitMode != str(sender.SelectedItem))
         row.SplitMode = str(sender.SelectedItem)
         self._split_value_enable(row, row.SplitMode)
+        if changed:
+            self._mark_row_changed(row)
+            try:
+                self._refresh_status_card()
+            except Exception:
+                pass
         self._save_persisted_state()
 
     def _split_value_changed(self, sender, e):

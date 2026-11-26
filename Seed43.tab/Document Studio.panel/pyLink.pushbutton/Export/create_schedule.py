@@ -79,7 +79,7 @@ NATIVE_EXCEL_SIZES = True
 # (the dropdown beside + Add Row).
 NATIVE_SCALE = float(_p.get('native_scale') or 0.7)
 # Excel point size -> Revit text size; see pylink_shared.
-from pylink_shared import EXCEL_TO_REVIT_TEXT, native_text_type_mm
+from pylink_shared import EXCEL_TO_REVIT_TEXT, native_text_type_mm, measure_text_mm
 
 # Excel's default text colour. Used when a cell's font states no colour
 # of its own, which is what most writers emit for ordinary black text -
@@ -220,6 +220,11 @@ def _excel_rotation_to_revit(excel_rot):
     return 0
 
 
+# Every border side written, by cell - handed back so pyLink can write them again
+# once the schedule has been built and committed (see PYLINK_RESULT below).
+_BORDER_LOG = {}
+
+
 def _apply_style(sec, r, c,
                  bold=False, italic=False, underline=False, size_pt=8.0,
                  bg_rgb=None, fg_rgb=None, halign='Left', valign='Bottom',
@@ -323,6 +328,7 @@ def _apply_style(sec, r, c,
                     # undefined rendering instead of "no border".
                     setattr(opts,  prop, True)
                     setattr(style, prop, line_id)
+                    _BORDER_LOG.setdefault((r, c), {})[prop] = line_id
                 else:
                     setattr(opts, prop, False)
                     logger.warning(
@@ -787,6 +793,27 @@ logger.debug('Sections: hdr={}r x {}c  body={}r x {}c'.format(
     body.NumberOfRows, body.NumberOfColumns
 ))
 
+# ── Rows tall enough for their lines ─────────────────────────────────────────
+# A schedule cell holding a line break ("Load" over "%") shows only its first
+# line and an ellipsis when the row is even slightly short for two lines -
+# which is how "Load %" arrived as "Load...". A single line fits the row
+# Excel gives it; two or more need about 1.66 x the text size per line.
+for _ri, _row in enumerate(all_rows):
+    _lines = 1
+    for _ci, _t in enumerate(_row):
+        if _t is None:
+            continue
+        _txt = u'{}'.format(_t)
+        if (_ri, _ci) in rot_wrap_cells:
+            continue
+        _n = len(_prewrapped(_ri, _ci, _txt).replace(u'\r', u'').split(u'\n'))
+        _lines = max(_lines, _n)
+    if _lines >= 2:
+        _sz = row_size_mm.get(_ri) or native_text_type_mm(10.0, NATIVE_SCALE)
+        _need_ft = (_lines * 1.66 * _sz + 0.6) / 304.8
+        if _need_ft > row_h_ft.get(_ri, 0.0):
+            row_h_ft[_ri] = _need_ft
+
 # ── Collapse the empty body row to full schedule width ────────────────────────
 total_w = sum(col_w_ft.values())
 try:
@@ -1065,6 +1092,16 @@ try:
 except Exception as ex:
     logger.debug('ShowHeaders off: {}'.format(ex))
 
+# Grid lines off, last. On a sheet they draw a box round every cell - the
+# 'off' sides cannot hide them in print or export - so the table printed as
+# a grid instead of looking like the sheet. With them off the table shows
+# its fills, banding and text only. (They stay on while the table is built,
+# above, because cell styles are written against them.)
+try:
+    sched_def.ShowGridLines = False
+except Exception as ex:
+    logger.debug('ShowGridLines off: {}'.format(ex))
+
 # ── Schedule text types ───────────────────────────────────────────────────────
 # Revit draws a schedule's cells at the schedule's own text type size and
 # only switches to each cell's TextSize once something makes it redraw -
@@ -1102,55 +1139,66 @@ logger.debug('create_schedule complete: "{}" {}r x {}c'.format(
 
 # ── Read back what Revit actually stored ─────────────────────────────────────
 # ── Column and row dimension readback ────────────────────────────────────────
-_out.print_md('### Revit dimensions (read-back)')
-_out.print_md('**Columns:**')
-for _ci in range(hdr.NumberOfColumns):
-    try:
-        _w_ft = hdr.GetColumnWidth(_ci)
-        _w_mm = _w_ft * 304.8
-        _excel_mm = col_widths.get(_ci, 0)
-        _out.print_md('- col {}: {:.4f}ft = **{:.3f}mm** (Excel: {:.3f}mm, diff: {:.3f}mm)'.format(
-            _ci, _w_ft, _w_mm, _excel_mm, _w_mm - _excel_mm))
-    except Exception as _e:
-        _out.print_md('- col {} readback failed: {}'.format(_ci, _e))
-
-_out.print_md('**Rows:**')
-for _ri in range(hdr.NumberOfRows):
-    try:
-        _h_ft = hdr.GetRowHeight(_ri)
-        _h_mm = _h_ft * 304.8
-        _excel_pt = row_heights.get(_ri, DEFAULT_ROW_H_PT)
-        _excel_mm = _excel_pt * 25.4 / 72.0
-        _out.print_md('- row {}: {:.5f}ft = **{:.3f}mm** (Excel: {:.1f}pt = {:.3f}mm, diff: {:.3f}mm)'.format(
-            _ri, _h_ft, _h_mm, _excel_pt, _excel_mm, _h_mm - _excel_mm))
-    except Exception as _e:
-        _out.print_md('- row {} readback failed: {}'.format(_ri, _e))
-
-_out.print_md('### Revit cell styles (read-back after write)')
-for _ri in range(hdr.NumberOfRows):
+# Debug only: these reads and the string formatting cost a Revit call per cell,
+# so they run only when the report is switched on.
+if SHOW_REPORT:
+    _out.print_md('### Revit dimensions (read-back)')
+    _out.print_md('**Columns:**')
     for _ci in range(hdr.NumberOfColumns):
         try:
-            _rs = hdr.GetTableCellStyle(_ri, _ci)
-            _ro = _rs.GetCellStyleOverrideOptions()
-            _out.print_md(
-                '- **cell({},{})** text=`{}` '
-                'bold={} size={:.1f}pt font=`{}` '
-                'bg=({},{},{}) fg=({},{},{}) '
-                'overrides: bold={} size={} bg={} fg={}'.format(
-                    _ri, _ci,
-                    repr(hdr.GetCellText(_ri, _ci)[:15]),
-                    _rs.IsFontBold,
-                    _rs.TextSize,
-                    _rs.FontName,
-                    _rs.BackgroundColor.Red,
-                    _rs.BackgroundColor.Green,
-                    _rs.BackgroundColor.Blue,
-                    _rs.TextColor.Red,
-                    _rs.TextColor.Green,
-                    _rs.TextColor.Blue,
-                    _ro.Bold, _ro.FontSize,
-                    _ro.BackgroundColor, _ro.FontColor,
+            _w_ft = hdr.GetColumnWidth(_ci)
+            _w_mm = _w_ft * 304.8
+            _excel_mm = col_widths.get(_ci, 0)
+            _out.print_md('- col {}: {:.4f}ft = **{:.3f}mm** (Excel: {:.3f}mm, diff: {:.3f}mm)'.format(
+                _ci, _w_ft, _w_mm, _excel_mm, _w_mm - _excel_mm))
+        except Exception as _e:
+            _out.print_md('- col {} readback failed: {}'.format(_ci, _e))
+
+    _out.print_md('**Rows:**')
+    for _ri in range(hdr.NumberOfRows):
+        try:
+            _h_ft = hdr.GetRowHeight(_ri)
+            _h_mm = _h_ft * 304.8
+            _excel_pt = row_heights.get(_ri, DEFAULT_ROW_H_PT)
+            _excel_mm = _excel_pt * 25.4 / 72.0
+            _out.print_md('- row {}: {:.5f}ft = **{:.3f}mm** (Excel: {:.1f}pt = {:.3f}mm, diff: {:.3f}mm)'.format(
+                _ri, _h_ft, _h_mm, _excel_pt, _excel_mm, _h_mm - _excel_mm))
+        except Exception as _e:
+            _out.print_md('- row {} readback failed: {}'.format(_ri, _e))
+
+    _out.print_md('### Revit cell styles (read-back after write)')
+    for _ri in range(hdr.NumberOfRows):
+        for _ci in range(hdr.NumberOfColumns):
+            try:
+                _rs = hdr.GetTableCellStyle(_ri, _ci)
+                _ro = _rs.GetCellStyleOverrideOptions()
+                _out.print_md(
+                    '- **cell({},{})** text=`{}` '
+                    'bold={} size={:.1f}pt font=`{}` '
+                    'bg=({},{},{}) fg=({},{},{}) '
+                    'overrides: bold={} size={} bg={} fg={}'.format(
+                        _ri, _ci,
+                        repr(hdr.GetCellText(_ri, _ci)[:15]),
+                        _rs.IsFontBold,
+                        _rs.TextSize,
+                        _rs.FontName,
+                        _rs.BackgroundColor.Red,
+                        _rs.BackgroundColor.Green,
+                        _rs.BackgroundColor.Blue,
+                        _rs.TextColor.Red,
+                        _rs.TextColor.Green,
+                        _rs.TextColor.Blue,
+                        _ro.Bold, _ro.FontSize,
+                        _ro.BackgroundColor, _ro.FontColor,
+                    )
                 )
-            )
-        except Exception as _re:
-            _out.print_md('- cell({},{}) read-back failed: {}'.format(_ri, _ci, _re))
+            except Exception as _re:
+                _out.print_md('- cell({},{}) read-back failed: {}'.format(_ri, _ci, _re))
+
+# Hand the new schedule's id back so pyLink can tag it, track it as this
+# row's view, and put it where a replaced view used to sit on its sheets.
+try:
+    _view_id_int = sched.Id.IntegerValue
+except AttributeError:
+    _view_id_int = int(sched.Id.Value)
+PYLINK_RESULT = {'view_id': _view_id_int, 'borders': _BORDER_LOG}

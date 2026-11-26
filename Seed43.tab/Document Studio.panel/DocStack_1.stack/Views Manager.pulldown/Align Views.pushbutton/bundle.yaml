@@ -1,12 +1,12 @@
-title: "Align Drafting"
+title: "Align Views"
 author: "𝐒𝐄𝐄𝐃𝟒𝟑"
 tooltip: >
   __________________________________________________________________
 
   Description:
 
-  Lines up drafting views and legends on sheets, the way model views
-  line up by their coordinates.
+  Lines up drafting views, legends and schedules on sheets, the way
+  model views line up by their coordinates.
 
   Line up by view origin: pick a reference view, then the views to line
   up with it, on any sheets. Each one moves so its own 0,0 sits where
@@ -18,7 +18,12 @@ tooltip: >
   it on the sheet, pick the matching point inside it, and it lines up.
   Esc to finish.
 
-  Both modes can line up horizontally, vertically or both. Each run is
+  Line up schedules: schedules have no Saved Position, so they line up
+  by their top-left corner. Pick a reference, a drafting view or legend
+  (its 0,0, where a pyLink table starts) or another schedule, then the
+  schedules to move, on any sheets.
+
+  All modes can line up horizontally, vertically or both. Each run is
   one undo.
 
   __________________________________________________________________

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Align Drafting - line up drafting views on sheets, the way model views line
-up by their coordinates.
+Align Views - line up drafting views, legends and schedules on sheets, the
+way model views line up by their coordinates.
 
 Two modes:
   View origin   Every chosen viewport is moved so its view's 0,0 sits on
@@ -12,6 +12,12 @@ Two modes:
                 lines), then back out to the sheet. Then, for each view to
                 move: pick the viewport, pick its matching point inside it,
                 and it lines up. Esc to finish.
+
+  Schedules      Schedules have no Saved Position, so they line up by their
+                top-left corner (a schedule's insert point). Reference: a
+                drafting view or legend (its 0,0, which is where a table
+                built by pyLink starts) or another schedule. Every chosen
+                schedule moves so its top-left sits there.
 
 Both can line up horizontally, vertically or both. Uses
 Viewport.GetPositionAtViewAnchor (Revit 2026+) for the origin mode; picking works in any version.
@@ -26,6 +32,7 @@ uidoc = revit.uidoc
 
 ORIGIN = 'Line up by view origin'
 PICK = 'Line up by picked points'
+SCHEDULES = 'Line up schedules (top-left)'
 
 BOTH = 'Both'
 HORIZONTAL = 'Horizontal only (same height)'
@@ -162,7 +169,7 @@ def run_origin():
                     'Use Line up by picked points instead.', exitscript=True)
     moved = 0
     skipped = 0
-    with revit.Transaction('Align Drafting: by view origin'):
+    with revit.Transaction('Align Views: by view origin'):
         for vp in targets:
             here = _origin_on_sheet(vp)
             if here is None:
@@ -172,7 +179,97 @@ def run_origin():
     msg = '{} of {} views moved.'.format(moved, len(targets))
     if skipped:
         msg += ' {} could not be read and were left.'.format(skipped)
-    forms.alert(msg, title='Align Drafting', warn_icon=False)
+    forms.alert(msg, title='Align Views', warn_icon=False)
+
+
+# ── MODE: SCHEDULES ──────────────────────────────────────────────────────────
+
+class SchedItem(forms.TemplateListItem):
+    """A drafting view / legend viewport or a schedule on a sheet."""
+    @property
+    def name(self):
+        it = self.item
+        if isinstance(it, DB.Viewport):
+            return u'View:  ' + _label(it)
+        sheet = doc.GetElement(it.OwnerViewId)
+        sched = doc.GetElement(it.ScheduleId)
+        return u'Schedule:  {}  {}   [{}]'.format(
+            sheet.SheetNumber, sheet.Name, sched.Name)
+
+
+def _schedule_instances():
+    out = []
+    for inst in DB.FilteredElementCollector(doc).OfClass(
+            DB.ScheduleSheetInstance):
+        try:
+            if inst.IsTitleblockRevisionSchedule:
+                continue
+        except Exception:
+            pass
+        out.append(inst)
+    return out
+
+
+def _schedule_goal(ref):
+    """Sheet point the schedules line up to: a view's origin, or a
+    schedule's own top-left."""
+    if isinstance(ref, DB.Viewport):
+        return _origin_on_sheet(ref)
+    return ref.Point
+
+
+def run_schedules():
+    scheds = _schedule_instances()
+    if not scheds:
+        forms.alert('There are no schedules on sheets.', exitscript=True)
+    refs = list(_origin_viewports()) + scheds
+    items = sorted((SchedItem(v) for v in refs), key=lambda i: i.name)
+
+    reference = None
+    selected = [doc.GetElement(i) for i in uidoc.Selection.GetElementIds()]
+    ref_ids = set(v.Id for v in refs)
+    selected = [e for e in selected if e is not None and e.Id in ref_ids]
+    if len(selected) == 1:
+        reference = selected[0]
+    if reference is None:
+        reference = forms.SelectFromList.show(
+            items, title='Reference (a view origin or a schedule)',
+            button_name='Use as reference', multiselect=False)
+        if not reference:
+            script.exit()
+    goal = _schedule_goal(reference)
+    if goal is None:
+        forms.alert("Can't read where that view's origin sits on its sheet "
+                    '(needs Revit 2026). Pick a schedule as the reference.',
+                    exitscript=True)
+
+    targets = forms.SelectFromList.show(
+        [i for i in items if isinstance(i.item, DB.ScheduleSheetInstance)
+         and i.item.Id != reference.Id],
+        title='Line these schedules up', button_name='Line up',
+        multiselect=True)
+    if not targets:
+        script.exit()
+    axis = _ask_axis()
+    if not axis:
+        script.exit()
+
+    moved = 0
+    with revit.Transaction('Align Views: schedules'):
+        for inst in targets:
+            delta = goal - inst.Point
+            dx = 0.0 if axis == HORIZONTAL else delta.X
+            dy = 0.0 if axis == VERTICAL else delta.Y
+            if abs(dx) < 1e-9 and abs(dy) < 1e-9:
+                continue
+            try:
+                DB.ElementTransformUtils.MoveElement(
+                    doc, inst.Id, DB.XYZ(dx, dy, 0))
+                moved += 1
+            except Exception:
+                pass
+    forms.alert('{} of {} schedules moved.'.format(moved, len(targets)),
+                title='Align Views', warn_icon=False)
 
 
 # ── MODE: PICK POINTS ────────────────────────────────────────────────────────
@@ -249,19 +346,21 @@ def run_pick():
                 doc.GetElement(vp.ViewId).Name))
         if point is None:
             break
-        with revit.Transaction('Align Drafting: by picked points'):
+        with revit.Transaction('Align Views: by picked points'):
             if _move(vp, goal - point, axis):
                 moved += 1
     if moved:
-        forms.alert('{} view(s) lined up.'.format(moved), title='Align Drafting',
+        forms.alert('{} view(s) lined up.'.format(moved), title='Align Views',
                     warn_icon=False)
 
 
 # ── RUN ──────────────────────────────────────────────────────────────────────
 
-mode = forms.CommandSwitchWindow.show([ORIGIN, PICK],
-                                      message='Align drafting views:')
+mode = forms.CommandSwitchWindow.show([ORIGIN, PICK, SCHEDULES],
+                                      message='Align views:')
 if mode == ORIGIN:
     run_origin()
 elif mode == PICK:
     run_pick()
+elif mode == SCHEDULES:
+    run_schedules()

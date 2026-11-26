@@ -9,6 +9,11 @@ tooltip: >
   can be duplicated Empty, with Sheet Detailing, or with Views; views can be
   duplicated normally, with Detailing, or as Dependent. When duplicating a
   sheet with Views, each placed view is duplicated using the chosen option
-  and placed on the new sheet in the same viewport position.
+  and placed on the new sheet in the same viewport position, keeping its
+  detail number or letting Revit number it again. You choose how many
+  copies to make, and the new sheets can take Revit's own numbering,
+  continue the sequence of the sheet being copied (45.03.01 becomes
+  45.03.02, S2001 becomes S2002), or follow a pattern such as 45.03.xx.
+  With several sheets selected each one continues its own sequence.
 
   __________________________________________________________________

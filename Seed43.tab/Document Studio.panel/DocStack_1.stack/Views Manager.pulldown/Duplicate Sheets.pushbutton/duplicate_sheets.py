@@ -10,6 +10,7 @@
 # the new sheet with its model where the original's is, and the same rotation
 # and title position.
 
+import re
 import time
 
 from pyrevit import revit, DB, forms, script
@@ -155,6 +156,43 @@ def unique_sheet_number(base_number):
             existing.add(candidate)
             return candidate
         counter += 1
+
+
+def sequence_sheet_number(source_number, pattern=None):
+    """Next free sheet number continuing the sequence of source_number.
+
+    Without a pattern the trailing digits of the source number are counted
+    on:  45.03.01 -> 45.03.02,  S2001 -> S2002,  A-09 -> A-10.
+    With a pattern such as 45.03.xx or S20xx the text before the x's is the
+    fixed part and the x's set the digit width; the count carries on from
+    the source number when it starts with that fixed part, otherwise from 1.
+    Returns None when no sequence can be read (the caller falls back to
+    Revit's own numbering).
+    """
+    if pattern:
+        m = re.match(r"^(.*?)([xX#]+)$", pattern.strip())
+        if not m:
+            return None
+        prefix, width = m.group(1), len(m.group(2))
+        tail = source_number[len(prefix):]
+        if source_number.lower().startswith(prefix.lower()) and tail.isdigit():
+            counter = int(tail)
+        else:
+            counter = 0
+    else:
+        m = re.match(r"^(.*?)(\d+)$", source_number)
+        if not m:
+            return None
+        prefix, width = m.group(1), len(m.group(2))
+        counter = int(m.group(2))
+
+    existing = _existing_sheet_numbers()
+    while True:
+        counter += 1
+        candidate = prefix + str(counter).zfill(width)
+        if candidate not in existing:
+            existing.add(candidate)
+            return candidate
 
 
 def unique_view_name(base_name):
@@ -350,6 +388,80 @@ if selected_option == "SHEETS: Duplicate with Views" and sheets:
         else DB.ViewDuplicateOption.Duplicate
     )
 
+# ── How many copies ───────────────────────────────────────────────────────────
+
+copies_text = forms.ask_for_string(
+    default="1",
+    prompt="How many copies of each selected sheet / view?",
+    title="Duplicate Sheets / Views"
+)
+if copies_text is None:
+    script.exit()
+try:
+    copies = int(copies_text.strip())
+except ValueError:
+    copies = 0
+if copies < 1:
+    forms.alert("Enter a whole number of 1 or more.",
+                title="Duplicate Sheets / Views", exitscript=True)
+
+# ── Sheet numbering and detail numbers (sheet modes only) ─────────────────────
+
+NUM_REVIT = "Revit default  (45.03.01 -> 45.03.01 (1))"
+NUM_CONTINUE = "Continue the sequence  (45.03.01 -> 45.03.02)"
+NUM_PATTERN = "Numbering pattern  (e.g. 45.03.xx or S20xx)"
+
+number_mode = NUM_REVIT
+number_pattern = None
+keep_detail_numbers = False
+
+if sheets and selected_option.startswith("SHEETS"):
+    number_mode = forms.CommandSwitchWindow.show(
+        [NUM_REVIT, NUM_CONTINUE, NUM_PATTERN],
+        message="How should the new sheets be numbered?"
+    )
+    if not number_mode:
+        script.exit()
+    if number_mode == NUM_PATTERN:
+        number_pattern = forms.ask_for_string(
+            default="45.03.xx",
+            prompt="Pattern: fixed text then x's for the digits "
+                   "(45.03.xx, S20xx). Each new sheet continues from the "
+                   "number of the sheet it is copied from.",
+            title="Sheet numbering pattern"
+        )
+        if not number_pattern or not re.match(r"^(.*?)([xX#]+)$",
+                                              number_pattern.strip()):
+            forms.alert("The pattern must end in x's, for example 45.03.xx.",
+                        title="Sheet numbering pattern", exitscript=True)
+
+if selected_option == "SHEETS: Duplicate with Views" and sheets:
+    dn_mode = forms.CommandSwitchWindow.show(
+        ["Keep the original detail numbers",
+         "Reset detail numbers (Revit numbers them on the new sheet)"],
+        message="Detail numbers of the views placed on the new sheets:"
+    )
+    if not dn_mode:
+        script.exit()
+    keep_detail_numbers = dn_mode.startswith("Keep")
+
+
+def new_sheet_number(source):
+    """The number for a copy of source, by the chosen numbering mode."""
+    if number_mode == NUM_CONTINUE:
+        found = sequence_sheet_number(source.SheetNumber)
+    elif number_mode == NUM_PATTERN:
+        found = sequence_sheet_number(source.SheetNumber, number_pattern)
+    else:
+        found = None
+    return found or unique_sheet_number(source.SheetNumber)
+
+
+# One job per copy, kept in selection order so a copy of sheet A is
+# numbered before the copies of sheet B.
+sheet_jobs = [s for s in sheets for _i in range(copies)]
+view_jobs = [v for v in views for _i in range(copies)]
+
 # ── Execute ───────────────────────────────────────────────────────────────────
 
 # Timed from here so the dialogs above are not counted against the run.
@@ -372,7 +484,7 @@ try:
             "SHEETS: Duplicate with Sheet Detailing",
             "SHEETS: Duplicate with Views",
         ):
-            for sheet in sheets:
+            for sheet in sheet_jobs:
                 try:
                     src_tbs = get_title_blocks(sheet)
                     tb_type_id = (src_tbs[0].GetTypeId() if src_tbs
@@ -385,7 +497,7 @@ try:
                         new_sheet = DB.ViewSheet.CreatePlaceholder(doc)
 
                     # New sheet number only -- all other params copied from original
-                    new_sheet.SheetNumber = unique_sheet_number(sheet.SheetNumber)
+                    new_sheet.SheetNumber = new_sheet_number(sheet)
                     print_dim("Source sheet: {} | {}".format(
                         sheet.SheetNumber, sheet.Name))
 
@@ -461,18 +573,16 @@ try:
                                     print_debug("annotation_ids count: {}".format(
                                         annotation_ids.Count))
 
-                                # Offset = src_origin - dst_origin so annotations
-                                # land correctly relative to the new title block
-                                copy_transform = (
-                                    DB.Transform.CreateTranslation(tb_offset)
-                                    if src_tbs and dst_tbs
-                                    else DB.Transform.Identity)
-
+                                # NOTE: no translation. The new title block was
+                                # already moved onto the source's origin above, so
+                                # both sheets share one coordinate frame. Moving the
+                                # annotations by tb_offset as well shifted them by
+                                # the offset twice (red sheet note landed ~85 mm up).
                                 DB.ElementTransformUtils.CopyElements(
                                     sheet,
                                     annotation_ids,
                                     new_sheet,
-                                    copy_transform,
+                                    DB.Transform.Identity,
                                     DB.CopyPasteOptions()
                                 )
                             except Exception as ce:
@@ -534,6 +644,16 @@ try:
                                 except Exception:
                                     pass
 
+                                if keep_detail_numbers:
+                                    try:
+                                        src_dn = vp.get_Parameter(
+                                            DB.BuiltInParameter.VIEWPORT_DETAIL_NUMBER)
+                                        new_vp.get_Parameter(
+                                            DB.BuiltInParameter.VIEWPORT_DETAIL_NUMBER
+                                        ).Set(src_dn.AsString())
+                                    except Exception:
+                                        pass    # leave Revit's own number
+
                                 how = match_viewport(vp, new_vp)
                                 print_debug("viewport {} aligned by {}".format(
                                     eid_int(new_vp.Id), how))
@@ -575,7 +695,7 @@ try:
             }
             dup_op = dup_map[selected_option]
 
-            for view in views:
+            for view in view_jobs:
                 try:
                     new_id = duplicate_view(view, dup_op)
                     if new_id is None:

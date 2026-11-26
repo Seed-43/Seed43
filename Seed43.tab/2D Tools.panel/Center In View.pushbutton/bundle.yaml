@@ -11,10 +11,12 @@ tooltip: >
   midpoints, intersections and centres snap), and everything moves by the
   same amount so the layout is untouched. The view title of any viewport
   showing the view is then reset to its default position, as if the view
-  had just been placed on the sheet. If you have elements selected only
-  those move, otherwise every element drawn in the view does. Pinned
-  elements and viewports are unpinned for the move and pinned again
-  afterwards, and the whole thing is one undo.
+  had just been placed on the sheet. That makes it ideal for lining views
+  up with Saved Position, because views that share the same centre point
+  land in exactly the same place when you place them on sheets. If you
+  have elements selected only those move, otherwise every element drawn in
+  the view does. Pinned elements and viewports are unpinned for the move
+  and pinned again afterwards, and the whole thing is one undo.
 
   __________________________________________________________________
 min_revit_ver: 2022

@@ -5,6 +5,8 @@
 # Move the elements of a drafting view so a point you pick lands on the
 # view's centre point (its origin), then reset the view title on any sheet
 # it sits on to its default position. Pick the point on the elements, done.
+# Ideal for Saved Position: views sharing the same centre point land in the
+# same place when placed on sheets.
 # """
 #
 # Target: Revit 2022-2026, IronPython 2.

@@ -1,0 +1,14 @@
+title: "Hidden Lines"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Turns Show Hidden Lines on or off, in drafting views too, where Revit
+  hides the setting from Properties but still prints by it. In a view it
+  toggles that view; on a sheet it toggles the selected viewports, or every
+  view on the sheet when none is selected. If they are all off it turns
+  them on (By Discipline), otherwise it turns them all off. One undo.
+
+  __________________________________________________________________

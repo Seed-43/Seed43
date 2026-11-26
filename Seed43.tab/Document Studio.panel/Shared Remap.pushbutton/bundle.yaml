@@ -1,0 +1,21 @@
+title: "Shared Remap"
+author: "𝐒𝐄𝐄𝐃𝟒𝟑"
+tooltip: >
+  __________________________________________________________________
+
+  Description:
+
+  Swaps an open family's numbered helper parameters for the shared ones of
+  the same kind and number in a shared parameter file: Bool 001 and NG_Gb
+  Bool 004 become Bool 01 and Bool 04, NG_Gl Length 001 becomes Length 01,
+  and so on for Integer and Angle. Values, formulas, labels and nested
+  links are kept; old shared parameters from another file are swapped too.
+  Pick the file, untick any you want left, and Remap. One undo.
+
+  A parameter that drives a group or array member is listed, not changed:
+  Revit only allows that in Edit Group mode. Afterwards every value and
+  formula is checked against before, and any difference is reported.
+
+  __________________________________________________________________
+min_revit_ver: 2022
+max_revit_ver: 2026

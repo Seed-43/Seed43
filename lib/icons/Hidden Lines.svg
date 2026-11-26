@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Hidden Lines: a bar in front of a second one drawn dashed behind it. Same frame as the other Seed43 icons.
+     The dashes are separate short paths: the icon renderer does not read stroke-dasharray. -->
+<svg version="1.1" width="96" height="96" viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg">
+  <rect x="1.5" y="1.5" width="93" height="93" rx="12" ry="12" style="fill:#1f893c;stroke:none"/>
+  <path d="M 94.5,31 V 14 C 94.5,6.8 88.7,1.5 81.5,1.5 H 14.5 C 7.3,1.5 1.5,6.8 1.5,14 V 54 A 92,36 0 0 0 94.5,31 Z"
+        style="fill:#1faa3c;stroke:none"/>
+  <rect x="1.5" y="1.5" width="93" height="93" rx="12" ry="12" style="fill:none;stroke:#000000;stroke-width:3"/>
+  <path d="M 38,12 H 46 M 50,12 H 58 M 38,12 V 20 M 38,25 V 33 M 58,12 V 20 M 58,25 V 33 M 38,63 V 71 M 38,76 V 84 M 58,63 V 71 M 58,76 V 84 M 38,84 H 46 M 50,84 H 58"
+        style="fill:none;stroke:#000000;stroke-width:3.5;stroke-linecap:butt"/>
+  <rect x="12" y="37" width="72" height="22" style="fill:#ffffff;stroke:#000000;stroke-width:3.5"/>
+</svg>

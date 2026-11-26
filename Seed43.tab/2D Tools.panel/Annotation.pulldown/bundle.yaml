@@ -13,4 +13,5 @@ tooltip: >
 layout:
   - Rotate To Element
   - Reference Other View
+  - Hidden Lines
   - View Refs

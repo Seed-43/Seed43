@@ -400,7 +400,12 @@ def _has_overrides(ogs):
 
 # ── Collect selection ─────────────────────────────────────────────────────────
 
-selected_elements = revit.get_selection().elements
+# A caller that runs this file (e.g. Nagel Working) can set PRESET in the
+# globals to skip every dialog: {"sheets": [ViewSheet], "copies": "3"}. It means
+# Duplicate with Views + with Detailing, continue the sequence, keep detail numbers.
+PRESET = globals().get("PRESET")
+
+selected_elements = PRESET["sheets"] if PRESET else revit.get_selection().elements
 
 sheets = [e for e in selected_elements if isinstance(e, DB.ViewSheet)
           and not e.IsPlaceholder]
@@ -442,7 +447,7 @@ if views:
         "VIEWS: Duplicate as Dependent",
     ]
 
-selected_option = forms.CommandSwitchWindow.show(
+selected_option = "SHEETS: Duplicate with Views" if PRESET else forms.CommandSwitchWindow.show(
     options,
     message="Select duplication mode  "
             "({} sheet(s), {} view(s) selected):".format(len(sheets), len(views))
@@ -457,7 +462,7 @@ if not selected_option:
 view_dup_option = DB.ViewDuplicateOption.WithDetailing  # sensible default
 
 if selected_option == "SHEETS: Duplicate with Views" and sheets:
-    view_mode = forms.CommandSwitchWindow.show(
+    view_mode = "Duplicate with Detailing" if PRESET else forms.CommandSwitchWindow.show(
         ["Duplicate", "Duplicate with Detailing"],
         message="How should the views placed on the sheet(s) be duplicated?"
     )
@@ -471,7 +476,7 @@ if selected_option == "SHEETS: Duplicate with Views" and sheets:
 
 # ── How many copies ───────────────────────────────────────────────────────────
 
-copies_text = forms.ask_for_string(
+copies_text = PRESET["copies"] if PRESET else forms.ask_for_string(
     default="1",
     prompt="How many copies of each selected sheet / view?",
     title="Duplicate Sheets / Views"
@@ -497,7 +502,7 @@ number_pattern = None
 keep_detail_numbers = False
 
 if sheets and selected_option.startswith("SHEETS"):
-    number_mode = forms.CommandSwitchWindow.show(
+    number_mode = NUM_CONTINUE if PRESET else forms.CommandSwitchWindow.show(
         [NUM_REVIT, NUM_CONTINUE, NUM_PATTERN],
         message="How should the new sheets be numbered?"
     )
@@ -517,7 +522,7 @@ if sheets and selected_option.startswith("SHEETS"):
                         title="Sheet numbering pattern", exitscript=True)
 
 if selected_option == "SHEETS: Duplicate with Views" and sheets:
-    dn_mode = forms.CommandSwitchWindow.show(
+    dn_mode = "Keep the original detail numbers" if PRESET else forms.CommandSwitchWindow.show(
         ["Keep the original detail numbers",
          "Reset detail numbers (Revit numbers them on the new sheet)"],
         message="Detail numbers of the views placed on the new sheets:"

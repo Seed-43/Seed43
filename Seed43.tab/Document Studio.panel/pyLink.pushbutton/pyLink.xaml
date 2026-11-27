@@ -879,7 +879,7 @@
                                     BorderBrush="{DynamicResource BrushBorderMuted}"
                                     BorderThickness="1"
                                     CornerRadius="{DynamicResource CornerRadiusDropdownPopup}"
-                                    Padding="8" MinWidth="110">
+                                    Padding="8" MinWidth="150">
                                 <Border.Effect>
                                     <DropShadowEffect Color="Black" Opacity="0.4" ShadowDepth="3" BlurRadius="8"/>
                                 </Border.Effect>
@@ -925,7 +925,7 @@
                         <ToggleButton x:Name="TypeFilterToggle"
                                       Content="Type"
                                       Style="{StaticResource DropdownToggleButtonStyle}"
-                                      Width="100"/>
+                                      Width="110"/>
                         <Popup x:Name="TypeAccordionPopup"
                                PlacementTarget="{Binding ElementName=TypeFilterToggle}"
                                Placement="Bottom"
@@ -937,7 +937,7 @@
                                     BorderBrush="{DynamicResource BrushBorderMuted}"
                                     BorderThickness="1"
                                     CornerRadius="{DynamicResource CornerRadiusDropdownPopup}"
-                                    Padding="8" MinWidth="100">
+                                    Padding="8" MinWidth="150">
                                 <Border.Effect>
                                     <DropShadowEffect Color="Black" Opacity="0.4" ShadowDepth="3" BlurRadius="8"/>
                                 </Border.Effect>
@@ -970,6 +970,19 @@
                             </Border>
                         </Popup>
                     </Grid>
+
+                    <!-- Group: puts the cards under Excel / Word parent dropdowns -->
+                    <StackPanel Grid.Column="11" Orientation="Horizontal"
+                                HorizontalAlignment="Left" VerticalAlignment="Center"
+                                Margin="12,0,0,0">
+                        <Border x:Name="GroupToggle"
+                                Width="{DynamicResource WidthToggle}" Height="{DynamicResource HeightToggle}"
+                                CornerRadius="{DynamicResource CornerRadiusToggle}" Cursor="Hand"
+                                ToolTip="Group the cards under an Excel (XL) and a Word (W) dropdown you can expand"/>
+                        <TextBlock Text="Group" FontSize="11" Margin="6,0,0,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource BrushTextPrimary}"/>
+                    </StackPanel>
 
                 </Grid>
 

@@ -5,8 +5,8 @@ tooltip: >
 
   Description:
 
-  Clears View Organiser's saved folder-parameter configuration, so the
-  source and destination parameters can be re-picked the next time View
-  Organiser runs.
+  Clears part or all of View Organiser's saved setup (the views,
+  schedules or legends links, or the casing), so the next View Organiser
+  run asks for it again.
 
   __________________________________________________________________

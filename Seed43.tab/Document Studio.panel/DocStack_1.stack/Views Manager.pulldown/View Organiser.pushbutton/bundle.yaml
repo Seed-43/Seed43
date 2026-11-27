@@ -6,8 +6,10 @@ tooltip: >
   Description:
 
   Renames every view placed on a sheet into a consistent Sheet Number -
-  Detail Number - View Title format and syncs browser folder grouping from
-  sheets to views across the project, all in one automatic pass. Legends,
-  schedules, and drawing sheets are excluded.
+  Detail Number - View Title format across the project in one automatic
+  pass. You choose up to ten links per section, each copying a sheet
+  parameter (such as Folder or Sheet Collection) to a parameter on the
+  views, schedules or legends placed on that sheet. Sections are asked in
+  turn, and anything the saved setup lacks after an update is asked again.
 
   __________________________________________________________________

@@ -94,7 +94,8 @@ PYLINK_PARAM_FILE = os.path.join(
 # Stored in .user so an update cannot overwrite it.
 EXCEL_FONT_SETTINGS_PATH = _userdata.user_path('pyLink', 'excel_font_settings.json')
 
-DEFAULT_EXCEL_FONT_SETTINGS = {'fallback_font': 'Arial', 'force_fallback': False}
+DEFAULT_EXCEL_FONT_SETTINGS = {'fallback_font': 'Arial', 'force_fallback': False,
+                               'target_mm': 2.0}
 
 
 def load_excel_font_settings():
@@ -106,7 +107,9 @@ def load_excel_font_settings():
             with open(EXCEL_FONT_SETTINGS_PATH, 'r') as f:
                 data = _json.load(f)
             if isinstance(data, dict) and 'fallback_font' in data:
-                return data
+                merged = dict(DEFAULT_EXCEL_FONT_SETTINGS)
+                merged.update(data)
+                return merged
     except Exception as ex:
         logger.warning('excel_font_settings.json load failed: {}'.format(ex))
     return dict(DEFAULT_EXCEL_FONT_SETTINGS)
@@ -1121,6 +1124,35 @@ VIEW_TYPE_DRAFTING = 'Drafting View'
 
 # ── Data class ──
 
+_EXPORT_SRC_CACHE = {}
+
+
+def _read_export_source(script_path):
+    """The text of an Export/ script, read once per file change.
+
+    Reading it with a bare open() sometimes failed under IronPython with
+    "Cannot access a closed file" on every Apply. The read goes through
+    System.IO instead, which has no such Python-side file object, and the
+    result is cached by modified time so a run of rows reads each script
+    once."""
+    try:
+        stamp = os.path.getmtime(script_path)
+    except Exception:
+        stamp = None
+    hit = _EXPORT_SRC_CACHE.get(script_path)
+    if hit is not None and hit[0] == stamp:
+        return hit[1]
+    try:
+        from System.IO import File as _File
+        # One char per byte, exactly what open(path, 'r').read() gave.
+        src = ''.join(chr(b) for b in _File.ReadAllBytes(script_path))
+    except Exception:
+        with open(script_path, 'rb') as f:
+            src = f.read()
+    _EXPORT_SRC_CACHE[script_path] = (stamp, src)
+    return src
+
+
 def _run_export_script(script_name, payload):
     """
     Run one of the Export/ scripts via exec() with PYLINK_PAYLOAD injected.
@@ -1144,7 +1176,7 @@ def _run_export_script(script_name, payload):
         'PYLINK_PAYLOAD': payload,
     }
 
-    src = open(script_path, 'r').read()
+    src = _read_export_source(script_path)
 
     # These scripts manage their own transactions internally
     if script_name in ('create_legend.py', 'create_notes.py'):
@@ -1628,21 +1660,22 @@ def save_pylink_state(file_data):
         cl = '1' if fd.get('collapsed') else '0'
         cv = '1' if fd.get('combine_views') else '0'
         sc = card_native_scale(fd)
+        bp = card_body_pt(fd)
         sm = card_sched_mode(fd)
         if ss:
-            lines.append('CARD_SS-{}|CC-{}|VN-{}|VT-{}|RP-{}|UL-{}|PM-{}|LM-{}|AVN-{}|CAT-{}|CL-{}|CV-{}|SC-{}|SM-{}'.format(
-                ss, cc, vn, vt, rp_stored, ul, pm, lm, avn, card_at, cl, cv, sc, sm))
+            lines.append('CARD_SS-{}|CC-{}|VN-{}|VT-{}|RP-{}|UL-{}|PM-{}|LM-{}|AVN-{}|CAT-{}|CL-{}|CV-{}|SC-{}|SM-{}|BP-{}'.format(
+                ss, cc, vn, vt, rp_stored, ul, pm, lm, avn, card_at, cl, cv, sc, sm, bp))
         elif (rp != path or fd.get('unlinked') or pm != 'absolute'
                 or lm != 'manual' or avn or fd.get('collapsed')
                 or fd.get('combine_views')
-                or sc != DEFAULT_NATIVE_SCALE
+                or sc is not None or bp is not None
                 or sm != SCHED_ONE):
             # Excel duplicate/unlinked cards have no sheet_size line,
             # still need real_path (and now unlink/path-mode/layout
             # mode/applied view name) recorded so they round-trip on
             # reload.
-            lines.append('CARD_RP-{}|UL-{}|PM-{}|LM-{}|AVN-{}|CAT-{}|CL-{}|CV-{}|SC-{}|SM-{}'.format(
-                rp_stored, ul, pm, lm, avn, card_at, cl, cv, sc, sm))
+            lines.append('CARD_RP-{}|UL-{}|PM-{}|LM-{}|AVN-{}|CAT-{}|CL-{}|CV-{}|SC-{}|SM-{}|BP-{}'.format(
+                rp_stored, ul, pm, lm, avn, card_at, cl, cv, sc, sm, bp))
     text = '\n'.join(lines)
     try:
         p = _get_pylink_param()
@@ -1673,6 +1706,8 @@ SPLIT_MODES  = (SPLIT_EXCEL, SPLIT_ROWS, SPLIT_HEIGHT)
 # one number keeps every proportion of the sheet, where separate text and
 # cell sizes drifted apart.
 NATIVE_SCALE_OPTIONS = (0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
+# Card dropdown choices for the Excel body text size to match (pt).
+BODY_PT_OPTIONS = (6, 7, 8, 9, 10, 11, 12, 14, 16)
 
 # How a schedule that splits into parts is built (the card dropdown).
 # One schedule: the parts sit side by side inside ONE wide schedule. A
@@ -1681,6 +1716,12 @@ NATIVE_SCALE_OPTIONS = (0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
 SCHED_ONE = 'One schedule'
 SCHED_PER_PART = 'Schedule per part'
 SCHED_MODES = (SCHED_ONE, SCHED_PER_PART)
+
+# View Name header dropdown: what to name every ticked row's view from.
+VIEW_NAME_RANGE = 'Range name'
+VIEW_NAME_SHEET = 'Sheet name'
+VIEW_NAME_BOTH  = 'Sheet name - Range name'
+VIEW_NAME_MODES = (VIEW_NAME_RANGE, VIEW_NAME_SHEET, VIEW_NAME_BOTH)
 
 
 def card_sched_mode(fd):
@@ -1710,22 +1751,98 @@ def native_text_type_mm(excel_pt, scale):
             * REVIT_CELL_DRAW_RATIO)
 
 
+def _parse_body_pt(value):
+    """A stored BP- value: a point size, or None (detect it)."""
+    if value is None or value == '' or value == 'None':
+        return None
+    try:
+        v = float(value)
+    except Exception:
+        return None
+    return v if v > 0 else None
+
+
+def card_body_pt(fd):
+    """The Excel body-text size a card is set to match (None = detect)."""
+    return _parse_body_pt(fd.get('body_pt'))
+
+
+def _body_row_sizes(cell_styles):
+    """One range's row sizes (pt), top to bottom: each row's size is the one
+    most of its cells use. Leading rows (up to 3) in a different size from
+    the last row are headers and left out."""
+    by_row = {}
+    for key, st in (cell_styles or {}).items():
+        try:
+            r = key[0]
+            fs = (st or {}).get('font_size')
+            if fs:
+                by_row.setdefault(r, []).append(float(fs))
+        except Exception:
+            continue
+    sizes = []
+    for r in sorted(by_row):
+        vals = by_row[r]
+        sizes.append(max(set(vals), key=vals.count))
+    if not sizes:
+        return []
+    last = sizes[-1]
+    skipped = 0
+    while len(sizes) > 1 and sizes[0] != last and skipped < 3:
+        sizes.pop(0)
+        skipped += 1
+    return sizes
+
+
+def detect_body_pt_multi(styles_list):
+    """The Excel font size (pt) most body rows are set in, counted across
+    every range given (a card's whole document, not one range at a time).
+    None when it can't be decided (a tie between two sizes): the caller then
+    falls back to the first data row, and the card's pt dropdown lets the
+    user say."""
+    counts = {}
+    for cs in styles_list:
+        for s in _body_row_sizes(cs):
+            counts[s] = counts.get(s, 0) + 1
+    if not counts:
+        return None
+    ranked = sorted(counts.items(), key=lambda kv: -kv[1])
+    if len(ranked) > 1 and ranked[0][1] == ranked[1][1]:
+        return None
+    return ranked[0][0]
+
+
+def detect_body_pt(cell_styles):
+    """Body text size of a single range (see detect_body_pt_multi)."""
+    return detect_body_pt_multi([cell_styles])
+
+
+def auto_native_scale(body_pt, target_mm):
+    """The card scale that draws Excel text of body_pt at target_mm."""
+    per_unit = native_text_type_mm(body_pt, 1.0)
+    if per_unit <= 0:
+        return DEFAULT_NATIVE_SCALE
+    return max(0.2, min(1.5, float(target_mm) / per_unit))
+
+
 def _parse_native_scale(value):
     """A stored SC- value, snapped to one of NATIVE_SCALE_OPTIONS."""
     # NOTE: checked rather than caught - IronPython's float(None) raises a
     # .NET NullReferenceException, not the TypeError CPython would.
-    if value is None or value == '':
-        return DEFAULT_NATIVE_SCALE
+    # None means "no override": the scale is worked out from the Text Map
+    # target and the card's body text size at Apply.
+    if value is None or value == '' or value == 'None':
+        return None
     try:
         value = float(value)
     except Exception:
-        return DEFAULT_NATIVE_SCALE
+        return None
     return min(NATIVE_SCALE_OPTIONS, key=lambda o: abs(o - value))
 
 
 def card_native_scale(fd):
-    """The schedule scale a card is set to."""
-    return _parse_native_scale(fd.get('native_scale', DEFAULT_NATIVE_SCALE))
+    """The scale override a card is set to, or None for automatic."""
+    return _parse_native_scale(fd.get('native_scale'))
 
 
 def clear_pylink_state():
@@ -1842,6 +1959,7 @@ def load_pylink_state():
                     current['collapsed'] = parts.get('CL') == '1'
                     current['combine_views'] = parts.get('CV') == '1'
                     current['native_scale'] = _parse_native_scale(parts.get('SC'))
+                    current['body_pt'] = _parse_body_pt(parts.get('BP'))
                     current['sched_mode'] = (parts.get('SM') if parts.get('SM') in SCHED_MODES
                                              else SCHED_ONE)
                     continue
@@ -1858,6 +1976,7 @@ def load_pylink_state():
                     current['collapsed'] = parts.get('CL') == '1'
                     current['combine_views'] = parts.get('CV') == '1'
                     current['native_scale'] = _parse_native_scale(parts.get('SC'))
+                    current['body_pt'] = _parse_body_pt(parts.get('BP'))
                     current['sched_mode'] = (parts.get('SM') if parts.get('SM') in SCHED_MODES
                                              else SCHED_ONE)
                     continue

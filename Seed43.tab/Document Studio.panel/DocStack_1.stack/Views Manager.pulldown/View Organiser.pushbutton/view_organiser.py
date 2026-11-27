@@ -22,141 +22,37 @@ def eid_int(element_id):
     except AttributeError:
         return element_id.IntegerValue   # Revit 2023 and earlier
 
-# ── Config (folder parameter mapping) ───────────────────────────────────────
-# Stored in .user so an update can never overwrite it. Organiser Reset reads
-# the same file and resolves it the same way - keep the two in step.
-CONFIG_PATH = _userdata.user_path("ViewOrganiser", "view_organiser_config.json")
-NONE_LABEL  = "- None -"
+# ── Config (sheet -> view / schedule / legend parameter links) ───────────────
+# The setup window, the saved file and its migration all live in
+# Snippets/_organiser_setup.py, shared with Organiser Reset so both always
+# read and write the same file (in .user, so an update never overwrites it).
+from Snippets import _organiser_setup as setup
 
-def get_text_param_names(elements):
-    """
-    Return sorted list of writable text parameter names across a list of
-    elements. Sampling multiple elements catches project parameters that
-    only appear on certain view types.
-    """
-    names = set()
-    for element in elements:
-        try:
-            for p in element.Parameters:
-                try:
-                    if (p.StorageType == DB.StorageType.String
-                            and not p.IsReadOnly
-                            and p.Definition
-                            and p.Definition.Name):
-                        names.add(p.Definition.Name)
-                except Exception:
-                    pass
-        except Exception:
-            pass
-    return sorted(names)
+CONFIG_PATH = setup.CONFIG_PATH
 
-def pick_folder_params(all_sheets, all_views):
-    """
-    Two dropdowns:
-      1. Which text parameter on SHEETS is the folder source.
-      2. Which text parameter on VIEWS is the folder destination.
-    Either can be set to None to skip syncing.
-    Returns (sheet_param_name, view_param_name).
-    """
-    sample_views = [
-        v for v in all_views
-        if not v.IsTemplate
-        and v.ViewType not in [DB.ViewType.DrawingSheet]
-    ][:20]
-
-    sheet_params = [NONE_LABEL] + get_text_param_names(all_sheets[:10])
-    view_params  = [NONE_LABEL] + get_text_param_names(sample_views)
-
-    if len(sheet_params) == 1:
-        print_warning("No writable text parameters found on sheets.")
-    if len(view_params) == 1:
-        print_warning("No writable text parameters found on views.")
-
-    sheet_choice = forms.ask_for_one_item(
-        sheet_params,
-        default=NONE_LABEL,
-        prompt="Which parameter on SHEETS holds the folder grouping?\n"
-               "(This value will be read from the sheet and copied to the view.)\n\n"
-               "Select 'None' to skip folder syncing.",
-        title="View Organiser - Sheet Folder Parameter (source)"
-    )
-    if sheet_choice is None:
-        script.exit()
-
-    view_choice = forms.ask_for_one_item(
-        view_params,
-        default=NONE_LABEL,
-        prompt="Which parameter on VIEWS should receive the folder value?\n\n"
-               "Select 'None' to skip folder syncing.",
-        title="View Organiser - View Folder Parameter (destination)"
-    )
-    if view_choice is None:
-        script.exit()
-
-    CASE_OPTIONS = [
-        "ALL CAPS  (e.g. GROUND FLOOR PLAN)",
-        "Title Case  (e.g. Ground Floor Plan)",
-        "Ignore  (leave as-is)",
-    ]
-    CASE_MAP = {
-        CASE_OPTIONS[0]: "upper",
-        CASE_OPTIONS[1]: "title",
-        CASE_OPTIONS[2]: "ignore",
-    }
-    title_case_choice = forms.ask_for_one_item(
-        CASE_OPTIONS,
-        default=CASE_OPTIONS[0],
-        prompt="How should 'Title on Sheet' values be cased?\n\n"
-               "ALL CAPS   - forces every title to uppercase\n"
-               "Title Case - capitalises the first letter of each word\n"
-               "Ignore     - no case changes applied",
-        title="View Organiser - Title on Sheet Casing"
-    )
-    if title_case_choice is None:
-        script.exit()
-
-    sheet_name_case_choice = forms.ask_for_one_item(
-        CASE_OPTIONS,
-        default=CASE_OPTIONS[0],
-        prompt="How should Sheet Name values be cased?\n\n"
-               "ALL CAPS   - forces every sheet name to uppercase\n"
-               "Title Case - capitalises the first letter of each word\n"
-               "Ignore     - no case changes applied",
-        title="View Organiser - Sheet Name Casing"
-    )
-    if sheet_name_case_choice is None:
-        script.exit()
-
-    return (
-        None if sheet_choice == NONE_LABEL else sheet_choice,
-        None if view_choice  == NONE_LABEL else view_choice,
-        CASE_MAP[title_case_choice],
-        CASE_MAP[sheet_name_case_choice],
-    )
-
-def load_config():
-    """Return config dict from JSON, or None if file does not exist."""
-    if os.path.isfile(CONFIG_PATH):
-        try:
-            with open(CONFIG_PATH, "r") as f:
-                return json.load(f)
-        except Exception:
-            return None
-    return None
-
-def save_config(sheet_param, view_param, title_on_sheet_case="upper", sheet_name_case="upper"):
-    """Persist the chosen parameter names and casing modes to JSON."""
-    data = {
-        "sheet_folder_param":   sheet_param,
-        "view_folder_param":    view_param,
-        "title_on_sheet_case":  title_on_sheet_case,
-        "sheet_name_case":      sheet_name_case,
-    }
+def value_text(param):
+    """A parameter's value as text: a string as it is, an ElementId one (e.g.
+    Sheet Collection) as the name of what it points at."""
     try:
-        with open(CONFIG_PATH, "w") as f:
-            json.dump(data, f, indent=2)
-    except Exception as e:
-        print_warning("Could not save config: {}".format(str(e)))
+        if param.StorageType == DB.StorageType.String:
+            return param.AsString() or ""
+        text = param.AsValueString() or ""
+    except Exception:
+        return ""
+    return "" if text.strip() in ("", "<None>") else text
+
+def sheet_value(sheet, name):
+    """Text value of a sheet parameter. A sheet can carry more than one
+    parameter of the same name (Sheet Collection has a read-only twin), so
+    the first that holds a value wins."""
+    try:
+        for p in sheet.GetParameters(name):
+            text = value_text(p)
+            if text:
+                return text
+    except Exception:
+        pass
+    return ""
 
 # ── Output styles ─────────────────────────────────────────────────────────────
 output.add_style("""
@@ -302,33 +198,61 @@ all_sheets = list(
     .ToElements()
 )
 
-# ── Folder parameter config ───────────────────────────────────────────────────
-config = load_config()
-if config is None:
-    print_info("First run - picking folder parameters...")
-    sheet_folder_param_name, view_folder_param_name, title_on_sheet_case, sheet_name_case = pick_folder_params(
-        all_sheets, all_views)
-    save_config(sheet_folder_param_name, view_folder_param_name, title_on_sheet_case, sheet_name_case)
-    if sheet_folder_param_name or view_folder_param_name:
-        print_success("Config saved -> {}".format(CONFIG_PATH))
-        print_dim("  Sheet param:       {}".format(sheet_folder_param_name or "None"))
-        print_dim("  View param:        {}".format(view_folder_param_name  or "None"))
-        print_dim("  Title on Sheet:    {}".format(title_on_sheet_case))
-        print_dim("  Sheet name case:   {}".format(sheet_name_case))
-    else:
-        print_warning("Both folder params set to None - folder syncing will be skipped")
-else:
-    sheet_folder_param_name = config.get("sheet_folder_param")
-    view_folder_param_name  = config.get("view_folder_param")
-    title_on_sheet_case     = config.get("title_on_sheet_case", "upper")
-    sheet_name_case         = config.get("sheet_name_case", "upper")
-    print_success("Config loaded:")
-    print_dim("  Sheet param:       {}".format(sheet_folder_param_name or "None"))
-    print_dim("  View param:        {}".format(view_folder_param_name  or "None"))
-    print_dim("  Title on Sheet:    {}".format(title_on_sheet_case))
-    print_dim("  Sheet name case:   {}".format(sheet_name_case))
+all_schedules = [
+    v for v in DB.FilteredElementCollector(doc).OfClass(DB.ViewSchedule).ToElements()
+    if not v.IsTemplate
+]
 
-SYNC_FOLDERS = bool(sheet_folder_param_name and view_folder_param_name)
+# ── Parameter links config ────────────────────────────────────────────────────
+# Asked once in the setup window. It only comes back when the saved file is
+# missing, or lacks a section (added by an update). Whatever is already saved
+# is pre-filled in the window.
+raw_config = setup.load_config()
+config = setup.migrate_config(raw_config)
+todo = setup.missing_parts(config)
+broken = [] if todo else setup.unavailable_links(doc, config)
+if todo or broken:
+    if raw_config is None:
+        notice = ("First run: map the sheet parameters to the views, schedules "
+                  "and legends placed on them. This is asked once and saved.")
+    elif todo:
+        notice = ("There has been an update to View Organiser. Its saved setup "
+                  "is missing: {}. Please check the links below (your earlier "
+                  "choices are filled in) and save to continue.".format(
+                      ", ".join(todo)))
+    else:
+        notice = ("Some saved parameters are no longer available, so the links "
+                  "need remapping: {}. Choose new ones (or None) and save to "
+                  "continue.".format("; ".join(broken)))
+    print_info("Opening the setup window...")
+    config = setup.show_setup(doc, config, notice)
+    if config is None:
+        print_warning("Setup cancelled - nothing was changed.")
+        script.exit()
+    print_success("Config saved -> {}".format(CONFIG_PATH))
+
+SECTIONS      = setup.SECTIONS
+SECTION_LABEL = {"views": "VIEWS", "schedules": "SCHEDULES", "legends": "LEGENDS"}
+section_targets = {
+    "views":     [v for v in all_views if should_process_view(v)],
+    "schedules": all_schedules,
+    "legends":   [v for v in all_views
+                  if not v.IsTemplate and v.ViewType == DB.ViewType.Legend],
+}
+title_on_sheet_case = config.get("title_on_sheet_case", "upper")
+sheet_name_case     = config.get("sheet_name_case", "upper")
+MAPS = config["maps"]
+
+print_success("Config:")
+for section in SECTIONS:
+    links = MAPS.get(section) or []
+    if not links:
+        print_dim("  {}: no links".format(SECTION_LABEL[section]))
+    for l in links:
+        print_dim("  {}: sheet '{}' -> '{}'".format(
+            SECTION_LABEL[section], l["sheet"], l["target"]))
+print_dim("  Title on Sheet:    {}".format(title_on_sheet_case))
+print_dim("  Sheet name case:   {}".format(sheet_name_case))
 print_separator()
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -512,14 +436,6 @@ else:
                     sheet        = view_to_sheet_map[view.Id]
                     sheet_number = sheet.SheetNumber or "XX"
 
-                    sheet_folder_value = ""
-                    if SYNC_FOLDERS:
-                        sh_folder_param = get_parameter_by_name(
-                            sheet, sheet_folder_param_name)
-                        if sh_folder_param:
-                            sheet_folder_value = (
-                                sh_folder_param.AsString() or "")
-
                     title_param = get_parameter_by_name(view, "Title on Sheet")
                     name_title  = ""
                     if title_param:
@@ -567,19 +483,22 @@ else:
                             "Could not rename view to '{}': {}".format(
                                 new_name, str(e)))
 
-                    if SYNC_FOLDERS and sheet_folder_value:
-                        view_folder_param = get_parameter_by_name(
-                            view, view_folder_param_name)
-                        if view_folder_param and not view_folder_param.IsReadOnly:
-                            try:
-                                if (view_folder_param.AsString() or "") \
-                                        != sheet_folder_value:
-                                    view_folder_param.Set(sheet_folder_value)
-                                    folder_updated_count += 1
-                            except Exception as e:
-                                print_warning(
-                                    "Could not set Folder for '{}': {}".format(
-                                        new_name, str(e)))
+                    for link in MAPS.get("views", []):
+                        link_value = sheet_value(sheet, link["sheet"])
+                        if not link_value:
+                            continue
+                        dst = get_parameter_by_name(view, link["target"])
+                        if (dst is None or dst.IsReadOnly
+                                or dst.StorageType != DB.StorageType.String):
+                            continue
+                        try:
+                            if (dst.AsString() or "") != link_value:
+                                dst.Set(link_value)
+                                folder_updated_count += 1
+                        except Exception as e:
+                            print_warning(
+                                "Could not set '{}' for '{}': {}".format(
+                                    link["target"], new_name, str(e)))
 
                     processed_count += 1
 
@@ -627,7 +546,7 @@ else:
             parent_views_renamed))
         print_dim("Duplicate suffixes added:     {}".format(
             duplicate_suffix_count))
-        print_dim("Folders synced:               {}".format(
+        print_dim("View parameters synced:      {}".format(
             folder_updated_count))
         print_separator()
         print_success("Total elements updated:  {}".format(
@@ -710,5 +629,71 @@ else:
     except Exception as e:
         print_error("Part 3 transaction failed: {}".format(str(e)))
 
+print_separator()
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PART 4 / 5 - Copy sheet parameters to the schedules and legends on them
+# ══════════════════════════════════════════════════════════════════════════════
+def sync_links(section, target_to_sheet):
+    """Write each sheet's linked parameter values to the schedules / legends
+    placed on it. target_to_sheet: {ElementId: ViewSheet}."""
+    links = MAPS.get(section) or []
+    label = SECTION_LABEL[section]
+    if not links:
+        print_info("No {} links set - skipped. (Organiser Reset can ask "
+                   "again.)".format(label.lower()))
+        return
+    print_dim("Found {} {} placed on sheets".format(
+        len(target_to_sheet), label.lower()))
+    updated = same = blank = unwritable = 0
+    try:
+        with revit.Transaction("View Organiser - {} links".format(label.lower())):
+            for target_id, sheet in target_to_sheet.items():
+                target = doc.GetElement(target_id)
+                for link in links:
+                    value = sheet_value(sheet, link["sheet"])
+                    if not value:
+                        blank += 1
+                        continue
+                    dst = get_parameter_by_name(target, link["target"])
+                    if (dst is None or dst.IsReadOnly
+                            or dst.StorageType != DB.StorageType.String):
+                        unwritable += 1
+                        print_warning("Cannot write '{}' on '{}'".format(
+                            link["target"], target.Name))
+                        continue
+                    if (dst.AsString() or "") == value:
+                        same += 1
+                        continue
+                    dst.Set(value)
+                    updated += 1
+        print_success("{} parameters set:  {}".format(label.title(), updated))
+        print_dim("Already correct:  {}".format(same))
+        print_dim("Sheet value blank:  {}".format(blank))
+        if unwritable:
+            print_warning("{} could not be written".format(unwritable))
+    except Exception as e:
+        print_error("{} links failed: {}".format(label.title(), str(e)))
+
+print_header("PART 4: SCHEDULE LINKS")
+sched_to_sheet = {}
+for inst in DB.FilteredElementCollector(doc).OfClass(DB.ScheduleSheetInstance):
+    try:
+        if inst.IsTitleblockRevisionSchedule:
+            continue
+        sh = doc.GetElement(inst.OwnerViewId)
+        if isinstance(sh, DB.ViewSheet) and inst.ScheduleId not in sched_to_sheet:
+            sched_to_sheet[inst.ScheduleId] = sh
+    except Exception:
+        pass
+sync_links("schedules", sched_to_sheet)
+print_separator()
+
+print_header("PART 5: LEGEND LINKS")
+legend_to_sheet = {}
+for lg in section_targets["legends"]:
+    if lg.Id in view_to_sheet_map:
+        legend_to_sheet[lg.Id] = view_to_sheet_map[lg.Id]
+sync_links("legends", legend_to_sheet)
 print_separator()
 print_header("SCRIPT FINISHED")

@@ -35,6 +35,7 @@ from System.Windows import (
     WindowStyle, ResizeMode
 )
 from System import DateTime
+from System.Windows.Input import Cursors
 from System.Windows.Controls import (
     StackPanel, Border, CheckBox, TextBlock, TextBox,
     ComboBox, Button, Orientation, ScrollViewer,
@@ -87,8 +88,9 @@ from pylink_shared import (
     load_excel_font_settings, save_excel_font_settings,
     get_installed_font_names,
     REFIT_RESET as _REFIT_RESET, REFIT_CURRENT as _REFIT_CURRENT,
-    DEFAULT_NATIVE_SCALE, card_native_scale, card_sched_mode,
+    DEFAULT_NATIVE_SCALE, card_native_scale, card_body_pt, card_sched_mode,
     SCHED_ONE, SCHED_MODES, get_view_pylink_data,
+    VIEW_NAME_RANGE, VIEW_NAME_SHEET, VIEW_NAME_BOTH, VIEW_NAME_MODES,
     SPLIT_MODES, SPLIT_EXCEL, SPLIT_ROWS, SPLIT_HEIGHT,
 )
 from pylink_excel import (
@@ -637,6 +639,7 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         db.Margin           = Thickness(4, 0, 0, 0)
         db.Tag              = row
         db.Click            += self._del_click
+        db.Visibility = Visibility.Collapsed     # per-row X removed: use Batch > Delete selected
         sp.Children.Add(db)
 
         # Error pill — appears after ✕ as a small card
@@ -1018,6 +1021,7 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         self._filter_state = {
             'excel': True, 'word': True, 'ods': True, 'odt': True,
             'schedule': True, 'legend': True, 'drafting': True,
+            'group': self._load_ui_pref('group', False),
         }
         self._filter_tracks = {
             'excel':    self.SrcToggleExcel,
@@ -1027,15 +1031,46 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             'schedule': self.TypeToggleSchedule,
             'legend':   self.TypeToggleLegend,
             'drafting': self.TypeToggleDrafting,
+            'group':    self.GroupToggle,
         }
         self._filter_knobs = {}
         source_keys = ('excel', 'word', 'ods', 'odt')
         for key, track in self._filter_tracks.items():
             self._build_mini_toggle(track, key)
-            changed_fn = (self._apply_source_filter if key in source_keys
-                          else self._apply_type_filter)
+            if key == 'group':
+                changed_fn = self._layout_cards
+            else:
+                changed_fn = (self._apply_source_filter if key in source_keys
+                              else self._apply_type_filter)
             track.MouseLeftButtonUp += (
                 lambda s, ev, k=key, fn=changed_fn: self._toggle_filter(k, fn))
+
+    def _ui_prefs_path(self):
+        from Snippets import _userdata
+        return _userdata.user_path('pyLink', 'ui_prefs.json')
+
+    def _load_ui_pref(self, key, default):
+        """A remembered window preference (kept in .user, not in the model)."""
+        try:
+            with open(self._ui_prefs_path(), 'r') as f:
+                return _json.load(f).get(key, default)
+        except Exception:
+            return default
+
+    def _save_ui_pref(self, key, value):
+        try:
+            path = self._ui_prefs_path()
+            data = {}
+            try:
+                with open(path, 'r') as f:
+                    data = _json.load(f)
+            except Exception:
+                data = {}
+            data[key] = value
+            with open(path, 'w') as f:
+                _json.dump(data, f)
+        except Exception as ex:
+            logger.debug('ui pref save failed: {}'.format(ex))
 
     def _build_mini_toggle(self, track, key):
         """Build one mini toggle switch's knob and set its initial
@@ -1088,6 +1123,8 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             Thickness(on_offset, knob_margin, 0, knob_margin) if on
             else Thickness(knob_margin, knob_margin, 0, knob_margin))
         track.Background = on_brush if on else off_brush
+        if key == 'group':
+            self._save_ui_pref('group', bool(on))
         changed_fn()
 
     def _source_filter_key(self, path, fd=None):
@@ -1216,10 +1253,7 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         fd['card_panel'].Children.Add(row_ui)
         self._update_footer()
         self._refresh_status_card()
-        try:
-            self.RowsScroll.ScrollToBottom()
-        except Exception:
-            pass
+        # No auto-scroll: the view stays put so rows can be added repeatedly.
 
     def OnRefresh(self, sender, e):
         for fd in self._file_data.values():
@@ -1385,6 +1419,37 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         self._save_persisted_state()
         self._batch_say('Split \u2192 {}: {} row(s) changed.'.format(mode, n))
 
+    def _batch_view_name(self, rows, mode):
+        """Header dropdown on View Name: name every ticked row's view from its
+        sheet and / or range."""
+        if not rows:
+            self._batch_say('No rows are ticked.')
+            return
+        n = 0
+        for r in rows:
+            sheet, rng = (r.Sheet or '').strip(), (r.NamedRange or '').strip()
+            if mode == VIEW_NAME_RANGE:
+                new = rng
+            elif mode == VIEW_NAME_SHEET:
+                new = sheet
+            else:
+                new = u'{} - {}'.format(sheet, rng) if sheet and rng else (sheet or rng)
+            if not new or new == r.ViewName:
+                continue
+            r.ViewName = new
+            r._name_auto = (mode == VIEW_NAME_RANGE)
+            tb = getattr(r, '_vn_textbox', None)
+            if tb is not None:
+                tb.Text = new
+            self._mark_row_changed(r)
+            n += 1
+        try:
+            self._revalidate_all_view_name_boxes()
+        except Exception:
+            pass
+        self._save_persisted_state()
+        self._batch_say('View Name: {} row(s) renamed.'.format(n))
+
     def _batch_split_value(self, rows):
         rows = [r for r in rows
                 if getattr(r, 'SplitMode', SPLIT_EXCEL) in (SPLIT_ROWS, SPLIT_HEIGHT)]
@@ -1423,10 +1488,8 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
 
         panel.Children.Add(item(u'Edit Section Groups\u2026',
             lambda s, ev: self._open_group_settings_editor()))
-        panel.Children.Add(item(u'Word Text Size\u2026',
+        panel.Children.Add(item(u'Text Map\u2026',
             lambda s, ev: self._open_word_text_settings_editor()))
-        panel.Children.Add(item(u'Default Font\u2026',
-            lambda s, ev: self._open_default_font_editor()))
         panel.Children.Add(self._make_menu_separator())
         panel.Children.Add(item(u'\U0001F9F9  Purge Unused Text Types',
             self._menu_purge_text_types_click))
@@ -1744,6 +1807,8 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         self.Close()
 
     def OnApply(self, sender, e):
+        if getattr(self, '_save_dirty', False):
+            self._flush_persisted_state()       # settle pending edits first
         all_rows = [r for fd in self._file_data.values()
                     for r in fd['rows'] if r.Enabled]
 
@@ -1961,6 +2026,7 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             tr.split_mode  = getattr(row, 'SplitMode', SPLIT_EXCEL)
             tr.split_value = getattr(row, 'SplitValue', '')
             tr.native_scale = self._row_native_scale(row)
+            tr.body_pt = self._row_body_pt(row)
             tr.sched_mode  = getattr(row, 'SchedMode', SCHED_ONE)
             tr.file_path   = row.FilePath
             tr.auto_sync   = False
@@ -1987,6 +2053,11 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                     row._applied_hash = _hash_range(
                         row.FilePath, row.NamedRange, row.Sheet)
                     row._applied_at = _time.time()
+                    if result.get('view_name'):
+                        # The view was renamed in Revit: follow its name.
+                        row.ViewName = result['view_name']
+                        if row._vn_textbox is not None:
+                            row._vn_textbox.Text = row.ViewName
                     row._applied_view_name = row.ViewName
                     row._applied_view_id   = result.get('view_id')
                     if row._modified_label is not None:
@@ -2239,8 +2310,38 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
 
     # ── Persistence ──
 
-    def _save_persisted_state(self):
-        """Write current UI state to the pyLink shared parameter."""
+    def _save_persisted_state(self, now=False):
+        """Queue a write of the UI state to the pyLink shared parameter.
+
+        Every edit used to open a Revit transaction straight away, which is
+        what made adding a row or changing Split / Rows slow. The write now
+        waits until the edits stop for a moment (or Apply / close asks for
+        it with now=True), so a run of changes costs one write.
+        """
+        if now:
+            self._flush_persisted_state()
+            return
+        try:
+            from System.Windows.Threading import DispatcherTimer
+            from System import TimeSpan
+            t = getattr(self, '_save_timer', None)
+            if t is None:
+                t = DispatcherTimer()
+                t.Interval = TimeSpan.FromMilliseconds(1500)
+                t.Tick += lambda s, ev: self._flush_persisted_state()
+                self._save_timer = t
+            t.Stop()
+            t.Start()
+            self._save_dirty = True
+        except Exception:
+            self._flush_persisted_state()
+
+    def _flush_persisted_state(self):
+        """Write the state to the shared parameter now."""
+        t = getattr(self, '_save_timer', None)
+        if t is not None:
+            t.Stop()
+        self._save_dirty = False
         try:
             save_pylink_state(self._file_data)
         except Exception as ex:
@@ -2319,6 +2420,7 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                     '_applied_view_name': card.get('applied_view_name', ''),
                     '_applied_at':     card.get('applied_at'),
                     'native_scale':    card.get('native_scale'),
+                    'body_pt':         card.get('body_pt'),
                 }
                 self._make_card(path)
 
@@ -2374,7 +2476,12 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                         v = doc.GetElement(DB.ElementId(_Int64(row._applied_view_id)))
                         if v and v.IsValidObject:
                             live_name = v.Name
-                            if live_name and live_name != row.ViewName:
+                            if (live_name and live_name != row.ViewName
+                                    and (not row._applied_view_name
+                                         or row.ViewName == row._applied_view_name)):
+                                # Only follow a Revit-side rename; a name
+                                # edited in pyLink is kept and pushed to
+                                # Revit on the next Apply.
                                 row.ViewName           = live_name
                                 row._applied_view_name = live_name
                         else:
@@ -2644,6 +2751,7 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                     tr.split_mode  = getattr(_r, 'SplitMode', SPLIT_EXCEL)
                     tr.split_value = getattr(_r, 'SplitValue', '')
                     tr.native_scale = self._row_native_scale(_r)
+                    tr.body_pt = self._row_body_pt(_r)
                     tr.sched_mode  = getattr(_r, 'SchedMode', SCHED_ONE)
                     tr.file_path   = _r.FilePath
                     tr.auto_sync   = False
@@ -2666,6 +2774,10 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
                             _r._applied_hash  = _hash_range(
                                 _r.FilePath, _r.NamedRange, _r.Sheet)
                             _r._applied_at = _time.time()
+                            if _res.get('view_name'):
+                                _r.ViewName = _res['view_name']
+                                if _r._vn_textbox is not None:
+                                    _r._vn_textbox.Text = _r.ViewName
                             _r._applied_view_name = _r.ViewName
                             _r._applied_view_id   = _res.get('view_id')
                             if _r._modified_label is not None:
@@ -2703,7 +2815,7 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
     def _on_window_closing(self, sender, e):
         """Save state when window is closed so deletions are persisted."""
         try:
-            self._save_persisted_state()
+            self._save_persisted_state(now=True)
         except Exception:
             pass
 
@@ -2743,7 +2855,10 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         when not) - no manual colour assignment needed."""
         if rb is None:
             return
-        rb.Visibility = Visibility.Visible
+        # The per-row reload is gone: reloading is done from the card (its
+        # reload button, or Batch > Reload selected). Kept hidden so the
+        # status code that still updates it needs no change.
+        rb.Visibility = Visibility.Collapsed
         rb.IsEnabled = needs_reload
         rb.ToolTip = ('Source changed - click to reload' if needs_reload
                       else 'Up to date')
@@ -2881,6 +2996,9 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         if fd.get('unlinked'):
             display = display + u'  \u2014 unlinked'
         lbl.Text    = display
+        nl = fd.get('name_label')
+        if nl is not None:
+            nl.Text = os.path.basename(real_path)
         lbl.ToolTip = real_path
 
     # ── Per-card Batch menu ──
@@ -2913,6 +3031,9 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         def item(label, fn):
             return self._make_menu_item(label, fn, popup)
 
+        popup_panel.Children.Add(item('Reload selected',
+            lambda s, ev: self._card_reload_selected(path)))
+        popup_panel.Children.Add(self._make_menu_separator())
         try:
             import pylink_table_builder as _tbl
             _built = _tbl.is_built_table(fd.get('real_path', path))
@@ -2998,11 +3119,29 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
             logger.debug('progress popup close: {}'.format(ex))
 
     def _row_native_scale(self, row):
-        """The schedule scale of the card a row belongs to."""
+        """The scale override of the card a row belongs to (None = auto)."""
         for fd in self._file_data.values():
             if row in fd.get('rows', ()):
                 return card_native_scale(fd)
-        return DEFAULT_NATIVE_SCALE
+        return None
+
+    def _row_body_pt(self, row):
+        """The body text size (pt) the scale of a row's card is matched to:
+        the card's override, else the size most rows use across ALL the
+        ranges of the card (one answer for the whole document)."""
+        for fd in self._file_data.values():
+            if row in fd.get('rows', ()):
+                override = card_body_pt(fd)
+                if override is not None:
+                    return override
+                try:
+                    from pylink_excel import detect_card_body_pt
+                    ticked = [r for r in fd.get('rows', ()) if r.Enabled]
+                    return detect_card_body_pt(ticked or fd.get('rows', ()))
+                except Exception as ex:
+                    logger.debug('card body size: {}'.format(ex))
+                return None
+        return None
 
     def _toggle_combine_views(self, path):
         """Card menu -> Combine onto one view.
@@ -3208,6 +3347,148 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         self._save_persisted_state()
         self._set_status('Path storage: {}'.format(fd['path_mode']))
 
+    # -- Card list: sort by file name, optionally under XL / W parents --
+
+    def _flatten_arrow_button(self, btn):
+        """Card collapse toggle: just the arrow glyph, the same one the Group
+        headers use, with no round chrome."""
+        try:
+            from System.Windows.Markup import XamlReader
+            btn.Template = XamlReader.Parse(
+                '<ControlTemplate xmlns="http://schemas.microsoft.com/winfx/'
+                '2006/xaml/presentation" TargetType="ToggleButton">'
+                '<Border Background="Transparent" Padding="2,4">'
+                '<ContentPresenter HorizontalAlignment="Center" '
+                'VerticalAlignment="Center"/></Border></ControlTemplate>')
+        except Exception:
+            pass
+        btn.Foreground = hb('#F4FAFF')
+        btn.Width = 22
+        btn.Height = 24
+        btn.Background = Brushes.Transparent
+        btn.BorderThickness = Thickness(0)
+
+    def _slim_card(self, outer):
+        """Card spacing to match the Group header: tighter padding and gap."""
+        outer.Padding = Thickness(12, 8, 12, 8)
+        outer.Margin = Thickness(0, 0, 0, 8)
+
+    def _card_group_key(self, card):
+        ext = os.path.splitext(str(card.Tag or ''))[1].lower()
+        return 'W' if ext in ('.docx', '.doc', '.odt') else 'XL'
+
+    def _sort_cards(self):
+        """Kept for the callers that add a card: lay the list out again."""
+        self._layout_cards()
+
+    def _layout_cards(self):
+        """Put the cards in file-name order (45.01 before 45.02 ..., numbers
+        compared as numbers, case ignored). With the Group toggle on they
+        sit under an Excel (XL) and a Word (W) parent that expands and
+        collapses. Only where the cards sit changes; they are the same
+        objects, so filters and edits are untouched."""
+        import re as _re
+
+        def key(card):
+            name = os.path.basename(str(card.Tag or '')).lower()
+            return [(0, int(t), '') if t.isdigit() else (1, 0, t)
+                    for t in _re.split(r'(\d+)', name) if t != '']
+
+        try:
+            boxes = getattr(self, '_group_boxes', None)
+            if boxes is None:
+                boxes = self._group_boxes = {}
+            group_boxes = set(id(g['box']) for g in boxes.values())
+            cards = [ch for ch in list(self.CardsPanel.Children)
+                     if id(ch) not in group_boxes]
+            for g in boxes.values():
+                cards.extend(list(g['body'].Children))
+                g['body'].Children.Clear()
+            self.CardsPanel.Children.Clear()
+            cards = sorted(cards, key=key)
+            if not self._filter_state.get('group'):
+                for c in cards:
+                    self.CardsPanel.Children.Add(c)
+                return
+            for gk in ('XL', 'W'):
+                mine = [c for c in cards if self._card_group_key(c) == gk]
+                if not mine:
+                    continue
+                g = boxes.get(gk) or self._make_group_box(gk)
+                boxes[gk] = g
+                for c in mine:
+                    g['body'].Children.Add(c)
+                g['count'].Text = u'  ({})'.format(len(mine))
+                self.CardsPanel.Children.Add(g['box'])
+        except Exception as ex:
+            logger.debug('card layout failed: {}'.format(ex))
+
+    def _make_group_box(self, gkey):
+        """The parent dropdown for the XL or W cards."""
+        box = StackPanel()
+        box.Orientation = Orientation.Vertical
+        box.Margin = Thickness(0, 0, 0, 10)
+
+        head = Border()
+        head.Background = (self.TryFindResource('BrushCardBg') or hb('#2B3240'))
+        head.CornerRadius = CornerRadius(8)
+        head.Padding = Thickness(12, 8, 12, 8)
+        head.Cursor = Cursors.Hand
+        row = StackPanel()
+        row.Orientation = Orientation.Horizontal
+        head.Child = row
+
+        arrow = TextBlock()
+        arrow.Text = u'\u25BC'
+        arrow.FontSize = 11
+        arrow.Foreground = hb('#F4FAFF')
+        arrow.VerticalAlignment = VerticalAlignment.Center
+        arrow.Margin = Thickness(0, 0, 10, 0)
+        row.Children.Add(arrow)
+
+        badge = Border()
+        badge.Width = 24
+        badge.Height = 24
+        badge.CornerRadius = CornerRadius(4)
+        badge.Background = hb(SRC_COLOURS.get('xl' if gkey == 'XL' else 'word', '#555'))
+        badge.Margin = Thickness(0, 0, 10, 0)
+        bl = TextBlock()
+        bl.Text = gkey
+        bl.FontSize = 9
+        bl.FontWeight = FontWeights.Bold
+        bl.Foreground = hb('#FFFFFF')
+        bl.HorizontalAlignment = HorizontalAlignment.Center
+        bl.VerticalAlignment = VerticalAlignment.Center
+        badge.Child = bl
+        row.Children.Add(badge)
+
+        title = TextBlock()
+        title.Text = 'Excel files' if gkey == 'XL' else 'Word files'
+        title.FontSize = 14
+        title.FontWeight = FontWeights.SemiBold
+        title.Foreground = hb('#FFFFFF')
+        title.VerticalAlignment = VerticalAlignment.Center
+        row.Children.Add(title)
+        count = TextBlock()
+        count.FontSize = 11
+        count.Foreground = hb('#F4FAFF')
+        count.Opacity = 0.6
+        count.VerticalAlignment = VerticalAlignment.Center
+        row.Children.Add(count)
+        box.Children.Add(head)
+
+        body = StackPanel()
+        body.Orientation = Orientation.Vertical
+        body.Margin = Thickness(0, 8, 0, 0)
+        box.Children.Add(body)
+
+        def _toggle(s, ev):
+            opening = (body.Visibility != Visibility.Visible)
+            body.Visibility = Visibility.Visible if opening else Visibility.Collapsed
+            arrow.Text = u'\u25BC' if opening else u'\u25B6'
+        head.MouseLeftButtonUp += _toggle
+        return {'box': box, 'body': body, 'count': count}
+
     def _card_change_source(self, path):
         """Card menu -> Relink to new path: point this card at a different
         file (a moved or renamed copy of the same workbook) and keep its
@@ -3388,6 +3669,60 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         self._refresh_status_card()
         self._save_persisted_state()
 
+    def _card_reload_selected(self, path):
+        """Card Batch > Reload selected: reload the ticked rows of this card
+        that have an update (the blue ones). Up-to-date rows are left alone."""
+        fd = self._file_data.get(path)
+        if fd is None:
+            return
+        ticked = [r for r in fd.get('rows', []) if r.Enabled]
+        if not ticked:
+            self._set_status('No rows are ticked in this card.')
+            return
+        rows = [r for r in ticked if r.Status == 'sync']
+        if not rows:
+            self._set_status('The ticked rows are already up to date.')
+            return
+
+        class _FakeSender(object):
+            def __init__(self, tag):
+                self.Tag = tag
+
+        for row in rows:
+            self._refresh_row_click(_FakeSender(row), None)
+        self._update_card_reload_indicator(path)
+
+    def _style_card_reload_btn(self, btn):
+        """The card's reload button: a bare round button with no backing of
+        its own, so it sits on the card colour. It turns green only while
+        something in the card needs reloading (see _paint_card_reload)."""
+        try:
+            from System.Windows.Markup import XamlReader
+            btn.Template = XamlReader.Parse(
+                '<ControlTemplate xmlns="http://schemas.microsoft.com/winfx/'
+                '2006/xaml/presentation" TargetType="Button">'
+                '<Border Background="{TemplateBinding Background}" '
+                'CornerRadius="14" Width="28" Height="28">'
+                '<ContentPresenter HorizontalAlignment="Center" '
+                'VerticalAlignment="Center"/></Border></ControlTemplate>')
+        except Exception:
+            pass
+        btn.Width = 28
+        btn.Height = 28
+        btn.BorderThickness = Thickness(0)
+        self._paint_card_reload(btn, False)
+
+    def _paint_card_reload(self, btn, needs_reload):
+        """Green when there is an update to load, otherwise no background."""
+        btn.IsEnabled = needs_reload
+        if needs_reload:
+            btn.Background = (self.TryFindResource('BrushPrimaryGreen')
+                              or hb('#208A3C'))
+            btn.Opacity = 1.0
+        else:
+            btn.Background = Brushes.Transparent
+            btn.Opacity = 0.55
+
     def _card_reload_click(self, sender, e):
         """Reapply every row in this card that's currently flagged as
         needing an update (the same thing each row's own per-row reload
@@ -3421,7 +3756,7 @@ class PyLinkWindow(forms.WPFWindow, ExcelCardMixin, WordCardMixin):
         needs_reload = any(r.Status == 'sync' for r in fd.get('rows', []))
         btn = fd.get('reload_btn')
         if btn is not None:
-            btn.IsEnabled = needs_reload
+            self._paint_card_reload(btn, needs_reload)
             btn.ToolTip = ('Click to reload rows that need updating'
                             if needs_reload else 'All rows up to date')
         if fd.get('source_type') == 'word':

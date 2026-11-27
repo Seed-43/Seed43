@@ -177,7 +177,7 @@ def _find_text_type_by_name(name):
     return None
 
 
-def _get_or_create_text_type(name, size_mm):
+def _get_or_create_text_type(name, size_mm, font='Arial'):
     size_ft = size_mm * MM
     all_tt  = list(FilteredElementCollector(doc)
                    .OfClass(TextNoteType).ToElements())
@@ -195,7 +195,7 @@ def _get_or_create_text_type(name, size_mm):
         new_tt = existing if existing else all_tt[0].Duplicate(name)
         for bip, val in [
             (DB.BuiltInParameter.TEXT_SIZE,        size_ft),
-            (DB.BuiltInParameter.TEXT_FONT,        'Arial'),
+            (DB.BuiltInParameter.TEXT_FONT,        font),
             (DB.BuiltInParameter.TEXT_STYLE_BOLD,  0),
             (DB.BuiltInParameter.TEXT_STYLE_ITALIC, 0),
             (DB.BuiltInParameter.TEXT_BACKGROUND,  1),
@@ -517,7 +517,8 @@ def run():
         view = _get_or_create_drafting_view(view_name, old_name=old_view_name)
     _clear_view(view)
 
-    type_name = _p.get('text_type_name') or 'pyLink Notes {:.1f} Arial'.format(size_mm)
+    font_name = _p.get('font') or 'Arial'
+    type_name = _p.get('text_type_name') or 'pyLink {:.1f} {}'.format(size_mm, font_name)
     text_type_name = _p.get('text_type_name')
     tt = None
     if text_type_name:
@@ -525,7 +526,7 @@ def run():
     if tt is None:
         # Either mode's chosen type isn't in the project yet (first
         # run, or it's been renamed/deleted since) — create it.
-        tt = _get_or_create_text_type(type_name, size_mm)
+        tt = _get_or_create_text_type(type_name, size_mm, font_name)
 
     by_col = {}
     for sec in sections:

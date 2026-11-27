@@ -114,11 +114,64 @@ def match_section_group(text, groups_data=None):
                 return g.get('name', '')
     return ''
 
+CHECKBOX_TEMPLATE_XAML = (
+    u'<ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/'
+    u'presentation" TargetType="CheckBox">'
+    u'<StackPanel Orientation="Horizontal" Background="Transparent">'
+    u'<Border x:Name="Box" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" '
+    u'Width="16" Height="16" CornerRadius="4" BorderThickness="1.5" '
+    u'Background="{DynamicResource BrushInputBg}" '
+    u'BorderBrush="{DynamicResource BrushBorderDefault}" '
+    u'VerticalAlignment="Center">'
+    u'<Path x:Name="Tick" Data="M 3,7.5 L 6,10.5 L 11.5,4.5" '
+    u'Stroke="{DynamicResource BrushToggleKnob}" StrokeThickness="2" '
+    u'StrokeEndLineCap="Round" StrokeStartLineCap="Round" '
+    u'Visibility="Collapsed"/></Border>'
+    u'<ContentPresenter Margin="7,0,0,0" VerticalAlignment="Center"/>'
+    u'</StackPanel><ControlTemplate.Triggers>'
+    u'<Trigger Property="IsChecked" Value="True">'
+    u'<Setter TargetName="Box" Property="Background" '
+    u'Value="{DynamicResource BrushPrimaryGreen}"/>'
+    u'<Setter TargetName="Tick" Property="Visibility" Value="Visible"/>'
+    u'</Trigger><Trigger Property="IsMouseOver" Value="True">'
+    u'<Setter TargetName="Box" Property="BorderBrush" '
+    u'Value="{DynamicResource BrushPrimaryGreenHover}"/></Trigger>'
+    u'<Trigger Property="IsEnabled" Value="False">'
+    u'<Setter Property="Opacity" Value="0.45"/></Trigger>'
+    u'</ControlTemplate.Triggers></ControlTemplate>')
+
+
 WORD_TEXT_SETTINGS_PATH = _userdata.user_path('pyLink', 'word_text_settings.json')
 
 DEFAULT_WORD_TEXT_SETTINGS = {
-    'mode': 'auto', 'size_mm': 2.0, 'text_type_name': 'pyLink Notes 2.0 Arial',
+    'mode': 'auto', 'size_mm': 2.0, 'text_type_name': 'pyLink 2.0 Arial',
 }
+
+
+def project_length_unit():
+    """('mm', 1.0) or ('in', 25.4): the unit Revit shows lengths in for this
+    project, as (label, mm per unit). Metric units (mm, cm, m) count as mm;
+    feet / inches count as inches. Falls back to mm if it can't be read."""
+    try:
+        uid = (doc.GetUnits().GetFormatOptions(DB.SpecTypeId.Length)
+               .GetUnitTypeId())
+        imperial = [DB.UnitTypeId.Inches, DB.UnitTypeId.FeetFractionalInches,
+                    DB.UnitTypeId.Feet, DB.UnitTypeId.FractionalInches]
+        for u in imperial:
+            if uid == u:
+                return ('in', 25.4)
+    except Exception:
+        pass
+    return ('mm', 1.0)
+
+
+def word_type_name(size_mm, font):
+    """Name of pyLink's own text type: 'pyLink 2.0 Arial' (metric) or
+    'pyLink 0.094in Arial' (imperial)."""
+    unit, per = project_length_unit()
+    if unit == 'in':
+        return u'pyLink {:g}in {}'.format(round(size_mm / per, 3), font)
+    return u'pyLink {:.1f} {}'.format(size_mm / per, font)
 
 
 def load_word_text_settings():
@@ -272,6 +325,7 @@ def apply_notes_row(rows, view_name, view_type, sheet_size,
     """
     logger.debug('pyLink Notes: {}'.format(view_name))
 
+    font = load_word_text_settings().get('font') or 'Arial'
     if text_mode is None or size_mm is None or text_type_name is None:
         settings = load_word_text_settings()
         if text_mode is None:
@@ -297,6 +351,7 @@ def apply_notes_row(rows, view_name, view_type, sheet_size,
         'size_mm':        size_mm,
         'text_mode':      text_mode,
         'text_type_name': text_type_name,
+        'font':           font,
     }
 
     try:
@@ -386,6 +441,7 @@ class WordCardMixin(object):
             outer.Style = self.FindResource('CardStyle')
         except Exception as e:
             logger.warning('Failed to apply CardStyle: {}'.format(e))
+        self._slim_card(outer)
 
         inner = StackPanel()
         inner.Orientation = Orientation.Vertical
@@ -412,6 +468,7 @@ class WordCardMixin(object):
         collapse_btn.IsChecked = True
         try:
             collapse_btn.Style = self.FindResource('PrimarySecondaryToggleButtonStyle')
+            self._flatten_arrow_button(collapse_btn)
         except Exception as e:
             logger.warning('Failed to apply PrimarySecondaryToggleButtonStyle: {}'.format(e))
         collapse_btn.FocusVisualStyle = None
@@ -512,6 +569,7 @@ class WordCardMixin(object):
         except Exception as e:
             logger.warning('Failed to apply RoundPrimaryButtonStyle: {}'.format(e))
         reload_btn.FocusVisualStyle = None
+        self._style_card_reload_btn(reload_btn)
         reload_btn.HorizontalContentAlignment = HorizontalAlignment.Center
         reload_btn.VerticalContentAlignment   = VerticalAlignment.Center
         reload_btn.VerticalAlignment          = VerticalAlignment.Center
@@ -525,7 +583,7 @@ class WordCardMixin(object):
         del_card_btn.Content         = u'\u2715'
         del_card_btn.FontSize        = 11
         try:
-            del_card_btn.Style = self.FindResource('DeleteButtonStyle')
+            del_card_btn.Style = self.FindResource('CloseButtonStyle')
         except Exception as e:
             logger.warning('Failed to apply DeleteButtonStyle: {}'.format(e))
         del_card_btn.FocusVisualStyle = None
@@ -591,7 +649,9 @@ class WordCardMixin(object):
         inner.Children.Add(views_panel)
 
         outer.Child = inner
+        outer.Tag = real_path                        # what the list is sorted by
         self.CardsPanel.Children.Add(outer)
+        self._sort_cards()
 
         return {
             'outer':        outer,
@@ -932,7 +992,7 @@ class WordCardMixin(object):
                 needs_reload = True
                 break
         btn = group['reload_btn']
-        btn.IsEnabled = needs_reload
+        self._paint_card_reload(btn, needs_reload)
         btn.ToolTip = ('Click to reload views that need updating'
                         if needs_reload else 'All views up to date')
 
@@ -1123,6 +1183,7 @@ class WordCardMixin(object):
         db.Margin           = Thickness(4, 0, 0, 0)
         db.Tag              = row
         db.Click           += self._del_click
+        db.Visibility = Visibility.Collapsed     # per-row X removed: use Batch > Delete selected
         sp.Children.Add(db)
 
         # Error pill
@@ -1242,19 +1303,28 @@ class WordCardMixin(object):
                     self._populate_group_combo(row._group_combo, row.Group)
 
     def _open_word_text_settings_editor(self):
-        """Default: pyLink uses its own named type, 'pyLink Notes
-        2.0 Arial', creating it if the project doesn't have one yet.
-        Manual: pick an exact existing TextNoteType from a dropdown
-        of everything already in the project."""
+        """Text Map: one dialog for the text pyLink writes into Revit.
+        Default = pyLink's own text type, built from the size and font set
+        here (e.g. 'pyLink 2.0 Arial'); Manual = an existing project
+        text type. The font also serves Excel tables: it is what they fall
+        back to when Excel's own font isn't installed, or always when the
+        tick box is on."""
         from System.Windows import TextWrapping
         from System.Windows.Controls import RadioButton
+        from pylink_shared import (load_excel_font_settings,
+                                   save_excel_font_settings,
+                                   get_installed_font_names)
 
         settings = load_word_text_settings()
-        default_name = 'pyLink Notes 2.0 Arial'
-        default_size = 2.0
+        fsettings = load_excel_font_settings()
+        installed = get_installed_font_names()
+        cur_font = settings.get('font') or fsettings.get('fallback_font', 'Arial')
+        unit, per = project_length_unit()
+        cur_size_mm = settings.get('default_size_mm') or (
+            settings.get('size_mm', 2.0) if settings.get('mode', 'auto') == 'auto'
+            else 2.0)
+        cur_size = cur_size_mm / per
 
-        # Fetch existing project TextNoteTypes live, sorted by size —
-        # same list Revit's own Properties panel type-picker shows.
         existing_types = []
         try:
             for tt in DB.FilteredElementCollector(doc).OfClass(DB.TextNoteType).ToElements():
@@ -1263,91 +1333,204 @@ class WordCardMixin(object):
                         DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString()
                     size_ft = tt.get_Parameter(
                         DB.BuiltInParameter.TEXT_SIZE).AsDouble()
-                    size_mm = size_ft / (1.0 / 304.8)
-                    existing_types.append((name, size_mm))
+                    try:
+                        tfont = tt.get_Parameter(
+                            DB.BuiltInParameter.TEXT_FONT).AsString() or ''
+                    except Exception:
+                        tfont = ''
+                    existing_types.append((name, size_ft * 304.8, tfont))  # mm
                 except Exception:
                     continue
         except Exception:
             pass
         existing_types.sort(key=lambda t: t[1])
 
-        w, root = self._build_styled_dialog('Word Text Size')
+        w, root = self._build_styled_dialog('Text Map', width=460)
+        fg = w.TryFindResource('BrushTextPrimary') or hb('#F4FAFF')
 
-        hint = TextBlock()
-        hint.Text = 'Which TextNoteType Word notes get placed with.'
-        hint.Foreground   = w.TryFindResource('BrushTextPrimary') or hb('#F4FAFF')
-        hint.Opacity      = 0.6
-        hint.FontSize     = 10
-        hint.TextWrapping = TextWrapping.Wrap
-        hint.Margin       = Thickness(0, 0, 0, 12)
-        root.Children.Add(hint)
+        def note(text, bottom=10):
+            tb = TextBlock()
+            tb.Text = text
+            tb.Foreground = fg
+            tb.Opacity = 0.6
+            tb.FontSize = 10
+            tb.TextWrapping = TextWrapping.Wrap
+            tb.Margin = Thickness(0, 0, 0, bottom)
+            return tb
 
+        root.Children.Add(note(
+            u'The text size and font pyLink writes into Revit, for Word notes '
+            u'and Excel tables alike. Pick the Default or a Manual type.'))
+
+        # -- Default row: pyLink Notes <size> <font> --
+        auto_row = StackPanel()
+        auto_row.Orientation = Orientation.Horizontal
+        auto_row.Margin = Thickness(0, 0, 0, 4)
         auto_rb = RadioButton()
-        auto_rb.GroupName   = 'word_text_size_mode'
-        auto_rb.Content     = u'Default: {}'.format(default_name)
+        auto_rb.GroupName = 'text_map_mode'
+        auto_rb.Content = u'pyLink'
         try:
             auto_rb.Style = self.FindResource('RadioButtonStyle')
         except Exception as ex:
             logger.warning('Failed to apply RadioButtonStyle: {}'.format(ex))
-        auto_rb.Margin      = Thickness(0, 0, 0, 6)
-        auto_rb.IsChecked   = settings.get('mode', 'auto') == 'auto'
-        root.Children.Add(auto_rb)
+        auto_rb.VerticalAlignment = VerticalAlignment.Center
+        auto_rb.IsChecked = settings.get('mode', 'auto') == 'auto'
+        auto_row.Children.Add(auto_rb)
 
+        size_box = TextBox()
+        size_box.Text = u'{:g}'.format(round(cur_size, 3))
+        size_box.Width = 44
+        size_box.Margin = Thickness(8, 0, 4, 0)
+        size_box.VerticalAlignment = VerticalAlignment.Center
+        size_box.ToolTip = u'Text size in {} (this project\u2019s length unit)'.format(unit)
+        try:
+            size_box.Style = self.FindResource('TextBoxStyle')
+        except Exception:
+            pass
+        auto_row.Children.Add(size_box)
+        mm_lbl = TextBlock()
+        mm_lbl.Text = unit
+        mm_lbl.Foreground = fg
+        mm_lbl.Opacity = 0.6
+        mm_lbl.FontSize = 10
+        mm_lbl.VerticalAlignment = VerticalAlignment.Center
+        mm_lbl.Margin = Thickness(0, 0, 6, 0)
+        auto_row.Children.Add(mm_lbl)
+
+        font_combo = ComboBox()
+        self._combo_style(font_combo, 140)
+        font_combo.Margin = Thickness(0)
+        placeholder = False
+        if not installed:
+            font_combo.IsEnabled = False
+            font_combo.Items.Add(cur_font)
+            font_combo.SelectedIndex = 0
+        else:
+            for n in installed:
+                font_combo.Items.Add(n)
+            if cur_font in installed:
+                font_combo.SelectedIndex = installed.index(cur_font)
+            else:
+                font_combo.Items.Insert(0, u'{}  (not installed)'.format(cur_font))
+                font_combo.SelectedIndex = 0
+                placeholder = True
+        auto_row.Children.Add(font_combo)
+        root.Children.Add(auto_row)
+        root.Children.Add(note(
+            u'Uses (or creates) a text type named like "{}" from this size '
+            u'and font. The size is in this project\u2019s units ({}).'.format(
+                word_type_name(cur_size_mm, cur_font), unit), 10))
+
+        # -- Manual row --
         manual_row = StackPanel()
         manual_row.Orientation = Orientation.Horizontal
-        manual_row.Margin = Thickness(0, 0, 0, 14)
-
+        manual_row.Margin = Thickness(0, 0, 0, 4)
         manual_rb = RadioButton()
-        manual_rb.GroupName  = 'word_text_size_mode'
-        manual_rb.Content    = 'Manual, type:'
+        manual_rb.GroupName = 'text_map_mode'
+        manual_rb.Content = u'Manual, type:'
         try:
             manual_rb.Style = self.FindResource('RadioButtonStyle')
         except Exception as ex:
             logger.warning('Failed to apply RadioButtonStyle: {}'.format(ex))
         manual_rb.VerticalAlignment = VerticalAlignment.Center
-        manual_rb.IsChecked  = settings.get('mode', 'auto') == 'manual'
+        manual_rb.IsChecked = settings.get('mode', 'auto') == 'manual'
         manual_row.Children.Add(manual_rb)
 
         type_combo = ComboBox()
-        self._combo_style(type_combo, 180)
+        self._combo_style(type_combo, 220)
         type_combo.Margin = Thickness(8, 0, 0, 0)
         if not existing_types:
             type_combo.IsEnabled = False
             type_combo.Items.Add('(no text types in this project)')
             type_combo.SelectedIndex = 0
         else:
-            for name, size_mm in existing_types:
-                type_combo.Items.Add(u'{}  ({:.1f}mm)'.format(name, size_mm))
-            current_name = settings.get('text_type_name')
-            names = [n for n, _ in existing_types]
-            if current_name and current_name in names:
-                type_combo.SelectedIndex = names.index(current_name)
-            else:
-                type_combo.SelectedIndex = 0
+            for name, size_mm, _f in existing_types:
+                type_combo.Items.Add(u'{}  ({:g}{})'.format(
+                    name, round(size_mm / per, 3 if unit == 'in' else 1), unit))
+            names = [n for n, _s, _f in existing_types]
+            cn = settings.get('text_type_name')
+            type_combo.SelectedIndex = names.index(cn) if cn in names else 0
         manual_row.Children.Add(type_combo)
         root.Children.Add(manual_row)
+        root.Children.Add(note(
+            u'Word notes use this existing project text type as it is '
+            u'(its own size and font).', 10))
+
+        # -- Excel --
+        force_cb = CheckBox()
+        force_cb.Content = u'Use Excel / ODS font'
+        force_cb.ToolTip = (u'On: Excel and ODS tables keep their own font '
+                            u'(this font is used only if theirs is not '
+                            u'installed). Off: they always use this font. '
+                            u'Not used with Manual: the type\u2019s font is used.')
+        try:
+            from System.Windows.Markup import XamlReader
+            force_cb.Template = XamlReader.Parse(CHECKBOX_TEMPLATE_XAML)
+        except Exception as ex:
+            logger.warning('checkbox template: {}'.format(ex))
+        force_cb.IsChecked = not bool(fsettings.get('force_fallback', False))
+        force_cb.Foreground = fg
+        force_cb.Margin = Thickness(0, 0, 0, 2)
+        root.Children.Add(force_cb)
+
+        def _sync_font_box(*a):
+            force_cb.IsEnabled = not bool(manual_rb.IsChecked)
+        manual_rb.Checked += _sync_font_box
+        auto_rb.Checked += _sync_font_box
+        _sync_font_box()
+        root.Children.Add(note(
+            u'Excel and ODS tables follow the same choice: the size above '
+            u'sets their body text. A Manual type also sets their font; '
+            u'with Default, tick the box to keep each table\u2019s own font.', 14))
 
         btn_row = StackPanel()
         btn_row.Orientation = Orientation.Horizontal
         btn_row.HorizontalAlignment = HorizontalAlignment.Right
 
         def _save(s, ev):
+            idx = font_combo.SelectedIndex
+            if placeholder:
+                idx -= 1
+            if installed and 0 <= idx < len(installed):
+                font = installed[idx]
+            else:
+                font = cur_font
+            try:
+                size = float(size_box.Text.replace(',', '.')) * per
+                if size <= 0:
+                    raise ValueError()
+            except Exception:
+                size = 2.0      # mm
             if manual_rb.IsChecked:
                 mode = 'manual'
-                idx = type_combo.SelectedIndex
-                if existing_types and 0 <= idx < len(existing_types):
-                    chosen_name, chosen_size = existing_types[idx]
+                i = type_combo.SelectedIndex
+                if existing_types and 0 <= i < len(existing_types):
+                    tname, tsize, tfont = existing_types[i]
                 else:
-                    chosen_name, chosen_size = (
-                        settings.get('text_type_name'),
-                        settings.get('size_mm', default_size))
+                    tname, tsize, tfont = (settings.get('text_type_name'),
+                                           size, '')
             else:
                 mode = 'auto'
-                chosen_name, chosen_size = default_name, default_size
+                tname = word_type_name(size, font)
+                tsize = size
             save_word_text_settings({
-                'mode': mode,
-                'text_type_name': chosen_name,
-                'size_mm': chosen_size,
+                'mode': mode, 'text_type_name': tname, 'size_mm': tsize,
+                'font': font, 'default_size_mm': size,
+            })
+            # Excel tables follow the same choice as Word: the Default row's
+            # size and font, or the Manual text type's own size and font.
+            if mode == 'manual':
+                target = tsize
+                xl_font = tfont or font
+                force = bool(tfont) or not bool(force_cb.IsChecked)
+            else:
+                target = size
+                xl_font = font
+                force = not bool(force_cb.IsChecked)
+            save_excel_font_settings({
+                'fallback_font': xl_font,
+                'force_fallback': force,
+                'target_mm': target,
             })
             w.Close()
 
@@ -1356,10 +1539,10 @@ class WordCardMixin(object):
         btn_row.Children.Add(save_btn)
 
         cancel_btn = Button()
-        cancel_btn.Content    = u'Cancel'
-        cancel_btn.Height     = 24
-        cancel_btn.Padding    = Thickness(10, 0, 10, 0)
-        cancel_btn.FontSize   = 11
+        cancel_btn.Content = u'Cancel'
+        cancel_btn.Height = 24
+        cancel_btn.Padding = Thickness(10, 0, 10, 0)
+        cancel_btn.FontSize = 11
         try:
             cancel_btn.Style = self.FindResource('SecondaryButtonStyle')
         except Exception as e:

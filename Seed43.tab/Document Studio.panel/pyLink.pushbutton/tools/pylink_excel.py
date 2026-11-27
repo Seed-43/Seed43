@@ -26,6 +26,7 @@ from System.Windows.Controls import (
 )
 from System.Windows.Controls.Primitives import Popup, ToggleButton
 from System.Windows.Input import Cursors
+from System.Windows.Media import Brushes
 from System.Windows.Shapes import Ellipse
 
 logger = script.get_logger()
@@ -58,8 +59,10 @@ from pylink_shared import (
     _run_export_script, _confirm, _alert, set_view_pylink_data, get_view_pylink_data,
     view_matches_type, capture_view_for_swap, restore_view_after_swap,
     load_excel_font_settings, _is_font_installed,
-    NATIVE_SCALE_OPTIONS, DEFAULT_NATIVE_SCALE,
+    NATIVE_SCALE_OPTIONS, DEFAULT_NATIVE_SCALE, BODY_PT_OPTIONS,
+    detect_body_pt, detect_body_pt_multi, auto_native_scale, card_body_pt,
     SCHED_ONE, SCHED_PER_PART, SCHED_MODES, card_sched_mode,
+    VIEW_NAME_RANGE, VIEW_NAME_SHEET, VIEW_NAME_BOTH, VIEW_NAME_MODES,
     card_native_scale, native_text_type_mm,
     SPLIT_EXCEL, SPLIT_ROWS, SPLIT_HEIGHT, SPLIT_MODES,
 )
@@ -101,7 +104,8 @@ class TableRow(object):
         self.sheet_name  = ''
         self.view_type   = VIEW_TYPE_SCHEDULE
         self.view_scale  = 1
-        self.native_scale = DEFAULT_NATIVE_SCALE   # card's schedule scale
+        self.native_scale = None   # card's scale override (None = automatic)
+        self.body_pt = None        # card's body text size override (pt)
         self.sched_mode  = SCHED_ONE               # card's schedule split mode
         self.file_path   = ''
         self.auto_sync   = False
@@ -180,7 +184,9 @@ def get_named_ranges_from_workbook(file_path):
 # and size, so saving the workbook in Excel always forces a fresh read.
 # Results are copied out so no caller can change what the next one gets.
 _PARSE_CACHE = {}
-_PARSE_CACHE_MAX = 64
+_PARSE_CACHE_MAX = 2000   # was 64: 43 rows x (data+format) overflowed it and
+                          # wiped the cache on every status refresh
+_HASH_CACHE = {}          # (file, range, sheet) -> (file stamp, md5)
 
 
 def _file_stamp(file_path):
@@ -221,6 +227,19 @@ def read_named_range_data(file_path, named_range, sheet_name):
             return read_ods_range_data(file_path, named_range, sheet_name)
         return []
     return _cached_parse('data', file_path, named_range, sheet_name, _parse)
+
+
+def detect_card_body_pt(rows):
+    """Body text size (pt) across all the ranges of a card's rows, so a card
+    is understood as a whole document rather than range by range."""
+    styles = []
+    for r in rows:
+        try:
+            fmt = read_range_formatting(r.FilePath, r.NamedRange, r.Sheet)
+            styles.append(fmt.get('cell_styles', {}))
+        except Exception:
+            continue
+    return detect_body_pt_multi(styles)
 
 
 def read_range_formatting(file_path, named_range, sheet_name):
@@ -1694,9 +1713,30 @@ def apply_row(row):
         if _aid is not None and not _stacking:
             try:
                 _cand = doc.GetElement(DB.ElementId(_Int64(_aid)))
-                if (_cand is not None and isinstance(_cand, DB.View)
-                        and _cand.Name == row.view_name):
+                if _cand is not None and isinstance(_cand, DB.View):
+                    # Smart link: the id is the link, not the name. If the
+                    # view was renamed in Revit, follow the rename and keep
+                    # building into that view instead of making a new one.
                     existing_view = _cand
+                    if _cand.Name != row.view_name:
+                        if row.view_name == getattr(row, 'applied_view_name', None):
+                            # pyLink's name is unchanged since the last
+                            # apply, so the rename happened in Revit:
+                            # follow it.
+                            row.view_name = _cand.Name
+                            result['view_name'] = _cand.Name
+                        else:
+                            # The name was changed in pyLink: push it to
+                            # the view (the build then reuses that name).
+                            _taken = any(
+                                _o.Name == row.view_name
+                                and _o.Id != _cand.Id
+                                for _o in DB.FilteredElementCollector(doc)
+                                .OfClass(DB.View))
+                            if not _taken:
+                                with revit.Transaction(
+                                        'pyLink - rename view'):
+                                    _cand.Name = row.view_name
             except Exception:
                 existing_view = None
         for v in ([] if (_stacking or existing_view is not None) else
@@ -1756,6 +1796,21 @@ def apply_row(row):
     dat_pt = _first_font_size(1, len(fields))
     size_hdr_mm = (hdr_pt * PT_MM) if hdr_pt else row.size_hdr_mm
     size_dat_mm = (dat_pt * PT_MM) if dat_pt else row.size_dat_mm
+
+    # Card scale: an override from the card wins. Otherwise the scale is
+    # worked out so the table's BODY text (the card's pt override, else the
+    # size most rows use, else the first data row) draws at the Text Map
+    # target, so every card ends up with the same text size on the sheet.
+    if getattr(row, 'native_scale', None) is None:
+        _body_pt = (getattr(row, 'body_pt', None)
+                    or detect_body_pt(cell_styles) or dat_pt or 10.0)
+        try:
+            _target = float(load_excel_font_settings().get('target_mm', 2.0))
+        except Exception:
+            _target = 2.0
+        row.native_scale = auto_native_scale(_body_pt, _target)
+        logger.debug('pyLink auto scale: body {}pt -> {:.3f}'.format(
+            _body_pt, row.native_scale))
 
     # Every view type is built at Excel's own sizes times the card's scale
     # (see NATIVE_SCALE_OPTIONS), so the same card comes out the same size
@@ -1955,6 +2010,13 @@ def _hash_range(file_path, named_range, sheet_name):
     "changed" even when the source file was never touched.
     """
     import hashlib
+    # Same file (same modified time and size) gives the same hash, so the
+    # range is read and hashed once, not on every status refresh.
+    _hk = (file_path, named_range, sheet_name)
+    _stamp = _file_stamp(file_path)
+    _hit = _HASH_CACHE.get(_hk)
+    if _stamp is not None and _hit is not None and _hit[0] == _stamp:
+        return _hit[1]
     try:
         rows = read_named_range_data(file_path, named_range, sheet_name)
         fmt  = read_range_formatting(file_path, named_range, sheet_name)
@@ -1976,7 +2038,10 @@ def _hash_range(file_path, named_range, sheet_name):
         if fmt.get('row_breaks'):
             combined += repr((fmt.get('row_breaks'),
                               fmt.get('repeat_rows')))
-        return hashlib.md5(combined.encode('utf-8', errors='replace')).hexdigest()
+        _h = hashlib.md5(combined.encode('utf-8', errors='replace')).hexdigest()
+        if _stamp is not None:
+            _HASH_CACHE[_hk] = (_stamp, _h)
+        return _h
     except Exception:
         return None
 
@@ -1996,9 +2061,22 @@ class ExcelCardMixin(object):
         btn.FontSize = 10
         btn.Foreground = hb('#F4FAFF')
         btn.Opacity = 0.75
-        btn.Background = hb('#00000000')
+        btn.Background = Brushes.Transparent
         btn.BorderThickness = Thickness(0)
         btn.Padding = Thickness(4, 0, 0, 0)
+        # Plain template: the default button chrome is what drew the black
+        # bar behind these headings. This one is just the text, on the card.
+        try:
+            from System.Windows.Markup import XamlReader
+            btn.Template = XamlReader.Parse(
+                '<ControlTemplate xmlns="http://schemas.microsoft.com/winfx/'
+                '2006/xaml/presentation" TargetType="Button">'
+                '<Border Background="Transparent" Padding="{TemplateBinding Padding}">'
+                '<ContentPresenter HorizontalAlignment="{TemplateBinding '
+                'HorizontalContentAlignment}" VerticalAlignment="Center"/>'
+                '</Border></ControlTemplate>')
+        except Exception:
+            pass
         btn.HorizontalContentAlignment = HorizontalAlignment.Left
         btn.VerticalAlignment = VerticalAlignment.Center
         btn.Cursor = Cursors.Hand
@@ -2028,7 +2106,11 @@ class ExcelCardMixin(object):
         def ticked():
             return self._ticked(lambda: list(fd.get('rows', [])))
 
-        if kind == 'vt':
+        if kind == 'vn':
+            for lab in VIEW_NAME_MODES:
+                panel.Children.Add(item(
+                    lab, lambda s, ev, v=lab: self._batch_view_name(ticked(), v)))
+        elif kind == 'vt':
             for vt in VIEW_TYPES:
                 panel.Children.Add(item(
                     vt, lambda s, ev, v=vt: self._batch_view_type(ticked(), v)))
@@ -2121,12 +2203,27 @@ class ExcelCardMixin(object):
         self._save_persisted_state()
 
     def _native_scale_changed(self, sender, e):
-        """Card scale dropdown -> remember the new scale for this card."""
+        """Card scale dropdown -> remember the new scale for this card
+        ('None' = automatic from the Text Map target)."""
         fd = self._file_data.get(sender.Tag)
         if fd is None or sender.SelectedItem is None:
             return
+        text = str(sender.SelectedItem)
         try:
-            fd['native_scale'] = float(str(sender.SelectedItem))
+            fd['native_scale'] = None if text == 'None' else float(text)
+        except Exception:
+            return
+        self._save_persisted_state()
+
+    def _body_pt_changed(self, sender, e):
+        """Card body-text dropdown -> the Excel text size this card's
+        scale is matched to ('None' = detect it)."""
+        fd = self._file_data.get(sender.Tag)
+        if fd is None or sender.SelectedItem is None:
+            return
+        text = str(sender.SelectedItem).replace('pt', '').strip()
+        try:
+            fd['body_pt'] = None if text == 'None' else float(text)
         except Exception:
             return
         self._save_persisted_state()
@@ -2142,6 +2239,7 @@ class ExcelCardMixin(object):
         except Exception as e:
             logger.warning('Failed to apply CardStyle: {}'.format(e))
 
+        self._slim_card(outer)
         inner = StackPanel()
         inner.Orientation = Orientation.Vertical
 
@@ -2149,7 +2247,7 @@ class ExcelCardMixin(object):
         # close) stays flush right regardless of path length. Left
         # group: collapse toggle, source badge, path, last-modified.
         header_row = Grid()
-        header_row.Margin = Thickness(0, 0, 0, 8)
+        header_row.Margin = Thickness(0, 0, 0, 6)
         _hcol_l = ColumnDefinition()
         _hcol_l.Width = GridLength(1, GridUnitType.Star)
         _hcol_r = ColumnDefinition()
@@ -2180,6 +2278,7 @@ class ExcelCardMixin(object):
         except Exception as e:
             logger.warning('Failed to apply PrimarySecondaryToggleButtonStyle: {}'.format(e))
         collapse_btn.FocusVisualStyle = None
+        self._flatten_arrow_button(collapse_btn)
         collapse_btn.HorizontalContentAlignment = HorizontalAlignment.Center
         collapse_btn.VerticalContentAlignment   = VerticalAlignment.Center
         collapse_btn.VerticalAlignment          = VerticalAlignment.Center
@@ -2223,15 +2322,33 @@ class ExcelCardMixin(object):
         src_badge.Child = src_lbl
         header_left.Children.Add(src_badge)
 
+        # Two lines: the file name in white with its modified time beside
+        # it, and the path underneath in grey.
+        title_stack = StackPanel()
+        title_stack.Orientation = Orientation.Vertical
+        title_stack.VerticalAlignment = VerticalAlignment.Center
+        header_left.Children.Add(title_stack)
+        title_line = StackPanel()
+        title_line.Orientation = Orientation.Horizontal
+        title_stack.Children.Add(title_line)
+
+        name_lbl = TextBlock()
+        name_lbl.Text         = os.path.basename(fd.get('real_path', path) or path)
+        name_lbl.FontSize     = 14
+        name_lbl.FontWeight   = FontWeights.SemiBold
+        name_lbl.Foreground   = hb('#FFFFFF')
+        name_lbl.VerticalAlignment = VerticalAlignment.Bottom
+        title_line.Children.Add(name_lbl)
+        fd['name_label'] = name_lbl
+
         heading = TextBlock()
         heading.Text         = path
         heading.TextTrimming = TextTrimming.CharacterEllipsis
         heading.ToolTip      = path
-        heading.VerticalAlignment = VerticalAlignment.Center
         heading.Foreground   = hb('#6B7280')
         heading.FontWeight   = FontWeights.SemiBold
-        heading.FontSize     = 13
-        header_left.Children.Add(heading)
+        heading.FontSize     = 11
+        title_stack.Children.Add(heading)
         fd['heading_label']  = heading
 
         lm_text = TextBlock()
@@ -2244,26 +2361,57 @@ class ExcelCardMixin(object):
         lm_text.FontSize         = 10
         lm_text.Foreground       = hb('#F4FAFF')
         lm_text.Opacity          = 0.55
-        lm_text.VerticalAlignment = VerticalAlignment.Center
-        lm_text.Margin           = Thickness(10, 0, 0, 0)
-        header_left.Children.Add(lm_text)
+        lm_text.VerticalAlignment = VerticalAlignment.Bottom
+        lm_text.Margin           = Thickness(8, 0, 0, 2)
+        title_line.Children.Add(lm_text)
 
         # Card scale - every schedule, drafting view and legend this card
         # builds is drawn at Excel's own text, column and row sizes times
         # this, so it keeps the sheet's proportions. Takes effect on the
         # next Apply.
+        ov_lbl = TextBlock()
+        ov_lbl.Text = u'Override'
+        ov_lbl.FontSize = 10
+        ov_lbl.Foreground = hb('#F4FAFF')
+        ov_lbl.Opacity = 0.55
+        ov_lbl.VerticalAlignment = VerticalAlignment.Center
+        ov_lbl.Margin = Thickness(8, 0, 0, 0)
+        ov_lbl.ToolTip = (u'None = automatic: the scale is worked out so the '
+                          u'body text draws at the Text Map size. Pick a '
+                          u'value to override it.')
+        header_right.Children.Add(ov_lbl)
+
         scale_combo = ComboBox()
-        self._combo_style(scale_combo, 64)
+        self._combo_style(scale_combo, 72)
         scale_combo.Margin = Thickness(6, 0, 0, 0)
-        scale_combo.ToolTip = ('Scale: Excel text, column and row sizes '
-                               'multiplied by this, for every view type')
+        scale_combo.ToolTip = ('Scale override: Excel text, column and row '
+                               'sizes multiplied by this. None = automatic.')
+        scale_combo.Items.Add(u'None')
         for opt in NATIVE_SCALE_OPTIONS:
             scale_combo.Items.Add(u'{:g}'.format(opt))
-        scale_combo.SelectedItem = u'{:g}'.format(card_native_scale(fd))
-        fd['native_scale'] = card_native_scale(fd)
+        _sc = card_native_scale(fd)
+        scale_combo.SelectedItem = u'None' if _sc is None else u'{:g}'.format(_sc)
+        fd['native_scale'] = _sc
         scale_combo.Tag = path
         scale_combo.SelectionChanged += self._native_scale_changed
         header_right.Children.Add(scale_combo)
+
+        pt_combo = ComboBox()
+        self._combo_style(pt_combo, 78)
+        pt_combo.Margin = Thickness(4, 0, 0, 0)
+        pt_combo.ToolTip = ('Body text override: the Excel font size (pt) '
+                            'the automatic scale matches. None = detect it '
+                            'from the table. Set it when a table has mixed '
+                            'sizes and the wrong one is picked.')
+        pt_combo.Items.Add(u'None')
+        for opt in BODY_PT_OPTIONS:
+            pt_combo.Items.Add(u'{:g} pt'.format(opt))
+        _bp = card_body_pt(fd)
+        pt_combo.SelectedItem = u'None' if _bp is None else u'{:g} pt'.format(_bp)
+        fd['body_pt'] = _bp
+        pt_combo.Tag = path
+        pt_combo.SelectionChanged += self._body_pt_changed
+        header_right.Children.Add(pt_combo)
 
         # Quick Add — same action as the control-row Add button below,
         # placed here too for one-click access without scrolling past
@@ -2309,6 +2457,7 @@ class ExcelCardMixin(object):
         except Exception as e:
             logger.warning('Failed to apply RoundPrimaryButtonStyle: {}'.format(e))
         reload_btn.FocusVisualStyle = None
+        self._style_card_reload_btn(reload_btn)
         reload_btn.HorizontalContentAlignment = HorizontalAlignment.Center
         reload_btn.VerticalContentAlignment   = VerticalAlignment.Center
         reload_btn.VerticalAlignment          = VerticalAlignment.Center
@@ -2324,9 +2473,9 @@ class ExcelCardMixin(object):
         # is a bigger action).
         del_card_btn = Button()
         del_card_btn.Content         = u'\u2715'
-        del_card_btn.FontSize        = 11
+        del_card_btn.FontSize        = 14
         try:
-            del_card_btn.Style = self.FindResource('DeleteButtonStyle')
+            del_card_btn.Style = self.FindResource('CloseButtonStyle')
         except Exception as e:
             logger.warning('Failed to apply DeleteButtonStyle: {}'.format(e))
         del_card_btn.FocusVisualStyle = None
@@ -2377,7 +2526,7 @@ class ExcelCardMixin(object):
 
         col_hdr.Children.Add(_ch('',           14, 0))
         col_hdr.Children.Add(tri_cb)                   # select-all
-        col_hdr.Children.Add(_ch('View Name', 124))
+        col_hdr.Children.Add(self._header_button('View Name', 124, path, 'vn'))
         col_hdr.Children.Add(_ch('Sheet',     124))
         col_hdr.Children.Add(_ch('Range',     134))
         col_hdr.Children.Add(_ch('Modified',   96))
@@ -2397,7 +2546,9 @@ class ExcelCardMixin(object):
         fd['card_border']   = outer
         fd['card_inner']    = inner
 
+        outer.Tag = fd.get('real_path', path)        # what the list is sorted by
         self.CardsPanel.Children.Add(outer)
+        self._sort_cards()
         self._update_card_reload_indicator(path)
         self._update_card_link_badge(path)
         self._update_tri_select_state(path)
@@ -2416,6 +2567,7 @@ class ExcelCardMixin(object):
         row = sender.Tag
         if not row:
             return
+        _old_name = row.ViewName
         row.ViewName = sender.Text.strip()
         # Typed by hand, so it stops following the named range. Clearing
         # the box hands it back: an empty name is not a chosen one.
@@ -2440,6 +2592,8 @@ class ExcelCardMixin(object):
                 row._dot.Fill = hb('#6B7280')
                 row.Status = 'pending'
         self._revalidate_all_view_name_boxes()
+        if not taken and row.ViewName != _old_name:
+            self._mark_row_changed(row)
 
     def _sc_changed(self, sender, e):
         if sender.SelectedItem is None:
@@ -2449,6 +2603,7 @@ class ExcelCardMixin(object):
             return
         row, rc = tag
         new_sheet = sender.SelectedItem
+        _sheet_changed = (row.Sheet != new_sheet)
         row.Sheet = new_sheet
         rc.Items.Clear()
         for r in row.ranges_for(new_sheet):
@@ -2459,6 +2614,8 @@ class ExcelCardMixin(object):
             if self._should_follow_range(row):
                 self._apply_auto_view_name(row)
         self._auto_check_row(row)
+        if _sheet_changed:
+            self._mark_row_changed(row)
 
     def _should_follow_range(self, row):
         """Whether this row's view name should track its named range.
@@ -2501,10 +2658,13 @@ class ExcelCardMixin(object):
             return
         row = sender.Tag
         if row:
+            _range_changed = (row.NamedRange != sender.SelectedItem)
             row.NamedRange = sender.SelectedItem
             if self._should_follow_range(row):
                 self._apply_auto_view_name(row)
             self._auto_check_row(row)
+            if _range_changed:
+                self._mark_row_changed(row)
 
     def _vt_changed(self, sender, e):
         if sender.SelectedItem is None:
@@ -2533,12 +2693,15 @@ class ExcelCardMixin(object):
         row = sender.Tag
         if not row:
             return
+        _old_scale = row.ViewScale
         try:
             val = int(sender.Text.strip())
             row.ViewScale = val if val > 0 else 1
         except Exception:
             row.ViewScale = 1
         sender.Text = str(row.ViewScale)
+        if row.ViewScale != _old_scale:
+            self._mark_row_changed(row)
         self._save_persisted_state()
 
     def _split_value_enable(self, row, mode):
@@ -2568,6 +2731,7 @@ class ExcelCardMixin(object):
         row = sender.Tag
         if not row:
             return
+        _old_val = getattr(row, 'SplitValue', '')
         text = sender.Text.strip().lower().replace('mm', '').strip()
         try:
             val = float(text)
@@ -2579,6 +2743,8 @@ class ExcelCardMixin(object):
         except Exception:
             row.SplitValue = ''
         sender.Text = row.SplitValue
+        if row.SplitValue != _old_val:
+            self._mark_row_changed(row)
         self._save_persisted_state()
 
     def _parse_excel(self, path):
